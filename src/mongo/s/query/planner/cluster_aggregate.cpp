@@ -150,13 +150,6 @@ Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& 
     req.setWriteConcern(std::move(writeConcern));
     req.setRawData(rawData);
 
-    // If the wire RC has no level, fall back to opCtx so the dispatcher's CWRC-merged RC
-    // reaches the shard. Otherwise keep the wire RC untouched (master semantics).
-    // TODO(SERVER-127620): unconditionally source RC from opCtx once every caller routes RC there.
-    if (!req.getReadConcern() || !req.getReadConcern()->hasLevel()) {
-        req.setReadConcern(repl::ReadConcernArgs::get(expCtx->getOperationContext()));
-    }
-
     aggregation_request_helper::addQuerySettingsToRequest(req, expCtx);
 
     // Pass the queryShapeHash to the shards. We must validate that all participating shards can
@@ -514,7 +507,9 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         search_helpers::checkAndSetViewOnExpCtx(
             expCtx,
             LiteParsedPipeline(
-                *originalRequest, false, LiteParserOptions{.ifrContext = expCtx->getIfrContext()}),
+                *originalRequest,
+                false,
+                LiteParserOptions{.ifrContext = expCtx->getIfrContext(), .opCtx = opCtx}),
             *resolvedView,
             viewName);
 
@@ -935,8 +930,13 @@ Status runAggregateImpl(OperationContext* opCtx,
     // Need to explicitly assign expCtx because lambdas can't capture structured bindings.
     auto status = [&](auto& expCtx) {
         IncludeMetrics remoteMetricsToInclude;
-        remoteMetricsToInclude.setQueryStats(query_stats::shouldRequestRemoteMetrics(
-            CurOp::get(expCtx->getOperationContext())->debug()));
+        // Request per-shard CursorMetrics (docsExamined/bytesRead) either when query stats sampling
+        // needs them, or for change stream cursors, which aggregate these totals in the
+        // AsyncResultsMerger to report the changeStreams.cursor.docsExamined/bytesRead throughput
+        // counters on the router.
+        const auto& aggOpDebug = CurOp::get(expCtx->getOperationContext())->debug();
+        remoteMetricsToInclude.setQueryStats(query_stats::shouldRequestRemoteMetrics(aggOpDebug) ||
+                                             aggOpDebug.isChangeStreamQuery);
         boost::optional<query_shape::QueryShapeHash> queryShapeHash =
             CurOp::get(opCtx)->debug().getQueryShapeHash();
         try {
@@ -1238,6 +1238,7 @@ boost::optional<LiteParsedPipeline> maybeRebuildLiteParsedPipelineForRetry(
     const RetryState& state,
     AggregateCommandRequest& request,
     boost::optional<LiteParsedPipeline> userLPP,
+    OperationContext* opCtx,
     std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
     bool isRetrying = !state.ifrFlagsToDisableOnRetries.empty() || state.resolvedView ||
         !state.preResolvedNamespaces.empty();
@@ -1251,7 +1252,8 @@ boost::optional<LiteParsedPipeline> maybeRebuildLiteParsedPipelineForRetry(
         return userLPP;
     }
 
-    return LiteParsedPipeline(request, false, LiteParserOptions{.ifrContext = ifrContext});
+    return LiteParsedPipeline(
+        request, false, LiteParserOptions{.ifrContext = ifrContext, .opCtx = opCtx});
 }
 
 // Schedules `flag` to be disabled on the next retry iteration and clears any partially-built
@@ -1303,7 +1305,7 @@ void handleViewKickback(
                 foundNewViewEntry = true;
                 auto [insertedIt, _] = state.preResolvedNamespaces.emplace(rn.getNamespace(), rn);
                 insertedIt->second.setLiteParserOptions(std::make_shared<LiteParserOptions>(
-                    LiteParserOptions{.ifrContext = ifrContext}));
+                    LiteParserOptions{.ifrContext = ifrContext, .opCtx = opCtx}));
             } else {
                 // Already had an entry for this namespace; treat as a non-progressing
                 // re-kickback for this entry. Keep the existing entry to preserve any
@@ -1399,9 +1401,9 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
             }
         });
 
-        LiteParsedPipeline liteParsedToUse =
-            maybeRebuildLiteParsedPipelineForRetry(state, currentRequest, userLPP, ifrContext)
-                .value_or(liteParsedPipeline);
+        LiteParsedPipeline liteParsedToUse = maybeRebuildLiteParsedPipelineForRetry(
+                                                 state, currentRequest, userLPP, opCtx, ifrContext)
+                                                 .value_or(liteParsedPipeline);
 
         // Check if we need a CollectionRouter.
         const bool requiresCollectionRouter = needsCollectionRouter(liteParsedToUse, state);
@@ -1477,8 +1479,10 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                 currentRequest.setPipeline(patchedPipeline);
 
                 // Recreate LiteParsedPipeline from the newly patched request.
-                liteParsedToUse = LiteParsedPipeline(
-                    currentRequest, false, LiteParserOptions{.ifrContext = ifrContext});
+                liteParsedToUse =
+                    LiteParsedPipeline(currentRequest,
+                                       false,
+                                       LiteParserOptions{.ifrContext = ifrContext, .opCtx = opCtx});
             }
 
             aggregationStatus = runAggregateImpl(opCtx,

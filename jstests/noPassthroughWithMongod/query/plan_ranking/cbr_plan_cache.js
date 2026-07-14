@@ -2,6 +2,10 @@
  * Establish the multiplanning replanning behavior that we would like to preserve.
  * Verify that CBR is able to choose a plan that gets cached.
  * Verify that CBR is able to be invoked during replanning.
+ *
+ * @tags: [
+ *   requires_fcv_90,
+ * ]
  */
 
 import {
@@ -9,7 +13,7 @@ import {
     getCachedPlanForQuery,
     assertPlanHasIxScanStage,
 } from "jstests/libs/query/analyze_plan.js";
-import {getCBRConfig, setCBRConfig} from "jstests/libs/query/cbr_utils.js";
+import {getPlanRankerConfig, setPlanRankerConfig} from "jstests/libs/query/cbr_utils.js";
 
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
@@ -127,18 +131,15 @@ function runReplanningTest(isMultiplanning) {
     const strategy = assert.commandWorked(
         db.adminCommand({
             getParameter: 1,
-            automaticCEPlanRankingStrategy: 1,
+            internalQueryMixedPlanRankingStrategy: 1,
         }),
-    )["automaticCEPlanRankingStrategy"];
-    // We happen to use CBR to pick the winning plan for 'bIndexQuery' with CBRCostBasedRankerChoice,
-    // and MP with CBRForNoMultiplanningResults.
-    if (isMultiplanning || strategy === "CBRForNoMultiplanningResults") {
+    )["internalQueryMixedPlanRankingStrategy"];
+    // We happen to use CBR to pick the winning plan for 'bIndexQuery' with EstimateRankingEffort,
+    // and MP with NoMultiplanningResults.
+    if (isMultiplanning || strategy === "NoMultiplanningResults") {
         assert.eq(entry.creationExecStats.length, 2); // One for each candidate plan.
         assert.eq(entry.candidatePlanScores.length, 2); // One for each candidate plan.
-    } else if (
-        strategy == "CBRCostBasedRankerChoice" ||
-        strategy === "HistogramCEWithHeuristicFallback"
-    ) {
+    } else if (strategy === "EstimateRankingEffort") {
         // TODO SERVER-116684: Change these assertions.
         assert.eq(entry.creationExecStats.length, 1);
         assert.eq(entry.candidatePlanScores.length, 1);
@@ -195,7 +196,7 @@ function runReplanningTest(isMultiplanning) {
     assert.eq(entry.works, isSbeEnabled ? 20000 : 10000);
 }
 
-const prevCBRConfig = getCBRConfig(db);
+const prevPlanRankerConfig = getPlanRankerConfig(db);
 
 const prevQueryKnobs = assert.commandWorked(
     db.adminCommand({
@@ -222,19 +223,18 @@ try {
     db.adminCommand({
         setParameter: 1,
         featureFlagCostBasedRanker: true,
-        internalQueryCBRCEMode: "automaticCE",
+        internalQueryPlanRanker: "mixed",
+        internalQueryCBRCEMode: "samplingCE",
     });
 
-    const cbrFallbackStrategies = [
-        "CBRForNoMultiplanningResults",
-        "CBRCostBasedRankerChoice",
-        // TODO SERVER-118487: Re-enable this fallback strategy, we pick the plan with index scan on 'a' for 'bIndexQuery'.
-        // "HistogramCEWithHeuristicFallback",
-    ];
+    const cbrFallbackStrategies = ["NoMultiplanningResults", "EstimateRankingEffort"];
 
     for (const cbrFallbackStrategy of cbrFallbackStrategies) {
         jsTest.log.info("Running runInitialCacheTest", {cbrFallbackStrategy});
-        db.adminCommand({setParameter: 1, automaticCEPlanRankingStrategy: cbrFallbackStrategy});
+        db.adminCommand({
+            setParameter: 1,
+            internalQueryMixedPlanRankingStrategy: cbrFallbackStrategy,
+        });
         runInitialCacheTest(false /* isMultiplanning */);
 
         jsTest.log.info("Running replanningTest", {cbrFallbackStrategy});
@@ -243,7 +243,7 @@ try {
 
     // TODO SERVER-116989: Run tests under the non-release CBR configurations (e.g. sampling).
 } finally {
-    setCBRConfig(db, prevCBRConfig);
+    setPlanRankerConfig(db, prevPlanRankerConfig);
 
     assert.commandWorked(
         db.adminCommand({

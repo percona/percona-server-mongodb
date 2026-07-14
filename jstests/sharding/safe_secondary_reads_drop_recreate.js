@@ -485,7 +485,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": ErrorCodes.StaleConfig,
                     },
                     commandProfile,
@@ -500,7 +500,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": {"$ne": ErrorCodes.StaleConfig},
                     },
                     commandProfile,
@@ -555,7 +555,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": ErrorCodes.StaleConfig,
                     },
                     commandProfile,
@@ -570,7 +570,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": {"$ne": ErrorCodes.StaleConfig},
                     },
                     commandProfile,
@@ -640,7 +640,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": ErrorCodes.StaleConfig,
                     },
                     commandProfile,
@@ -655,7 +655,7 @@ let scenarios = {
                     {
                         "command.shardVersion": {"$exists": true},
                         "command.$readPreference": {"mode": "secondary"},
-                        "command.readConcern": {"level": "local"},
+                        "command.readConcern.level": "local",
                         "errCode": {"$ne": ErrorCodes.StaleConfig},
                     },
                     commandProfile,

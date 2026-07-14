@@ -8381,7 +8381,7 @@
 
 ],
 ">>>totals": {"pipelines": 1043, "plans": 10404, "keys": 100120052, "docs": 55565842, "sorts": 69866784, "rows": 38020022, "errors":      0},
-">>>parameters": {"featureFlagCostBasedRanker":{"value":true,"fcv_gated":false,"currentlyEnabled":true},"internalQueryCBRCEMode":"automaticCE","samplingMarginOfError":5,"samplingConfidenceInterval":"95","internalQuerySamplingCEMethod":"chunk","internalQuerySamplingBySequentialScan":false,"internalQuerySamplingByStrides":true,"automaticCEPlanRankingStrategy":"CBRCostBasedRankerChoice"}}
+">>>parameters": {"featureFlagCostBasedRanker":{"value":true,"fcv_gated":false,"currentlyEnabled":true},"internalQueryPlanRanker":"mixed","internalQueryCBRCEMode":"samplingCE","internalQueryMixedPlanRankingStrategy":"EstimateRankingEffort","samplingMarginOfError":5,"samplingConfidenceInterval":"95","internalQuerySamplingCEMethod":"chunk","internalQuerySamplingBySequentialScan":false,"internalQuerySamplingByStrides":true}}
 
 
 [jsTest] ----

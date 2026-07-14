@@ -8,7 +8,9 @@
 #include "mongo/db/query/compiler/optimizer/join/join_method.h"
 #include "mongo/db/query/compiler/optimizer/join/join_predicate.h"
 #include "mongo/db/query/compiler/optimizer/join/logical_defs.h"
+#include "mongo/db/query/lru_key_value.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
+#include "mongo/db/query/partitioned_cache.h"
 #include "mongo/db/query/plan_cache/classic_plan_cache.h"
 #include "mongo/db/service_context.h"
 #include "mongo/db/shard_role/shard_catalog/collection.h"
@@ -39,12 +41,19 @@ struct CachedJoinPlan;
 struct CachedAccessPath {
     const join_ordering::NodeId nodeId;
     std::unique_ptr<const SolutionCacheData> solnCacheData;
+
+    // Heap-allocated bytes owned by this node. The node's own 'sizeof' is accounted for by the
+    // enclosing CachedJoinPlan, so it is deliberately excluded here to avoid double-counting the
+    // inline variant storage.
+    size_t estimateHeapBytes() const;
 };
 
 // Cached extra state for the right-hand side of an INLJ.
 struct CachedInljNode {
     const join_ordering::NodeId nodeId;
     const std::string inljForeignIndexName;
+
+    size_t estimateHeapBytes() const;
 };
 
 // Cached binary join node. Left and right children are owned via unique_ptr to close
@@ -56,11 +65,17 @@ struct CachedJoinNode {
     boost::optional<FieldPath> rightEmbeddingField;
     std::unique_ptr<CachedJoinPlan> left;
     std::unique_ptr<CachedJoinPlan> right;
+
+    size_t estimateHeapBytes() const;
 };
 
 // A node in the cached join tree. Wraps the variant so it can be forward-declared.
 struct CachedJoinPlan {
     std::variant<CachedAccessPath, CachedJoinNode, CachedInljNode> node;
+
+    // Total memory footprint of this subtree, including this node's own sizeof plus the
+    // heap-allocated bytes of the active variant alternative (and, recursively, its children).
+    size_t estimateObjectSizeInBytes() const;
 };
 
 // Live per-Collection version counters, bumped on DDL/sample refresh. Lives as a Collection
@@ -88,7 +103,6 @@ struct CollectionVersionTag {
     bool operator==(const CollectionVersionTag&) const = default;
 };
 
-
 // Captures the state of a collection referenced by a cached join plan: 'uuid' identifies which
 // collection the tag belongs to, and 'versionTag' is a copy of its version counters as they were
 // when the plan was cached.
@@ -101,8 +115,7 @@ struct CollectionTag {
 struct JoinPlanCacheEntry {
     JoinPlanCacheEntry(std::unique_ptr<CachedJoinPlan> joinTree,
                        join_ordering::NodeId baseNode,
-                       std::vector<CollectionTag> collections)
-        : joinTree(std::move(joinTree)), baseNode(baseNode), collections(std::move(collections)) {}
+                       std::vector<CollectionTag> collections);
 
     // Reconstructable plan.
     std::unique_ptr<const CachedJoinPlan> joinTree;
@@ -115,6 +128,10 @@ struct JoinPlanCacheEntry {
     std::vector<CollectionTag> collections;
 
     // TODO: (SERVER-130368) Add relevant index invalidation.
+
+    // Estimated memory footprint of this entry.
+    // Precomputed once at construction as the join tree is immutable.
+    const size_t estimatedEntrySizeBytes;
 };
 
 /*
@@ -130,12 +147,42 @@ std::vector<CollectionTag> makeCollectionTags(const MultipleCollectionAccessor& 
 bool areCollectionTagsCurrent(const std::vector<CollectionTag>& tags,
                               const MultipleCollectionAccessor& mca);
 
+// Functor for estimating the memory footprint of a join plan cache entry.
+struct JoinPlanCacheBudgetEstimator {
+    size_t operator()(const JoinPlanCacheKey& key,
+                      const std::shared_ptr<const JoinPlanCacheEntry>& entry) const {
+        return entry->estimatedEntrySizeBytes + key.size();
+    }
+};
+
+// Maps a key to a partition id. The default Partitioner has no overload for std::string, so a
+// custom functor hashing the key is required.
+struct JoinPlanCacheKeyPartitioner {
+    std::size_t operator()(const JoinPlanCacheKey& key, std::size_t nPartitions) const {
+        return std::hash<JoinPlanCacheKey>{}(key) % nPartitions;
+    }
+};
+
+// The backing store: a budget-based, LRU-evicting PartitionedCache. The mapped type is a
+// shared_ptr so lookups can hand out a stable reference-counted copy of the immutable entry, and
+// the cache copies the pointer rather than the entry. KeyHasher/Eq default to those for
+// std::string.
+using JoinPlanCacheStore = PartitionedCache<JoinPlanCacheKey,
+                                            std::shared_ptr<const JoinPlanCacheEntry>,
+                                            JoinPlanCacheBudgetEstimator,
+                                            JoinPlanCacheKeyPartitioner,
+                                            NoopInsertionEvictionListener>;
+
 /**
  * Global cache for join plans, keyed on a normalized join graph shape string. The cache is
- * registered as a ServiceContext decoration.
+ * registered as a ServiceContext decoration. The underlying PartitionedCache is internally
+ * synchronized per-partition, so no external locking is required.
  */
 class JoinPlanCache {
 public:
+    explicit JoinPlanCache(size_t cacheSizeBytes, size_t numPartitions)
+        : _cache(cacheSizeBytes, numPartitions) {}
+
     /*
      * Current tags for the collection state, updated on DDLs and sample refresh. See
      * CollectionVersionTag's field comments for per-field synchronization guarantees.
@@ -149,22 +196,31 @@ public:
     std::shared_ptr<const JoinPlanCacheEntry> lookup(const JoinPlanCacheKey& key) const;
 
     /*
-     * Inserts or replaces the entry for 'key'. Assumes entry is non-null.
+     * Inserts or replaces the entry for 'key'. Assumes entry is non-null. Returns the number of
+     * older entries evicted to fit this one within the cache's memory budget.
      */
-    void put(JoinPlanCacheKey key, std::unique_ptr<JoinPlanCacheEntry> entry);
+    size_t put(JoinPlanCacheKey key, std::unique_ptr<JoinPlanCacheEntry> entry);
 
     /*
      * Removes the entry for 'key' if it exists.
      */
     void remove(const JoinPlanCacheKey& key);
 
+    /*
+     * Resets the total memory budget, evicting least-recently-used entries as needed to fit.
+     * Returns the number of entries evicted.
+     */
+    size_t reset(size_t cacheSizeBytes);
+
+    /*
+     * Returns the current total memory footprint (in bytes) of all cached entries.
+     */
+    size_t size() const;
+
     static JoinPlanCache& get(ServiceContext* svc);
 
 private:
-    // Guards concurrent access to _cache. Shared lock for lookups; exclusive lock for mutations.
-    mutable RWMutex _mutex;
-    // TODO SERVER-129265: replace with LRUKeyValue + proper memory accounting.
-    StringMap<std::shared_ptr<JoinPlanCacheEntry>> _cache;
+    JoinPlanCacheStore _cache;
 };
 
 }  // namespace mongo

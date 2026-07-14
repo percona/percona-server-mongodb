@@ -12,6 +12,7 @@
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
+#include "mongo/db/router_role/cluster_commands_helpers.h"
 #include "mongo/db/stats/counters.h"
 #include "mongo/s/query/planner/cluster_aggregate.h"
 #include "mongo/util/modules.h"
@@ -65,10 +66,11 @@ public:
               _extensionMetrics(static_cast<const ClusterAggregateCommandBase*>(cmd)
                                     ->getExtensionMetricsAllocation()),
               _ifrContext(IncrementalFeatureRolloutContext::get(opCtx)),
-              _liteParsedPipeline(
-                  request(),
-                  false /* isRunningAgainstView_ForHybridSearch */,
-                  {.ifrContext = _ifrContext, .extensionMetrics = &_extensionMetrics}),
+              _liteParsedPipeline(request(),
+                                  false /* isRunningAgainstView_ForHybridSearch */,
+                                  {.ifrContext = _ifrContext,
+                                   .opCtx = opCtx,
+                                   .extensionMetrics = &_extensionMetrics}),
               _privileges(uassertStatusOK(
                   auth::getPrivilegesForAggregate(opCtx,
                                                   AuthorizationSession::get(opCtx->getClient()),
@@ -108,6 +110,8 @@ public:
                 aggregation_request_helper::updateOpDescriptionForLog(
                     opCtx, unparsedRequest().body, *pipelineForLog);
             }
+
+            setReadWriteConcern(opCtx, request(), true /* setRC */, !verbosity /* setWC */);
 
             const auto& nss = ns();
             uassertStatusOK(ClusterAggregate::runAggregate(opCtx,
