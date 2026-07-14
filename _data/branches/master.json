@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 84,
-    "days_behind": 2,
-    "unmerged_oldest_age_days": 2.8907875690625002,
-    "files_affected": 1267,
-    "total_additions": 17748,
-    "total_deletions": 39984,
+    "commits_behind": 92,
+    "days_behind": 3,
+    "unmerged_oldest_age_days": 3.2558801211805553,
+    "files_affected": 1277,
+    "total_additions": 17958,
+    "total_deletions": 40183,
     "date_range": {
       "first": "2026-07-11T00:36:31+00:00",
-      "last": "2026-07-13T20:55:20+00:00"
+      "last": "2026-07-14T02:02:40+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "13df6fadb1b1e506c7499292da63ec1f43e39f77",
+      "short_sha": "13df6fadb1b",
+      "date": "2026-07-13T22:02:40-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-130641 Add batched oplog format for container writes (#57956)"
+    },
+    {
+      "sha": "c09cc709f583bb99c91828b6f662b54b3354ac04",
+      "short_sha": "c09cc709f58",
+      "date": "2026-07-13T20:36:22-04:00",
+      "author": {
+        "name": "Kaitlin Mahar",
+        "email": "kaitlin.mahar@mongodb.com"
+      },
+      "summary": "SERVER-131137 Add storage engine API for setting stepdown timestamp (#58299)"
+    },
+    {
+      "sha": "dff99a4a74ac3d05693c27e9d2f9c14acff9bada",
+      "short_sha": "dff99a4a74a",
+      "date": "2026-07-14T00:05:11+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130981 Test allowPartialResults expected behavior in agg key and query shape (#58386)\" (#58443)"
+    },
+    {
+      "sha": "f7c340559b6f7009f63a1927624b3eb99b8b42e2",
+      "short_sha": "f7c340559b6",
+      "date": "2026-07-13T19:54:07-04:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-130906: handoff listener retry backoff (#58191)"
+    },
+    {
+      "sha": "3bf9251141829be305dd3482f5d51ede4a9a3a84",
+      "short_sha": "3bf92511418",
+      "date": "2026-07-13T19:50:48-04:00",
+      "author": {
+        "name": "Andrew Wang",
+        "email": "andrew.wang@mongodb.com"
+      },
+      "summary": "SERVER-130126 Implement quiesce mode for DSC (#57738)"
+    },
+    {
+      "sha": "152c5d3525e46c4520395a59e3ebfca85050d489",
+      "short_sha": "152c5d3525e",
+      "date": "2026-07-13T23:14:03+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130312: Start spans for egress commands (#58371)\" (#58439)"
+    },
+    {
+      "sha": "f776a2f155968e5a28b20685f717532676927b01",
+      "short_sha": "f776a2f1559",
+      "date": "2026-07-13T22:41:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-127074 Reject splitVector on timeseries collections and add test coverage (#58046)\" (#58435)"
+    },
+    {
+      "sha": "ca70f1b282aa2879fcee2264702d45ba0dbb780e",
+      "short_sha": "ca70f1b282a",
+      "date": "2026-07-13T18:20:33-04:00",
+      "author": {
+        "name": "Mickey J Winters",
+        "email": "314083+mjrb@users.noreply.github.com"
+      },
+      "summary": "SERVER-131285 Make currentop_query.js truncation subtest robust to truncated getMore command (#58420)"
+    },
     {
       "sha": "d6b634466da5edcb86290a9783c28d88884a22ea",
       "short_sha": "d6b634466da",
@@ -931,6 +1011,27 @@
     },
     {
       "commit": {
+        "sha": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+        "short_sha": "fa51be8344c",
+        "date": "2026-07-13T12:00:11+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: cc9a4209de6864482c4413ac11a39d99bed6233a from branch mongodb-master (#58320)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-fa51be8344c/main",
+          "mongodb",
+          "v9.0"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "40a2787a5b84f8f1e3eda896f0008f4c70be800f",
         "short_sha": "40a2787a5b8",
         "date": "2026-07-13T10:57:49+02:00",
@@ -1038,10 +1139,29 @@
           "num_of_dirs": 21
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "c09cc709f583bb99c91828b6f662b54b3354ac04",
+        "short_sha": "c09cc709f58",
+        "date": "2026-07-13T20:36:22-04:00",
+        "author": {
+          "name": "Kaitlin Mahar",
+          "email": "kaitlin.mahar@mongodb.com"
+        },
+        "summary": "SERVER-131137 Add storage engine API for setting stepdown timestamp (#58299)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/storage_engine.h",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-13 21:59:11",
+  "generated_at": "2026-07-14 06:44:55",
   "branch_name": "master",
   "display_name": "master"
 }
