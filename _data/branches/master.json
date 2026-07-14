@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 44,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.9724719042939814,
-    "files_affected": 241,
-    "total_additions": 7203,
-    "total_deletions": 3572,
+    "commits_behind": 61,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.153730952511574,
+    "files_affected": 294,
+    "total_additions": 9679,
+    "total_deletions": 4338,
     "date_range": {
       "first": "2026-07-13T19:00:13+00:00",
-      "last": "2026-07-14T17:39:59+00:00"
+      "last": "2026-07-14T21:33:34+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,176 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "4c552a599b4555208661a4c1560287dcc42c3a0d",
+      "short_sha": "4c552a599b4",
+      "date": "2026-07-14T14:33:34-07:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-130981 Test allowPartialResults expected behavior in agg key and query shape (#58539)"
+    },
+    {
+      "sha": "02b6d72fd82b31a28ac7335b3dfce0e5037c8ad4",
+      "short_sha": "02b6d72fd82",
+      "date": "2026-07-14T17:20:08-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-131265 Inline listCollections filters in validate_collections.js (#58404)"
+    },
+    {
+      "sha": "812310a3dc89dc6b2efb32a2131070a8148a52c3",
+      "short_sha": "812310a3dc8",
+      "date": "2026-07-14T16:59:30-04:00",
+      "author": {
+        "name": "Sarah Kelley",
+        "email": "sarah.kelley@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-129183 Test retryable write idempotency, oplog shape, and secondary apply during primary-driven index build (#56161)\" (#58480)"
+    },
+    {
+      "sha": "fe2c0a5ffc65b49bc248168441a979128883a5bf",
+      "short_sha": "fe2c0a5ffc6",
+      "date": "2026-07-14T16:38:08-04:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-131204: Update codeowners for container_oplog_entry* (#58495)"
+    },
+    {
+      "sha": "1abac6416e093a00acb2629493a4728718d901e1",
+      "short_sha": "1abac6416e0",
+      "date": "2026-07-14T16:37:10-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-129410: Coverity Quality Issue 206240: Dereference after null check (#58430)"
+    },
+    {
+      "sha": "5aa928bf4199d014a7dda1eae52f431435a94b42",
+      "short_sha": "5aa928bf419",
+      "date": "2026-07-14T16:09:09-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-130636 Add with_mongot_extension_hybridSearch_disabled suites (#58235)"
+    },
+    {
+      "sha": "691fd171be6226495f6af376ee1a8a922eda09d9",
+      "short_sha": "691fd171be6",
+      "date": "2026-07-14T16:04:38-04:00",
+      "author": {
+        "name": "Pavi Vetriselvan",
+        "email": "pavithra.vetriselvan@mongodb.com"
+      },
+      "summary": "SERVER-123321 Remove TODO around term handling in replication response (#58553)"
+    },
+    {
+      "sha": "ad88d3945d7ec5a330500e2ced3677e5896fe2b9",
+      "short_sha": "ad88d3945d7",
+      "date": "2026-07-14T15:29:18-04:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-131338: Refactor resmoke.bzl to anticipate custom py_binary (#58506)"
+    },
+    {
+      "sha": "4c31fa728a67c4e1bf191bed5ea7619f91883817",
+      "short_sha": "4c31fa728a6",
+      "date": "2026-07-14T15:09:11-04:00",
+      "author": {
+        "name": "Cole Harbeck",
+        "email": "cole.harbeck@mongodb.com"
+      },
+      "summary": "SERVER-123140 Replace the NetworkInterfaceThreadPool with a dedicated thread pool for scheduleCursorCleanup (#58413)"
+    },
+    {
+      "sha": "f3f88dc980cd5b62ed81c60ed20a496a6c0086ce",
+      "short_sha": "f3f88dc980c",
+      "date": "2026-07-14T14:51:11-04:00",
+      "author": {
+        "name": "sdgoodrick",
+        "email": "sam.goodrick@mongodb.com"
+      },
+      "summary": "SERVER-120483: Add WiredTiger OpenTelemetry metrics (#57339)"
+    },
+    {
+      "sha": "460d330c9b83d4d59fe3b7fb2d38f999670816e8",
+      "short_sha": "460d330c9b8",
+      "date": "2026-07-14T21:49:34+03:00",
+      "author": {
+        "name": "Timour Katchaounov",
+        "email": "34627040+timourk@users.noreply.github.com"
+      },
+      "summary": "SERVER-130761 Refactor explain for more reuse for V3 (#58351)"
+    },
+    {
+      "sha": "311d80c5673fe6092d113eee2d4e1000c3cc9f50",
+      "short_sha": "311d80c5673",
+      "date": "2026-07-14T14:47:16-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-131199: Prefer wire IFR flags over a lazily-materialized default context (#58421)"
+    },
+    {
+      "sha": "51af2797c32a6474ffb704a3a747db82310eeaa8",
+      "short_sha": "51af2797c32",
+      "date": "2026-07-14T13:44:56-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-131291: fix optional plugin s3 download (#58428)"
+    },
+    {
+      "sha": "19a7dfe09834f83d72c1228cb3d8cf6b10510032",
+      "short_sha": "19a7dfe0983",
+      "date": "2026-07-14T18:20:01+00:00",
+      "author": {
+        "name": "Guillaume Racicot",
+        "email": "guillaume.racicot@mongodb.com"
+      },
+      "summary": "SERVER-125742 Remove the graceful exit for kernel version 7.0.14 and above (#58113)"
+    },
+    {
+      "sha": "9082c7de227a23b69dfcc4d25ff50c7eefa10ca0",
+      "short_sha": "9082c7de227",
+      "date": "2026-07-14T14:10:10-04:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-130612 BufBuilder checks max size on initial allocation (#57793)"
+    },
+    {
+      "sha": "5b44664b49ce5c345dbd6030f98057f4ce281fd4",
+      "short_sha": "5b44664b49c",
+      "date": "2026-07-14T10:50:11-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-131378 Remove UBI8 as it is no longer a valid distro (#58542)"
+    },
+    {
+      "sha": "1e1fee973675c0cfa21bdd49c61b42e970c5735d",
+      "short_sha": "1e1fee97367",
+      "date": "2026-07-14T17:46:03+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-111072 Auto-generated SBOM files [master] (#56992)"
+    },
     {
       "sha": "b2edadb21d86da1ae4b27a3eabc695fd21cf3b83",
       "short_sha": "b2edadb21d8",
@@ -560,10 +730,29 @@
           "buildscripts/resmokelib/testing/fixtures/replicaset.py"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "f3f88dc980cd5b62ed81c60ed20a496a6c0086ce",
+        "short_sha": "f3f88dc980c",
+        "date": "2026-07-14T14:51:11-04:00",
+        "author": {
+          "name": "sdgoodrick",
+          "email": "sam.goodrick@mongodb.com"
+        },
+        "summary": "SERVER-120483: Add WiredTiger OpenTelemetry metrics (#57339)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-14 18:20:31",
+  "generated_at": "2026-07-14 22:41:33",
   "branch_name": "master",
   "display_name": "master"
 }
