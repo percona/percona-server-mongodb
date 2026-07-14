@@ -63,7 +63,7 @@ constexpr std::string_view kByteOffset = "byteOffset"sv;
 
 REGISTER_LITE_PARSED_DOCUMENT_SOURCE(_backupFile,
                                      DocumentSourceBackupFile::LiteParsed::parse,
-                                     AllowedWithApiStrict::kAlways);
+                                     AllowedWithApiStrict::kInternal);
 
 REGISTER_DOCUMENT_SOURCE_WITH_STAGE_PARAMS_DEFAULT(_backupFile,
                                                    DocumentSourceBackupFile,
