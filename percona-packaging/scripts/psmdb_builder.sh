@@ -57,7 +57,7 @@ parse_arguments() {
             --build_deb=*) DEB="$val" ;;
             --get_sources=*) SOURCE="$val" ;;
             --build_tarball=*) TARBALL="$val" ;;
-            --branch=*) BRANCH="$val" ;;
+            --branch=*) BRANCH="${val:-$BRANCH}" ;;
             --repo=*) REPO="$val" ;;
             --install_deps=*) INSTALL="$val" ;;
             --psm_ver=*) PSM_VER="$val" ;;
@@ -159,14 +159,9 @@ get_sources(){
     echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-70.properties
     echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-70.properties
     echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-70.properties
-    git clone "$REPO" || abort '`git clone` failed, try again'
+    git clone --depth 1 --branch "$BRANCH" --recurse-submodules --shallow-submodules "$REPO" \
+        || abort "failed to clone the \`$REPO\` repository, try again"
     cd percona-server-mongodb
-    if [ ! -z "$BRANCH" ]
-    then
-        git reset --hard
-        git clean -xdf
-        git checkout "$BRANCH"
-    fi
 
     REVISION=$(git rev-parse --short HEAD)
     # create a proper version.json
@@ -188,14 +183,11 @@ get_sources(){
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
-    #
-    # submodules
-    git submodule init
-    git submodule update
-    #
-    git clone https://github.com/mongodb/mongo-tools.git
+
+    local MONGO_TOOLS_REPO="https://github.com/mongodb/mongo-tools.git";
+    git clone --depth 1 --branch "$MONGO_TOOLS_TAG" --recurse-submodules --shallow-submodules "$MONGO_TOOLS_REPO" \
+        || abort "failed to clone the \`$MONGO_TOOLS_REPO\` repository, try again"
     cd mongo-tools
-    git checkout $MONGO_TOOLS_TAG
     sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
     sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
     echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
