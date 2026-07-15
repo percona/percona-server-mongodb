@@ -334,13 +334,9 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             # want to skip reconfiguring the replset (which adds the other nodes
             # to the auto-bootstrapped replset).
             self.logger.info("Configuration exists. Skipping initializing the replset.")
-<<<<<<< HEAD
             self._await_mongot_community()
-            self.removeshard_teardown_marker = False
-||||||| 60633dbc4fb
-=======
             self._await_all_mongots_ready()
->>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1
+            self.removeshard_teardown_marker = False
             return
 
         if self.write_concern_majority_journal_default is not None:
@@ -415,16 +411,12 @@ class ReplicaSetFixture(interface.ReplFixture, interface._DockerComposeInterface
             for ind in range(2, len(members) + 1):
                 self._add_node_to_repl_set(client, repl_config, ind, members)
 
-<<<<<<< HEAD
         self._await_mongot_community()
 
-||||||| 60633dbc4fb
-=======
         # The replica set is initiated and has a primary; per-node mongot lease startup now has a
         # valid replication source. Await mongot readiness on each node that launched one.
         self._await_all_mongots_ready()
 
->>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1
         self.removeshard_teardown_marker = False
 
     def _await_mongot_community(self):
