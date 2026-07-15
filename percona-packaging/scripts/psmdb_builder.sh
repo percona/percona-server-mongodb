@@ -401,8 +401,9 @@ install_deps() {
        sed -i 's|#\s*baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
       fi
       yum -y update
-      yum -y install wget sudo tar
-      yum -y install perl
+      # Note. The `util-linux` package provides the `uuidgen` utility,
+      # which is used in `generate_release_sbom` alongside `jq`.
+      yum -y install wget sudo tar perl jq util-linux
       install_mongodbtoolchain
       if [ x"$ARCH" = "xx86_64" ]; then
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
@@ -494,6 +495,10 @@ install_deps() {
       fi
       INSTALL_LIST="${INSTALL_LIST} git valgrind scons liblz4-dev devscripts debhelper debconf libpcap-dev libbz2-dev libsnappy-dev pkg-config zlib1g-dev libzlcore-dev libsasl2-dev gcc g++ cmake curl"
       INSTALL_LIST="${INSTALL_LIST} libssl-dev libcurl4-openssl-dev libldap2-dev libkrb5-dev liblzma-dev patchelf libexpat1-dev sudo libfile-copy-recursive-perl"
+
+      # `jq` and `uuid-runtime` are needed by `generate_release_sbom`
+      INSTALL_LIST="${INSTALL_LIST} jq uuid-runtime"
+
       until apt-get -y install dirmngr; do
         sleep 1
         echo "waiting"
