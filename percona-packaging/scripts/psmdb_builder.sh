@@ -28,7 +28,6 @@ Usage: $0 [OPTIONS]
         --psm_release       PSM_RELEASE(mandatory)
         --mongo_tools_tag   MONGO_TOOLS_TAG(mandatory)
         --special_targets   Special targets for tests
-        --jenkins_mode      If it is set it means that this script is used on jenkins infrastructure
         --debug             build debug tarball
         --help) usage ;;
 Example $0 --builddir=/tmp/PSMDB --get_sources=1 --build_src_rpm=1 --build_rpm=1
@@ -64,7 +63,6 @@ parse_arguments() {
             --psm_ver=*) PSM_VER="$val" ;;
             --psm_release=*) PSM_RELEASE="$val" ;;
             --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
-            --jenkins_mode=*) JENKINS_MODE="$val" ;;
             --debug=*) DEBUG="$val" ;;
             --special_targets=*) SPECIAL_TAR="$val" ;;
             --help) usage ;;
@@ -173,14 +171,6 @@ get_sources(){
     REVISION=$(git rev-parse --short HEAD)
     # create a proper version.json
     REVISION_LONG=$(git rev-parse HEAD)
-
-    if [ -n "${JENKINS_MODE}" ]; then
-        git remote add upstream https://github.com/mongodb/mongo.git
-        git fetch upstream --tags
-
-        PSM_VER=$(git describe --tags --abbrev=0 | sed 's/^psmdb-//' | sed 's/^r//' | awk -F '-' '{if ($2 ~ /^rc/) {print $0} else {print $1}}')
-        MONGO_TOOLS_TAG="r${PSM_VER}"
-    fi
 
     echo "{" > version.json
     echo "    \"version\": \"${PSM_VER}-${PSM_RELEASE}\"," >> version.json
