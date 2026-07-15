@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 31,
+    "commits_behind": 42,
     "days_behind": 0,
-    "unmerged_oldest_age_days": 0.5166231403703704,
-    "files_affected": 124,
-    "total_additions": 3355,
-    "total_deletions": 2908,
+    "unmerged_oldest_age_days": 0.605576554212963,
+    "files_affected": 472,
+    "total_additions": 3952,
+    "total_deletions": 3208,
     "date_range": {
       "first": "2026-07-15T03:55:32+00:00",
-      "last": "2026-07-15T15:23:09+00:00"
+      "last": "2026-07-15T17:34:03+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,116 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "ad84999c41b73a7a548bdc30ac3772cc4d463525",
+      "short_sha": "ad84999c41b",
+      "date": "2026-07-15T13:34:03-04:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-130128 Add more test exercising deferred xferMods behavior in chunk migration (#58210)"
+    },
+    {
+      "sha": "44c12a41a405543d7d5b8866121e52065060c009",
+      "short_sha": "44c12a41a40",
+      "date": "2026-07-15T10:30:35-07:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-131294 Pass ARS strong reference to callbacks (#58600)"
+    },
+    {
+      "sha": "25fc9cefb744282e81149db37ad1232452b352c2",
+      "short_sha": "25fc9cefb74",
+      "date": "2026-07-15T13:17:09-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-131271 Re-dispatch $searchBeta as $search (#58630)"
+    },
+    {
+      "sha": "07c8efabdc59eecd161ac640190a6bc14a12cf23",
+      "short_sha": "07c8efabdc5",
+      "date": "2026-07-15T13:16:13-04:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-131351 Add new core passthrough suite for explain V3 format (#58548)"
+    },
+    {
+      "sha": "da3160f3bfbbde35f477a352b87b1dad994ad06d",
+      "short_sha": "da3160f3bfb",
+      "date": "2026-07-15T13:15:26-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-131468 Increase reshardingDocumentValidationMaxCollectionSizeBytes to 100GB (#58657)"
+    },
+    {
+      "sha": "89e9186def6156a0d23258d6971bc865e3cff5d2",
+      "short_sha": "89e9186def6",
+      "date": "2026-07-15T13:05:14-04:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-122777 Disable $bit* expressions in SBE by default and add knob to limit their memory use (#58171)"
+    },
+    {
+      "sha": "072f406de1f12065bfbfd8cabe471903c53ac1b1",
+      "short_sha": "072f406de1f",
+      "date": "2026-07-15T09:57:25-07:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-131433: Set heartbeatIntervalMillis below electionTimeoutMillis in Antithesis fixture config (#58601)"
+    },
+    {
+      "sha": "974c60524105b958aca048d8566a83fc5eed8d37",
+      "short_sha": "974c6052410",
+      "date": "2026-07-15T12:37:58-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-131042 Enable metadata consistency check in setfcv_aborts_reshard_collection.js (#58294)"
+    },
+    {
+      "sha": "21a2b376462e373c901442fba0b2b589603e0b44",
+      "short_sha": "21a2b376462",
+      "date": "2026-07-15T12:15:21-04:00",
+      "author": {
+        "name": "Sarah Kelley",
+        "email": "sarah.kelley@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-124340: Use random sampling as default for persistent stats read and write path (#56834)\" (#58637)"
+    },
+    {
+      "sha": "7a60cf6fd404789bc73c6c92023d397f70cb4a31",
+      "short_sha": "7a60cf6fd40",
+      "date": "2026-07-15T17:02:23+01:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-129443 Revert incorrect vector::reserve() in planner_ixselect.cpp (#58339)"
+    },
+    {
+      "sha": "600c1fcdb1057a38bdcab65b3fbb2b7603f33f90",
+      "short_sha": "600c1fcdb10",
+      "date": "2026-07-15T15:52:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-131287 Migrate unionWith/lookup mocked tests to e2e suites (#58448)\" (#58656)"
+    },
     {
       "sha": "3721d5af6cd81c38badc165948bb05a4640a3a88",
       "short_sha": "3721d5af6cd",
@@ -371,10 +481,33 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "07c8efabdc59eecd161ac640190a6bc14a12cf23",
+        "short_sha": "07c8efabdc5",
+        "date": "2026-07-15T13:16:13-04:00",
+        "author": {
+          "name": "Nick Zolnierz",
+          "email": "nicholas.zolnierz@mongodb.com"
+        },
+        "summary": "SERVER-131351 Add new core passthrough suite for explain V3 format (#58548)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 328,
+          "num_of_lines": 471,
+          "lines_added": 468,
+          "lines_deleted": 3,
+          "num_of_dirs": 52
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-15 16:19:25",
+  "generated_at": "2026-07-15 18:27:31",
   "branch_name": "master",
   "display_name": "master"
 }
