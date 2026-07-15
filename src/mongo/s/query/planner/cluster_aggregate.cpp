@@ -602,6 +602,7 @@ Status _parseQueryStatsAndReturnEmptyResult(
     boost::optional<AggregateCommandRequest> originalRequest,
     boost::optional<ExplainOptions::Verbosity> verbosity,
     BSONObjBuilder* result,
+    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext = nullptr,
     bool alreadyDesugared = false,
     ResolvedNamespaceMap preResolvedNamespaces = {}) {
 
@@ -650,7 +651,7 @@ Status _parseQueryStatsAndReturnEmptyResult(
                                                originalRequest,
                                                verbosity,
                                                alreadyDesugared,
-                                               nullptr /* ifrContext */,
+                                               std::move(ifrContext),
                                                std::move(preResolvedNamespaces));
 
         pipeline->validateCommon(false);
@@ -710,6 +711,7 @@ Status runAggregateImpl(OperationContext* opCtx,
                 originalRequest,
                 verbosity,
                 res,
+                ifrContext,
                 alreadyDesugared,
                 std::move(preResolvedNamespaces));
         }
@@ -1284,6 +1286,10 @@ void handleViewKickback(
         opCtx,
         "hangBeforeRetryingAggregateAfterViewKickback");
 
+    tassert(12941000,
+            "Expected a non-null IncrementalFeatureRolloutContext when handling a view kickback",
+            ifrContext);
+
     if (auto txnRouter = TransactionRouter::get(opCtx)) {
         txnRouter.onViewResolutionError(opCtx, requestedNss);
     }
@@ -1294,7 +1300,7 @@ void handleViewKickback(
     // resolution information.
     // TODO SERVER-121094 Remove when feature flag is removed.
     auto kickedBackView = ex.extraInfo<ResolvedNamespace>();
-    const bool hybridSearchFlagEnabled = ifrContext &&
+    const bool hybridSearchFlagEnabled =
         ifrContext->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
 
     bool foundNewViewEntry = false;
@@ -1592,6 +1598,7 @@ Status ClusterAggregate::runAggregate(OperationContext* opCtx,
                                                         state.originalRequest,
                                                         verbosity,
                                                         result,
+                                                        ifrContext,
                                                         state.alreadyDesugared,
                                                         state.preResolvedNamespaces);
         }

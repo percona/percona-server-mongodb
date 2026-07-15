@@ -433,6 +433,7 @@ let testCases = {
     waitForFailPoint: {skip: "does not return user data"},
     getShardingReady: {skip: "does not return user data"},
     whatsmyuri: {skip: "does not return user data"},
+    wiredTigerRepair: {skip: "does not return user data"},
 
     // Percona commands
     auditGetOptions: {skip: "does not return user data"},

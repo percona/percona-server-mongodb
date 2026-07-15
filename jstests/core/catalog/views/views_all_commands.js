@@ -865,6 +865,7 @@ let viewsCommandTests = {
     getShardingReady: {skip: isAnInternalCommand},
     whatsmyuri: {skip: isUnrelated},
     whatsmysni: {skip: isUnrelated},
+    wiredTigerRepair: {skip: isAnInternalCommand},
 
     // Percona commands
     auditGetOptions: {skip: isUnrelated},

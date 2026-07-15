@@ -820,6 +820,14 @@ Timestamp StorageEngineImpl::getStableTimestamp() const {
     return _engine->getStableTimestamp();
 }
 
+void StorageEngineImpl::setStepDownTimestamp(Timestamp stepDownTimestamp) {
+    _engine->setStepDownTimestamp(stepDownTimestamp);
+}
+
+Timestamp StorageEngineImpl::getStepDownTimestamp() const {
+    return _engine->getStepDownTimestamp();
+}
+
 void StorageEngineImpl::setInitialDataTimestamp(Timestamp initialDataTimestamp) {
     _engine->setInitialDataTimestamp(initialDataTimestamp);
 }
@@ -1294,6 +1302,14 @@ void StorageEngineImpl::dump() const {
 
 Status StorageEngineImpl::autoCompact(RecoveryUnit& ru, const AutoCompactOptions& options) {
     return _engine->autoCompact(ru, options);
+}
+
+StatusWith<std::string> StorageEngineImpl::wiredTigerRepair(const std::string& config) {
+    return _engine->wiredTigerRepair(config);
+}
+
+Status StorageEngineImpl::fixDatabaseSize() {
+    return _engine->fixDatabaseSize();
 }
 
 namespace {

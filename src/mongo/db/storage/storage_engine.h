@@ -732,6 +732,19 @@ public:
     virtual Timestamp getInitialDataTimestamp() const = 0;
 
     /**
+     * Sets the cutover timestamp for a planned step-down of disaggregated storage. Only valid on a
+     * disaggregated leader that does not already have a step-down timestamp set; violating either
+     * precondition is fatal.
+     */
+    virtual void setStepDownTimestamp(Timestamp stepDownTimestamp) = 0;
+
+    /**
+     * Returns the step-down (cutover) timestamp last set via setStepDownTimestamp(), or a null
+     * timestamp if none has been set.
+     */
+    virtual Timestamp getStepDownTimestamp() const = 0;
+
+    /**
      * Sets the oldest timestamp for which the storage engine must maintain snapshot history
      * through. Additionally, all future writes must be newer or equal to this value.
      */
@@ -1000,6 +1013,24 @@ public:
      * the files available and runs compaction if they are eligible.
      */
     virtual Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) = 0;
+
+    /**
+     * Runs WiredTiger's runtime repair interface (wiredtiger_repair()) and returns its diagnostic
+     * report. Caller must hold a global lock so the storage engine can't shut down mid-operation.
+     */
+    virtual StatusWith<std::string> wiredTigerRepair(const std::string& config) {
+        return {ErrorCodes::CommandNotSupported,
+                "The current storage engine does not support wiredTigerRepair"};
+    }
+
+    /**
+     * Recomputes and persists the disaggregated database size via a checkpoint. Requires a
+     * disaggregated leader connection.
+     */
+    virtual Status fixDatabaseSize() {
+        return {ErrorCodes::CommandNotSupported,
+                "The current storage engine does not support fixDatabaseSize"};
+    }
 
     /**
      * Pauses (pause=true) or resumes (pause=false) background auto-compaction for a replica set
