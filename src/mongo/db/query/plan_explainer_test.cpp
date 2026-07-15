@@ -11,6 +11,7 @@
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/explain_common.h"
 #include "mongo/db/query/explain_diagnostic_printer.h"
+#include "mongo/db/query/explain_policy.h"
 #include "mongo/db/query/get_executor.h"
 #include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/plan_executor_factory.h"
@@ -206,13 +207,14 @@ TEST_F(PlanExplainerTest, GetReportedVersionReflectsV3Verbosities) {
     auto exec = buildFindExecAndIter(fromjson("{c: {$eq: 1}}"));
     auto& explainer = exec->getPlanExplainer();
 
-    // For legacy verbosities, the reported version matches the engine-determined getVersion().
-    const PlanExplainer::ExplainVersion engineVersion = explainer.getVersion();
+    // For legacy verbosities, the reported version matches the engine-determined version.
+    const PlanExplainer::ExplainVersion engineVersion =
+        explainer.getVersion(ExplainOptions::Verbosity::kQueryPlanner);
     for (auto verbosity : {ExplainOptions::Verbosity::kQueryPlanner,
                            ExplainOptions::Verbosity::kExecStats,
                            ExplainOptions::Verbosity::kExecAllPlans,
                            ExplainOptions::Verbosity::kInternal}) {
-        ASSERT_EQ(explainer.getVerbosityVersion(verbosity), engineVersion);
+        ASSERT_EQ(explainer.getVersion(verbosity), engineVersion);
     }
 
     // For the V3 verbosity modes, the reported version is "3" regardless of the engine.
@@ -220,7 +222,7 @@ TEST_F(PlanExplainerTest, GetReportedVersionReflectsV3Verbosities) {
                            ExplainOptions::Verbosity::kPlannerChoice,
                            ExplainOptions::Verbosity::kPlannerStats,
                            ExplainOptions::Verbosity::kExecStatsV3}) {
-        ASSERT_EQ(explainer.getVerbosityVersion(verbosity), "3");
+        ASSERT_EQ(explainer.getVersion(verbosity), "3");
     }
 }
 
@@ -277,6 +279,64 @@ TEST_F(PlanExplainerTest, ClassicMultiPlannerExplain) {
         explainer.getWinningPlanStats(ExplainOptions::Verbosity::kQueryPlanner);
     ASSERT_STRING_CONTAINS(winningPlan.toString(), "IXSCAN");
     ASSERT(!winningPlan.hasField("slotBasedPlan"));
+}
+
+TEST_F(PlanExplainerTest, GetPlanEntriesSingleSolution) {
+    // A single-solution (COLLSCAN) query yields exactly one plan entry, flagged as the winner.
+    auto exec = buildFindExecAndIter(fromjson("{c: {$eq: 1}}"));
+    auto& explainer = exec->getPlanExplainer();
+
+    ASSERT(!explainer.areThereRejectedPlansToExplain());
+    auto entries =
+        explainer.getPlanEntries(explainPolicyFor(ExplainOptions::Verbosity::kQueryPlanner));
+    ASSERT_EQ(entries.size(), 1u);
+    ASSERT(entries[0].isWinner);
+    ASSERT_STRING_CONTAINS(entries[0].planStatsTree.toString(), "COLLSCAN");
+    // No execution stats are requested at queryPlanner verbosity.
+    ASSERT_FALSE(entries[0].summary.has_value());
+}
+
+TEST_F(PlanExplainerTest, GetPlanEntriesMultiPlanner) {
+    // A multi-planned query yields the winner first, then the remaining candidates.
+    auto exec = buildFindExecAndIter(fromjson("{a: {$gte: 0}, b: {$gte: 0}}"));
+    auto& explainer = exec->getPlanExplainer();
+
+    ASSERT(explainer.areThereRejectedPlansToExplain());
+    auto entries =
+        explainer.getPlanEntries(explainPolicyFor(ExplainOptions::Verbosity::kQueryPlanner));
+    ASSERT_GTE(entries.size(), 2u);
+
+    // Exactly one winner, and it is the first entry.
+    ASSERT(entries[0].isWinner);
+    size_t numWinners = 0;
+    for (const auto& entry : entries) {
+        if (entry.isWinner) {
+            ++numWinners;
+        }
+    }
+    ASSERT_EQ(numWinners, 1u);
+
+    // The winning entry is byte-identical to the dedicated winning-plan accessor, proving both read
+    // the same per-plan formatting core.
+    auto&& [winningPlan, _] =
+        explainer.getWinningPlanStats(ExplainOptions::Verbosity::kQueryPlanner);
+    ASSERT_BSONOBJ_EQ(entries[0].planStatsTree, winningPlan);
+}
+
+TEST_F(PlanExplainerTest, GetPlanEntriesMultiPlannerExecStats) {
+    // At allPlansExecution verbosity every entry carries a summary, and the rejected entries carry
+    // a trial-period score.
+    auto exec = buildFindExecAndIter(fromjson("{a: {$gte: 0}, b: {$gte: 0}}"));
+    auto& explainer = exec->getPlanExplainer();
+
+    auto entries =
+        explainer.getPlanEntries(explainPolicyFor(ExplainOptions::Verbosity::kExecAllPlans));
+    ASSERT_GTE(entries.size(), 2u);
+    for (const auto& entry : entries) {
+        ASSERT(entry.summary.has_value());
+    }
+    // A rejected entry carries its trial-period score.
+    ASSERT(entries[1].summary->score.has_value());
 }
 
 TEST_F(PlanExplainerTest, SBEMultiPlannerExplain) {

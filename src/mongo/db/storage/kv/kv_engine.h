@@ -435,6 +435,18 @@ public:
     virtual void setStableTimestamp(Timestamp stableTimestamp, bool force) {}
 
     /**
+     * See `StorageEngine::setStepDownTimestamp`
+     */
+    virtual void setStepDownTimestamp(Timestamp stepDownTimestamp) {}
+
+    /**
+     * See `StorageEngine::getStepDownTimestamp`
+     */
+    virtual Timestamp getStepDownTimestamp() const {
+        return Timestamp();
+    }
+
+    /**
      * See `StorageEngine::setInitialDataTimestamp`
      */
     virtual void setInitialDataTimestamp(Timestamp initialDataTimestamp) {}
@@ -677,6 +689,14 @@ public:
         const BSONObj& storageEngineOptions) const = 0;
 
     /**
+     * Returns a collection of statistics about the storage engine, or boost::none
+     * if the engine is unable to collect or by default.
+     */
+    virtual boost::optional<BSONObj> collectStorageStats() {
+        return boost::none;
+    }
+
+    /**
      * Returns the input storage engine options, sanitized to remove options that may not apply to
      * this node, such as encryption. Might be called for both collection and index options. See
      * SERVER-68122.
@@ -695,6 +715,22 @@ public:
     virtual Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) {
         return Status(ErrorCodes::CommandNotSupported,
                       "The current storage engine doesn't support auto compact");
+    }
+
+    /**
+     * See StorageEngine::wiredTigerRepair for details.
+     */
+    virtual StatusWith<std::string> wiredTigerRepair(const std::string& config) {
+        return {ErrorCodes::CommandNotSupported,
+                "The current storage engine does not support wiredTigerRepair"};
+    }
+
+    /**
+     * See StorageEngine::fixDatabaseSize for details.
+     */
+    virtual Status fixDatabaseSize() {
+        return {ErrorCodes::CommandNotSupported,
+                "The current storage engine does not support fixDatabaseSize"};
     }
 
     /**

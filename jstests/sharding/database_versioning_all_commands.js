@@ -1555,10 +1555,15 @@ const allTestCases = {
         waitForFailPoint: {skip: "TODO", conditional: true},
         whatsmysni: {skip: "TODO"},
         whatsmyuri: {skip: "TODO"},
+<<<<<<< HEAD
 
         // Percona commands
         auditGetOptions: {skip: "executes locally on mongod (not sent to any remote node)"},
         createBackup: {skip: "executes locally on mongod (not sent to any remote node)"},
+||||||| 60633dbc4fb
+=======
+        wiredTigerRepair: {skip: "not on a user database"},
+>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1
     },
 };
 

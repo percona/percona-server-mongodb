@@ -533,10 +533,15 @@ let testCases = {
     waitForFailPoint: {skip: "does not return user data"},
     getShardingReady: {skip: "does not return user data"},
     whatsmyuri: {skip: "does not return user data"},
+<<<<<<< HEAD
 
     // Percona commands
     auditGetOptions: {skip: "does not return user data"},
     createBackup: {skip: "does not return user data"},
+||||||| 60633dbc4fb
+=======
+    wiredTigerRepair: {skip: "does not return user data"},
+>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1
 };
 
 commandsRemovedFromMongosSinceLastLTS.forEach(function(cmd) {

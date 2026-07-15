@@ -133,6 +133,10 @@ public:
 
     Timestamp getStableTimestamp() const override;
 
+    void setStepDownTimestamp(Timestamp stepDownTimestamp) override;
+
+    Timestamp getStepDownTimestamp() const override;
+
     void setInitialDataTimestamp(Timestamp initialDataTimestamp) override;
 
     Timestamp getInitialDataTimestamp() const override;
@@ -301,6 +305,10 @@ public:
     void dump() const override;
 
     Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) override;
+
+    StatusWith<std::string> wiredTigerRepair(const std::string& config) override;
+
+    Status fixDatabaseSize() override;
 
     void pauseOrResumeAutoCompactForWriteBlock(OperationContext* opCtx,
                                                bool pause,

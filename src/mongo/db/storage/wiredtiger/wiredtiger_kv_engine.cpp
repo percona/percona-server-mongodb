@@ -3760,6 +3760,10 @@ void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session) try {
         return;
     }
 
+    // Must be computed before taking _checkpointMutex. This creates a Client, and taking the
+    // ServiceContext mutex under _checkpointMutex is a lock-order inversion.
+    auto oplogNeededForRollback = getOplogNeededForRollback();
+
     // Limits the actions of concurrent checkpoint callers as we update some internal data
     // during a checkpoint. WT has a mutex of its own to only have one checkpoint active at all
     // times so this is only to protect our internal updates.
@@ -3820,8 +3824,6 @@ void WiredTigerKVEngine::_checkpoint(WiredTigerSession& session) try {
                            "Stable timestamp hasn't advanced, skipping a checkpoint.",
                            "stableTimestamp"_attr = stableTimestamp);
     } else {
-        auto oplogNeededForRollback = getOplogNeededForRollback();
-
         LOGV2_FOR_RECOVERY(23986,
                            2,
                            "Performing stable checkpoint.",
@@ -4047,6 +4049,22 @@ void WiredTigerKVEngine::setStableTimestamp(Timestamp stableTimestamp, bool forc
     }
 
     setOldestTimestamp(newOldestTimestamp, false);
+}
+
+void WiredTigerKVEngine::setStepDownTimestamp(Timestamp stepDownTimestamp) {
+    invariant(!stepDownTimestamp.isNull());
+
+    // WiredTiger rejects this unless we are a disaggregated leader with no step-down timestamp
+    // already set, so any error here reflects a violated precondition in the caller.
+    auto stepDownTSConfigString =
+        fmt::format("step_down_timestamp={:x}", stepDownTimestamp.asULL());
+    invariantWTOK(_conn->set_timestamp(_conn, stepDownTSConfigString.c_str()), nullptr);
+
+    _stepDownTimestamp.store(stepDownTimestamp.asULL());
+
+    LOGV2(13113700,
+          "Set step-down (cutover) timestamp",
+          "stepDownTimestamp"_attr = stepDownTimestamp);
 }
 
 void WiredTigerKVEngine::setOldestTimestamp(Timestamp newOldestTimestamp, bool force) {
@@ -4711,6 +4729,10 @@ Timestamp WiredTigerKVEngine::getStableTimestamp() const {
     return Timestamp(_stableTimestamp.load());
 }
 
+Timestamp WiredTigerKVEngine::getStepDownTimestamp() const {
+    return Timestamp(_stepDownTimestamp.load());
+}
+
 Timestamp WiredTigerKVEngine::getOldestTimestamp() const {
     return Timestamp(_oldestTimestamp.load());
 }
@@ -4850,6 +4872,38 @@ boost::optional<StorageTierLevelEnum> WiredTigerKVEngine::getStorageTierFromStor
     }
 }
 
+boost::optional<BSONObj> WiredTigerKVEngine::collectStorageStats() {
+    // The curated set of WiredTiger statistics we currently expose as
+    // OpenTelemetry and ServerStatus metrics
+    // TODO (SERVER-131210): Consider creating a single source of truth for
+    // these strings to prevent drift.
+    static const std::vector<std::string> fieldsToInclude = {
+        "cache: eviction calls to get a page found queue empty",
+        "cache: evict page attempts by eviction worker threads",
+        "cache: evict page failures by eviction worker threads",
+        "cache: page evict attempts by application threads",
+        "cache: page evict failures by application threads",
+        "cache: bytes read into cache",
+        "cache: bytes written from cache",
+        "cache: pages read into cache",
+        "cache: pages requested from the cache",
+        "cache: eviction empty score",
+        "cache: eviction worker thread active",
+        "cache: eviction worker thread stable number",
+        "cache: bytes currently in the cache",
+        "cache: tracked dirty bytes in the cache",
+        "cache: maximum bytes configured",
+        "data-handle: connection data handles currently active",
+        "checkpoint: most recent time (msecs)",
+    };
+
+    BSONObjBuilder bob;
+    if (!WiredTigerUtil::collectConnectionStatistics(*this, bob, fieldsToInclude))
+        return boost::none;
+
+    return bob.obj();
+}
+
 BSONObj WiredTigerKVEngine::getSanitizedStorageOptionsForSecondaryReplication(
     const BSONObj& options) const {
 
@@ -4971,6 +5025,22 @@ Status WiredTigerKVEngine::autoCompact(RecoveryUnit& ru, const AutoCompactOption
         _autoCompactOptionsForRestore = boost::none;
     }
     return Status::OK();
+}
+
+StatusWith<std::string> WiredTigerKVEngine::wiredTigerRepair(const std::string& config) {
+    // wiredtiger_repair() has no error-code contract -- failures are reported as text in the
+    // (connection-owned, must-copy) report string, not via the return value.
+    const char* report = ::wiredtiger_repair(getConn(), config.c_str());
+    return std::string{report != nullptr ? report : ""};
+}
+
+Status WiredTigerKVEngine::fixDatabaseSize() {
+    // Valid only on a disaggregated leader (ENOTSUP otherwise).
+    WiredTigerManagedSession managedSession = getConnection().getUninterruptibleSession();
+    WiredTigerSession& session = *managedSession;
+    return wtRCToStatus(session.checkpoint("debug=(database_size_fix=true)"),
+                        session,
+                        "wiredTigerRepair fixDatabaseSize checkpoint");
 }
 
 Status WiredTigerKVEngine::pauseOrResumeAutoCompactForWriteBlock(

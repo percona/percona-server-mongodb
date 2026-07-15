@@ -599,6 +599,8 @@ public:
 
     void setStableTimestamp(Timestamp stableTimestamp, bool force) override;
 
+    void setStepDownTimestamp(Timestamp stepDownTimestamp) override;
+
     void setInitialDataTimestamp(Timestamp initialDataTimestamp) override;
 
     Timestamp getInitialDataTimestamp() const override;
@@ -660,6 +662,7 @@ public:
     bool waitUntilUnjournaledWritesDurable(OperationContext* opCtx, bool stableCheckpoint) override;
 
     Timestamp getStableTimestamp() const override;
+    Timestamp getStepDownTimestamp() const override;
     Timestamp getOldestTimestamp() const override;
     Timestamp getCheckpointTimestamp() const override;
 
@@ -776,6 +779,10 @@ public:
 
     Status autoCompact(RecoveryUnit&, const AutoCompactOptions& options) override;
 
+    StatusWith<std::string> wiredTigerRepair(const std::string& config) override;
+
+    Status fixDatabaseSize() override;
+
     Status pauseOrResumeAutoCompactForWriteBlock(
         RecoveryUnit&, bool pause, const std::vector<std::string_view>& excludedIdents) override;
 
@@ -837,6 +844,8 @@ public:
 
     boost::optional<StorageTierLevelEnum> getStorageTierFromStorageOptions(
         const BSONObj& storageEngineOptions) const override;
+
+    boost::optional<BSONObj> collectStorageStats() override;
 
     // TODO SERVER-81069: Remove this since it's intrinsically tied to encryption options only.
     BSONObj getSanitizedStorageOptionsForSecondaryReplication(
@@ -1006,6 +1015,9 @@ private:
     // Tracks the stable and oldest timestamps we've set on the storage engine.
     Atomic<std::uint64_t> _oldestTimestamp;
     Atomic<std::uint64_t> _stableTimestamp;
+
+    // The last stepdown timestamp we've set for the storage engine, if any.
+    Atomic<std::uint64_t> _stepDownTimestamp;
 
     // Timestamp of data at startup. Used internally to advise checkpointing and recovery to a
     // timestamp. Provided by replication layer because WT does not persist timestamps.
