@@ -78,6 +78,59 @@ parse_arguments() {
     done
 }
 
+# Add a directory to PATH if it isn't added yet.
+#
+# The directory doesn't need to exist at the moment of the function call.
+#
+# Examples:
+# 1. add  the "/foo/bar" directory at the beginning of the PATH
+# ```
+# path_affix "/foo/bar"
+# ```
+#
+# 2. add the "/foo/bar" directory at the end of the PATH
+# ```
+# path_affix "/foo/bar" "at_the_end"
+# ```
+path_affix() {
+    local dir="$1"
+    local at_the_end="$2"
+
+    [ -n "$dir" ] || abort '`path_affix`: empty directory or too few arguments'
+    # Normalize non-root directory paths by removing trailing slashes, if any
+    [ "$dir" = "/" ] || dir="${dir%/}"
+
+    case "$at_the_end" in
+        "at_the_end") at_the_end="true" ;;
+        "") at_the_end="false" ;;
+        *) abort "\`path_affix\`: invalid second argument value \`$at_the_end\`" ;;
+    esac
+
+    # Introduce a local variable with the default empty value rather than using
+    # "$PATH" directly in order to reliably handle the unset `PATH` even if we
+    # add `set -u` to the script in the future.
+    local path="${PATH:-}"
+    # Place colons on either side of $PATH to simplify matching
+    case ":${path}:" in
+        *:"$dir":*)
+            ;;
+        *)
+            if $at_the_end; then
+                export PATH="${path:+$path:}$dir"
+            else
+                export PATH="$dir${path:+:$path}"
+            fi
+            ;;
+    esac
+}
+
+set_gopath() {
+    local dir="$1"
+    [ -n "$dir" ] || abort '`set_gopath`: empty directory or too few arguments'
+    export GOPATH="$dir"
+    path_affix "$GOPATH/bin" "at_the_end"
+}
+
 check_workdir(){
     [ -n "$WORKDIR" ] || abort "WORKDIR is empty"
     [ "x$WORKDIR" = "x$CURDIR" ] && abort "Current directory cannot be used for building!"
@@ -158,10 +211,7 @@ get_sources(){
     echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
     echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
     chmod +x set_tools_revision.sh
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     #if [ x"$ARCH" = "xaarch64" ]; then
@@ -331,8 +381,6 @@ install_deps() {
         yum -y install devtoolset-9
         yum -y install devtoolset-11-elfutils devtoolset-11-dwz
 
-       PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
-
         pip install --upgrade pip
         pip install --user setuptools --upgrade
         pip install --user typing pyyaml regex Cheetah3
@@ -348,7 +396,6 @@ install_deps() {
         yum -y install gcc-toolset-11-dwz gcc-toolset-11-elfutils
         ln -sf /usr/bin/scons-3 /usr/bin/scons
 
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         /usr/bin/pip install --user typing pyyaml regex Cheetah3
       elif [ x"$RHEL" = x9  -o x"$RHEL" = x2023 ]; then
         dnf config-manager --enable ol9_codeready_builder
@@ -417,7 +464,6 @@ install_deps() {
       install_golang
 
       install_mongodbtoolchain
-      PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
       update-alternatives --install /usr/bin/python python /opt/mongodbtoolchain/v4/bin/python3.10 1
 
       wget https://bootstrap.pypa.io/get-pip.py -O get-pip.py
@@ -442,7 +488,6 @@ install_mongodbtoolchain(){
     local URL="https://downloads.percona.com/downloads/packaging"
     URL="${URL}/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz"
     bash -x ./installer.sh -k --download-url "${URL}" || abort 'failed to install mongodbtoolchain'
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
 }
 
 get_source_tarball() {
@@ -575,7 +620,6 @@ build_rpm(){
     elif [ x"$RHEL" = x9 -o x"$RHEL" = x2023 ]; then
       mv /usr/bin/python3 /usr/bin/python3_old
     fi
-        PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
         pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -594,11 +638,7 @@ build_rpm(){
     #
     file /usr/bin/scons
     #
-    [[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$(pwd)/
-    export PATH="/usr/bin:/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$(pwd)/"
 
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1 -B/opt/mongodbtoolchain/v4/bin"
@@ -650,7 +690,6 @@ build_source_deb(){
     mv ${TARFILE} ${PRODUCT}_${VERSION}.orig.tar.gz
     cd ${BUILDDIR}
 
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
     pip install --upgrade pip
 
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
@@ -705,7 +744,6 @@ build_deb(){
     dpkg-source -x ${DSC}
     #
     cd ${PRODUCT}-${VERSION}
-    PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
 
     pip install --upgrade pip
 
@@ -751,11 +789,10 @@ build_deb(){
         rm -f call-home.sh
     cd ../
 
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/../
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/../"
+
     dpkg-buildpackage -rfakeroot -us -uc -b
+
     mkdir -p $CURDIR/deb
     mkdir -p $WORKDIR/deb
     cp $WORKDIR/*.deb $WORKDIR/deb
@@ -775,7 +812,6 @@ build_tarball(){
     #
     export DEBIAN_VERSION="$(lsb_release -sc)"
     export DEBIAN="$(lsb_release -sc)"
-    export PATH=/usr/local/go/bin:$PATH
     #
     #
     PSM_TARGETS="mongod mongos perconadecrypt build/install/bin/mongobridge $SPECIAL_TAR"
@@ -846,7 +882,6 @@ build_tarball(){
 
     # Finally build Percona Server for MongoDB with SCons
     cd ${PSMDIR_ABS}
-    export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
     pip install --upgrade pip
     # PyYAML pkg installation fix, more info: https://github.com/yaml/pyyaml/issues/724
     pip install pyyaml==5.4.1 --no-build-isolation
@@ -888,10 +923,7 @@ build_tarball(){
     #
     # Build mongo tools
     mkdir -p build_tools/src/github.com/mongodb/mongo-tools
-    export GOROOT="/usr/local/go/"
-    export GOPATH=$PWD/
-    export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-    export GOBINPATH="/usr/local/go/bin"
+    set_gopath "$PWD/"
     mkdir -p $GOPATH/src/github.com/mongodb
     cd $GOPATH/src/github.com/mongodb
     cp -r ${WORKDIR}/${TOOLSDIR} ./
@@ -1130,6 +1162,23 @@ then
 else
     NCPU=4
 fi
+
+# Previous script versions added `/usr/bin` to PATH in one of the functions.
+# Since `path_affix` prevents duplicates in PATH, the call won't do any harm,
+# but can fix the things should any (weird) platform miss that directory.
+path_affix "/usr/bin"
+
+# The script installs mongodbtoolchain at the path below.
+# Add it to the `PATH` here, so that in the following scenario
+# ```shell
+# $ sudo ./psmdb_builder.sh --install_deps=1
+# $ sudo ./psmdb_builder.sh --get_sources=1 --build_src_deb=1
+# ```
+# the second run of `psmdb_builder.sh` can still find the toolchain.
+path_affix "/opt/mongodbtoolchain/v4/bin/"
+
+export GOROOT="/usr/local/go"
+path_affix "$GOROOT/bin"
 
 check_workdir
 get_system
