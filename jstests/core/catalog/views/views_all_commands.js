@@ -865,15 +865,11 @@ let viewsCommandTests = {
     getShardingReady: {skip: isAnInternalCommand},
     whatsmyuri: {skip: isUnrelated},
     whatsmysni: {skip: isUnrelated},
-<<<<<<< HEAD
+    wiredTigerRepair: {skip: isAnInternalCommand},
 
     // Percona commands
     auditGetOptions: {skip: isUnrelated},
     createBackup: {skip: isUnrelated},
-||||||| 60633dbc4fb
-=======
-    wiredTigerRepair: {skip: isAnInternalCommand},
->>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1
 };
 
 commandsRemovedFromMongodSinceLastLTS.forEach(function (cmd) {
