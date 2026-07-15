@@ -1,0 +1,370 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ade65211b60f0da4bf0916ba636c6f3f4863d77b",
+    "merge_commit": "b608b7554ca0d5b8b136682998b46edc0a743cb1"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "ade65211b60f0da4bf0916ba636c6f3f4863d77b",
+    "theirs_commit": "b608b7554ca0d5b8b136682998b46edc0a743cb1",
+    "base_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc",
+    "files": [
+      "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+      "jstests/core/catalog/views/views_all_commands.js",
+      "jstests/sharding/database_versioning_all_commands.js",
+      "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+      "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+      "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "buildscripts/resmokelib/testing/fixtures/replicaset.py": "both modified",
+      "jstests/core/catalog/views/views_all_commands.js": "both modified",
+      "jstests/sharding/database_versioning_all_commands.js": "both modified",
+      "jstests/sharding/safe_secondary_reads_drop_recreate.js": "both modified",
+      "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "both modified",
+      "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "buildscripts/resmokelib/testing/fixtures/replicaset.py": "diff --cc buildscripts/resmokelib/testing/fixtures/replicaset.py\nindex 284ab344298,15fe14d9d2e..00000000000\n--- a/buildscripts/resmokelib/testing/fixtures/replicaset.py\n+++ b/buildscripts/resmokelib/testing/fixtures/replicaset.py\n@@@ -333,2 -335,1 +337,7 @@@ class ReplicaSetFixture(interface.ReplF\n++<<<<<<< HEAD\n +            self._await_mongot_community()\n +            self.removeshard_teardown_marker = False\n++||||||| 60633dbc4fb\n++=======\n+             self._await_all_mongots_ready()\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1\n@@@ -409,2 -410,4 +418,10 @@@\n++<<<<<<< HEAD\n +        self._await_mongot_community()\n +\n++||||||| 60633dbc4fb\n++=======\n+         # The replica set is initiated and has a primary; per-node mongot lease startup now has a\n+         # valid replication source. Await mongot readiness on each node that launched one.\n+         self._await_all_mongots_ready()\n+ \n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "jstests/core/catalog/views/views_all_commands.js": "diff --cc jstests/core/catalog/views/views_all_commands.js\nindex 2ac863c1461,9cdd0b8673e..00000000000\n--- a/jstests/core/catalog/views/views_all_commands.js\n+++ b/jstests/core/catalog/views/views_all_commands.js\n@@@ -868,4 -868,1 +868,9 @@@ let viewsCommandTests = \n++<<<<<<< HEAD\n +\n +    // Percona commands\n +    auditGetOptions: {skip: isUnrelated},\n +    createBackup: {skip: isUnrelated},\n++||||||| 60633dbc4fb\n++=======\n+     wiredTigerRepair: {skip: isAnInternalCommand},\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "jstests/sharding/database_versioning_all_commands.js": "diff --cc jstests/sharding/database_versioning_all_commands.js\nindex 10dfb791373,61c38aaef4d..00000000000\n--- a/jstests/sharding/database_versioning_all_commands.js\n+++ b/jstests/sharding/database_versioning_all_commands.js\n@@@ -1558,4 -1555,1 +1558,9 @@@ const allTestCases = \n++<<<<<<< HEAD\n +\n +        // Percona commands\n +        auditGetOptions: {skip: \"executes locally on mongod (not sent to any remote node)\"},\n +        createBackup: {skip: \"executes locally on mongod (not sent to any remote node)\"},\n++||||||| 60633dbc4fb\n++=======\n+         wiredTigerRepair: {skip: \"not on a user database\"},\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "jstests/sharding/safe_secondary_reads_drop_recreate.js": "diff --cc jstests/sharding/safe_secondary_reads_drop_recreate.js\nindex c04e3cf0a7e,efb63f4bf51..00000000000\n--- a/jstests/sharding/safe_secondary_reads_drop_recreate.js\n+++ b/jstests/sharding/safe_secondary_reads_drop_recreate.js\n@@@ -436,4 -436,1 +436,9 @@@ let testCases = \n++<<<<<<< HEAD\n +\n +    // Percona commands\n +    auditGetOptions: {skip: \"does not return user data\"},\n +    createBackup: {skip: \"does not return user data\"},\n++||||||| 60633dbc4fb\n++=======\n+     wiredTigerRepair: {skip: \"does not return user data\"},\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "diff --cc jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js\nindex 54cada8d1df,bf0f1044670..00000000000\n--- a/jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js\n+++ b/jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js\n@@@ -536,4 -536,1 +536,9 @@@ let testCases = \n++<<<<<<< HEAD\n +\n +    // Percona commands\n +    auditGetOptions: {skip: \"does not return user data\"},\n +    createBackup: {skip: \"does not return user data\"},\n++||||||| 60633dbc4fb\n++=======\n+     wiredTigerRepair: {skip: \"does not return user data\"},\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "diff --cc jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js\nindex a9cf7aee117,d72ef462066..00000000000\n--- a/jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js\n+++ b/jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js\n@@@ -450,4 -450,1 +450,9 @@@ let testCases = \n++<<<<<<< HEAD\n +\n +    // Percona commands\n +    auditGetOptions: {skip: \"does not return user data\"},\n +    createBackup: {skip: \"does not return user data\"},\n++||||||| 60633dbc4fb\n++=======\n+     wiredTigerRepair: {skip: \"does not return user data\"},\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "sbom.json": "diff --cc sbom.json\nindex bc143ee6f57,f8476776ce4..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 60633dbc4fb\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 9,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 10,\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1\n@@@ -63,1 -65,9 +71,23 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n++||||||| 60633dbc4fb\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.1024\"\n++        }\n++=======\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.1053\"\n+         }\n++>>>>>>> b608b7554ca0d5b8b136682998b46edc0a743cb1"
+    },
+    "their_commits": {
+      "buildscripts/resmokelib/testing/fixtures/replicaset.py": [
+        "ec8016d9d7e0a28046e7604da385e5d455eefe2a"
+      ],
+      "jstests/core/catalog/views/views_all_commands.js": [
+        "2faf787d636dccbb5236c5913136eefc271aad03"
+      ],
+      "jstests/sharding/database_versioning_all_commands.js": [
+        "2faf787d636dccbb5236c5913136eefc271aad03"
+      ],
+      "jstests/sharding/safe_secondary_reads_drop_recreate.js": [
+        "2faf787d636dccbb5236c5913136eefc271aad03"
+      ],
+      "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": [
+        "2faf787d636dccbb5236c5913136eefc271aad03"
+      ],
+      "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": [
+        "2faf787d636dccbb5236c5913136eefc271aad03"
+      ],
+      "sbom.json": [
+        "1e1fee973675c0cfa21bdd49c61b42e970c5735d",
+        "088d4dcf3900ea9580dc4fe83335d83e86319627"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "b608b7554ca0d5b8b136682998b46edc0a743cb1",
+    "merged_commits": [
+      "b608b7554ca0d5b8b136682998b46edc0a743cb1",
+      "2faf787d636dccbb5236c5913136eefc271aad03",
+      "e687f16456989d648ee6c86d9b1477bc9273470e",
+      "b392754b29c9e77fafe5d3d155ad88887987c2d9",
+      "27f709399908993f46501b73eadb19f1eb69f435",
+      "5d0955a3e9e36f86ecc115a8e60fe344ec71a7c3",
+      "4c552a599b4555208661a4c1560287dcc42c3a0d",
+      "02b6d72fd82b31a28ac7335b3dfce0e5037c8ad4",
+      "812310a3dc89dc6b2efb32a2131070a8148a52c3",
+      "fe2c0a5ffc65b49bc248168441a979128883a5bf",
+      "1abac6416e093a00acb2629493a4728718d901e1",
+      "5aa928bf4199d014a7dda1eae52f431435a94b42",
+      "691fd171be6226495f6af376ee1a8a922eda09d9",
+      "ad88d3945d7ec5a330500e2ced3677e5896fe2b9",
+      "4c31fa728a67c4e1bf191bed5ea7619f91883817",
+      "f3f88dc980cd5b62ed81c60ed20a496a6c0086ce",
+      "460d330c9b83d4d59fe3b7fb2d38f999670816e8",
+      "311d80c5673fe6092d113eee2d4e1000c3cc9f50",
+      "51af2797c32a6474ffb704a3a747db82310eeaa8",
+      "19a7dfe09834f83d72c1228cb3d8cf6b10510032",
+      "9082c7de227a23b69dfcc4d25ff50c7eefa10ca0",
+      "5b44664b49ce5c345dbd6030f98057f4ce281fd4",
+      "1e1fee973675c0cfa21bdd49c61b42e970c5735d",
+      "b2edadb21d86da1ae4b27a3eabc695fd21cf3b83",
+      "088d4dcf3900ea9580dc4fe83335d83e86319627",
+      "a170e3a84c3b25f58f133282b8b4cb53106a77ee",
+      "acb23317b8659f7017628fea6ecdad40d505f8e1",
+      "eeb059b87517045a963b282e3c7e1511912a8f7b",
+      "317eeb9e5a8557b16b0d0088a82acefdd5be0c95",
+      "c0db14a626ea097335463e83b8d2c837addada2d",
+      "8d1bcddb1f802bfebd7a374d27e5b3a21395d190",
+      "1953f1d218b74d0ad736b9c3e91d344aebc1ddac",
+      "d022252a9e644be9f9f9495e8904d08cf196dfdf",
+      "d3bd64e8a7167c66e37533e601a140cfc86d41f1",
+      "7faaf19ed442ab13d23597624bb12bd04e3d763c",
+      "ec8016d9d7e0a28046e7604da385e5d455eefe2a",
+      "e634f181d5e2703d2976daf17670c2c729b922c3",
+      "c9d514de830bda0e3e89b1e66f8be9f4e4c165f9",
+      "1c9c9cab761d25e6f4f2662794e73362db702547",
+      "836bcd7f3c73bafcc1489143775e1116579ee927",
+      "37ff58cbd999dd136497bb28e4ab9a6d96e83b65",
+      "2a3d23a524ac373bea93357469836ed04ed8cfef",
+      "688843f59d89e28e3dace688a0ada02d6f8dfaf9",
+      "9f42d59147399f98e4b9d7ce39866b9e9fb02db4",
+      "f80c85e951a9d3189850b43547af8b4da242c889",
+      "4fecfcb85766e4cb4add6642f3b8592e9a3707f5",
+      "3f8c8dd3e2a8d7af866ca9bdd8e2766c17f2a6db",
+      "13df6fadb1b1e506c7499292da63ec1f43e39f77",
+      "c09cc709f583bb99c91828b6f662b54b3354ac04",
+      "dff99a4a74ac3d05693c27e9d2f9c14acff9bada",
+      "f7c340559b6f7009f63a1927624b3eb99b8b42e2",
+      "3bf9251141829be305dd3482f5d51ede4a9a3a84",
+      "152c5d3525e46c4520395a59e3ebfca85050d489",
+      "f776a2f155968e5a28b20685f717532676927b01",
+      "ca70f1b282aa2879fcee2264702d45ba0dbb780e",
+      "d6b634466da5edcb86290a9783c28d88884a22ea",
+      "55601753ca23a1eba0bdf3b3157bc7de58f16aee",
+      "0d3fc2c388c0a4dbf22f00513777511cb2af3789",
+      "f225481d07992f24e41a6d5ef91828465496c55c",
+      "5a8738de762a7c657c4a682238b133cf677da68b",
+      "46795f75c98f0dd7d95d00ae298afccf6ec3a4a3",
+      "23da318444217df15ce65ce06433653cf3ecf9d2",
+      "5cdecd3fd7c42e8baeacf144876be5a2036a30ce",
+      "f05954d9ca5dd7647520781717fd11be035f4fb4",
+      "50b570fe1655b69a064e8b413e873c821a131d82",
+      "81334e0d32e371d56dbb99003203b25de7b78416",
+      "89c18dec2ee255bb6dab69bc7d1dc59e5e8a3629"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "README.third_party.md",
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/servers.js",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 161033,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.8012655,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 20,
+        "outputTokens": 10876,
+        "cacheReadInputTokens": 362570,
+        "cacheCreationInputTokens": 55566,
+        "webSearchRequests": 0,
+        "costUSD": 0.8005725000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 20,
+            "output": 10876,
+            "cache_read": 362570,
+            "cache_creation": 55566
+          },
+          "cost_usd": 0.8005725000000001
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. Here's what the merge introduces (diff base `60633dbc` \u2192 merge commit `b608b755`):\n\n**Main theme \u2014 new internal `wiredTigerRepair` command:**\n- New `wiredtiger` action type (`action_type.idl`)\n- New `wiredtiger_repair.idl` + `wiredtiger_repair_command.cpp` wired into the WT build\n- `StorageEngine`/`KVEngine`/`StorageEngineImpl`/`WiredTigerKVEngine` gain `wiredTigerRepair()` (calls `::wiredtiger_repair`) and `fixDatabaseSize()` (checkpoint with `database_size_fix=true`)\n- The command is registered as skipped/internal across ~10 command-coverage jstests\n\n**Other upstream changes:**\n- Disaggregated-storage step-down (cutover) timestamps: `setStepDownTimestamp`/`getStepDownTimestamp` + a new `_stepDownTimestamp` atomic\n- `WiredTigerKVEngine::collectStorageStats()` exposing curated WT cache/checkpoint metrics\n- Resharding document-count verification test parameters (fixture + multiversion stripping in `servers.js`)\n- Deferred mongot readiness in the replica-set/standalone fixtures\n- Transport backpressure connection metrics\n- SBOM refresh, build-graph tweaks, LiteParser IFR-context plumbing\n\n**Key review points I flagged:**\n- The conflicted coverage tables and `replicaset.py` keep their Percona customizations alongside the new upstream entries (confirmed).\n- `sbom.json`: the diff-base\u2192merge view shows the raw upstream state (`metadata.tools`/Endor Labs present, mongodb supplier URL) \u2014 the resolution must still follow the project hint (drop `tools`, keep `https://percona.com`).\n- `replicaset.py`: resolution adopts upstream's `_await_all_mongots_ready()` and drops the HEAD-side `_await_mongot_community()` calls \u2014 worth confirming that's intentional.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commits into the Percona fork's master. The most user-visible upstream change is a new internal 'wiredTigerRepair' command: it adds a 'wiredtiger' action type, a wiredtiger_repair IDL/command, and StorageEngine/KVEngine plumbing (wiredTigerRepair() and fixDatabaseSize()), and registers the command as skipped/internal across the many command-coverage jstests. Upstream also adds disaggregated-storage step-down (cutover) timestamp support (setStepDownTimestamp/getStepDownTimestamp on StorageEngine, KVEngine, StorageEngineImpl and WiredTigerKVEngine, backed by a new _stepDownTimestamp atomic), a WiredTigerKVEngine::collectStorageStats() that exposes a curated set of WT cache/checkpoint statistics, resharding document-count verification test parameters, deferred mongot readiness in the replica-set fixture, new transport backpressure connection metrics, and assorted build-graph, SBOM, and dependency-metadata updates. Auto-merge strategy was ort; the seven conflicted files are test/coverage tables and sbom.json where the resolution keeps Percona's customizations alongside the incoming upstream entries.",
+      "auto_merged": {
+        "BUILD.bazel": "Replaces the SBE ABT optimizer gdb pretty-printer test program/target (optimizer_gdb_test_program / optimizer_gdb_test.py) with the renamed //src/mongo/db/query:query_pretty_printers_gdb_test_program and query_pretty_printers_gdb_test.py in both the mongo_install srcs and pretty_printer_tests map.",
+        "README.third_party.md": "Simplifies the license listed for the bundled 'siphash' dependency from 'CC0-1.0, MIT, Apache 2.0 with LLVM exception' to just 'MIT'.",
+        "bazel/resmoke/resmoke.bzl": "Refactors resmoke_suite_test with no behavior change: extracts the py_test target's data/deps/args/env into named locals (data_attr, server_deps_attr, args_attr, env_attr) built from the same select() expressions as before.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Adds deferred mongot readiness. setup() sets defer_mongot_await_ready=True on all mongot nodes, and mongot readiness is awaited only after replSetInitiate via new helpers _all_mongot_nodes() and _await_all_mongots_ready() (called both after initiating the set and on the 'configuration exists' early-return path). Conflict resolution keeps Percona's removeshard_teardown_marker=False line.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Enables resharding document verification in non-multiversion test suites by defaulting the mongod set parameters reshardingDocumentVerification=True and reshardingDocumentValidationMaxCollectionSizeBytes=1GiB (skipped when MIXED_BIN_VERSIONS is set).",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py": "Adds a defer_mongot_await_ready flag: launch_mongot() only calls mongot.await_ready() when the flag is unset, and a new await_mongot_ready() method lets a parent fixture await mongot after replSetInitiate.",
+        "jstests/auth/lib/commands_lib.js": "Adds an authorization test case for the new wiredTigerRepair command (admin-only, __system role, requiring the cluster 'wiredtiger' action; skipSharded).",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds wiredTigerRepair: {skip: isAnInternalCommand} to the views command-coverage table. Conflict resolution keeps Percona's auditGetOptions/createBackup entries.",
+        "jstests/libs/write_concern_all_commands.js": "Adds wiredTigerRepair: {skip: \"does not accept write concern\"} to both the regular and timeseries write-concern command tables.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds wiredTigerRepair: {skip: isAnInternalCommand} to the all-commands coverage table.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds wiredTigerRepair: {skip: isAnInternalCommand} to the coverage table.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds a wiredTigerRepair entry (admin command, shouldFail: true) to the direct-shard-connection auth coverage table.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds wiredTigerRepair: {skip: \"not on a user database\"} to the coverage table. Conflict resolution keeps Percona's auditGetOptions/createBackup entries.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds wiredTigerRepair: {skip: \"does not accept read or write concern\"} to the coverage table.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds wiredTigerRepair: {skip: \"does not return user data\"} to the testCases table. Conflict resolution keeps Percona's auditGetOptions/createBackup entries.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Adds wiredTigerRepair: {skip: \"does not return user data\"} to the testCases table. Conflict resolution keeps Percona's auditGetOptions/createBackup entries.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Adds wiredTigerRepair: {skip: \"does not return user data\"} to the testCases table. Conflict resolution keeps Percona's auditGetOptions/createBackup entries.",
+        "sbom.json": "Upstream SBOM refresh: version 9->10, updated timestamp, Endor Labs tools service version v1.7.1024->v1.7.1053, libmongocrypt 1.19.0->1.20.0 (bom-ref/purl/cpe/version/dependency refs), and the siphash component's license list reduced to MIT only. NOTE: this diff-base->merge view reflects the incoming upstream state (mongodb supplier URL and a metadata.tools section present); apply the sbom.json conflict hint (drop metadata.tools, keep Percona's https://percona.com supplier URL) when resolving.",
+        "src/mongo/db/BUILD.bazel": "Adds the enterprise LDAP openssl_init_legacy target to the mongod deps under the ldap-enabled config.",
+        "src/mongo/db/auth/action_type.idl": "Adds a new 'wiredtiger' action type to the ActionType enum (used to authorize the wiredTigerRepair command).",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds query_knobs and query_knob_configuration dependencies to a pipeline library target.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Passes LiteParserOptions with the ExpressionContext's IFR context (expCtx->getIfrContext()) when constructing LiteParsedPipeline in acquireCollectionsForPipeline and in the hybrid-search path of finalizeAndAttachCursorToPipelineForLocalRead.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Adds virtual KVEngine hooks: setStepDownTimestamp/getStepDownTimestamp (default no-op / null), collectStorageStats() (default boost::none), and wiredTigerRepair()/fixDatabaseSize() (default CommandNotSupported).",
+        "src/mongo/db/storage/storage_engine.h": "Adds pure-virtual setStepDownTimestamp/getStepDownTimestamp for disaggregated step-down cutover timestamps, and default-CommandNotSupported virtual methods wiredTigerRepair(config) and fixDatabaseSize().",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Implements StorageEngineImpl setStepDownTimestamp/getStepDownTimestamp, wiredTigerRepair and fixDatabaseSize by delegating to the underlying _engine.",
+        "src/mongo/db/storage/storage_engine_impl.h": "Declares the new StorageEngineImpl overrides: setStepDownTimestamp/getStepDownTimestamp, wiredTigerRepair and fixDatabaseSize.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds the wiredtiger_repair_gen IDL generator (wiredtiger_repair.idl) and wires wiredtiger_repair_command.cpp plus the generated code and new deps (commands, authprivilege, replicated_storage_service, shard_role) into the wiredtiger library target.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Implements setStepDownTimestamp (invariants + WT set_timestamp step_down_timestamp, stored in _stepDownTimestamp) and getStepDownTimestamp; adds collectStorageStats() exposing a curated set of WT cache/data-handle/checkpoint statistics; implements wiredTigerRepair() (calls ::wiredtiger_repair and returns its report text) and fixDatabaseSize() (checkpoint with debug=(database_size_fix=true)). Also hoists getOplogNeededForRollback() out from under _checkpointMutex in _checkpoint() to avoid a lock-order inversion.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Declares the new WiredTigerKVEngine overrides (setStepDownTimestamp/getStepDownTimestamp, collectStorageStats, wiredTigerRepair, fixDatabaseSize) and adds the _stepDownTimestamp atomic member.",
+        "src/mongo/rpc/BUILD.bazel": "Adds a //src/mongo/db:server_feature_flags dependency to the rpc unit test target.",
+        "src/mongo/s/BUILD.bazel": "Adds the enterprise LDAP openssl_init_legacy target to an s library under the ldap-enabled config.",
+        "src/mongo/shell/servers.js": "Strips the reshardingDocumentVerification and reshardingDocumentValidationMaxCollectionSizeBytes set parameters when running mongod binaries older than 9.0.0 (multiversion compatibility).",
+        "src/mongo/transport/BUILD.bazel": "Adds backpressure connection metrics sources to the transport libraries (backpressure_connection_metrics.cpp, backpressure_connection_metrics_collection.cpp), a backpressure_connection_metrics_test.cpp unit test, and a new backpressure_connection_metrics_integration_test target."
+      },
+      "review_notes": "1) The dominant theme is upstream's new internal 'wiredTigerRepair' command; verify the command-coverage jstest tables all retain their Percona-specific entries (auditGetOptions/createBackup) after conflict resolution while gaining the wiredTigerRepair rows -- this was confirmed for the conflicted files. 2) replicaset.py conflict: the resolution adopts upstream's _await_all_mongots_ready() flow and keeps Percona's removeshard_teardown_marker; confirm Percona's previous mongot handling (the _await_mongot_community() calls seen on the HEAD side of the conflict) is intentionally superseded and not still required. 3) sbom.json: the diff-base->merge view shows the raw upstream state (metadata.tools/Endor Labs present, mongodb supplier URL); ensure the final resolution follows the project hint -- remove metadata.tools and keep https://percona.com. 4) The step-down-timestamp and fixDatabaseSize additions target disaggregated storage and are guarded by invariants/preconditions; they are default-unsupported on non-WT engines. 5) These descriptions are based on the git diff 60633dbc..b608b755 for each file; files in the full merge not listed under auto_merged were not individually reviewed here."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have enough to write an accurate description."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. Here's what the merge introduces (diff base `60633dbc` \u2192 merge commit `b608b755`):\n\n**Main theme \u2014 new internal `wiredTigerRepair` command:**\n- New `wiredtiger` action type (`action_type.idl`)\n- New `wiredtiger_repair.idl` + `wiredtiger_repair_command.cpp` wired into the WT build\n- `StorageEngine`/`KVEngine`/`StorageEngineImpl`/`WiredTigerKVEngine` gain `wiredTigerRepair()` (calls `::wiredtiger_repair`) and `fixDatabaseSize()` (checkpoint with `database_size_fix=true`)\n- The command is registered as skipped/internal across ~10 command-coverage jstests\n\n**Other upstream changes:**\n- Disaggregated-storage step-down (cutover) timestamps: `setStepDownTimestamp`/`getStepDownTimestamp` + a new `_stepDownTimestamp` atomic\n- `WiredTigerKVEngine::collectStorageStats()` exposing curated WT cache/checkpoint metrics\n- Resharding document-count verification test parameters (fixture + multiversion stripping in `servers.js`)\n- Deferred mongot readiness in the replica-set/standalone fixtures\n- Transport backpressure connection metrics\n- SBOM refresh, build-graph tweaks, LiteParser IFR-context plumbing\n\n**Key review points I flagged:**\n- The conflicted coverage tables and `replicaset.py` keep their Percona customizations alongside the new upstream entries (confirmed).\n- `sbom.json`: the diff-base\u2192merge view shows the raw upstream state (`metadata.tools`/Endor Labs present, mongodb supplier URL) \u2014 the resolution must still follow the project hint (drop `tools`, keep `https://percona.com`).\n- `replicaset.py`: resolution adopts upstream's `_await_all_mongots_ready()` and drops the HEAD-side `_await_mongot_community()` calls \u2014 worth confirming that's intentional."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260715_103534_421284.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.210 (Claude Code)"
+    }
+  }
+}
