@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# Print an error message and exit with a failure code
+abort() {
+    printf "Error: %s\n" "${1:-unknown error}" >&2
+    exit "${2:-1}"
+}
+
 shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
@@ -73,18 +79,9 @@ parse_arguments() {
 }
 
 check_workdir(){
-    if [ "x$WORKDIR" = "x$CURDIR" ]
-    then
-        echo >&2 "Current directory cannot be used for building!"
-        exit 1
-    else
-        if ! test -d "$WORKDIR"
-        then
-            echo >&2 "$WORKDIR is not a directory."
-            exit 1
-        fi
-    fi
-    return
+    [ -n "$WORKDIR" ] || abort "WORKDIR is empty"
+    [ "x$WORKDIR" = "x$CURDIR" ] && abort "Current directory cannot be used for building!"
+    [ -d "$WORKDIR" ] || abort "\`$WORKDIR\` is not a directory."
 }
 
 add_percona_yum_repo(){
@@ -111,13 +108,7 @@ get_sources(){
     echo "JEMALLOC_TAG=${JEMALLOC_TAG}" >> percona-server-mongodb-70.properties
     echo "BUILD_NUMBER=${BUILD_NUMBER}" >> percona-server-mongodb-70.properties
     echo "BUILD_ID=${BUILD_ID}" >> percona-server-mongodb-70.properties
-    git clone "$REPO"
-    retval=$?
-    if [ $retval != 0 ]
-    then
-        echo "There were some issues during repo cloning from github. Please retry one more time"
-        exit 1
-    fi
+    git clone "$REPO" || abort '`git clone` failed, try again'
     cd percona-server-mongodb
     if [ ! -z "$BRANCH" ]
     then
@@ -174,12 +165,12 @@ get_sources(){
 
     # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
     #if [ x"$ARCH" = "xaarch64" ]; then
-        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
+        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || abort '`sed` failed'
     #fi
-    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || exit 1
-    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || exit 1
-    go mod tidy || exit 1
-    go mod vendor || exit 1
+    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || abort '`go mod edit` failed'
+    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || abort '`go get` failed'
+    go mod tidy || abort '`go mod tidy` failed'
+    go mod vendor || abort '`go mod vendor` failed'
 
     cd ${WORKDIR}
     source percona-server-mongodb-70.properties
@@ -232,8 +223,7 @@ install_golang() {
     elif [ "$ARCH" = "aarch64" ]; then
       GO_ARCH="arm64"
     else
-        echo "Unsupported architecture: $ARCH"
-        return 1
+        abort "Unsupported architecture: $ARCH"
     fi
 
     GO_VERSION="1.25.11"
@@ -311,11 +301,7 @@ install_deps() {
         echo "Dependencies will not be installed"
         return;
     fi
-    if [ $( id -u ) -ne 0 ]
-    then
-        echo "It is not possible to instal dependencies. Please run as root"
-        exit 1
-    fi
+    [ $(id -u) -eq 0 ] || abort "user \`$(id -un)\` can't install dependencies; rerun \`$PROG\` as \`root\`"
     CURPLACE=$(pwd)
     if [ "x$OS" = "xrpm" ]; then
       if [ "$RHEL" -eq 7 ]; then
@@ -453,47 +439,34 @@ install_mongodbtoolchain(){
         OS_CODE_NAME=${DEBIAN}
     fi
     export USER=$(whoami)
-    bash -x ./installer.sh -k --download-url https://downloads.percona.com/downloads/packaging/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz || exit 1
+    local URL="https://downloads.percona.com/downloads/packaging"
+    URL="${URL}/${OS_CODE_NAME}_mongodbtoolchain_${ARCH}.tar.gz"
+    bash -x ./installer.sh -k --download-url "${URL}" || abort 'failed to install mongodbtoolchain'
     export PATH=/opt/mongodbtoolchain/v4/bin/:$PATH
 }
 
-get_tar(){
-    TARBALL=$1
-    TARFILE=$(basename $(find $WORKDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-    if [ -z $TARFILE ]
-    then
-        TARFILE=$(basename $(find $CURDIR/$TARBALL -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
-        if [ -z $TARFILE ]
-        then
-            echo "There is no $TARBALL for build"
-            exit 1
-        else
-            cp $CURDIR/$TARBALL/$TARFILE $WORKDIR/$TARFILE
-        fi
-    else
-        cp $WORKDIR/$TARBALL/$TARFILE $WORKDIR/$TARFILE
-    fi
-    return
+get_source_tarball() {
+    local filepath=$(find "$WORKDIR/source_tarball" -name 'percona-server-mongodb*.tar.gz' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/source_tarball" -name 'percona-server-mongodb*.tar.gz' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source tarball archive does not exist; add the `--get_sources` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_source_tarball\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
 }
 
-get_deb_sources(){
-    param=$1
-    echo $param
-    FILE=$(basename $(find $WORKDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-    if [ -z $FILE ]
-    then
-        FILE=$(basename $(find $CURDIR/source_deb -name "percona-server-mongodb*.$param" | sort | tail -n1))
-        if [ -z $FILE ]
-        then
-            echo "There is no sources for build"
-            exit 1
-        else
-            cp $CURDIR/source_deb/$FILE $WORKDIR/
-        fi
-    else
-        cp $WORKDIR/source_deb/$FILE $WORKDIR/
-    fi
-    return
+get_deb_sources() {
+    local ext=$1
+    [ -n "$ext" ] || abort '`get_deb_sources`: empty or missing extension argument'
+    local filepath=$(find "$WORKDIR/source_deb" -name "percona-server-mongodb*.$ext" 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/source_deb" -name "percona-server-mongodb*.$ext" 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source deb package does not exist; add the `--build_src_deb` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_deb_sources\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
+}
+
+get_source_rpm_package() {
+    local filepath=$(find "$WORKDIR/srpm" -name 'percona-server-mongodb*.src.rpm' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || filepath=$(find "$CURDIR/srpm" -name 'percona-server-mongodb*.src.rpm' 2>/dev/null | sort | tail -n1)
+    [ -n "$filepath" ] || abort 'source rpm package does not exist; add the `--build_src_rpm` option to create it'
+    cp "$filepath" "$WORKDIR/" || abort "\`get_source_rpm_package\`: failed to copy \`$filepath\` to \`$WORKDIR/\`"
+    echo "$(basename "$filepath")"
 }
 
 build_srpm(){
@@ -502,13 +475,9 @@ build_srpm(){
         echo "SRC RPM will not be created"
         return;
     fi
-    if [ "x$OS" = "xdeb" ]
-    then
-        echo "It is not possible to build src rpm here"
-        exit 1
-    fi
+    [ "x$OS" = "xrpm" ] || abort "Can't build source rpm on a non-rpm-based OS"
     cd $WORKDIR
-    get_tar "source_tarball"
+    get_source_tarball
     rm -fr rpmbuild
     ls | grep -v tar.gz | xargs rm -rf
     TARFILE=$(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1)
@@ -524,7 +493,7 @@ build_srpm(){
     CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
     CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
     wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
-    echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
+    echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || abort "call-home.sh checksum mismatch"
     mv call-home.sh rpmbuild/SOURCES
     cp -av percona-packaging/conf/* rpmbuild/SOURCES
     cp -av percona-packaging/redhat/mongod.* rpmbuild/SOURCES
@@ -582,26 +551,8 @@ build_rpm(){
         echo "RPM will not be created"
         return;
     fi
-    if [ "x$OS" = "xdeb" ]
-    then
-        echo "It is not possible to build rpm here"
-        exit 1
-    fi
-    SRC_RPM=$(basename $(find $WORKDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-    if [ -z $SRC_RPM ]
-    then
-        SRC_RPM=$(basename $(find $CURDIR/srpm -name 'percona-server-mongodb*.src.rpm' | sort | tail -n1))
-        if [ -z $SRC_RPM ]
-        then
-            echo "There is no src rpm for build"
-            echo "You can create it using key --build_src_rpm=1"
-            exit 1
-        else
-            cp $CURDIR/srpm/$SRC_RPM $WORKDIR
-        fi
-    else
-        cp $WORKDIR/srpm/$SRC_RPM $WORKDIR
-    fi
+    [ "x$OS" = "xrpm" ] || abort "Can't build rpm on a non-rpm-based OS"
+    SRC_RPM="$(get_source_rpm_package)"
     cd $WORKDIR
     rm -fr rpmbuild
     mkdir -vp rpmbuild/{SOURCES,SPECS,BUILD,SRPMS,RPMS}
@@ -655,7 +606,7 @@ build_rpm(){
 
     return_code=$?
     if [ $return_code != 0 ]; then
-        exit $return_code
+        abort "\`rpmbuild\` failed with code $return_code" $return_code
     fi
     mkdir -p ${WORKDIR}/rpm
     mkdir -p ${CURDIR}/rpm
@@ -669,13 +620,9 @@ build_source_deb(){
         echo "Source deb package will not be created"
         return;
     fi
-    if [ "x$OS" = "xrpm" ]
-    then
-        echo "It is not possible to build source deb here"
-        exit 1
-    fi
+    [ "x$OS" = "xdeb" ] || abort "Can't build source deb on a non-deb-based OS"
     rm -rf percona-server-mongodb*
-    get_tar "source_tarball"
+    get_source_tarball
     rm -f *.dsc *.orig.tar.gz *.debian.tar.gz *.changes
     #
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
@@ -738,11 +685,7 @@ build_deb(){
         echo "Deb package will not be created"
         return;
     fi
-    if [ "x$OS" = "xrmp" ]
-    then
-        echo "It is not possible to build deb here"
-        exit 1
-    fi
+    [ "x$OS" = "xdeb" ] || abort "Can't build deb on a non-deb-based OS"
     for file in 'dsc' 'orig.tar.gz' 'changes' 'debian.tar*'
     do
         get_deb_sources $file
@@ -796,7 +739,7 @@ build_deb(){
         CALLHOME_SHA="0e3a2ed40336c70727f9aad8402a8a820ebc8db0"
         CALLHOME_SHA256="3497f6631e71799bed9dedb1d72350bf1f0565d93578955234ac30cf2fb6eba4"
         wget -q "https://raw.githubusercontent.com/percona/telemetry-agent/${CALLHOME_SHA}/call-home.sh"
-        echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || { echo "ERROR: call-home.sh checksum mismatch"; exit 1; }
+        echo "${CALLHOME_SHA256}  call-home.sh" | sha256sum -c - || abort "call-home.sh checksum mismatch"
         sed -i 's:exit 0::' percona-server-mongodb-server.postinst
         # Inject call-home.sh into postinst via stdin heredoc (no /tmp file, no LPE race).
         echo 'bash -s -- -f "PRODUCT_FAMILY_PSMDB" -v "'"${PSM_VER}-${PSM_RELEASE}"'" -d "PACKAGE" <<'"'"'CALLHOME'"'"' &>/dev/null || :' >> percona-server-mongodb-server.postinst
@@ -825,7 +768,7 @@ build_tarball(){
         echo "Binary tarball will not be created"
         return;
     fi
-    get_tar "source_tarball"
+    get_source_tarball
     cd $WORKDIR
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | tail -n1))
 
@@ -918,12 +861,17 @@ build_tarball(){
       CURL_LINKFLAGS=$(pkg-config libcurl --static --libs)
       export OPT_LINKFLAGS="${OPT_LINKFLAGS} ${CURL_LINKFLAGS}"
     fi
-    if [ ${DEBUG} = 0 ]; then
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --release --ssl --opt=on -j${NCPU} --use-sasl-client --wiredtiger CPPPATH="${INSTALLDIR}/include" LIBPATH="${INSTALLDIR}/lib" LINKFLAGS="${OPT_LINKFLAGS}" ${PSM_REAL_TARGETS[@]} || exit $?
-    else
-        buildscripts/scons.py CC=${CC} CXX=${CXX} --disable-warnings-as-errors --ssl --dbg=on -j${NCPU} --use-sasl-client \
-        CPPPATH="${INSTALLDIR}/include" LIBPATH="${INSTALLDIR}/lib" LINKFLAGS="${OPT_LINKFLAGS}" --wiredtiger ${PSM_REAL_TARGETS[@]} || exit $?
-    fi
+
+    local OPTS
+    [ ${DEBUG} = 0 ] && OPTS="--release --opt=on" || OPTS="--dbg=on"
+
+    buildscripts/scons.py \
+        CC=${CC} CXX=${CXX} CPPPATH="${INSTALLDIR}/include" LIBPATH="${INSTALLDIR}/lib" \
+        LINKFLAGS="${OPT_LINKFLAGS}" ${OPTS} \
+        --disable-warnings-as-errors -j${NCPU} --ssl --use-sasl-client --wiredtiger \
+        ${PSM_REAL_TARGETS[@]} \
+        || abort 'scons failed' $?
+
     #
     # scons install doesn't work - it installs the binaries not linked with fractal tree
     #scons --prefix=$PWD/$PSMDIR install
@@ -1071,9 +1019,7 @@ build_tarball(){
     function check_libs {
         local elf_path=$1
         for elf in $(find ${elf_path} -maxdepth 1 -exec file {} \; | grep 'ELF ' | cut -d':' -f1); do
-            if ! ldd ${elf}; then
-                exit 1
-            fi
+            if ! ldd "$elf"; then abort "\`ldd\` failed for \`$elf\`"; fi
         done
     }
 
@@ -1145,6 +1091,7 @@ build_tarball(){
 
 #main
 
+PROG="$(basename "$0")"
 CURDIR=$(pwd)
 VERSION_FILE=$CURDIR/percona-server-mongodb.properties
 args=
