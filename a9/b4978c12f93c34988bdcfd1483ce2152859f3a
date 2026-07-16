@@ -1,0 +1,124 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e7eab3c1b195fad5cd1be2f519836be10530d34d",
+    "merge_commit": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 33903,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.169865,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000683,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 2347,
+          "cacheReadInputTokens": 51834,
+          "cacheCreationInputTokens": 13528,
+          "webSearchRequests": 0,
+          "costUSD": 0.169182,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 16,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000683
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 2347,
+              "cache_read": 51834,
+              "cache_creation": 13528
+            },
+            "cost_usd": 0.169182
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\nThe conflict was in the resmoke data dependency list. Percona's side (HEAD) had removed all the MongoDB enterprise module jstests references, since PSMDB doesn't ship MongoDB's enterprise module. Upstream (theirs) had only added new `audit/lib` entries to that same enterprise block. I kept Percona's removal \u2014 dropping the entire enterprise block including the upstream additions \u2014 and left the surrounding entries intact and contiguous. All conflict markers are removed, and the JSON response has been written.",
+      "response": {
+        "summary": "Resolved the merge conflict in bazel/resmoke/resmoke.bzl by keeping Percona's removal of the MongoDB enterprise module jstests data dependencies. Percona (HEAD) deliberately removed all `//src/mongo/db/modules/enterprise/jstests/...` entries because PSMDB does not ship MongoDB's enterprise module. Upstream (theirs) only added new `audit/lib` entries to that same enterprise list, which are irrelevant to PSMDB, so they were dropped along with the rest.",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "In the resmoke_suite_test data dependency list, HEAD removed the whole block of enterprise module jstests references (encryptdb, external_auth, hot_backups, live_restore) since PSMDB has no enterprise module. Upstream added additional audit/lib entries to that block. Kept Percona's resolution: removed all enterprise entries, leaving the surrounding entries (search_mocked/ssl and schemastore.org) intact and contiguous. All conflict markers removed."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The conflict was solely about the MongoDB enterprise module jstests data deps. Percona intentionally omits these because the enterprise module is not part of PSMDB, so the upstream-added audit/lib entries were also dropped. No functional PSMDB code is affected."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "This is a clear case. Percona (HEAD) removed all the enterprise module jstests references because PSMDB doesn't ship MongoDB's enterprise module. Upstream (theirs) added new `audit/lib` entries to that same list. The correct resolution keeps Percona's removal."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\nThe conflict was in the resmoke data dependency list. Percona's side (HEAD) had removed all the MongoDB enterprise module jstests references, since PSMDB doesn't ship MongoDB's enterprise module. Upstream (theirs) had only added new `audit/lib` entries to that same enterprise block. I kept Percona's removal \u2014 dropping the entire enterprise block including the upstream additions \u2014 and left the surrounding entries intact and contiguous. All conflict markers are removed, and the JSON response has been written."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260716_112217_930442.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.211 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
