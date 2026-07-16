@@ -389,28 +389,6 @@ def resmoke_suite_test(
         "//jstests/with_mongot:keyfile_for_testing",
         "//jstests/with_mongot/search_mocked/lib:all_javascript_files",
         "//jstests/with_mongot/search_mocked/ssl/lib:all_javascript_files",
-<<<<<<< HEAD
-||||||| b608b7554ca
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
-        "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
-=======
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
-        "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
->>>>>>> ff39f35e4cba1f65d72c42102cc4ddca8a8a2429
         "//src/third_party/schemastore.org:schemas",
         "//x509:generate_main_certificates",
     ]
