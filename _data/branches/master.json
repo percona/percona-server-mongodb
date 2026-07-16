@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 42,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.605576554212963,
-    "files_affected": 472,
-    "total_additions": 3952,
-    "total_deletions": 3208,
+    "commits_behind": 59,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.1207702747453703,
+    "files_affected": 595,
+    "total_additions": 8553,
+    "total_deletions": 3835,
     "date_range": {
       "first": "2026-07-15T03:55:32+00:00",
-      "last": "2026-07-15T17:34:03+00:00"
+      "last": "2026-07-16T00:43:58+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,176 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429",
+      "short_sha": "ff39f35e4cb",
+      "date": "2026-07-16T10:43:58+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 38c058b832db0ae9e6ed50ae8068bbf17e0518d1 from branch mongodb-master (#58639)"
+    },
+    {
+      "sha": "d2147646ae0c99821ff1d0f2b6b9ba4e773ffc27",
+      "short_sha": "d2147646ae0",
+      "date": "2026-07-15T17:07:15-07:00",
+      "author": {
+        "name": "CALVIN NGUYEN",
+        "email": "calvin.nguyen@mongodb.com"
+      },
+      "summary": "SERVER-131428 Fix DeadlineMonitor hang when first task has an infinite deadline (#58598)"
+    },
+    {
+      "sha": "b66c157229cd7e420f78daddd2caa410afb1226d",
+      "short_sha": "b66c157229c",
+      "date": "2026-07-15T16:32:08-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-131511: Remove source graph (#58734)"
+    },
+    {
+      "sha": "dbd4712b28c9f7ec355054992c0aae1a3afde091",
+      "short_sha": "dbd4712b28c",
+      "date": "2026-07-15T15:47:44-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-131419 Validate FTDC BSON in testing/debug environments (#58683)"
+    },
+    {
+      "sha": "6f088e98b9d159dc58f40c0aff2ab9cd66878552",
+      "short_sha": "6f088e98b9d",
+      "date": "2026-07-15T18:16:15-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-131368 Replace with_mongot_extension suites with with_mongot_extension_vectorSearch_disabled (#58511)"
+    },
+    {
+      "sha": "5c9d8d2019d43e11c6f077b23eb2065cf4b9c897",
+      "short_sha": "5c9d8d2019d",
+      "date": "2026-07-15T17:16:08-04:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-130643 Support oplog application of batched container writes (#58546)"
+    },
+    {
+      "sha": "eeb4553f8ab7609a1b7b441c5bf6055fadd5c5a6",
+      "short_sha": "eeb4553f8ab",
+      "date": "2026-07-15T16:32:28-04:00",
+      "author": {
+        "name": "H Gu",
+        "email": "haiyin.gu@mongodb.com"
+      },
+      "summary": "SERVER-123418 Limit pool-flush suppression in finishRefresh to confirmed rate-limiter signals (#58382)"
+    },
+    {
+      "sha": "785ccb1510f55cc2e50f7176f8408e623c7cd98b",
+      "short_sha": "785ccb1510f",
+      "date": "2026-07-15T13:31:12-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-131281 Migrate search sequence token mocked tests to e2e suites (#58418)"
+    },
+    {
+      "sha": "d8c8fc5b24696f8f96f606b71de74dfc08c0422a",
+      "short_sha": "d8c8fc5b246",
+      "date": "2026-07-15T13:24:14-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-131283 Fix range_deleter_does_not_block_stepdown_with_prepare_conflict.js to wait after classification scan (#58441)"
+    },
+    {
+      "sha": "b896d14d79fb4bb1946dba35edce8348d16bf4d1",
+      "short_sha": "b896d14d79f",
+      "date": "2026-07-15T16:18:00-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-131391: Do not check FCV when attaching telemetry context on egress messages (#58544)"
+    },
+    {
+      "sha": "9f7c2ac308c70f2b50aebe56f4b876a27cc1e6a5",
+      "short_sha": "9f7c2ac308c",
+      "date": "2026-07-15T13:08:09-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-131305 Reset reply builder on IFR flag retry to prevent partial reply leakage across IFR retries (#58457)"
+    },
+    {
+      "sha": "374cd3b4701a11c40ede0aae691a1158cb85d323",
+      "short_sha": "374cd3b4701",
+      "date": "2026-07-15T13:02:37-07:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-131077 Guard MaxKey orphans correctly from range-deletion tasks that lack key pattern field (#58580)"
+    },
+    {
+      "sha": "d4f8d01522a7c50609ccd7f78f66068a0b0443e7",
+      "short_sha": "d4f8d01522a",
+      "date": "2026-07-15T15:16:46-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-131380 Prevent resharding from starting during an FCV transition (#58561)"
+    },
+    {
+      "sha": "9d490ec622ea4ecd8dfec15caca16516cfa7ea00",
+      "short_sha": "9d490ec622e",
+      "date": "2026-07-15T14:36:21-04:00",
+      "author": {
+        "name": "Ayesha Islam",
+        "email": "ayeshhaislamm@gmail.com"
+      },
+      "summary": "SERVER-129432: Add not-null check before dereferencing (#58551)"
+    },
+    {
+      "sha": "9f2512e2259ee589f26bd7e9cfe4841f725d5bcc",
+      "short_sha": "9f2512e2259",
+      "date": "2026-07-15T14:34:13-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-131280: Add bazel targets for security resmoke suites (#58408)"
+    },
+    {
+      "sha": "77275ca8caa928c4be7ac2691da66348e161cae4",
+      "short_sha": "77275ca8caa",
+      "date": "2026-07-15T14:27:25-04:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-130571: Limit use of $_internalIndexKey to internal clients only (#58406)"
+    },
+    {
+      "sha": "5b682a9aa955da61c42b43cb542104daa210ad47",
+      "short_sha": "5b682a9aa95",
+      "date": "2026-07-15T14:00:37-04:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-131385 Add helpers for causing StaleConfig errors (#58575)"
+    },
     {
       "sha": "ad84999c41b73a7a548bdc30ac3772cc4d463525",
       "short_sha": "ad84999c41b",
@@ -504,10 +674,92 @@
           "num_of_dirs": 52
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "9f2512e2259ee589f26bd7e9cfe4841f725d5bcc",
+        "short_sha": "9f2512e2259",
+        "date": "2026-07-15T14:34:13-04:00",
+        "author": {
+          "name": "Sean Lyons",
+          "email": "sean.lyons@mongodb.com"
+        },
+        "summary": "SERVER-131280: Add bazel targets for security resmoke suites (#58408)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "bazel/resmoke/resmoke.bzl"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "eeb4553f8ab7609a1b7b441c5bf6055fadd5c5a6",
+        "short_sha": "eeb4553f8ab",
+        "date": "2026-07-15T16:32:28-04:00",
+        "author": {
+          "name": "H Gu",
+          "email": "haiyin.gu@mongodb.com"
+        },
+        "summary": "SERVER-123418 Limit pool-flush suppression in finishRefresh to confirmed rate-limiter signals (#58382)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 21,
+          "num_of_lines": 821,
+          "lines_added": 700,
+          "lines_deleted": 121,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "5c9d8d2019d43e11c6f077b23eb2065cf4b9c897",
+        "short_sha": "5c9d8d2019d",
+        "date": "2026-07-15T17:16:08-04:00",
+        "author": {
+          "name": "Binh Vo",
+          "email": "146007384+binhvomongodb@users.noreply.github.com"
+        },
+        "summary": "SERVER-130643 Support oplog application of batched container writes (#58546)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429",
+        "short_sha": "ff39f35e4cb",
+        "date": "2026-07-16T10:43:58+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 38c058b832db0ae9e6ed50ae8068bbf17e0518d1 from branch mongodb-master (#58639)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 52,
+          "num_of_lines": 2380,
+          "lines_added": 2163,
+          "lines_deleted": 217,
+          "num_of_dirs": 17
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-15 18:27:31",
+  "generated_at": "2026-07-16 06:49:22",
   "branch_name": "master",
   "display_name": "master"
 }
