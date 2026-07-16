@@ -200,6 +200,12 @@ filters:
   - "shard_requests_mongos_metrics.js":
     approvers:
       - 10gen/server-networking-and-observability
+  - "prepare_transaction_then_migrate.js":
+    approvers:
+      - 10gen/server-cluster-scalability
   - "sharding_statistics_server_status.js":
     approvers:
       - 10gen/server-catalog-and-routing-shard-catalog
+  - "invalid_shard_identity_doc.js":
+    approvers:
+      - 10gen/server-catalog-and-routing-routing-and-topology

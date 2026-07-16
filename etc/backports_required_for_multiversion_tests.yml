@@ -21,6 +21,10 @@
 #
 last-patch:
   all:
+    - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
+      ticket: SERVER-121079
+    - test_file: jstests/core/administrative/block_replica_set_writes.js
+      ticket: SERVER-121079
     - test_file: jstests/core/index/wildcard/compound_wildcard_index_residual.js
       ticket: SERVER-83322
     - test_file: jstests/core/index/wildcard/wildcard_index_basic_index_bounds.js
@@ -31,13 +35,19 @@ last-patch:
       ticket: SERVER-118700
     - test_file: jstests/core/timeseries/ddl/reindex_timeseries.js
       ticket: SERVER-127051
+    - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
+      ticket: SERVER-121084
     - test_file: jstests/fle2/implicit_ecoc_creation.js
       ticket: SERVER-126384
   suites: null
 last-continuous:
   all:
+    - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
+      ticket: SERVER-121079
     - test_file: jstests/concurrency/fsm_workloads/random_moveChunk/random_moveChunk_with_maxkey_docs.js
       ticket: SERVER-121533
+    - test_file: jstests/core/administrative/block_replica_set_writes.js
+      ticket: SERVER-121079
     - test_file: jstests/core/administrative/filemd5.js
       ticket: SERVER-119317
     - test_file: jstests/core/clustered/clustered_collection_bounded_scan.js
@@ -64,6 +74,8 @@ last-continuous:
       ticket: SERVER-95530
     - test_file: jstests/core/timeseries/ddl/reindex_timeseries.js
       ticket: SERVER-127051
+    - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
+      ticket: SERVER-121084
     - test_file: jstests/core/timeseries/query/timeseries_explain_delete.js
       ticket: SERVER-122559
     - test_file: jstests/core/timeseries/query/timeseries_lookup_index_use.js
@@ -120,6 +132,8 @@ last-continuous:
       ticket: SERVER-127620
     - test_file: jstests/sharding/chunk_migration_maxkey_boundary.js
       ticket: SERVER-121533
+    - test_file: jstests/sharding/range_deleter_does_not_block_stepdown_with_prepare_conflict.js
+      ticket: SERVER-SERVER-131283
     - test_file: jstests/sharding/read_write_concern_defaults_application.js
       ticket: SERVER-127620
     - test_file: jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js
@@ -217,6 +231,8 @@ last-lts:
       ticket: SERVER-99618
     - test_file: jstests/concurrency/fsm_workloads/ddl/collMod/collMod_options_with_index_ops.js
       ticket: SERVER-107819
+    - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
+      ticket: SERVER-121079
     - test_file: jstests/concurrency/fsm_workloads/query/remove/update_and_batched_delete.js
       ticket: SERVER-95570
     - test_file: jstests/concurrency/fsm_workloads/query/update/upsert_unique_index_collation.js
@@ -235,6 +251,8 @@ last-lts:
       ticket: SERVER-113887
     - test_file: jstests/concurrency/fsm_workloads/timeseries/timeseries_reshard_with_inserts.js
       ticket: SERVER-93149
+    - test_file: jstests/core/administrative/block_replica_set_writes.js
+      ticket: SERVER-121079
     - test_file: jstests/core/administrative/connection_status.js
       ticket: SERVER-95952
     - test_file: jstests/core/administrative/filemd5.js
@@ -433,6 +451,8 @@ last-lts:
       ticket: SERVER-88072
     - test_file: jstests/core/timeseries/query/timeseries_cursor_batches.js
       ticket: SERVER-91512
+    - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
+      ticket: SERVER-121084
     - test_file: jstests/core/timeseries/query/timeseries_explain_delete.js
       ticket: SERVER-122559
     - test_file: jstests/core/timeseries/query/timeseries_explicit_unpack_bucket.js
@@ -739,6 +759,8 @@ last-lts:
       ticket: SERVER-92690
     - test_file: jstests/sharding/query/owning_shard_expression.js
       ticket: SERVER-95670
+    - test_file: jstests/sharding/range_deleter_does_not_block_stepdown_with_prepare_conflict.js
+      ticket: SERVER-SERVER-131283
     - test_file: jstests/sharding/read_write_concern_defaults_application.js
       ticket: SERVER-127620
     - test_file: jstests/sharding/refresh_sessions.js

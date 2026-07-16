@@ -367,6 +367,41 @@ TEST_F(MaxKeyOrphanDetectionFixture, GuardDoesNotSkipCompoundPartialThroughWider
         opCtx, nss.dbName(), uuid, BSON("a" << 1 << "b" << 1), kCompoundGlobalMaxRange));
 }
 
+TEST_F(MaxKeyOrphanDetectionFixture, GuardSkipsRefineDemotedOrphan) {
+    const auto nss = NamespaceString::createNamespaceString_forTest("maxKeyGuard.refineDemoted");
+    auto uuid = createIndexedCollection(
+        opCtx, nss, BSON("a" << 1 << "b" << 1), {BSON("a" << MAXKEY << "b" << 5)});
+    // Pre-refine task range: upper bound is the single-field global max {a: MaxKey}.
+    const ChunkRange preRefineRange{BSON("a" << MINKEY), BSON("a" << MAXKEY)};
+    ASSERT_TRUE(shouldSkipRangeDeletionForMaxKeyOrphans(
+        opCtx, nss.dbName(), uuid, BSON("a" << 1 << "b" << 1), preRefineRange));
+}
+
+TEST_F(MaxKeyOrphanDetectionFixture, GuardSkipsRefineDemotedCompoundOrphan) {
+    const auto nss =
+        NamespaceString::createNamespaceString_forTest("maxKeyGuard.refineDemotedCompound");
+    auto uuid = createIndexedCollection(opCtx,
+                                        nss,
+                                        BSON("a" << 1 << "b" << 1 << "c" << 1),
+                                        {BSON("a" << MAXKEY << "b" << MAXKEY << "c" << 5)});
+    const ChunkRange preRefineRange{BSON("a" << MINKEY << "b" << MINKEY),
+                                    BSON("a" << MAXKEY << "b" << MAXKEY)};
+    ASSERT_TRUE(shouldSkipRangeDeletionForMaxKeyOrphans(
+        opCtx, nss.dbName(), uuid, BSON("a" << 1 << "b" << 1 << "c" << 1), preRefineRange));
+}
+
+TEST_F(MaxKeyOrphanDetectionFixture, GuardSkipsRefineDemotedOrphanThroughWiderIndex) {
+    const auto nss =
+        NamespaceString::createNamespaceString_forTest("maxKeyGuard.refineDemotedWiderIndex");
+    auto uuid = createIndexedCollection(opCtx,
+                                        nss,
+                                        BSON("a" << 1 << "b" << 1 << "c" << 1),
+                                        {BSON("a" << MAXKEY << "b" << 5 << "c" << 10)});
+    const ChunkRange preRefineRange{BSON("a" << MINKEY), BSON("a" << MAXKEY)};
+    ASSERT_TRUE(shouldSkipRangeDeletionForMaxKeyOrphans(
+        opCtx, nss.dbName(), uuid, BSON("a" << 1 << "b" << 1), preRefineRange));
+}
+
 TEST_F(MaxKeyOrphanDetectionFixture, GuardThrowsWhenShardKeyIndexMissing) {
     const auto nss = NamespaceString::createNamespaceString_forTest("maxKeyGuard.coll6");
     DBDirectClient client(opCtx);
@@ -517,6 +552,31 @@ TEST_F(MaxKeyOrphanDetectionFixture, ClassifyThrowsOnUnreadableStateDoc) {
     client.insert(NamespaceString::kConfigMaxKeyOrphanScanStateNamespace,
                   BSON("_id" << kScanStateIdValue << "blockedTasks" << 42));
     ASSERT_THROWS(loadOrComputeBlockedMaxKeyRangeDeletionTasks(opCtx), DBException);
+}
+
+TEST_F(MaxKeyOrphanDetectionFixture, ScanInterruptedByOpCtxKill) {
+    const auto nss = NamespaceString::createNamespaceString_forTest("maxKeyGuard.scanInterrupt");
+    auto uuid =
+        createIndexedCollection(opCtx, nss, BSON("a" << 1), {BSON("a" << 5), BSON("a" << MAXKEY)});
+
+    opCtx->markKilled(ErrorCodes::InterruptedDueToReplStateChange);
+    ASSERT_THROWS_CODE(shouldSkipRangeDeletionForMaxKeyOrphans(
+                           opCtx, nss.dbName(), uuid, BSON("a" << 1), kGlobalMaxRange),
+                       DBException,
+                       ErrorCodes::InterruptedDueToReplStateChange);
+}
+
+TEST_F(MaxKeyOrphanDetectionFixture, ClassifyInterruptedByOpCtxKill) {
+    const auto nss =
+        NamespaceString::createNamespaceString_forTest("maxKeyGuard.classifyInterrupt");
+    auto uuid =
+        createIndexedCollection(opCtx, nss, BSON("a" << 1), {BSON("a" << 5), BSON("a" << MAXKEY)});
+    insertRangeDeletionTask(opCtx, nss, uuid, kGlobalMaxRange, BSON("a" << 1));
+
+    opCtx->markKilled(ErrorCodes::InterruptedDueToReplStateChange);
+    ASSERT_THROWS_CODE(loadOrComputeBlockedMaxKeyRangeDeletionTasks(opCtx),
+                       DBException,
+                       ErrorCodes::InterruptedDueToReplStateChange);
 }
 
 }  // namespace
