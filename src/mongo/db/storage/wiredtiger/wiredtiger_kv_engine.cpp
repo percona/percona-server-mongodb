@@ -1027,7 +1027,11 @@ StatusWith<UniqueBuffer> WiredTigerKVEngineBase::getFromIdent(
         return status;
 
     UniqueBuffer out = UniqueBuffer::allocate(v.size());
-    std::memcpy(out.get(), v.data(), v.size());
+    // Guard the copy: a zero-length value (e.g. an empty-valued container key) has a null data
+    // pointer, and memcpy() with a null argument is undefined behavior even for a length of zero.
+    if (v.size() > 0) {
+        std::memcpy(out.get(), v.data(), v.size());
+    }
     return out;
 }
 
@@ -3984,6 +3988,11 @@ void WiredTigerKVEngine::setRecoveryCheckpointMetadata(std::string_view checkpoi
 void WiredTigerKVEngine::promoteToLeader() {
     static constexpr char leaderConfig[] = "disaggregated=(role=\"leader\")";
     invariantWTOK(_conn->reconfigure(_conn, leaderConfig), nullptr);
+}
+
+void WiredTigerKVEngine::demoteToFollower() {
+    static constexpr char followerConfig[] = "disaggregated=(role=\"follower\")";
+    invariantWTOK(_conn->reconfigure(_conn, followerConfig), nullptr);
 }
 
 void WiredTigerKVEngine::setStableTimestamp(Timestamp stableTimestamp, bool force) {

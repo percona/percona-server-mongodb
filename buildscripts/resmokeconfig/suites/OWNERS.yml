@@ -120,6 +120,9 @@ filters:
   - "no_passthrough_network*":
     approvers:
       - 10gen/server-networking-and-observability
+  - "integration_tests_replset_tls.yml":
+    approvers:
+      - 10gen/server-networking-and-observability
   - "cwrwc*":
     approvers:
       - 10gen/server-rw-concerns
@@ -279,3 +282,6 @@ filters:
   - "concurrency_resharding_with_lightweight_stepdowns.yml":
     approvers:
       - 10gen/server-cluster-scalability
+  - "core_explain_v3_passthrough.yml":
+    approvers:
+      - 10gen/query-optimization
