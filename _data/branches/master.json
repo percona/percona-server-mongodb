@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 49,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.6532610404398148,
-    "files_affected": 237,
-    "total_additions": 6094,
-    "total_deletions": 2918,
+    "commits_behind": 52,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 0.9488164975810186,
+    "files_affected": 276,
+    "total_additions": 8489,
+    "total_deletions": 4404,
     "date_range": {
       "first": "2026-07-16T08:01:17+00:00",
-      "last": "2026-07-16T22:15:17+00:00"
+      "last": "2026-07-17T02:15:53+00:00"
     }
   },
   "last_merged_commit": {
@@ -37,10 +37,40 @@
     "summary": "SERVER-131321 Allow \"random_ddl\" FSM workloads to deactivate the implicit suite-level handling of conflict errors (#58499)"
   },
   "gate": {
-    "open": false,
-    "reason": "wait (49 < 50 commits; oldest 0.7d < 2d)"
+    "open": true,
+    "reason": "min_commits (52 >= 50)"
   },
   "unmerged_commits": [
+    {
+      "sha": "c48b8d1873efa5297e9d4bca894df85a4e1bffa4",
+      "short_sha": "c48b8d1873e",
+      "date": "2026-07-17T12:15:53+10:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-122282 Explicitly set the schema epoch when creating the catalog and oplog (#56639)\" (#58896)"
+    },
+    {
+      "sha": "247d4a2555baf62b63e29802ba55b0f97b8f7fc1",
+      "short_sha": "247d4a2555b",
+      "date": "2026-07-16T19:49:03-05:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-131306 Use OpCtx-decorated IFRContext rather than creating a stale new one (#58721)"
+    },
+    {
+      "sha": "601a0018c3e9f0eae2c30c85c7038426ee4696c6",
+      "short_sha": "601a0018c3e",
+      "date": "2026-07-17T10:42:55+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 208e680b273fbc787f909386590653be64e781fb from branch mongodb-master (#58797)"
+    },
     {
       "sha": "af14f3f24d292a1733121f2c2480b8707e29c5cc",
       "short_sha": "af14f3f24d2",
@@ -555,10 +585,33 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "601a0018c3e9f0eae2c30c85c7038426ee4696c6",
+        "short_sha": "601a0018c3e",
+        "date": "2026-07-17T10:42:55+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 208e680b273fbc787f909386590653be64e781fb from branch mongodb-master (#58797)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 35,
+          "num_of_lines": 3810,
+          "lines_added": 2402,
+          "lines_deleted": 1408,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-16 23:41:55",
+  "generated_at": "2026-07-17 06:47:31",
   "branch_name": "master",
   "display_name": "master"
 }
