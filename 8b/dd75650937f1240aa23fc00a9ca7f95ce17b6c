@@ -1,0 +1,191 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e89ffd95738c86ec688159093f48749e5cd2e720",
+    "merge_commit": "c48b8d1873efa5297e9d4bca894df85a4e1bffa4"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "merge_context": {
+    "merge_commit": "c48b8d1873efa5297e9d4bca894df85a4e1bffa4",
+    "merged_commits": [
+      "c48b8d1873efa5297e9d4bca894df85a4e1bffa4",
+      "247d4a2555baf62b63e29802ba55b0f97b8f7fc1",
+      "601a0018c3e9f0eae2c30c85c7038426ee4696c6",
+      "af14f3f24d292a1733121f2c2480b8707e29c5cc",
+      "9ca19b1838c8bc6e040f1cab5c7fea012ffbcb4b",
+      "b8fdb1e38402002e0c0bc27d84ae6aed103cbee9",
+      "8490e9bde8cfe7fb996150dd58cf9d48deafa06d",
+      "9e76370627507852d92baf0377597e395c9a8ea2",
+      "0e3ff3ce0a3ebd586effe47dc178c813499e9304",
+      "d6e2320b1c1431a00dc363d4444c8030c1cc1da8",
+      "71b0d59e44d039281f607708b7a06766b40494f4",
+      "b281f38f6067083e408c32f849d37aece11d6d19",
+      "a3231604944546e396d03be7e316a075dc488376",
+      "78f6553498fb607acf0706580dc2b3f2598383ce",
+      "8354e366021b5334ec5b1a8929383e4556de71cc",
+      "99ef7aa104e364dafaeaafb8ece72da61b187bb2",
+      "2915ddccaf98a129075b775278afc27c1b313474",
+      "21dddd609de199fd08122649b844857f596dbe82",
+      "063c354c970b37450ec78c18738b7514f48208f1",
+      "81e633dc2a5751c8cf722430a2fcba9d94ec2462",
+      "93315160e1625f4e6d08ba74dfa778c4057742c4",
+      "a97b2f2e628051774c9831e34a8e3c002d679b25",
+      "ff12f8e24479ece0b6b981a60d411f0afb48386c",
+      "6e7d4b3ca764c8769452959b8d743d82402aa01c",
+      "f66f3d334776fd77a1374b71f963f96e577e17c3",
+      "a125b460575febb5b317f26ff31ce63505f3e483",
+      "df1ce60357a3476e849c7b6140c42d8d605bfae2",
+      "84cb5ed2f7942c395f162b47aa4132dd72e0ad06",
+      "f74a64a2bcf9e9c96d5609a06769895b1e4e048f",
+      "5c2658cafa1f8288affe29bbfaa3750cfff738ae",
+      "68af53475f7bc61f9c3e4a24f7dab6e067ed29f0",
+      "513fd4862a6be3237bba838985f24d4a04260d0b",
+      "ae2d8f30f320124263192c05884c0a5fc96389bd",
+      "5a9c758e9cd1e39c96eff0fd1dc637b7731d0027",
+      "c1ce1be09af6b2b427141785bf5f18d356b5a3a8",
+      "6daac133903f3640580cb17c404b98d3e4922719",
+      "95cb5893ceb6298167154eb68e5e302c5ba25d69",
+      "da397e658ec6c9c2708a13b6e990081a25d4a021",
+      "42810b1479bfb19d4ea09d642186ed2159b9c907",
+      "2c000006662882391c347f6fd89d03d2a15c69e5",
+      "19333f0f1eb3b0d364155f8ac5f3c7e9b64d2300",
+      "0589b8b810093fa96a4fd767560f6ed5efde921e",
+      "42a7c73d7a0d358111f674171b294423aa78763e",
+      "ab3c4743dd6014b9cc1ca0ef4df81ea042ac2999",
+      "9f1732956e2f8c31365d82d2eca85b3443756e54",
+      "cc964da601370d054f0738d6cbf6914fc0166c80",
+      "2d973e75623dfb9f02590db436ca241619a03b68",
+      "5d3e4d318068501975bea062402b420921ef3026",
+      "27c2465fbaff8bcf66fae2d5d3d4bc66184fa2ce",
+      "2570d0df93b463eddd24f13d0e7764651a37da13",
+      "b09c18075444d5754a62c5e5bfff14a79f3d76e5",
+      "295c3d2ac202b76071df4012bcdee9bf27bdf8dd"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "buildscripts/resmokelib/core/programs.py",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/auth/action_type.idl",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 43734,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.32202075,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 2770,
+        "cacheReadInputTokens": 68718,
+        "cacheCreationInputTokens": 34831,
+        "webSearchRequests": 0,
+        "costUSD": 0.32134275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 2770,
+            "cache_read": 68718,
+            "cache_creation": 34831
+          },
+          "cost_usd": 0.32134275
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's what this merge (`ff39f35e` \u2192 `c48b8d18`) introduces across the five auto-merged files:\n\n- **`.bazelrc`** \u2014 Adds two `rules_rust` flags (`extra_rustc_flag`/`extra_exec_rustc_flag` set to `--cfg=reset_cache_A`) so third-party Rust builds also honor the cache-reset mechanism.\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 `dbtest_program()` now launches dbtest with `--enhancedReporter=false`.\n- **`src/mongo/base/error_codes.yml`** \u2014 `IFRFlagRetry` (code 479) is no longer tagged `RetriableError`; a comment explains it may only be retried by query-layer handlers, never verbatim at the network layer.\n- **`src/mongo/db/auth/action_type.idl`** \u2014 New action types: `getCompleteCollStats`, `getCompleteReplSetStatus`, `getCompleteServerStatus`, and `manageMetricsFiltering`.\n- **`src/third_party/wiredtiger/src/include/wiredtiger.h.in`** \u2014 WiredTiger update adding a `skip_per_key_hs` verify config option and new statistics (verify HS-keys-checked, a `btree-size` stat family), which shifts many generated `WT_STAT_*` constant numbers upward.\n\nAll files merged cleanly (no conflict markers), and none are Percona-specific customization points \u2014 the response records this in the review notes.",
+    "response": {
+      "summary": "Auto-merge of upstream MongoDB master into the fork. All five files merged cleanly with no conflicts. The incoming changes: add Rust rustc cache-reset flags to .bazelrc; pass --enhancedReporter=false to the dbtest program in resmoke; stop tagging the IFRFlagRetry (code 479) error with the RetriableError category and add an explanatory comment; add new authorization action types (getCompleteCollStats, getCompleteReplSetStatus, getCompleteServerStatus, manageMetricsFiltering) to action_type.idl; and pull in a WiredTiger update that adds a new verify config option and new statistics, renumbering the generated statistic constants.",
+      "auto_merged": {
+        ".bazelrc": "Adds a comment ('Third party rust code doesnt get passed the --action_env') and two new common flags next to the existing RESET_CACHE action_env: '--@rules_rust//rust/settings:extra_rustc_flag=--cfg=reset_cache_A' and '--@rules_rust//rust/settings:extra_exec_rustc_flag=--cfg=reset_cache_A', so third-party Rust builds also participate in the cache-reset mechanism.",
+        "buildscripts/resmokelib/core/programs.py": "In dbtest_program(), the initial args list changes from [executable] to [executable, \"--enhancedReporter=false\"], so the dbtest process is now started with the --enhancedReporter=false argument.",
+        "src/mongo/base/error_codes.yml": "The IFRFlagRetry error (code 479) is redefined: the 'categories: [RetriableError]' tag is removed and the entry is collapsed to '{code: 479, name: IFRFlagRetry, extra: IFRFlagRetryInfo}'. A comment is added explaining that IFRFlagRetry is retryable only by query-layer handlers (which disable the offending feature flag before re-running) and must never be retried verbatim at the network layer, so it deliberately carries no RetriableError category.",
+        "src/mongo/db/auth/action_type.idl": "Adds new ActionType enum values: getCompleteCollStats, getCompleteReplSetStatus, and getCompleteServerStatus (inserted after getCmdLineOpts), and manageMetricsFiltering (inserted after updateSearchIndex).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger update. Adds a new verify config option 'skip_per_key_hs' (boolean, default false) that skips an expensive per-key check comparing data-store and history-store timestamps. Adds new statistics including 'session: table verify number of keys checked against the history store' (WT_STAT_CONN_SESSION_TABLE_VERIFY_HS_KEYS_CHECKED) and a family of data-source 'btree-size' statistics (internal/leaf/overflow page bytes and counts, key/value bytes and counts, leaf page-size histogram buckets, pages skipped for no on-disk image). Documentation for BTREE_ROW_LEAF_AVG_ENTRIES and BTREE_ROW_LEAF_PAGES is updated to note a UINT64_MAX sentinel awaiting a tree-walk correction. As a result of the inserted stats, the numeric values of many generated WT_STAT_CONN_* and WT_STAT_DSRC_* constants are shifted upward by one (or more)."
+      },
+      "review_notes": "The bulk of the wiredtiger.h.in diff is mechanical renumbering of generated WT_STAT_* constant values caused by inserting the new statistics; only a handful of lines add genuinely new definitions/comments. All files were auto-merged with strategy 'ort' and contain no conflict markers. None of the listed files touched by this merge are Percona-specific customization points; the changes are straightforward upstream additions."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough of the diff to describe all files. The wiredtiger diff is predominantly stat-constant renumbering with a few new stats. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's what this merge (`ff39f35e` \u2192 `c48b8d18`) introduces across the five auto-merged files:\n\n- **`.bazelrc`** \u2014 Adds two `rules_rust` flags (`extra_rustc_flag`/`extra_exec_rustc_flag` set to `--cfg=reset_cache_A`) so third-party Rust builds also honor the cache-reset mechanism.\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 `dbtest_program()` now launches dbtest with `--enhancedReporter=false`.\n- **`src/mongo/base/error_codes.yml`** \u2014 `IFRFlagRetry` (code 479) is no longer tagged `RetriableError`; a comment explains it may only be retried by query-layer handlers, never verbatim at the network layer.\n- **`src/mongo/db/auth/action_type.idl`** \u2014 New action types: `getCompleteCollStats`, `getCompleteReplSetStatus`, `getCompleteServerStatus`, and `manageMetricsFiltering`.\n- **`src/third_party/wiredtiger/src/include/wiredtiger.h.in`** \u2014 WiredTiger update adding a `skip_per_key_hs` verify config option and new statistics (verify HS-keys-checked, a `btree-size` stat family), which shifts many generated `WT_STAT_*` constant numbers upward.\n\nAll files merged cleanly (no conflict markers), and none are Percona-specific customization points \u2014 the response records this in the review notes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260717_153158_836333.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.212 (Claude Code)"
+    }
+  }
+}
