@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 52,
+    "commits_behind": 67,
     "days_behind": 1,
-    "unmerged_oldest_age_days": 0.9488164975810186,
-    "files_affected": 276,
-    "total_additions": 8489,
-    "total_deletions": 4404,
+    "unmerged_oldest_age_days": 1.288101103726852,
+    "files_affected": 323,
+    "total_additions": 9958,
+    "total_deletions": 4582,
     "date_range": {
       "first": "2026-07-16T08:01:17+00:00",
-      "last": "2026-07-17T02:15:53+00:00"
+      "last": "2026-07-17T13:57:23+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,159 @@
   },
   "gate": {
     "open": true,
-    "reason": "min_commits (52 >= 50)"
+    "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "29dbdf776db4be217e5cd05675e3b4ebbcbd2f8c",
+      "short_sha": "29dbdf776db",
+      "date": "2026-07-17T09:57:23-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-131556 Handle EBUSY in accumulateCollectionIndexSize() (#58830)"
+    },
+    {
+      "sha": "410e418c027fdf96864f831995c1dfd7370d88f3",
+      "short_sha": "410e418c027",
+      "date": "2026-07-17T09:49:56-04:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-130894 Introduce knob to control join plan cache size (#58010)"
+    },
+    {
+      "sha": "5213eda553abe834c7ec24020ae4087ded28255e",
+      "short_sha": "5213eda553a",
+      "date": "2026-07-17T09:46:09-04:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-131466 Handle query shapes larger than `BSONObjMaxUserSize` in registering and executing query stats (#58713)"
+    },
+    {
+      "sha": "256f0646330d9812170a79b9912626a46929ec2f",
+      "short_sha": "256f0646330",
+      "date": "2026-07-17T08:49:08-04:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-130746 Introduce passthroughs for QEMP batch 1 IFR testing (#58717)"
+    },
+    {
+      "sha": "569ce042a38b6b98cbaf324056993b3314c27c11",
+      "short_sha": "569ce042a38",
+      "date": "2026-07-17T08:41:49-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-131382: Reduce instruction count handling traces on ingress (#58520)"
+    },
+    {
+      "sha": "e6bb96d7d10a8c4219f509c32f2008586723fe32",
+      "short_sha": "e6bb96d7d10",
+      "date": "2026-07-17T07:19:01-04:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-131304 Cleanup closed tickets in with_mongot_extension.yml (#58869)"
+    },
+    {
+      "sha": "dc3d315a92366826702cec74d488f8f4c6fc5fcf",
+      "short_sha": "dc3d315a923",
+      "date": "2026-07-17T13:10:22+02:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-120440 Replica set write block readme updates (#58358)"
+    },
+    {
+      "sha": "d1bf655bff327b89d8dd780501dcd8b05363c870",
+      "short_sha": "d1bf655bff3",
+      "date": "2026-07-17T10:58:08+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-130820: Assign ownership of agg_configurable_memory_limits.js to QE (#58368)"
+    },
+    {
+      "sha": "6bbc74144b92824782eef0d5630f9d97736e6e27",
+      "short_sha": "6bbc74144b9",
+      "date": "2026-07-17T12:20:13+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-131654 Tolerate calling `_shardsvrCheckMetadataConsistencyParticipant` without `secondaryCheckMode` (#58910)"
+    },
+    {
+      "sha": "59907c1f34efcc4a47863834415a50349c082695",
+      "short_sha": "59907c1f34e",
+      "date": "2026-07-17T10:37:16+01:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-131177 Use non-throwing FieldPath validation in addPathsFromIndexKeyPattern (#58372)"
+    },
+    {
+      "sha": "a09de5fb270532ba78767879cf4efaf136610d38",
+      "short_sha": "a09de5fb270",
+      "date": "2026-07-17T10:12:06+01:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-131464 bump tag in order to fix  nighly build runs for list-append (#58861)"
+    },
+    {
+      "sha": "4d73d13d16a6140a54a15139a9ef3af1d4b747b9",
+      "short_sha": "4d73d13d16a",
+      "date": "2026-07-17T10:06:40+01:00",
+      "author": {
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
+      },
+      "summary": "SERVER-131574 Disable test case in join_costing_invariants.js (#58835)"
+    },
+    {
+      "sha": "b8a093a3188f1e3660353ee64fd965c85412dfe2",
+      "short_sha": "b8a093a3188",
+      "date": "2026-07-17T10:43:07+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-131647 Update TODO for SERVER-131045 (#58912)"
+    },
+    {
+      "sha": "e9da4562ce83695da3e50f3be4056208cb160c4c",
+      "short_sha": "e9da4562ce8",
+      "date": "2026-07-17T10:27:03+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-130940 Prevent creation of new temporary collection with the same UUID in renameCollectionAcrossDatabases (#58502)"
+    },
+    {
+      "sha": "2a62f06250c4476c7600fce907efb8956a003ff8",
+      "short_sha": "2a62f06250c",
+      "date": "2026-07-17T09:21:53+01:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-131608 network errors to resmoke retry allowlist (#58864)"
+    },
     {
       "sha": "c48b8d1873efa5297e9d4bca894df85a4e1bffa4",
       "short_sha": "c48b8d1873e",
@@ -608,10 +758,29 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "29dbdf776db4be217e5cd05675e3b4ebbcbd2f8c",
+        "short_sha": "29dbdf776db",
+        "date": "2026-07-17T09:57:23-04:00",
+        "author": {
+          "name": "Cedric Sirianni",
+          "email": "cedric.sirianni@mongodb.com"
+        },
+        "summary": "SERVER-131556 Handle EBUSY in accumulateCollectionIndexSize() (#58830)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-17 06:47:31",
+  "generated_at": "2026-07-17 14:56:04",
   "branch_name": "master",
   "display_name": "master"
 }
