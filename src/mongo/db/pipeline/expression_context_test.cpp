@@ -7,8 +7,10 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/db/feature_flag.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/memory_tracking/memory_usage_tracker.h"
+#include "mongo/db/memory_tracking/operation_memory_usage_tracker.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
@@ -35,6 +37,37 @@ namespace {
 using namespace std::literals::string_view_literals;
 
 using ExpressionContextTest = ServiceContextTest;
+
+TEST_F(ExpressionContextTest, AdoptsOpCtxInstalledIFRContext) {
+    // When no IFRContext is threaded in and the opCtx already has one installed, the
+    // ExpressionContext must adopt that same instance (by identity), so a flag disabled on the
+    // operation's context is observed here and by the egress metadata hook.
+    auto opCtx = makeOperationContext();
+    auto installed = IncrementalFeatureRolloutContext::forTest({});
+    IncrementalFeatureRolloutContext::set(opCtx.get(), installed);
+
+    auto expCtx = ExpressionContextBuilder{}
+                      .opCtx(opCtx.get())
+                      .ns(NamespaceString::createNamespaceString_forTest("test"sv, "namespace"sv))
+                      .build();
+
+    ASSERT_EQ(expCtx->getIfrContext().get(), installed.get());
+}
+
+TEST_F(ExpressionContextTest, BindsToOpCtxPerOperationIFRContext) {
+    // When none is threaded in, the ctor sources the context from get(opCtx), binding this
+    // ExpressionContext to the single per-operation IFRContext. A flag disabled on that context
+    // (e.g. by an IFR retry) is therefore observed here and by the egress metadata hook.
+    auto opCtx = makeOperationContext();
+    auto expCtx = ExpressionContextBuilder{}
+                      .opCtx(opCtx.get())
+                      .ns(NamespaceString::createNamespaceString_forTest("test"sv, "namespace"sv))
+                      .build();
+
+    ASSERT(expCtx->getIfrContext());
+    ASSERT_EQ(expCtx->getIfrContext().get(),
+              IncrementalFeatureRolloutContext::get(opCtx.get()).get());
+}
 
 TEST_F(ExpressionContextTest, ExpressionContextSummonsMissingTimeValues) {
     auto opCtx = makeOperationContext();
@@ -648,6 +681,53 @@ TEST_F(ExpressionContextTest, ExcludeOperationMemoryTrackingIsPropagatedToCopies
     auto copy = makeCopyFromExpressionContext(
         expCtx, NamespaceString::createNamespaceString_forTest("test"sv, "other"sv));
     ASSERT_TRUE(copy->getExcludeOperationMemoryTracking());
+}
+
+TEST_F(
+    ExpressionContextTest,
+    ExpressionFallbackTrackerStandaloneWhenExpressionFallbackExcludedFromOperationMemoryTracking) {
+    unittest::ServerParameterGuard queryMemTracking{"featureFlagQueryMemoryTracking", true};
+    unittest::ServerParameterGuard exprMemTracking{"featureFlagExpressionMemoryTracking", true};
+    // Tiny per-expression cap, generous per-query limit. If the fallback rolled up to the operation
+    // tracker it would be bounded by the generous per-query limit and stay within limit; a
+    // standalone fallback is bounded by the tiny per-expression cap and exceeds it.
+    unittest::ServerParameterGuard exprCap{"internalQueryMaxSingleExpressionMemoryUsageBytes", 4};
+    unittest::ServerParameterGuard perQueryLimit{"internalQueryMaxMemoryUsageBytesPerOperation",
+                                                 10 * 1024 * 1024};
+
+    auto opCtx = makeOperationContext();
+    auto expCtx = ExpressionContextBuilder{}
+                      .opCtx(opCtx.get())
+                      .ns(NamespaceString::createNamespaceString_forTest("test"sv, "coll"sv))
+                      .excludeExpressionFallbackFromOperationMemoryTracking(true)
+                      .build();
+
+    auto& tracker = expCtx->getExpressionFallbackTracker();
+    tracker.add(100);  // Exceeds the per-expression cap; only a rolled-up tracker would be within.
+    ASSERT_FALSE(tracker.withinMemoryLimit(opCtx.get()));
+    tracker.add(-100);
+}
+
+TEST_F(ExpressionContextTest, StageMemoryTrackerUnaffectedByExpressionFallbackExclusion) {
+    unittest::ServerParameterGuard queryMemTracking{"featureFlagQueryMemoryTracking", true};
+    unittest::ServerParameterGuard exprMemTracking{"featureFlagExpressionMemoryTracking", true};
+    // Tiny per-query limit; the stage tracker's own cap is left at its generous default. If the
+    // stage tracker rolls up (as it must), it is bounded by the tiny per-query limit and exceeds
+    // it.
+    unittest::ServerParameterGuard perQueryLimit{"internalQueryMaxMemoryUsageBytesPerOperation", 4};
+
+    auto opCtx = makeOperationContext();
+    auto expCtx = ExpressionContextBuilder{}
+                      .opCtx(opCtx.get())
+                      .ns(NamespaceString::createNamespaceString_forTest("test"sv, "coll"sv))
+                      .excludeExpressionFallbackFromOperationMemoryTracking(true)
+                      .build();
+
+    auto stageTracker =
+        OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForStage(*expCtx);
+    stageTracker.add(100);  // Exceeds the per-query limit via the operation-tracker base chain.
+    ASSERT_FALSE(stageTracker.withinMemoryLimit(opCtx.get()));
+    stageTracker.add(-100);
 }
 
 }  // namespace

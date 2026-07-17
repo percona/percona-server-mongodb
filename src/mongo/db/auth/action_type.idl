@@ -87,6 +87,9 @@ enums:
             fsyncUnlock: "fsyncUnlock" # Deprecated in favor of unlock (refer to:SERVER-89642)
             getClusterParameter: "getClusterParameter"
             getCmdLineOpts: "getCmdLineOpts"
+            getCompleteCollStats: "getCompleteCollStats"
+            getCompleteReplSetStatus: "getCompleteReplSetStatus"
+            getCompleteServerStatus: "getCompleteServerStatus"
             getDatabaseVersion: "getDatabaseVersion"
             getDefaultRWConcern: "getDefaultRWConcern"
             getESECMKIdentifierListStatus: "getESECMKIdentifierListStatus"
@@ -126,6 +129,7 @@ enums:
             logApplicationMessage: "logApplicationMessage"
             logRotate: "logRotate"
             updateSearchIndex: "updateSearchIndex"
+            manageMetricsFiltering: "manageMetricsFiltering"
             moveChunk: "moveChunk"
             moveCollection: "moveCollection"
             netstat: "netstat"

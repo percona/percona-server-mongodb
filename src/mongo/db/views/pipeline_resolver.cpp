@@ -53,6 +53,10 @@ std::vector<BSONObj> buildResolvedPipelineForSimpleCase(
     // Mongot user pipelines are a unique case: $_internalSearchIdLookup applies the view pipeline.
     // For this reason, we do not expand the aggregation request to include the view pipeline.
     // Caller is expected to use LiteParsedPipeline::handleView() for such cases.
+    // TODO SERVER-117168: Remove the isExtensionMongotPipeline check. Extension search stages
+    // declare FirstStageViewApplicationPolicy::kDoNothing via
+    // get_first_stage_view_application_policy (other extension stages default to kDefaultPrepend),
+    // so the policy-driven handleView() paths handle them without stage-name special-casing.
     if (search_helper_bson_obj::isMongotPipeline(ifrContext, userPipeline) ||
         search_helper_bson_obj::isExtensionMongotPipeline(ifrContext, userPipeline)) {
         return userPipeline;
@@ -266,6 +270,10 @@ PipelineResolver::MongosViewRequestResult PipelineResolver::buildResolvedMongosV
         // first stage handles view resolution itself, but subsequent extension stages still need
         // view validation. Timeseries views are skipped; their pipeline is fully resolved above via
         // buildResolvedPipelineForSimpleCase.
+        // TODO SERVER-115069: this binds the view to top-level stages only. Not user-visible
+        // today — mongot sub-pipelines on views resolve shard-side via the sharded view kickback,
+        // where the recursive mongod path runs. Fold into the recursive resolver with the
+        // bindResolvedNamespace() migration.
         if (!resolvedView->isTimeseries()) {
             LiteParserOptions options{.ifrContext = ifrContext};
             auto lpp = LiteParsedPipeline(request, true, options);
