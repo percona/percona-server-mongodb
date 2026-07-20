@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 48,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.480866348900463,
-    "files_affected": 218,
-    "total_additions": 5178,
-    "total_deletions": 13421,
+    "commits_behind": 64,
+    "days_behind": 3,
+    "unmerged_oldest_age_days": 2.9459028894328703,
+    "files_affected": 330,
+    "total_additions": 8125,
+    "total_deletions": 14531,
     "date_range": {
       "first": "2026-07-17T08:21:53+00:00",
-      "last": "2026-07-17T19:12:34+00:00"
+      "last": "2026-07-20T02:24:43+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,166 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "b79fd73434bbbe9092de3d48cf96de3962d74d99",
+      "short_sha": "b79fd73434b",
+      "date": "2026-07-20T12:24:43+10:00",
+      "author": {
+        "name": "Aaron B",
+        "email": "aaron.balsara@mongodb.com"
+      },
+      "summary": "SERVER-129873 Support operation_timeout_ms in WTRU (#58757)"
+    },
+    {
+      "sha": "59962ffd3dfd37f2d5bcac7ebf3b9e196b7703cf",
+      "short_sha": "59962ffd3df",
+      "date": "2026-07-20T10:01:30+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 0a51d5301503eb715b53aa12dae721846ef89fb3 from branch mongodb-master (#59021)"
+    },
+    {
+      "sha": "ff622631a9f8bbb22c0548202b0739203fbd86fc",
+      "short_sha": "ff622631a9f",
+      "date": "2026-07-20T09:50:22+10:00",
+      "author": {
+        "name": "jchen",
+        "email": "29520270+jiechenbo@users.noreply.github.com"
+      },
+      "summary": "SERVER-130700 Cap per-pass span of time-based disagg oplog truncation (#58047)"
+    },
+    {
+      "sha": "47881b6e3e09c17c093dbe84e13263fc548062c0",
+      "short_sha": "47881b6e3e0",
+      "date": "2026-07-19T18:39:41-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-130783 Remove feature flag for SPM-4756 (#58566)"
+    },
+    {
+      "sha": "4299f64d15be03e2c40a47237d434bb059d7b6bf",
+      "short_sha": "4299f64d15b",
+      "date": "2026-07-18T01:44:25-04:00",
+      "author": {
+        "name": "Justin Seyster",
+        "email": "justin.seyster@mongodb.com"
+      },
+      "summary": "SERVER-131432 Accept CollectionUUIDMismatch error from system.sessions during CheckMetadataConsistencyInBackground testing (#58603)"
+    },
+    {
+      "sha": "b638b6e8fe246a96dff7721712dc4a44f7ba1d8c",
+      "short_sha": "b638b6e8fe2",
+      "date": "2026-07-17T23:01:07-04:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-131598 Ensure that resharding pipeline states are left consistent after hitting an exception (#58930)"
+    },
+    {
+      "sha": "6f1203062f47a0a23ca0ec9a6d5af8d5e640bed4",
+      "short_sha": "6f1203062f4",
+      "date": "2026-07-17T17:44:10-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-131596 Avoid mongos segfault disposing sharded merge cursor with detached OpCtx (#58875)"
+    },
+    {
+      "sha": "2481269cc9acb7393930f37d5abded88b14f1d8c",
+      "short_sha": "2481269cc9a",
+      "date": "2026-07-17T18:50:54-04:00",
+      "author": {
+        "name": "madelinezec",
+        "email": "15312869+madelinezec@users.noreply.github.com"
+      },
+      "summary": "SERVER-127575 don't count derived predicates in cardinality estimations (#57824)"
+    },
+    {
+      "sha": "0ec4a35d62136cf046ca77a88526a86d29e1af67",
+      "short_sha": "0ec4a35d621",
+      "date": "2026-07-17T18:47:45-04:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-131387 Adapt query tests using moveChunkNotRefreshRecipient (#58851)"
+    },
+    {
+      "sha": "9eda0508e2e242c3b153af4a84ba3a6ca8935547",
+      "short_sha": "9eda0508e2e",
+      "date": "2026-07-17T17:28:08-04:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-131080 Add SBE StreamingAggStage (#57074)"
+    },
+    {
+      "sha": "8e3581e49aa99bebd07ed97cb4630efe5b1f3c3c",
+      "short_sha": "8e3581e49aa",
+      "date": "2026-07-17T15:31:50-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-131723: Set memlock ulimit for Antithesis mongo containers (#58969)"
+    },
+    {
+      "sha": "310ea4c7f46b027f3b158fe309f0c4145fd7133c",
+      "short_sha": "310ea4c7f46",
+      "date": "2026-07-17T16:09:41-04:00",
+      "author": {
+        "name": "Kyra Ramesh Krishna",
+        "email": "60921433+kyra-rk@users.noreply.github.com"
+      },
+      "summary": "SERVER-131581: Increase heartbeatIntervalMillis in Antithesis fixture config (#58933)"
+    },
+    {
+      "sha": "a62edd9cb1ba3f7116fb52532ad3e05795e5ca8d",
+      "short_sha": "a62edd9cb1b",
+      "date": "2026-07-17T16:05:49-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-131681 Move opCtx-coupled IFR context code out of server_base (#58951)"
+    },
+    {
+      "sha": "fd864f3a9f70cf1b804c2ac7c8294e021d61b6c0",
+      "short_sha": "fd864f3a9f7",
+      "date": "2026-07-17T15:56:54-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-131700 Relax mongot fixture teardown (#58971)"
+    },
+    {
+      "sha": "bc39b3face3f567c79259d73789cf3c07c22ac7f",
+      "short_sha": "bc39b3face3",
+      "date": "2026-07-17T15:56:09-04:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-131711: Reduce resmoke jobs for replica_sets_reconfig_terminate_primary priority_ports on {A,UB}SAN to fix memory-pressure timeout (#58979)"
+    },
+    {
+      "sha": "69ce480c43f7e6e120ca79c693aee956c31ea9a2",
+      "short_sha": "69ce480c43f",
+      "date": "2026-07-17T12:27:36-07:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-131103 add RHEL10 390x/ppc support  (#58856)"
+    },
     {
       "sha": "590aa79cad29dddccc44c8b34feff4b2d3f5d3cb",
       "short_sha": "590aa79cad2",
@@ -582,10 +742,33 @@
           "sbom.json"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "59962ffd3dfd37f2d5bcac7ebf3b9e196b7703cf",
+        "short_sha": "59962ffd3df",
+        "date": "2026-07-20T10:01:30+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 0a51d5301503eb715b53aa12dae721846ef89fb3 from branch mongodb-master (#59021)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 43,
+          "num_of_lines": 958,
+          "lines_added": 711,
+          "lines_deleted": 247,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-17 19:54:17",
+  "generated_at": "2026-07-20 07:03:56",
   "branch_name": "master",
   "display_name": "master"
 }
