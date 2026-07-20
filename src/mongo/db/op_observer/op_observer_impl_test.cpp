@@ -21,7 +21,6 @@
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/import_collection_oplog_entry_gen.h"
-#include "mongo/db/index_builds/primary_driven/tearable_side_write_redo_state.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/op_observer/batched_write_context.h"
 #include "mongo/db/op_observer/change_stream_pre_images_op_observer.h"
@@ -112,6 +111,14 @@ using namespace std::literals::string_view_literals;
 
 using repl::OplogEntry;
 using unittest::assertGet;
+
+boost::optional<SingleOpSizeMetadata> getSizeMetadataFromOplogEntry(const OplogEntry& entry) {
+    const auto& sizeMetadata = entry.getSizeMetadata();
+    if (!sizeMetadata || !std::holds_alternative<SingleOpSizeMetadata>(*sizeMetadata)) {
+        return boost::none;
+    }
+    return std::get<SingleOpSizeMetadata>(*sizeMetadata);
+}
 
 OplogEntry getInnerEntryFromApplyOpsOplogEntry(const OplogEntry& oplogEntry) {
     std::vector<repl::OplogEntry> innerEntries;
@@ -447,11 +454,14 @@ protected:
         return indexes;
     }
 
-    // Inserts doc and returns the docHash from the resulting oplog entry.
-    boost::optional<int64_t> insertAndGetDocHash(OperationContext* opCtx,
-                                                 const NamespaceString& ns,
-                                                 const BSONObj& doc,
-                                                 std::vector<RecordId> recordIds) {
+    // The following helpers return the full SingleOpSizeMetadata. Insert derives the size delta
+    // from the document size, while update and delete take it as an explicit argument, mirroring
+    // how the write path populates it.
+    boost::optional<SingleOpSizeMetadata> insertAndGetSizeMetadata(
+        OperationContext* opCtx,
+        const NamespaceString& ns,
+        const BSONObj& doc,
+        std::vector<RecordId> recordIds) {
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
         WriteUnitOfWork wuow(opCtx);
         std::vector<InsertStatement> insert;
@@ -465,15 +475,17 @@ protected:
                                /*defaultFromMigrate=*/false);
         wuow.commit();
         auto entry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx)));
-        return entry.getDocHash();
+        return getSizeMetadataFromOplogEntry(entry);
     }
 
-    boost::optional<int64_t> updateAndGetDocHash(OperationContext* opCtx,
-                                                 const NamespaceString& ns,
-                                                 const BSONObj& preImageDoc,
-                                                 const BSONObj& update,
-                                                 const BSONObj& updatedDoc,
-                                                 RecordId recordId) {
+    boost::optional<SingleOpSizeMetadata> updateAndGetSizeMetadata(
+        OperationContext* opCtx,
+        const NamespaceString& ns,
+        const BSONObj& preImageDoc,
+        const BSONObj& update,
+        const BSONObj& updatedDoc,
+        RecordId recordId,
+        boost::optional<int32_t> replicatedSizeDelta) {
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
 
         CollectionUpdateArgs updateArgs{preImageDoc};
@@ -485,27 +497,31 @@ protected:
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
         WriteUnitOfWork wuow(opCtx);
         OplogUpdateEntryArgs updateEntryArgs(&updateArgs, *autoColl);
+        updateEntryArgs.replicatedSizeDelta = replicatedSizeDelta;
         opObserver.onUpdate(opCtx, updateEntryArgs);
         wuow.commit();
         auto entry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx)));
-        return entry.getDocHash();
+        return getSizeMetadataFromOplogEntry(entry);
     }
 
-    boost::optional<int64_t> deleteAndGetDocHash(OperationContext* opCtx,
-                                                 const NamespaceString& ns,
-                                                 const BSONObj& deletedDoc,
-                                                 RecordId replicatedRecordId) {
+    boost::optional<SingleOpSizeMetadata> deleteAndGetSizeMetadata(
+        OperationContext* opCtx,
+        const NamespaceString& ns,
+        const BSONObj& deletedDoc,
+        RecordId replicatedRecordId,
+        boost::optional<int32_t> replicatedSizeDelta) {
         OpObserverImpl opObserver(std::make_unique<OperationLoggerImpl>());
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
         WriteUnitOfWork wuow(opCtx);
         OplogDeleteEntryArgs deleteEntryArgs;
         deleteEntryArgs.replicatedRecordId = replicatedRecordId;
+        deleteEntryArgs.replicatedSizeDelta = replicatedSizeDelta;
         const auto& documentKey = getDocumentKey(*autoColl, deletedDoc);
         opObserver.onDelete(
             opCtx, *autoColl, kUninitializedStmtId, deletedDoc, documentKey, deleteEntryArgs);
         wuow.commit();
         auto entry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx)));
-        return entry.getDocHash();
+        return getSizeMetadataFromOplogEntry(entry);
     }
 
     int64_t calculateDocHash(const BSONObj& doc) {
@@ -1871,10 +1887,11 @@ TEST_F(OpObserverTest, CheckHashExistsOnInsertWithFlagAndRecordId) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    const int64_t expectedHash = calculateDocHash(doc);
-    const boost::optional<int64_t> hash = insertAndGetDocHash(opCtx, nss, doc, {RecordId(1)});
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata = insertAndGetSizeMetadata(opCtx, nss, doc, {RecordId(1)});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(doc));
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnInsertWithoutRecordId) {
@@ -1883,14 +1900,14 @@ TEST_F(OpObserverTest, CheckHashDoesNotExistOnInsertWithoutRecordId) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(insertAndGetDocHash(opCtx, nss, doc, {}).has_value());
+    EXPECT_FALSE(insertAndGetSizeMetadata(opCtx, nss, doc, {}).has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnInsertWithoutFlag) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(insertAndGetDocHash(opCtx, nss, doc, {RecordId(1)}).has_value());
+    EXPECT_FALSE(insertAndGetSizeMetadata(opCtx, nss, doc, {RecordId(1)}).has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashExistsOnUpdateWithFlagAndRecordId) {
@@ -1898,19 +1915,20 @@ TEST_F(OpObserverTest, CheckHashExistsOnUpdateWithFlagAndRecordId) {
         "featureFlagContinuousInternodeValidationPerDocument", true};
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
-    const int64_t expectedHash = calculateDocHash(kUpdatedDoc);
-    const boost::optional<int64_t> hash =
-        updateAndGetDocHash(opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1));
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata = updateAndGetSizeMetadata(
+        opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1), /*replicatedSizeDelta=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(kUpdatedDoc));
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnUpdateWithoutFlag) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
-    const boost::optional<int64_t> hash =
-        updateAndGetDocHash(opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1));
-    EXPECT_FALSE(hash.has_value());
+    EXPECT_FALSE(
+        updateAndGetSizeMetadata(opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1), {})
+            .has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnUpdateWithoutRecordId) {
@@ -1918,8 +1936,9 @@ TEST_F(OpObserverTest, CheckHashDoesNotExistOnUpdateWithoutRecordId) {
         "featureFlagContinuousInternodeValidationPerDocument", true};
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
-    EXPECT_FALSE(updateAndGetDocHash(opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId{})
-                     .has_value());
+    EXPECT_FALSE(
+        updateAndGetSizeMetadata(opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId{}, {})
+            .has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashExistsOnDeleteWithFlagAndRecordId) {
@@ -1928,10 +1947,12 @@ TEST_F(OpObserverTest, CheckHashExistsOnDeleteWithFlagAndRecordId) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    const int64_t expectedHash = calculateDocHash(doc);
-    const auto& hash = deleteAndGetDocHash(opCtx, nss, doc, RecordId(1));
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata =
+        deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(1), /*replicatedSizeDelta=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(doc));
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnDeleteWithoutRecordId) {
@@ -1940,14 +1961,93 @@ TEST_F(OpObserverTest, CheckHashDoesNotExistOnDeleteWithoutRecordId) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(deleteAndGetDocHash(opCtx, nss, doc, RecordId()).has_value());
+    EXPECT_FALSE(deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(), {}).has_value());
 }
 
 TEST_F(OpObserverTest, CheckHashDoesNotExistOnDeleteWithoutFlag) {
     auto opCtxWrapper = cc().makeOperationContext();
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(deleteAndGetDocHash(opCtx, nss, doc, RecordId(1)).has_value());
+    EXPECT_FALSE(deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(1), {}).has_value());
+}
+
+TEST_F(OpObserverTest, CheckSizeExistsWithoutHashOnInsert) {
+    unittest::ServerParameterGuard fastCountScope{"featureFlagReplicatedFastCount", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata = insertAndGetSizeMetadata(opCtx, nss, doc, {RecordId(1)});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), doc.objsize());
+    EXPECT_FALSE(sizeMetadata->getH().has_value());
+}
+
+TEST_F(OpObserverTest, CheckSizeExistsWithoutHashOnUpdate) {
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const auto sizeMetadata = updateAndGetSizeMetadata(
+        opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1), /*replicatedSizeDelta=*/10);
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), 10);
+    EXPECT_FALSE(sizeMetadata->getH().has_value());
+}
+
+TEST_F(OpObserverTest, CheckSizeExistsWithoutHashOnDelete) {
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata =
+        deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(1), /*replicatedSizeDelta=*/10);
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), 10);
+    EXPECT_FALSE(sizeMetadata->getH().has_value());
+}
+
+TEST_F(OpObserverTest, CheckSizeAndHashExistTogetherOnInsert) {
+    unittest::ServerParameterGuard fastCountScope{"featureFlagReplicatedFastCount", true};
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata = insertAndGetSizeMetadata(opCtx, nss, doc, {RecordId(1)});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), doc.objsize());
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(doc));
+}
+
+TEST_F(OpObserverTest, CheckSizeAndHashExistTogetherOnUpdate) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const auto sizeMetadata = updateAndGetSizeMetadata(
+        opCtx, nss, kPreImageDoc, kUpdate, kUpdatedDoc, RecordId(1), /*replicatedSizeDelta=*/10);
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), 10);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(kUpdatedDoc));
+}
+
+TEST_F(OpObserverTest, CheckSizeAndHashExistTogetherOnDelete) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata =
+        deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(1), /*replicatedSizeDelta=*/10);
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getSz());
+    EXPECT_EQ(*sizeMetadata->getSz(), 10);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), calculateDocHash(doc));
 }
 
 /**
@@ -2253,10 +2353,10 @@ protected:
         }
     }
 
-    // Performs a transactional insert and returns the docHash from the inner oplog entry.
-    boost::optional<int64_t> txnInsertAndGetDocHash(const NamespaceString& ns,
-                                                    const BSONObj& doc,
-                                                    std::vector<RecordId> recordIds) {
+    // Performs a transactional insert and returns the SingleOpSizeMetadata from the inner oplog
+    // entry.
+    boost::optional<SingleOpSizeMetadata> txnInsertAndGetSizeMetadata(
+        const NamespaceString& ns, const BSONObj& doc, std::vector<RecordId> recordIds) {
         txnParticipant().unstashTransactionResources(opCtx(), "insert");
         AutoGetCollection autoColl(opCtx(), ns, MODE_IX);
         std::vector<InsertStatement> insert;
@@ -2270,14 +2370,15 @@ protected:
                                /*defaultFromMigrate=*/false);
         commitUnpreparedTransaction<OpObserverImpl>(opCtx(), opObserver());
         auto oplogEntry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx())));
-        return getInnerEntryFromApplyOpsOplogEntry(oplogEntry).getDocHash();
+        return getSizeMetadataFromOplogEntry(getInnerEntryFromApplyOpsOplogEntry(oplogEntry));
     }
 
-    // Performs a transactional update and returns the docHash from the inner oplog entry.
-    boost::optional<int64_t> txnUpdateAndGetDocHash(const NamespaceString& ns,
-                                                    const BSONObj& preImageDoc,
-                                                    const BSONObj& updatedDoc,
-                                                    RecordId recordId) {
+    // Performs a transactional update and returns the SingleOpSizeMetadata from the inner oplog
+    // entry.
+    boost::optional<SingleOpSizeMetadata> txnUpdateAndGetSizeMetadata(const NamespaceString& ns,
+                                                                      const BSONObj& preImageDoc,
+                                                                      const BSONObj& updatedDoc,
+                                                                      RecordId recordId) {
         txnParticipant().unstashTransactionResources(opCtx(), "update");
         AutoGetCollection autoColl(opCtx(), ns, MODE_IX);
 
@@ -2291,13 +2392,14 @@ protected:
         opObserver().onUpdate(opCtx(), updateEntryArgs);
         commitUnpreparedTransaction<OpObserverImpl>(opCtx(), opObserver());
         auto oplogEntry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx())));
-        return getInnerEntryFromApplyOpsOplogEntry(oplogEntry).getDocHash();
+        return getSizeMetadataFromOplogEntry(getInnerEntryFromApplyOpsOplogEntry(oplogEntry));
     }
 
-    // Performs a transactional delete and returns the docHash from the inner oplog entry.
-    boost::optional<int64_t> txnDeleteAndGetDocHash(const NamespaceString& ns,
-                                                    const BSONObj& doc,
-                                                    RecordId replicatedRecordId) {
+    // Performs a transactional delete and returns the SingleOpSizeMetadata from the inner oplog
+    // entry.
+    boost::optional<SingleOpSizeMetadata> txnDeleteAndGetSizeMetadata(const NamespaceString& ns,
+                                                                      const BSONObj& doc,
+                                                                      RecordId replicatedRecordId) {
         txnParticipant().unstashTransactionResources(opCtx(), "delete");
         AutoGetCollection autoColl(opCtx(), ns, MODE_IX);
         const auto& documentKey = getDocumentKey(*autoColl, doc);
@@ -2307,7 +2409,7 @@ protected:
             opCtx(), *autoColl, kUninitializedStmtId, doc, documentKey, deleteEntryArgs);
         commitUnpreparedTransaction<OpObserverImpl>(opCtx(), opObserver());
         auto oplogEntry = assertGet(OplogEntry::parse(getSingleOplogEntry(opCtx())));
-        return getInnerEntryFromApplyOpsOplogEntry(oplogEntry).getDocHash();
+        return getSizeMetadataFromOplogEntry(getInnerEntryFromApplyOpsOplogEntry(oplogEntry));
     }
 };
 
@@ -2335,41 +2437,47 @@ TEST_F(OpObserverTransactionTest, CheckHashExistsOnTransactionInsertWithFlagAndR
         "featureFlagContinuousInternodeValidationPerDocument", true};
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
     const int64_t expectedHash = calculateDocHash(doc);
-    const boost::optional<int64_t> hash = txnInsertAndGetDocHash(nss1, doc, {RecordId(1)});
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata = txnInsertAndGetSizeMetadata(nss1, doc, {RecordId(1)});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), expectedHash);
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionInsertWithoutFlag) {
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(txnInsertAndGetDocHash(nss1, doc, {RecordId(1)}).has_value());
+    EXPECT_FALSE(txnInsertAndGetSizeMetadata(nss1, doc, {RecordId(1)}).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionInsertWithoutRecordId) {
     unittest::ServerParameterGuard continuousInternodeScope{
         "featureFlagContinuousInternodeValidationPerDocument", true};
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(txnInsertAndGetDocHash(nss1, doc, {}).has_value());
+    EXPECT_FALSE(txnInsertAndGetSizeMetadata(nss1, doc, {}).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashExistsOnTransactionUpdateWithFlagAndRecordId) {
     unittest::ServerParameterGuard continuousInternodeScope{
         "featureFlagContinuousInternodeValidationPerDocument", true};
     const int64_t expectedHash = calculateDocHash(kUpdatedDoc);
-    const boost::optional<int64_t> hash =
-        txnUpdateAndGetDocHash(nss1, kPreImageDoc, kUpdatedDoc, RecordId(1));
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata =
+        txnUpdateAndGetSizeMetadata(nss1, kPreImageDoc, kUpdatedDoc, RecordId(1));
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), expectedHash);
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionUpdateWithoutFlag) {
-    EXPECT_FALSE(txnUpdateAndGetDocHash(nss1, kPreImageDoc, kUpdatedDoc, RecordId(1)).has_value());
+    EXPECT_FALSE(
+        txnUpdateAndGetSizeMetadata(nss1, kPreImageDoc, kUpdatedDoc, RecordId(1)).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionUpdateWithoutRecordId) {
     unittest::ServerParameterGuard continuousInternodeScope{
         "featureFlagContinuousInternodeValidationPerDocument", true};
-    EXPECT_FALSE(txnUpdateAndGetDocHash(nss1, kPreImageDoc, kUpdatedDoc, RecordId{}).has_value());
+    EXPECT_FALSE(
+        txnUpdateAndGetSizeMetadata(nss1, kPreImageDoc, kUpdatedDoc, RecordId{}).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashExistsOnTransactionDeleteWithFlagAndRecordId) {
@@ -2377,21 +2485,23 @@ TEST_F(OpObserverTransactionTest, CheckHashExistsOnTransactionDeleteWithFlagAndR
         "featureFlagContinuousInternodeValidationPerDocument", true};
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
     const int64_t expectedHash = calculateDocHash(doc);
-    const boost::optional<int64_t> hash = txnDeleteAndGetDocHash(nss1, doc, RecordId(1));
-    ASSERT(hash);
-    EXPECT_EQ(*hash, expectedHash);
+    const auto sizeMetadata = txnDeleteAndGetSizeMetadata(nss1, doc, RecordId(1));
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), expectedHash);
+    EXPECT_FALSE(sizeMetadata->getSz().has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionDeleteWithoutFlag) {
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(txnDeleteAndGetDocHash(nss1, doc, RecordId(1)).has_value());
+    EXPECT_FALSE(txnDeleteAndGetSizeMetadata(nss1, doc, RecordId(1)).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, CheckHashDoesNotExistOnTransactionDeleteWithoutRecordId) {
     unittest::ServerParameterGuard continuousInternodeScope{
         "featureFlagContinuousInternodeValidationPerDocument", true};
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
-    EXPECT_FALSE(txnDeleteAndGetDocHash(nss1, doc, RecordId()).has_value());
+    EXPECT_FALSE(txnDeleteAndGetSizeMetadata(nss1, doc, RecordId()).has_value());
 }
 
 TEST_F(OpObserverTransactionTest, TransactionOpsIncludeVersionContext) {
@@ -3915,14 +4025,14 @@ protected:
                                           const CollectionPtr& coll,
                                           const std::vector<bool>& fromMigrateFlags);
 
-    // Performs a batched insert of two documents and returns a pair of docHashes (first and second
-    // document) from the inner applyOps entry.
-    std::pair<boost::optional<int64_t>, boost::optional<int64_t>> batchedInsertAndGetDocHash(
-        OperationContext* opCtx,
-        const NamespaceString& ns,
-        const BSONObj& doc1,
-        const BSONObj& doc2,
-        const std::vector<RecordId>& recordIds) {
+    // Performs a batched insert of two documents and returns a pair of SingleOpSizeMetadata (first
+    // and second document) from the inner applyOps entry.
+    std::pair<boost::optional<SingleOpSizeMetadata>, boost::optional<SingleOpSizeMetadata>>
+    batchedInsertAndGetSizeMetadata(OperationContext* opCtx,
+                                    const NamespaceString& ns,
+                                    const BSONObj& doc1,
+                                    const BSONObj& doc2,
+                                    const std::vector<RecordId>& recordIds) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
         WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
@@ -3946,21 +4056,22 @@ protected:
         repl::ApplyOps::extractOperationsTo(
             oplogEntry, oplogEntry.getEntry().toBSON(), &innerEntries);
         ASSERT_GTE(innerEntries.size(), 1u);
-        return {innerEntries[0].getDocHash(),
-                innerEntries.size() > 1 ? innerEntries[1].getDocHash() : boost::none};
+        return {getSizeMetadataFromOplogEntry(innerEntries[0]),
+                innerEntries.size() > 1 ? getSizeMetadataFromOplogEntry(innerEntries[1])
+                                        : boost::none};
     }
 
-    // Performs a batched update of two documents and returns a pair of docHashes (first and
-    // second document) from the inner applyOps entry.
-    std::pair<boost::optional<int64_t>, boost::optional<int64_t>> batchedUpdateAndGetDocHash(
-        OperationContext* opCtx,
-        const NamespaceString& ns,
-        const BSONObj& preImageDoc1,
-        const BSONObj& updatedDoc1,
-        const BSONObj& preImageDoc2,
-        const BSONObj& updatedDoc2,
-        const RecordId recordId1,
-        const RecordId recordId2) {
+    // Performs a batched update of two documents and returns a pair of SingleOpSizeMetadata (first
+    // and second document) from the inner applyOps entry.
+    std::pair<boost::optional<SingleOpSizeMetadata>, boost::optional<SingleOpSizeMetadata>>
+    batchedUpdateAndGetSizeMetadata(OperationContext* opCtx,
+                                    const NamespaceString& ns,
+                                    const BSONObj& preImageDoc1,
+                                    const BSONObj& updatedDoc1,
+                                    const BSONObj& preImageDoc2,
+                                    const BSONObj& updatedDoc2,
+                                    const RecordId recordId1,
+                                    const RecordId recordId2) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
         WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
@@ -3990,19 +4101,20 @@ protected:
         repl::ApplyOps::extractOperationsTo(
             oplogEntry, oplogEntry.getEntry().toBSON(), &innerEntries);
         ASSERT_GTE(innerEntries.size(), 1u);
-        return {innerEntries[0].getDocHash(),
-                innerEntries.size() > 1 ? innerEntries[1].getDocHash() : boost::none};
+        return {getSizeMetadataFromOplogEntry(innerEntries[0]),
+                innerEntries.size() > 1 ? getSizeMetadataFromOplogEntry(innerEntries[1])
+                                        : boost::none};
     }
 
-    // Performs a batched delete of two documents and returns a pair of docHashes (first and second
-    // document) from the inner applyOps entry.
-    std::pair<boost::optional<int64_t>, boost::optional<int64_t>> batchedDeleteAndGetDocHash(
-        OperationContext* opCtx,
-        const NamespaceString& ns,
-        const BSONObj& doc1,
-        const BSONObj& doc2,
-        const RecordId& recordId1,
-        const RecordId& recordId2) {
+    // Performs a batched delete of two documents and returns a pair of SingleOpSizeMetadata (first
+    // and second document) from the inner applyOps entry.
+    std::pair<boost::optional<SingleOpSizeMetadata>, boost::optional<SingleOpSizeMetadata>>
+    batchedDeleteAndGetSizeMetadata(OperationContext* opCtx,
+                                    const NamespaceString& ns,
+                                    const BSONObj& doc1,
+                                    const BSONObj& doc2,
+                                    const RecordId& recordId1,
+                                    const RecordId& recordId2) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
         WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
@@ -4027,8 +4139,9 @@ protected:
         repl::ApplyOps::extractOperationsTo(
             oplogEntry, oplogEntry.getEntry().toBSON(), &innerEntries);
         ASSERT_GTE(innerEntries.size(), 1u);
-        return {innerEntries[0].getDocHash(),
-                innerEntries.size() > 1 ? innerEntries[1].getDocHash() : boost::none};
+        return {getSizeMetadataFromOplogEntry(innerEntries[0]),
+                innerEntries.size() > 1 ? getSizeMetadataFromOplogEntry(innerEntries[1])
+                                        : boost::none};
     }
 };
 
@@ -4214,66 +4327,6 @@ TEST_F(BatchedWriteOutputsTest, WriteWithoutPdibIsNotGrouped) {
         EXPECT_EQ(entry.getOpType(), repl::OpTypeEnum::kInsert);
         EXPECT_NE(entry.getCommandType(), OplogEntry::CommandType::kApplyOps);
     }
-}
-
-// The "tearable side write" redo state decorates the OperationContext: onBatchedWriteCommit arms it
-// (with the affected collection) when it throws a write conflict to redo a write. The armed UUID
-// must survive the WUOW rollback so the redo can read it, but must be consumed once a batched write
-// commits so it cannot leak onto a later write that shares the OperationContext (which would
-// suppress that write's own redo). The per-attempt "flag persisted" marker must reset on both
-// terminal paths. These two tests pin that lifecycle.
-//
-// TODO (SERVER-126257): Remove these tests once index build side writes cannot be torn.
-TEST_F(BatchedWriteOutputsTest, TearableSideWriteRedoStateConsumedOnBatchedWriteCommit) {
-    auto opCtxRaii = cc().makeOperationContext();
-    OperationContext* opCtx = opCtxRaii.get();
-    reset(opCtx, _nss);
-    reset(opCtx, NamespaceString::kRsOplogNamespace);
-
-    // Simulate a prior attempt that armed the redo and marked the flag persisted.
-    auto& redoState = index_builds::primary_driven::getTearableSideWriteRedoState(opCtx);
-    redoState.arm(UUID::gen());
-    redoState.setFlagPersisted();
-
-    {
-        WriteUnitOfWork wuow{opCtx, WriteUnitOfWork::kGroupForTransaction};
-        AutoGetCollection autoColl{opCtx, _nss, MODE_IX};
-        auto doc = BSON("_id" << 0);
-        OplogDeleteEntryArgs args;
-        opCtx->getServiceContext()->getOpObserver()->onDelete(
-            opCtx, *autoColl, kUninitializedStmtId, doc, getDocumentKey(*autoColl, doc), args);
-        wuow.commit();
-    }
-
-    // Committing consumes both signals so they cannot leak onto later writes on this opCtx.
-    EXPECT_FALSE(redoState.armedCollectionUUID().has_value());
-    EXPECT_FALSE(redoState.flagPersisted());
-}
-TEST_F(BatchedWriteOutputsTest, TearableSideWriteRedoStateSurvivesBatchedWriteAbort) {
-    auto opCtxRaii = cc().makeOperationContext();
-    OperationContext* opCtx = opCtxRaii.get();
-    reset(opCtx, _nss);
-    reset(opCtx, NamespaceString::kRsOplogNamespace);
-
-    auto& redoState = index_builds::primary_driven::getTearableSideWriteRedoState(opCtx);
-    auto collectionUUID = UUID::gen();
-    redoState.arm(collectionUUID);
-    redoState.setFlagPersisted();
-
-    {
-        WriteUnitOfWork wuow{opCtx, WriteUnitOfWork::kGroupForTransaction};
-        AutoGetCollection autoColl{opCtx, _nss, MODE_IX};
-        auto doc = BSON("_id" << 0);
-        OplogDeleteEntryArgs args;
-        opCtx->getServiceContext()->getOpObserver()->onDelete(
-            opCtx, *autoColl, kUninitializedStmtId, doc, getDocumentKey(*autoColl, doc), args);
-    }
-
-    // The armed UUID must survive the rollback (the redo reads it on the retry), but the
-    // per-attempt flag must be cleared so the retry re-persists the sentinel.
-    ASSERT_TRUE(redoState.armedCollectionUUID().has_value());
-    EXPECT_EQ(*redoState.armedCollectionUUID(), collectionUUID);
-    EXPECT_FALSE(redoState.flagPersisted());
 }
 
 // Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction consisting of an
@@ -5817,13 +5870,17 @@ TEST_F(BatchedWriteOutputsTest, CheckHashExistsOnBatchedInsertWithFlagAndRecordI
     const int64_t expectedHash1 = calculateDocHash(doc1);
     const int64_t expectedHash2 = calculateDocHash(doc2);
 
-    const std::pair<boost::optional<int64_t>, boost::optional<int64_t>> hash =
-        batchedInsertAndGetDocHash(opCtx, _nss, doc1, doc2, {RecordId(1), RecordId(2)});
-    ASSERT(hash.first);
-    EXPECT_EQ(*hash.first, expectedHash1);
-    ASSERT(hash.second);
-    EXPECT_EQ(*hash.second, expectedHash2);
-    EXPECT_NE(*hash.first, *hash.second);
+    const auto sizeMetadata =
+        batchedInsertAndGetSizeMetadata(opCtx, _nss, doc1, doc2, {RecordId(1), RecordId(2)});
+    ASSERT(sizeMetadata.first);
+    ASSERT(sizeMetadata.first->getH());
+    EXPECT_EQ(*sizeMetadata.first->getH(), expectedHash1);
+    EXPECT_FALSE(sizeMetadata.first->getSz().has_value());
+    ASSERT(sizeMetadata.second);
+    ASSERT(sizeMetadata.second->getH());
+    EXPECT_EQ(*sizeMetadata.second->getH(), expectedHash2);
+    EXPECT_FALSE(sizeMetadata.second->getSz().has_value());
+    EXPECT_NE(*sizeMetadata.first->getH(), *sizeMetadata.second->getH());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedInsertWithoutFlag) {
@@ -5831,10 +5888,10 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedInsertWithoutFlag)
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << "y");
-    const auto hash =
-        batchedInsertAndGetDocHash(opCtx, _nss, doc1, doc2, {RecordId(1), RecordId(2)});
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata =
+        batchedInsertAndGetSizeMetadata(opCtx, _nss, doc1, doc2, {RecordId(1), RecordId(2)});
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedInsertWithoutRecordIds) {
@@ -5844,9 +5901,9 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedInsertWithoutRecor
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << "y");
-    const auto hash = batchedInsertAndGetDocHash(opCtx, _nss, doc1, doc2, {});
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata = batchedInsertAndGetSizeMetadata(opCtx, _nss, doc1, doc2, {});
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashExistsOnBatchedUpdateWithFlagAndRecordId) {
@@ -5861,20 +5918,23 @@ TEST_F(BatchedWriteOutputsTest, CheckHashExistsOnBatchedUpdateWithFlagAndRecordI
     const BSONObj updatedDoc2 = BSON("_id" << 1 << "data" << 2);
     const int64_t expectedHash1 = calculateDocHash(updatedDoc1);
     const int64_t expectedHash2 = calculateDocHash(updatedDoc2);
-    const std::pair<boost::optional<int64_t>, boost::optional<int64_t>> hash =
-        batchedUpdateAndGetDocHash(opCtx,
-                                   _nss,
-                                   preImageDoc1,
-                                   updatedDoc1,
-                                   preImageDoc2,
-                                   updatedDoc2,
-                                   RecordId(1),
-                                   RecordId(2));
-    ASSERT(hash.first);
-    EXPECT_EQ(*hash.first, expectedHash1);
-    ASSERT(hash.second);
-    EXPECT_EQ(*hash.second, expectedHash2);
-    EXPECT_NE(*hash.first, *hash.second);
+    const auto sizeMetadata = batchedUpdateAndGetSizeMetadata(opCtx,
+                                                              _nss,
+                                                              preImageDoc1,
+                                                              updatedDoc1,
+                                                              preImageDoc2,
+                                                              updatedDoc2,
+                                                              RecordId(1),
+                                                              RecordId(2));
+    ASSERT(sizeMetadata.first);
+    ASSERT(sizeMetadata.first->getH());
+    EXPECT_EQ(*sizeMetadata.first->getH(), expectedHash1);
+    EXPECT_FALSE(sizeMetadata.first->getSz().has_value());
+    ASSERT(sizeMetadata.second);
+    ASSERT(sizeMetadata.second->getH());
+    EXPECT_EQ(*sizeMetadata.second->getH(), expectedHash2);
+    EXPECT_FALSE(sizeMetadata.second->getSz().has_value());
+    EXPECT_NE(*sizeMetadata.first->getH(), *sizeMetadata.second->getH());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedUpdateWithoutFlag) {
@@ -5882,10 +5942,10 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedUpdateWithoutFlag)
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << 1);
-    const auto hash =
-        batchedUpdateAndGetDocHash(opCtx, _nss, doc1, doc1, doc2, doc2, RecordId(1), RecordId(2));
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata = batchedUpdateAndGetSizeMetadata(
+        opCtx, _nss, doc1, doc1, doc2, doc2, RecordId(1), RecordId(2));
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedUpdateWithoutRecordId) {
@@ -5895,10 +5955,10 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedUpdateWithoutRecor
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << 1);
-    const auto hash =
-        batchedUpdateAndGetDocHash(opCtx, _nss, doc1, doc1, doc2, doc2, RecordId(), RecordId());
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata = batchedUpdateAndGetSizeMetadata(
+        opCtx, _nss, doc1, doc1, doc2, doc2, RecordId(), RecordId());
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashExistsOnBatchedDeleteWithFlagAndRecordId) {
@@ -5912,13 +5972,17 @@ TEST_F(BatchedWriteOutputsTest, CheckHashExistsOnBatchedDeleteWithFlagAndRecordI
     const int64_t expectedHash1 = calculateDocHash(doc1);
     const int64_t expectedHash2 = calculateDocHash(doc2);
 
-    const std::pair<boost::optional<int64_t>, boost::optional<int64_t>> hash =
-        batchedDeleteAndGetDocHash(opCtx, _nss, doc1, doc2, RecordId(1), RecordId(2));
-    ASSERT(hash.first);
-    EXPECT_EQ(*hash.first, expectedHash1);
-    ASSERT(hash.second);
-    EXPECT_EQ(*hash.second, expectedHash2);
-    EXPECT_FALSE(hash.first == hash.second);
+    const auto sizeMetadata =
+        batchedDeleteAndGetSizeMetadata(opCtx, _nss, doc1, doc2, RecordId(1), RecordId(2));
+    ASSERT(sizeMetadata.first);
+    ASSERT(sizeMetadata.first->getH());
+    EXPECT_EQ(*sizeMetadata.first->getH(), expectedHash1);
+    EXPECT_FALSE(sizeMetadata.first->getSz().has_value());
+    ASSERT(sizeMetadata.second);
+    ASSERT(sizeMetadata.second->getH());
+    EXPECT_EQ(*sizeMetadata.second->getH(), expectedHash2);
+    EXPECT_FALSE(sizeMetadata.second->getSz().has_value());
+    EXPECT_NE(*sizeMetadata.first->getH(), *sizeMetadata.second->getH());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedDeleteWithoutFlag) {
@@ -5926,9 +5990,10 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedDeleteWithoutFlag)
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << "y");
-    const auto hash = batchedDeleteAndGetDocHash(opCtx, _nss, doc1, doc2, RecordId(1), RecordId(2));
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata =
+        batchedDeleteAndGetSizeMetadata(opCtx, _nss, doc1, doc2, RecordId(1), RecordId(2));
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedDeleteWithoutRecordId) {
@@ -5938,9 +6003,10 @@ TEST_F(BatchedWriteOutputsTest, CheckHashDoesNotExistOnBatchedDeleteWithoutRecor
     OperationContext* opCtx = opCtxRaii.get();
     const BSONObj doc1 = BSON("_id" << 0 << "data" << "x");
     const BSONObj doc2 = BSON("_id" << 1 << "data" << "y");
-    const auto hash = batchedDeleteAndGetDocHash(opCtx, _nss, doc1, doc2, RecordId(), RecordId());
-    EXPECT_FALSE(hash.first.has_value());
-    EXPECT_FALSE(hash.second.has_value());
+    const auto sizeMetadata =
+        batchedDeleteAndGetSizeMetadata(opCtx, _nss, doc1, doc2, RecordId(), RecordId());
+    EXPECT_FALSE(sizeMetadata.first.has_value());
+    EXPECT_FALSE(sizeMetadata.second.has_value());
 }
 
 class OnDeleteOutputsTest : public OpObserverTest {

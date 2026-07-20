@@ -50,10 +50,9 @@
 - name: exclude_search_extension_incompatible
   value:
     exclude_files:
-      # TODO SERVER-131304: Remove these exclusions. On a sharded cluster, extension $search desugars
-      # to an empty spec on the merge/planShardedSearch path, so mongot rejects it with "Query should
-      # contain either an operator or a collector" (error 65330 via planShardedSearch).
-      - jstests/with_mongot/e2e/search/search_beta.js
+      # Permanently excluded from the extension suites. This test drives the
+      # 'shardedSearchOpCtxDisconnect' failpoint, which only exists on the legacy mongot_cursor
+      # router path (runSearchCommandWithRetries).
       - jstests/with_mongot/e2e/sharding_no_passthrough/sharded_search_network_interruption.js
       # TODO SERVER-131305: Remove these exclusions. Sharded explain of extension $search/$searchMeta
       # inside $unionWith + $lookup double-serializes the explain response, failing with
