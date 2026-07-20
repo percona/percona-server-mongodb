@@ -1,0 +1,222 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6a1f7d818fe46323680390d4577ae46dc6ca57b0",
+    "merge_commit": "60633dbc4fbefc23b05ef836e6249f476ba2fefc"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "build-and-test",
+        "run_id": "29336913915",
+        "pr_number": 2024,
+        "attempt_number": 1,
+        "context_summary": "build-and-test failed: 0 aborted, 0 action errors, 2 test failures (from jstest-failure-logs)",
+        "timestamp": "2026-07-14T16:47:01.365705+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 109803,
+      "num_turns": 13,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.94719125,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000683,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 25,
+          "outputTokens": 7189,
+          "cacheReadInputTokens": 685329,
+          "cacheCreationInputTokens": 67839,
+          "webSearchRequests": 0,
+          "costUSD": 0.94650825,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 16,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000683
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 25,
+              "output": 7189,
+              "cache_read": 685329,
+              "cache_creation": 67839
+            },
+            "cost_usd": 0.94650825
+          }
+        }
+      },
+      "text_result": "Fixed. \n\n## Summary\n\nThe `build-and-test` failure was in the Percona TDE core suites (`//jstests/percona/tde:core_tde_cbc` and `core_tde_gcm`), both failing on `jstests/core/administrative/block_replica_set_writes.js`.\n\n**Root cause (bucket a \u2014 upstream change exposing a Percona-side gap):** The upstream merge added `block_replica_set_writes.js` and, in the same change, excluded it from the standalone `core.yml` suite with the comment *\"Shard level user write block is not supported on standalone.\"* The failing GCM log confirms it: the parallel shell's command was rejected with `blockReplicaSetWrites cannot be run on standalones` (IllegalOperation), so the `hangInBlockReplicaSetWritesCommand` failpoint was never entered twice and the primary's `fp.wait(...)` timed out (`MaxTimeMSExpired`).\n\nThe Percona-owned `core_tde_cbc.yml` / `core_tde_gcm.yml` suites also run against a standalone `MongoDFixture` and mirror upstream `core`, but never got that exclusion.\n\n**Fix:** Added the same `exclude_files` entry (with the matching comment) to both TDE core suites. I confirmed via grep that these were the only core-derived standalone suites missing it, and that the aggregation/replica_sets/sharding TDE suites are unaffected (different roots / real replica sets).\n\nNo source code changed, and no test was disabled that should run on standalone \u2014 the test simply doesn't apply to a standalone fixture, matching upstream's own decision.",
+      "response": {
+        "status": "fixed",
+        "summary": "Bucket (a): an upstream merge added jstests/core/administrative/block_replica_set_writes.js and excluded it from the standalone `core` suite (the blockReplicaSetWrites command cannot run on standalones). The Percona-owned TDE core suites (core_tde_cbc/core_tde_gcm) mirror `core` on a standalone MongoDFixture but lacked that exclusion, so the new test ran on a standalone, its parallel-shell command failed with 'blockReplicaSetWrites cannot be run on standalones', the hangInBlockReplicaSetWritesCommand failpoint was never entered twice, and fp.wait timed out (MaxTimeMSExpired). Added the same file exclusion to both TDE core suites.",
+        "resolved": {
+          "buildscripts/resmokeconfig/suites/core_tde_cbc.yml": "Added `- jstests/core/administrative/block_replica_set_writes.js` to selector.exclude_files (with the same explanatory comment as upstream core.yml), because this TDE suite runs against a standalone MongoDFixture where blockReplicaSetWrites is not supported.",
+          "buildscripts/resmokeconfig/suites/core_tde_gcm.yml": "Same exclusion added as core_tde_cbc.yml, for the same standalone-fixture reason."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The failing test log (jstest-failure-logs/__jstests_percona_tde_core_tde_gcm.log) shows the standalone rejection: 'blockReplicaSetWrites cannot be run on standalones' (IllegalOperation, code 20) from the parallel shell, which is why the primary-side fp.wait({timesEntered:2}) never advanced and timed out. Upstream's buildscripts/resmokeconfig/suites/core.yml already excludes this exact file with the comment 'Shard level user write block is not supported on standalone.'; the two Percona TDE core suites are standalone MongoDFixture suites that mirror `core` and were the only core-derived standalone suites missing the exclusion (verified via grep for block_replica_set_writes across buildscripts/resmokeconfig \u2014 all upstream core/core_auth/core_ese/etc. already list it). The aggregation/replica_sets/sharding TDE suites do not use the jstests/core roots (and replica_sets/sharding stand up their own replica sets), so they are unaffected. This is a test-selection fix, not a source change; the failure was a real (reproducible) suite-config gap, not a flake."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Root cause found: the new upstream test `jstests/core/administrative/block_replica_set_writes.js` cannot run on a standalone (`blockReplicaSetWrites cannot be run on standalones`). Upstream's `core.yml` excludes it, but the Percona TDE core suites (which also use a standalone `MongoDFixture`) mirror `core` without that exclusion. Let me add it."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me verify no other standalone core-based suites need the same exclusion."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All other standalone core-based suites already exclude the test; only the two Percona TDE core suites were missing it. My fix brings them in line with upstream. Writing the response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Fixed. \n\n## Summary\n\nThe `build-and-test` failure was in the Percona TDE core suites (`//jstests/percona/tde:core_tde_cbc` and `core_tde_gcm`), both failing on `jstests/core/administrative/block_replica_set_writes.js`.\n\n**Root cause (bucket a \u2014 upstream change exposing a Percona-side gap):** The upstream merge added `block_replica_set_writes.js` and, in the same change, excluded it from the standalone `core.yml` suite with the comment *\"Shard level user write block is not supported on standalone.\"* The failing GCM log confirms it: the parallel shell's command was rejected with `blockReplicaSetWrites cannot be run on standalones` (IllegalOperation), so the `hangInBlockReplicaSetWritesCommand` failpoint was never entered twice and the primary's `fp.wait(...)` timed out (`MaxTimeMSExpired`).\n\nThe Percona-owned `core_tde_cbc.yml` / `core_tde_gcm.yml` suites also run against a standalone `MongoDFixture` and mirror upstream `core`, but never got that exclusion.\n\n**Fix:** Added the same `exclude_files` entry (with the matching comment) to both TDE core suites. I confirmed via grep that these were the only core-derived standalone suites missing it, and that the aggregation/replica_sets/sharding TDE suites are unaffected (different roots / real replica sets).\n\nNo source code changed, and no test was disabled that should run on standalone \u2014 the test simply doesn't apply to a standalone fixture, matching upstream's own decision."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260714_164510_260709.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.209 (Claude Code)"
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1737c4188ac7b994fe8159c6dc8cd7eb5db25f21",
+    "merge_commit": "753a93b63a9ab65bd4e37ed629dbf803c487e204"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '753a93b63a9' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/idl/ifr_sender_version_test.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (b): a Percona-specific pure virtual method\n(perconaFeatures()) on VersionInfoInterface was exposed by an upstream\nmerge that brought in the new test\nsrc/mongo/idl/ifr_sender_version_test.cpp, whose mock\nConfigurableVersionInfo did not implement it, making the class abstract\nand failing to build. Added the missing override to the test mock.\n\nResolved:\n\tsrc/mongo/idl/ifr_sender_version_test.cpp\n\nCI: build-and-test run 29098323417 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "01c08b7091ff2e68615c3c9a4e67de2cbb261b6a"
+    }
+  ]
+}

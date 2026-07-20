@@ -1,0 +1,32 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6b38aaf7a25c60de1c56da5f95278dfb87b078a3",
+    "merge_commit": "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '0b22cf9c3b6' into master",
+        "resolved": {
+          "buildscripts/resmokelib/testing/fixtures/_builder.py": "Resolved by human",
+          "buildscripts/resmokelib/testing/fixtures/standalone.py": "Resolved by human",
+          "src/mongo/db/auth/authorization_manager_impl.h": "Resolved by human",
+          "src/mongo/db/server_options.h": "Resolved by human",
+          "src/mongo/db/storage/kv/kv_engine.h": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved 5 merge conflicts. The C++ conflicts were all upstream API\nmigrations (deprecated MONGO_MOD_PUB/MONGO_MOD_OPEN macros converted to\nthe bracketed [[MONGO_MOD_PUBLIC]]/[[MONGO_MOD_OPEN]] attribute syntax\nper SERVER-113811/SERVER-98435, and AtomicWord<bool> -> Atomic<bool> per\nSERVER-86602); I migrated to upstream's API while preserving Percona\nadditions (RATE_LIMIT_MAX, the LDAP user cache invalidator, and the\npercona::EngineExtension base class). The Python conflicts stem from\nupstream (SERVER-130648) relocating the mongot setup block earlier in\nMongoDFixture.__init__ and providing load_extensions via\n_deferred_mongot_extension_kwargs; I integrated Percona's\nlaunch_mongot_community feature (PSMDB-2032) into the relocated block\nand dropped the now-redundant explicit load_extensions=[] argument.\n\nResolved:\n\tbuildscripts/resmokelib/testing/fixtures/_builder.py\n\tbuildscripts/resmokelib/testing/fixtures/standalone.py\n\tsrc/mongo/db/auth/authorization_manager_impl.h\n\tsrc/mongo/db/server_options.h\n\tsrc/mongo/db/storage/kv/kv_engine.h\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "756cb46ca154397ce8615de724ee1624ae8dd0c0"
+    }
+  ]
+}

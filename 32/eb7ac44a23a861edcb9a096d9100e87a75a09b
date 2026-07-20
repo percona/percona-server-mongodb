@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e7eab3c1b195fad5cd1be2f519836be10530d34d",
+    "merge_commit": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'ff39f35e4cb' into master",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the merge conflict in bazel/resmoke/resmoke.bzl by keeping\nPercona's removal of the MongoDB enterprise module jstests data\ndependencies. Percona (HEAD) deliberately removed all\n`//src/mongo/db/modules/enterprise/jstests/...` entries because PSMDB\ndoes not ship MongoDB's enterprise module. Upstream (theirs) only added\nnew `audit/lib` entries to that same enterprise list, which are\nirrelevant to PSMDB, so they were dropped along with the rest.\n\nResolved:\n\tbazel/resmoke/resmoke.bzl\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "32eb7ac44a23a861edcb9a096d9100e87a75a09b"
+    }
+  ]
+}

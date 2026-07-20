@@ -1,0 +1,311 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e7eab3c1b195fad5cd1be2f519836be10530d34d",
+    "merge_commit": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "e7eab3c1b195fad5cd1be2f519836be10530d34d",
+    "theirs_commit": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429",
+    "base_commit": "b608b7554ca0d5b8b136682998b46edc0a743cb1",
+    "files": [
+      "bazel/resmoke/resmoke.bzl"
+    ],
+    "conflict_types": {
+      "bazel/resmoke/resmoke.bzl": "both modified"
+    },
+    "diffs": {
+      "bazel/resmoke/resmoke.bzl": "diff --cc bazel/resmoke/resmoke.bzl\nindex 467acce4e30,dc73f62dfed..00000000000\n--- a/bazel/resmoke/resmoke.bzl\n+++ b/bazel/resmoke/resmoke.bzl\n@@@ -393,0 -392,10 +392,22 @@@ def resmoke_suite_test\n++<<<<<<< HEAD\n++||||||| b608b7554ca\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver\",\n++        \"//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files\",\n++=======\n+         \"//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver\",\n+         \"//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files\",\n++>>>>>>> ff39f35e4cba1f65d72c42102cc4ddca8a8a2429"
+    },
+    "their_commits": {
+      "bazel/resmoke/resmoke.bzl": [
+        "9f2512e2259ee589f26bd7e9cfe4841f725d5bcc",
+        "1539c7c78ac56300b4fc801ce4d45c9a8efec717"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429",
+    "merged_commits": [
+      "ff39f35e4cba1f65d72c42102cc4ddca8a8a2429",
+      "d2147646ae0c99821ff1d0f2b6b9ba4e773ffc27",
+      "b66c157229cd7e420f78daddd2caa410afb1226d",
+      "dbd4712b28c9f7ec355054992c0aae1a3afde091",
+      "6f088e98b9d159dc58f40c0aff2ab9cd66878552",
+      "5c9d8d2019d43e11c6f077b23eb2065cf4b9c897",
+      "eeb4553f8ab7609a1b7b441c5bf6055fadd5c5a6",
+      "785ccb1510f55cc2e50f7176f8408e623c7cd98b",
+      "d8c8fc5b24696f8f96f606b71de74dfc08c0422a",
+      "b896d14d79fb4bb1946dba35edce8348d16bf4d1",
+      "9f7c2ac308c70f2b50aebe56f4b876a27cc1e6a5",
+      "374cd3b4701a11c40ede0aae691a1158cb85d323",
+      "d4f8d01522a7c50609ccd7f78f66068a0b0443e7",
+      "9d490ec622ea4ecd8dfec15caca16516cfa7ea00",
+      "9f2512e2259ee589f26bd7e9cfe4841f725d5bcc",
+      "77275ca8caa928c4be7ac2691da66348e161cae4",
+      "5b682a9aa955da61c42b43cb542104daa210ad47",
+      "ad84999c41b73a7a548bdc30ac3772cc4d463525",
+      "44c12a41a405543d7d5b8866121e52065060c009",
+      "25fc9cefb744282e81149db37ad1232452b352c2",
+      "07c8efabdc59eecd161ac640190a6bc14a12cf23",
+      "da3160f3bfbbde35f477a352b87b1dad994ad06d",
+      "89e9186def6156a0d23258d6971bc865e3cff5d2",
+      "072f406de1f12065bfbfd8cabe471903c53ac1b1",
+      "974c60524105b958aca048d8566a83fc5eed8d37",
+      "21a2b376462e373c901442fba0b2b589603e0b44",
+      "7a60cf6fd404789bc73c6c92023d397f70cb4a31",
+      "600c1fcdb1057a38bdcab65b3fbb2b7603f33f90",
+      "3721d5af6cd81c38badc165948bb05a4640a3a88",
+      "229aac1f42a3a11a5143cc5ac618b1ea32745662",
+      "c7df126da49462080c9fe834de1b34f1ac4f34d6",
+      "c5adfaa1036e951a9cc42fdba40c790230b55b8f",
+      "1539c7c78ac56300b4fc801ce4d45c9a8efec717",
+      "f58a4ed1b5b458cacaf6516eba383ae697eb288b",
+      "54a9af36c40c85d885d0be61119cef6d5e29a770",
+      "2d17f7ca10fde04fccef404ecc5cddd6902c6d53",
+      "a93bbd5dea5081ecfb3a8d60911379deb4133788",
+      "0ad618d254678c676d50a61553fc3e0579ebcfdb",
+      "c89e545ad2d4163f482bfc3149e5923b29b52de0",
+      "09a085bbe281d9c508b0ebc2f7e2ad3b059c1dfe",
+      "9877a9efb1416516abcbb85e1bf6a23da7d38ad6",
+      "1b339c31efff9366dee4e575c9175fd20ea38232",
+      "513dfe2def37018dc402b9210332ffbb0b7760df",
+      "66c18a58dfeb37ba4274d2088c3337de84135e3d",
+      "1c3e8ef6c7095291aae974e0f4c15c6a064c50f2",
+      "df335d6ad29fe87f0666a82e4e6427b4a7a491a1",
+      "5bd7a092d9acab7f84b836276810ae841e1881f8",
+      "b162f6f44a77040026db3b97852ae6870bc6e534",
+      "73967662a594b55bcd7aaa5c3eb05166e3ff9eef",
+      "309f64e2f7a3632dc48f9a48a72233463e13d788",
+      "aefec410944dda902e988f0f3ed061b72617e662",
+      "89e3f5599c838bedb178565af4f86cca982f0893",
+      "3254e3bcef5ce46d6749e63a8abbf5f9aa75c894",
+      "d93080d2fcf99387a8b77573b5f7a8e7df18b83c",
+      "c01ca9ab285b9e4431038e9e86bc8a3267166294",
+      "d27e6cb851981c724c346280b6d03e87bbe11e2b",
+      "dac597a4a78a98fa249385f6844015c338b761e9",
+      "4c35d2863af1cb66af777e7eeaf6ef5a4e081ad1",
+      "309027d9364bc003842115f6d84aa6324460c812"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/shell/servers.js"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'ff39f35e4cb' into master",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the merge conflict in bazel/resmoke/resmoke.bzl by keeping\nPercona's removal of the MongoDB enterprise module jstests data\ndependencies. Percona (HEAD) deliberately removed all\n`//src/mongo/db/modules/enterprise/jstests/...` entries because PSMDB\ndoes not ship MongoDB's enterprise module. Upstream (theirs) only added\nnew `audit/lib` entries to that same enterprise list, which are\nirrelevant to PSMDB, so they were dropped along with the rest.\n\nResolved:\n\tbazel/resmoke/resmoke.bzl\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "32eb7ac44a23a861edcb9a096d9100e87a75a09b"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 73065,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.32792374999999996,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000673,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 10,
+        "outputTokens": 5074,
+        "cacheReadInputTokens": 89989,
+        "cacheCreationInputTokens": 24857,
+        "webSearchRequests": 0,
+        "costUSD": 0.32725075,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000673
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10,
+            "output": 5074,
+            "cache_read": 89989,
+            "cache_creation": 24857
+          },
+          "cost_usd": 0.32725075
+        }
+      }
+    },
+    "text_result": "I read the prompt and inspected the actual `diff base \u2192 merge commit` diff for every file listed under `merge_context.auto_merged.files`, then wrote the JSON response.\n\nSummary of what this merge pulls in:\n\n- **Conflict (resolved):** `bazel/resmoke/resmoke.bzl` \u2014 the only \"both modified\" file. The conflict (enterprise `audit/lib` test-data deps) was resolved by taking upstream's list; no conflict markers remain. The broader change reworks resmoke targets from a `py_test` into a `py_binary` (`<name>_bin`) wrapped by a new private `_resmoke_test` rule, and drops the `DEPS_PATH` env plumbing.\n- **Storage engine API rename:** `demoteFromLeader()` \u2192 `demoteToFollower()` across `storage_engine.h`, `storage_engine_impl.{h,cpp}`, `kv_engine.h`, and WiredTiger, where it now actually reconfigures WT with `role=\"follower\"`. Also a null/zero-length `memcpy` guard in `getFromIdent`.\n- **Replication:** `processHeartbeatV1` gains an `OperationContext*` parameter.\n- **Error codes:** new `515 ConnectionClosedByPeer` and `516 ConnectionEstablishmentTimeout`.\n- Smaller test-fixture and BUILD.bazel adjustments (heartbeat interval, dropped `reshardingDocumentValidationMaxCollectionSizeBytes`, dep swaps, removed scip binaries/test src).\n\nThe response was written to `.cache/mergai/response_20260716_112101_191121.json`.",
+    "response": {
+      "summary": "Upstream merge of MongoDB changes into the PSMDB master branch. The most substantial change reworks the Bazel resmoke test rule to run the resmoke shim as a py_binary wrapped by a new private _resmoke_test rule instead of a plain py_test. The storage engine 'demote' API is renamed from demoteFromLeader() to demoteToFollower() across the KVEngine/StorageEngine hierarchy and given a real WiredTiger implementation, and the replication heartbeat handler gains an OperationContext parameter. Additional smaller changes include two new network error codes, test fixture/option tweaks, and several BUILD.bazel dependency adjustments. The only merge conflict, in bazel/resmoke/resmoke.bzl, was resolved by taking upstream's enterprise test-data dependency list.",
+      "auto_merged": {
+        "BUILD.bazel": "Removes the 'scip-clang' and 'scip-src' sh_binary targets (each was a run_under_working_dir.sh wrapper around @scip-clang//file / @scip-src//file).",
+        "bazel/resmoke/resmoke.bzl": "This was the one conflicting file (both modified); the conflict was resolved cleanly with no markers remaining. Changes: the resmoke suite target is no longer a py_test \u2014 the load switches from py_test to py_binary, and resmoke_suite_test now emits a py_binary named '<name>_bin' (tagged manual) which is wrapped by a new private _resmoke_test rule (with _resmoke_test_impl) that reimplements py_test behavior (expanding $(location)->$(rootpath), make-variables, args/env, code-coverage hooks) around the resmoke binary. The old DEPS_PATH env computation (deps_path / the installed_dist_test/skip_deps_for_cquery select) is removed. Test data deps gain '//jstests/auth:all_javascript_files' and the enterprise audit entries '//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files' and ':localKey' (the latter two being the content of the resolved conflict, taken from upstream).",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "In the Antithesis (NOOP_MONGO_D_S_PROCESSES) branch, adds repl_config['settings']['heartbeatIntervalMillis'] = 1000 so that heartbeatIntervalMillis stays strictly below the electionTimeoutMillis of 2000.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Drops the setdefault for the 'reshardingDocumentValidationMaxCollectionSizeBytes' (1GiB) mongod parameter, leaving only the 'reshardingDocumentVerification' = True default; the accompanying comment is updated to match.",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds the 'uses_explain' tag to the test's @tags list.",
+        "src/mongo/base/error_codes.yml": "Adds two new error codes: 515 ConnectionClosedByPeer and 516 ConnectionEstablishmentTimeout, both categorized as NetworkError and RetriableError. Also removes a stray blank line near WriteConflictRetryLimitExceeded.",
+        "src/mongo/db/BUILD.bazel": "Adds '//src/mongo/db/query/query_settings:query_settings_command_hooks' to the deps of a mongo_cc_benchmark target.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Replaces the dependency on '//src/mongo/db/exec/single_doc_lookup:express_single_document_lookup_executor' with ':sbe_single_document_lookup_executor' in a library target, and adds the sbe_single_document_lookup_executor dep to a mongo_cc_unit_test target.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "ReplicationCoordinatorImpl::processHeartbeatV1 gains a leading 'OperationContext* opCtx' parameter.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Expands the promoteToLeader() doc comment to note it invariants on failure and is not idempotent, and adds a new virtual demoteToFollower() method (default empty) documented as the inverse of promoteToLeader().",
+        "src/mongo/db/storage/storage_engine.h": "Renames the pure-virtual demoteFromLeader() to demoteToFollower() and updates the doc comments (now stating the calls invariant on failure and are not idempotent, replacing the previous 'must be safe to call even if not a leader' wording).",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Renames StorageEngineImpl::demoteFromLeader() to demoteToFollower(); instead of being a no-op it now delegates to _engine->demoteToFollower().",
+        "src/mongo/db/storage/storage_engine_impl.h": "Renames the override demoteFromLeader() to demoteToFollower().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Two changes: in WiredTigerKVEngineBase::getFromIdent the std::memcpy is now guarded by 'if (v.size() > 0)' to avoid undefined behavior when memcpy'ing from a null/zero-length value; and a new WiredTigerKVEngine::demoteToFollower() is added that reconfigures the connection with 'disaggregated=(role=\"follower\")'.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Declares the new 'void demoteToFollower() final;' override alongside promoteToLeader().",
+        "src/mongo/rpc/BUILD.bazel": "Removes '//src/mongo/rpc/metadata:security_token_metadata_test.cpp' from the srcs of a mongo_cc_unit_test target.",
+        "src/mongo/shell/servers.js": "Removes the _removeSetParameterIfBeforeVersion call for 'reshardingDocumentValidationMaxCollectionSizeBytes' (9.0.0), consistent with dropping that set parameter."
+      },
+      "review_notes": "Only bazel/resmoke/resmoke.bzl had a real conflict (both modified); it is resolved with all conflict markers removed and upstream's enterprise audit test-data dependencies (audit/lib:all_javascript_files and audit/lib:localKey) accepted. The demoteFromLeader -> demoteToFollower rename is an API change spanning storage_engine.h, storage_engine_impl.{h,cpp}, kv_engine.h and the WiredTiger engine \u2014 reviewers should confirm no remaining callers reference the old demoteFromLeader name. Likewise processHeartbeatV1 gained an OperationContext* parameter, so verify all call sites/overrides were updated (only the signature line appears in this file's diff). No PSMDB-specific customizations were removed by this merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me verify how the resmoke.bzl conflict was resolved in the merge commit:"
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The conflict was resolved cleanly (upstream's version taken, markers removed). Now I'll write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the prompt and inspected the actual `diff base \u2192 merge commit` diff for every file listed under `merge_context.auto_merged.files`, then wrote the JSON response.\n\nSummary of what this merge pulls in:\n\n- **Conflict (resolved):** `bazel/resmoke/resmoke.bzl` \u2014 the only \"both modified\" file. The conflict (enterprise `audit/lib` test-data deps) was resolved by taking upstream's list; no conflict markers remain. The broader change reworks resmoke targets from a `py_test` into a `py_binary` (`<name>_bin`) wrapped by a new private `_resmoke_test` rule, and drops the `DEPS_PATH` env plumbing.\n- **Storage engine API rename:** `demoteFromLeader()` \u2192 `demoteToFollower()` across `storage_engine.h`, `storage_engine_impl.{h,cpp}`, `kv_engine.h`, and WiredTiger, where it now actually reconfigures WT with `role=\"follower\"`. Also a null/zero-length `memcpy` guard in `getFromIdent`.\n- **Replication:** `processHeartbeatV1` gains an `OperationContext*` parameter.\n- **Error codes:** new `515 ConnectionClosedByPeer` and `516 ConnectionEstablishmentTimeout`.\n- Smaller test-fixture and BUILD.bazel adjustments (heartbeat interval, dropped `reshardingDocumentValidationMaxCollectionSizeBytes`, dep swaps, removed scip binaries/test src).\n\nThe response was written to `.cache/mergai/response_20260716_112101_191121.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260716_112101_190964.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.211 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "e89ffd95738c86ec688159093f48749e5cd2e720",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "e9a32f054a36fbe0f09858f6730e6aa59c4ac8a5",
+      "message": "Merge commit 'ff39f35e4cb' into master"
+    },
+    {
+      "sha": "32eb7ac44a23a861edcb9a096d9100e87a75a09b",
+      "message": "Resolve conflicts for merge commit 'ff39f35e4cb' into master"
+    }
+  ]
+}

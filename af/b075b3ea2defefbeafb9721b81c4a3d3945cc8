@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "23b22c431a233c2475e4fc55e9bc26659b59cb8a",
+    "merge_commit": "30c2bc5f5d80067a555fcb3927de950aee6a1317"
+  },
+  "mergai_version": "0.1.dev1+g6435390b9",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '30c2bc5f5d8' into master",
+        "resolved": {
+          "src/mongo/db/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in the mongod_options mongo_cc_library target by\nfollowing upstream's migration (which moved mongod_options_storage.cpp\nand :mongod_options_storage_gen into the new server_options_storage\nlibrary) while preserving Percona's additions (ratelimit_parameter.cpp,\n:mongod_options_encryption_gen, and :ratelimit_parameter_gen).\n\nResolved:\n\tsrc/mongo/db/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "afb075b3ea2defefbeafb9721b81c4a3d3945cc8"
+    }
+  ]
+}

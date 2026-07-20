@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "de5e1075522c657215f4603d90364fc40801923d",
+    "merge_commit": "20943c6c27235fde94e26171405753204c19f3e2"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '20943c6c272' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/telemetry/BUILD.bazel": "Modified by human",
+          "src/mongo/db/telemetry/telemetry_thread_d.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): upstream commit d6ab7951 (SERVER-130780) removed\nsrc/mongo/base/data_type_validated.h and migrated the Validated<BSONObj>\nDataType helper into rpc::ValidatedBSONObj in mongo/rpc/object_check.h.\nThe Percona-specific telemetry_thread_d.cpp still referenced the removed\nheader, so the auto-generated bazel header target\n//src/mongo/base/.auto_header:data_type_validated_h no longer existed,\ncausing the analysis-phase failure. I migrated the Percona call site to\nthe new upstream API.\n\nResolved:\n\tsrc/mongo/db/telemetry/telemetry_thread_d.cpp\n\tsrc/mongo/db/telemetry/BUILD.bazel\n\nCI: build-and-test run 29117468584 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "a978231c4e91d8db05267b205598169373af43e9"
+    }
+  ]
+}

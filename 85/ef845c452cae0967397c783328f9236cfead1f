@@ -1,0 +1,306 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "de5e1075522c657215f4603d90364fc40801923d",
+    "merge_commit": "20943c6c27235fde94e26171405753204c19f3e2"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "de5e1075522c657215f4603d90364fc40801923d",
+    "theirs_commit": "20943c6c27235fde94e26171405753204c19f3e2",
+    "base_commit": "753a93b63a9ab65bd4e37ed629dbf803c487e204",
+    "files": [
+      "src/mongo/db/ftdc/ftdc_server.idl",
+      "src/mongo/db/storage/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "src/mongo/db/ftdc/ftdc_server.idl": "both modified",
+      "src/mongo/db/storage/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/ftdc/ftdc_server.idl": "diff --cc src/mongo/db/ftdc/ftdc_server.idl\nindex 13cf1c7426c,96aaec5a25c..00000000000\n--- a/src/mongo/db/ftdc/ftdc_server.idl\n+++ b/src/mongo/db/ftdc/ftdc_server.idl\n@@@ -149,24 -149,0 +149,36 @@@ server_parameters\n++<<<<<<< HEAD\n +    diagnosticDataCollectionEnableSystemMetricsDisks:\n +        description: \"Enable the capture of 'disks' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsDisks\n +        redact: false\n +\n +    diagnosticDataCollectionEnableSystemMetricsMounts:\n +        description: \"Enable the capture of 'mounts' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts\n +        redact: false\n +\n +    diagnosticDataCollectionEnableLockContentionMetrics:\n +        description: \"Enable the capture of lock contention metrics from ObservableMutex in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableLockContentionMetrics\n +        redact: false\n +\n++||||||| 753a93b63a9\n++    diagnosticDataCollectionEnableLockContentionMetrics:\n++        description: \"Enable the capture of lock contention metrics from ObservableMutex in FTDC.\"\n++        default: true\n++        set_at: [startup, runtime]\n++        cpp_vartype: \"AtomicWord<bool>\"\n++        cpp_varname: gDiagnosticDataCollectionEnableLockContentionMetrics\n++        redact: false\n++\n++=======\n++>>>>>>> 20943c6c27235fde94e26171405753204c19f3e2",
+      "src/mongo/db/storage/BUILD.bazel": "diff --cc src/mongo/db/storage/BUILD.bazel\nindex 26f9d74b198,fb118f290fd..00000000000\n--- a/src/mongo/db/storage/BUILD.bazel\n+++ b/src/mongo/db/storage/BUILD.bazel\n@@@ -195,1 -195,1 +195,6 @@@ mongo_cc_library\n++<<<<<<< HEAD\n +        \"//src/mongo/db/encryption:encryption_key\",\n++||||||| 753a93b63a9\n++=======\n+         \"//src/mongo/rpc:object_check\",\n++>>>>>>> 20943c6c27235fde94e26171405753204c19f3e2"
+    },
+    "their_commits": {
+      "src/mongo/db/ftdc/ftdc_server.idl": [
+        "86fcd7d421511b502f14bf8f03246a0eb6e1bfc8"
+      ],
+      "src/mongo/db/storage/BUILD.bazel": [
+        "d6ab7951e5b86de88b4bad8a08f0adf67c392256"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "20943c6c27235fde94e26171405753204c19f3e2",
+    "merged_commits": [
+      "20943c6c27235fde94e26171405753204c19f3e2",
+      "78fc0de9a1073c1c7e453a62c5bb140f6ab0282e",
+      "73827293d780bd4162aa713187380d8dc50243a1",
+      "670764330c167b7d6a5a8ad57a197e33819fbf06",
+      "4a98a199660d49e9c51879977eb015173de12da3",
+      "26b56af761cde07c44242a2f059594a21b355531",
+      "71c0a683af0e20fac27b1e98bb63c4e426fe2a13",
+      "c9a0c3708c4970f824133e1c1498579c95f50911",
+      "e3b043b1a51d58bb93d23cdff409a0631883def0",
+      "5d7b5bd09d80d4657f38200fad5ecf8bc54a6273",
+      "eb7173cc8b96994e213e896fda9f240b7e02b982",
+      "4ce47eb1c1c1e8a83276dd8dc6ae6ac2911648ad",
+      "90f6d02784bbda573d86cc573e96bb692f3d321f",
+      "8e4e19d5924a8d8c6acb36e1d2dde577305fdcb1",
+      "598a4309abe4aaad386ca4556890e9faa9f1a49f",
+      "65f3f47a11936528439fcc02dface6bfa9e7c8d4",
+      "85dc8c6ce5a80c917f90d51b8b7b5ad7a8bc7859",
+      "2457573b920ab8355a6f49080ccd8b54b2e9b6a1",
+      "9e9d08c639bcda3a4323c5a93f87875c9f98efc7",
+      "14afd59304399b54d8b1a0238573a652509af382",
+      "25c70a5a7e0b4092bfe3beaffc643b2a584a56b0",
+      "2626ed88101400ec7711db13d5169bb20848df36",
+      "7914a23b5995aa91cf592b926dc1f37fe8f4e6c2",
+      "3ddfe29db4ef94f29ab79b6c756bc6abd308af8c",
+      "31be11bbc89f6fa93233e9711df1235b22d4a307",
+      "188d595af2a0ff7a6a03b616911b486f0d63b3aa",
+      "74b2c68eeee85ad1c46d4a6076b2ff1ebde841e4",
+      "c2e5c37cdb1ed87ef312ae5f727920e3ab38051c",
+      "d6ab7951e5b86de88b4bad8a08f0adf67c392256",
+      "86fcd7d421511b502f14bf8f03246a0eb6e1bfc8",
+      "f6c1e55f1d9ed75c8b3cc248675889e1ae3cdbc8",
+      "cc783aa7ee9f0fcb6868ca2c1f12d635c4f6f454",
+      "5e01477530729c4bae72f659c059e2a7b0365865",
+      "fa5a61cc72a433583e9b9239d1df64b884dca2ac",
+      "1680390bfc5c636ab919fb7910aab32625149acf",
+      "b9f8304d3c9c7c18cd3bd1096d95650a3caf6a5d",
+      "f15f1f54408214d68ed47cf30bf983c1442fd3e9",
+      "84e34b285213aa95ade308c1032d4996bd373396",
+      "35bfda85d2939745873a025a59c5697d9ca08cfa",
+      "1017959df77c5496cb5dbb7e1749c75b6dd95b53",
+      "047dcfe850423818f9701d8d058fc0a58e0555cd",
+      "962c0c87cda87c2f80f2e9c0c364ce5d290748aa",
+      "f1acea2589aba6674e5d13450ba301e4d892e88b",
+      "f24e2b3d28596a454522e0d004fe26f1eb5dd81d",
+      "b163273c570008bf993211a7d7e3eee0e474364a",
+      "68a5fd6b57801a668f428cf11265e64de94cde79",
+      "a176ab6ca602ab2d83b0a11b2055fcb6cac53cbd",
+      "52d353ae112aa6c650ce66e104d7f92db02c5207",
+      "677e901ee5eeafb5c164922b3156875ec2fb81f6",
+      "5d2c1122682e4e1466cd2a130dc41662399c5b8b",
+      "0ad08bc03857cc93410b926f01637b3ba29788fa",
+      "006271acf1c5d359b10709eef1d0d0da95f44d4d",
+      "0c2f4650d016f0bbed0035ac23c909a7ee53038b",
+      "ae169b833a438b0a57df556464494306f01e2970",
+      "6cadf4608116759afc136a42475c3f1333dffe19",
+      "18964c70d671bba8949634f4d215196764cec9cb",
+      "13e2c1a9815a3314ebc04e01ecdd85e9de232861",
+      "475b1d2da50b487ccf6b439fb669679708acc349",
+      "d27f702ce7132134ab64b3b3f9c388e8ea633f2c",
+      "a58b2c42b6583ac0123d6970f53bbb5b3f9f9551",
+      "f03153927a19b08cc736314e6af4a00835bd78bd",
+      "0479b3d30874ad7d93ac94a78cb7d0cbf8dbb82e",
+      "daef635d612d41bf0cd17c67efa4be0350d57679",
+      "84f14315f15e7985733aa44cf19a80021ceae738",
+      "8421be5f8cb16203f65316b34ec580824346859f",
+      "5b16b3e315a201287b0012bdc5c6387a9f21a905",
+      "a534ef84d81e048f931af36c861a377c4bbaa006",
+      "eace4953662e1f45ed9f0eefd1aeb9330f4a793c",
+      "7453be09416b929c2f8194e71ff559638b6416f7",
+      "cc4a6a8c9d866141ac40be819c8c9835c410dc18",
+      "4f236b63ad6152cf49ab2b48bfbafaff51545259",
+      "58b5541463c1027f88ee69767b528c8243801bde"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/core/programs.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/ftdc/ftdc_server.idl",
+        "src/mongo/db/fts/fts_matcher.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/db/storage/storage_engine_metadata.cpp",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/shell_utils_extended.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 115316,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.5518569999999999,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000688,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 7921,
+        "outputTokens": 8868,
+        "cacheReadInputTokens": 150728,
+        "cacheCreationInputTokens": 34320,
+        "webSearchRequests": 0,
+        "costUSD": 0.551169,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000688
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 7921,
+            "output": 8868,
+            "cache_read": 150728,
+            "cache_creation": 34320
+          },
+          "cost_usd": 0.551169
+        }
+      }
+    },
+    "text_result": "I've read the incoming diff (`753a93b63a9` \u2192 `20943c6c272`) for each auto-merged file and written the JSON description to the response file.\n\nSummary of what the merge pulls in from upstream:\n\n- **object_check refactor** \u2014 a new standalone `object_check` Bazel library is carved out (`rpc/BUILD.bazel`), wired into `db`, `auth`, `storage`, `shell` build targets, and callers migrate from `Validated<BSONObj>` to `rpc::ValidatedBSONObj`/`rpc::checkBSONObj` (`sasl_oidc_client_conversation.cpp`, `storage_engine_metadata.cpp`, `shell_utils_extended.cpp` comments).\n- **error codes** \u2014 new `ExtensionError` category and codes 515\u2013519 (`ConnectionClosedByPeer`, `ConnectionEstablishmentTimeout`, `InvalidExtensionVTable`, `ExtensionSerializationError`, `ExtensionError`).\n- **planShapeCounts metric** threaded through `OpDebug::AdditiveMetrics`/`CursorMetrics` (`op_debug.cpp`, `curop_test.cpp`).\n- **replication** \u2014 lock-free `_lastCommittedOpTimeShadow` read path.\n- Assorted resmoke fixture version reporting, FTS heterogeneous lookup, auth-test list updates, `s/BUILD.bazel` source moves, and a WiredTiger `database_size_fix` config doc.\n\nI flagged the two real conflicts for reviewers: `ftdc_server.idl` (keep Percona's added Disks/Mounts params; upstream removed the lock-contention param, and note the suspicious missing quote in the `FileSizeMB` description) and `storage/BUILD.bazel` (must keep both the Percona `encryption_key` dep and the incoming `object_check` dep).\n\nOne thing worth your attention: the incoming `diagnosticDataCollectionFileSizeMB` description is `Specifies ... file\"` with a missing leading quote \u2014 I verified this is genuinely present in the merge-commit blob, but it looks like an upstream typo, so double-check before adopting it verbatim.",
+    "response": {
+      "summary": "Merges upstream MongoDB changes into the Percona fork. The most notable themes are: (1) extracting the RPC BSON validation into a standalone 'object_check' Bazel library and migrating callers from the old Validated<BSONObj> type to rpc::ValidatedBSONObj / rpc::checkBSONObj; (2) adding new error categories/codes (ExtensionError family plus ConnectionClosedByPeer/ConnectionEstablishmentTimeout network errors); (3) threading a new planShapeCounts metric through OpDebug::AdditiveMetrics and CursorMetrics; (4) an optimization in ReplicationCoordinatorImpl that reads the last committed optime from a lock-free shadow; and (5) assorted build-graph, resmoke fixture, FTS, FTDC, WiredTiger and auth-test adjustments. Two files (ftdc_server.idl and db/storage/BUILD.bazel) had 'both modified' conflicts that must be resolved keeping Percona's additions alongside the incoming upstream changes.",
+      "auto_merged": {
+        "buildscripts/resmokelib/core/programs.py": "Adds imports of `functools` and `subprocess.check_output`, and introduces a new `@functools.cache`d helper `get_binary_version_output(binary_path)` that runs `<binary> --version` (appending `.exe` on Windows when the path has no extension) and returns its decoded stdout, cached per binary path.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "In `_MongoSFixture`, the info dictionary now also passes `version=self._get_binary_version(self.mongos_executable)`.",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py": "In `MongoDFixture`, the info dictionary now also passes `version=self._get_binary_version(self.mongod_executable)`.",
+        "jstests/auth/lib/commands_lib.js": "Adds `$_internalDocumentResultsAndMetadata` to the `skippedAuthTestingAggStages` list (internal-only, rejected in user requests) and removes the previously dedicated `aggregate_$_internalDocumentResultsAndMetadata` auth test case. Also changes the `aggregate_$_internalSearchIdLookup` test's `testcases` from `testcases_transformationOnly` to `testcases_transformationOnlyExpectFail`.",
+        "src/mongo/base/error_codes.yml": "Adds a new `ExtensionError` error category. Adds error codes 515 `ConnectionClosedByPeer` and 516 `ConnectionEstablishmentTimeout` (both in NetworkError/RetriableError categories), and 517 `InvalidExtensionVTable`, 518 `ExtensionSerializationError`, 519 `ExtensionError` (all in the ExtensionError category). Also removes a stray blank line.",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp": "Drops the `mongo/base/data_type_validated.h` include and removes the IWYU pragma keep on `mongo/rpc/object_check.h`. In `_secondStep`, replaces `inputCdr.read<Validated<BSONObj>>().val` with `BSONObj payload{inputCdr.read<rpc::ValidatedBSONObj>()}`.",
+        "src/mongo/db/BUILD.bazel": "Adds a `//src/mongo/db/query/query_stats` dependency to a library, and defines a new `change_stream_cursor_option_metrics_test` mongo_cc_unit_test target (srcs change_stream_cursor_option_metrics_test.cpp, mongo_unittest_eighth_group tag, depending on base, otel metrics_test_util and unittest).",
+        "src/mongo/db/auth/BUILD.bazel": "Adds `//src/mongo/rpc:object_check` to a library's dependency list.",
+        "src/mongo/db/curop_test.cpp": "Adds include of plan_shape_counts.h and extends the AdditiveMetrics tests to cover `planShapeCounts`: increments counters (kCollscan, kIxscanFetch, kIxscanProject) before add and asserts they are summed per shape; sets plan-shape counts on CursorMetrics and asserts aggregateCursorMetrics sums them; and adds a loop asserting every CursorMetrics field (except serialization_context) is populated after serialization.",
+        "src/mongo/db/ftdc/ftdc_server.idl": "Removes the `diagnosticDataCollectionEnableLockContentionMetrics` server parameter definition, and changes the `description` value of `diagnosticDataCollectionFileSizeMB` (upstream now has it unquoted at the front: `Specifies the maximum size, in megabytes, of each diagnostic file\"`). This file was a merge conflict \u2014 see review notes.",
+        "src/mongo/db/fts/fts_matcher.cpp": "In `_hasPositiveTerm_string`, replaces constructing a `std::string` from the tokenizer output and calling `count(word)` with a direct heterogeneous lookup `_query.getPositiveTerms().count(tokenizer->get())` on the string_view.",
+        "src/mongo/db/op_debug.cpp": "Threads a new `planShapeCounts` metric through AdditiveMetrics/CursorMetrics: `getCursorMetrics` sets planShapeCounts on the metrics when non-empty; `add`, `aggregateDataBearingNodeMetrics` and `aggregateCursorMetrics` accumulate planShapeCounts; `reset` clears it. Also adds two `TODO SERVER-130797` comments over `reset()` and `equals()`.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Adds updates to a `_lastCommittedOpTimeShadow` in `_updateLastCommittedOpTimeAndWallTime` and `_advanceCommitPoint` (set from `_topCoord->getLastCommittedOpTime()`), and rewrites `getLastCommittedOpTime()` to return `_lastCommittedOpTimeShadow.get()` instead of locking `_mutex` and querying the topology coordinator.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds `//src/mongo/rpc:object_check` to a library's dependency list. This file was a merge conflict \u2014 see review notes.",
+        "src/mongo/db/storage/storage_engine_metadata.cpp": "Drops the `mongo/base/data_type_validated.h` include and removes the IWYU pragma keep on `mongo/rpc/object_check.h`. In `read()`, replaces `cdr.readNoThrow<Validated<BSONObj>>()` with `cdr.readNoThrow<rpc::ValidatedBSONObj>()` and wraps the result with `BSONObj obj{swObj.getValue()}`.",
+        "src/mongo/rpc/BUILD.bazel": "Introduces a new standalone `object_check` mongo_cc_library (srcs object_check.cpp and :object_check_gen; deps bson_validate and db:server_base). Adds `:object_check` as a dependency of the op_msg library and of the `rpc` library, and removes the direct `:object_check_gen` source from the `rpc` library (now provided via the object_check library).",
+        "src/mongo/s/BUILD.bazel": "Removes the `chunk_manager_shard_resolver.cpp` and `shard_version_factory.cpp` sources (and the related TODO SERVER-126212 comment) from the `grid` library, and adds `shard_version_factory.cpp` to another library's source list.",
+        "src/mongo/shell/BUILD.bazel": "Adds `//src/mongo/rpc:object_check` to a library's dependency list.",
+        "src/mongo/shell/shell_utils_extended.cpp": "Updates comments in `readDumpFile` and `getObjInDumpFile` to reference `rpc::checkBSONObj` instead of `Validated<BSONObj>` (comment-only change; the surrounding manual-validation code is unchanged).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds documentation for a new `database_size_fix` checkpoint configuration option (a boolean flag, default false) that recomputes the disaggregated database size from the sum of all collections' latest checkpoint sizes instead of applying the incremental delta."
+      },
+      "review_notes": "Two files required conflict resolution ('both modified'):\n\n1. src/mongo/db/ftdc/ftdc_server.idl: The fork (HEAD) added three FTDC server parameters \u2014 diagnosticDataCollectionEnableSystemMetricsDisks, diagnosticDataCollectionEnableSystemMetricsMounts, and diagnosticDataCollectionEnableLockContentionMetrics. Upstream (incoming) REMOVED diagnosticDataCollectionEnableLockContentionMetrics (which existed at the base). Verify the resolution keeps the Percona-added Disks/Mounts parameters. Note the incoming description of diagnosticDataCollectionFileSizeMB is missing its leading quote ('Specifies ... file\"') \u2014 confirm whether this is intended upstream or a typo before keeping it verbatim.\n\n2. src/mongo/db/storage/BUILD.bazel: The fork added a `//src/mongo/db/encryption:encryption_key` dependency (Percona encryption-at-rest feature); upstream added `//src/mongo/rpc:object_check`. Both dependencies must be present in the resolved deps list.\n\nBroader theme to sanity-check: the object_check refactor extracts an `object_check` Bazel library and migrates BSON validation callers from `Validated<BSONObj>` to `rpc::ValidatedBSONObj`. Confirm any Percona-specific code that still uses `Validated<BSONObj>` / includes data_type_validated.h continues to build against the new library layout."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me verify the ftdc description change in the actual merge commit blob."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe the merge accurately. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the incoming diff (`753a93b63a9` \u2192 `20943c6c272`) for each auto-merged file and written the JSON description to the response file.\n\nSummary of what the merge pulls in from upstream:\n\n- **object_check refactor** \u2014 a new standalone `object_check` Bazel library is carved out (`rpc/BUILD.bazel`), wired into `db`, `auth`, `storage`, `shell` build targets, and callers migrate from `Validated<BSONObj>` to `rpc::ValidatedBSONObj`/`rpc::checkBSONObj` (`sasl_oidc_client_conversation.cpp`, `storage_engine_metadata.cpp`, `shell_utils_extended.cpp` comments).\n- **error codes** \u2014 new `ExtensionError` category and codes 515\u2013519 (`ConnectionClosedByPeer`, `ConnectionEstablishmentTimeout`, `InvalidExtensionVTable`, `ExtensionSerializationError`, `ExtensionError`).\n- **planShapeCounts metric** threaded through `OpDebug::AdditiveMetrics`/`CursorMetrics` (`op_debug.cpp`, `curop_test.cpp`).\n- **replication** \u2014 lock-free `_lastCommittedOpTimeShadow` read path.\n- Assorted resmoke fixture version reporting, FTS heterogeneous lookup, auth-test list updates, `s/BUILD.bazel` source moves, and a WiredTiger `database_size_fix` config doc.\n\nI flagged the two real conflicts for reviewers: `ftdc_server.idl` (keep Percona's added Disks/Mounts params; upstream removed the lock-contention param, and note the suspicious missing quote in the `FileSizeMB` description) and `storage/BUILD.bazel` (must keep both the Percona `encryption_key` dep and the incoming `object_check` dep).\n\nOne thing worth your attention: the incoming `diagnosticDataCollectionFileSizeMB` description is `Specifies ... file\"` with a missing leading quote \u2014 I verified this is genuinely present in the merge-commit blob, but it looks like an upstream typo, so double-check before adopting it verbatim."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260710_185544_157437.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.206 (Claude Code)"
+    }
+  }
+}

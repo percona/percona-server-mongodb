@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "de5e1075522c657215f4603d90364fc40801923d",
+    "merge_commit": "20943c6c27235fde94e26171405753204c19f3e2"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '20943c6c272' into master",
+        "resolved": {
+          "src/mongo/db/ftdc/ftdc_server.idl": "Resolved by human",
+          "src/mongo/db/storage/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved two 'both modified' conflicts. In ftdc_server.idl kept the\nPercona-specific systemMetrics params and dropped the upstream-reverted\nlock-contention param; in storage/BUILD.bazel kept both the Percona and\nupstream dependency additions.\n\nResolved:\n\tsrc/mongo/db/ftdc/ftdc_server.idl\n\tsrc/mongo/db/storage/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "86b7c5a2842572dc4b31e4de11d8bae9c639da45"
+    }
+  ]
+}

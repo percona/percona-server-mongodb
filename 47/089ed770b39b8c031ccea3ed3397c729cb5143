@@ -1,0 +1,34 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ade65211b60f0da4bf0916ba636c6f3f4863d77b",
+    "merge_commit": "b608b7554ca0d5b8b136682998b46edc0a743cb1"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b608b7554ca' into master",
+        "resolved": {
+          "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Resolved by human",
+          "jstests/core/catalog/views/views_all_commands.js": "Resolved by human",
+          "jstests/sharding/database_versioning_all_commands.js": "Resolved by human",
+          "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Resolved by human",
+          "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Resolved by human",
+          "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved 7 merge conflicts by combining Percona-specific additions with\nupstream's changes. In the resmoke replicaset fixture both the Percona\n`_await_mongot_community()` and upstream `_await_all_mongots_ready()`\ncalls are kept. In the *_all_commands.js test files both upstream's\n`wiredTigerRepair` entry and Percona's `auditGetOptions`/`createBackup`\nentries are kept. sbom.json was resolved per the project hints (Percona\nsupplier URL kept, `tools` section removed, Percona serialNumber/version\nkept).\n\nResolved:\n\tbuildscripts/resmokelib/testing/fixtures/replicaset.py\n\tjstests/core/catalog/views/views_all_commands.js\n\tjstests/sharding/database_versioning_all_commands.js\n\tjstests/sharding/safe_secondary_reads_drop_recreate.js\n\tjstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js\n\tjstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "47089ed770b39b8c031ccea3ed3397c729cb5143"
+    }
+  ]
+}

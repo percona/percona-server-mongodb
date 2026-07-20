@@ -1,0 +1,124 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1e641c8db98373ab614d0e52708d341352cfe1b3",
+    "merge_commit": "e703910580ab42cbcce466ccabf1c5da81c7a20b"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 25637,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.1860745,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 7505,
+          "outputTokens": 1968,
+          "cacheReadInputTokens": 42243,
+          "cacheCreationInputTokens": 12408,
+          "webSearchRequests": 0,
+          "costUSD": 0.18539650000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 7505,
+              "output": 1968,
+              "cache_read": 42243,
+              "cache_creation": 12408
+            },
+            "cost_usd": 0.18539650000000002
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/ftdc/ftdc_server.idl`.\n\nBoth sides added distinct, non-overlapping FTDC server parameters at the same location:\n- **HEAD**: `diagnosticDataCollectionEnableSystemMetricsDisks` and `diagnosticDataCollectionEnableSystemMetricsMounts`\n- **Upstream**: `diagnosticDataCollectionEnableLockContentionMetrics` (from the ObservableMutex work in SERVER-121996)\n\nI kept all three parameters, removed all conflict markers, and wrote the JSON response to the specified path.",
+      "response": {
+        "summary": "Resolved a both-modified conflict in ftdc_server.idl where each side added distinct server parameters. Kept both sets of parameters.",
+        "resolved": {
+          "src/mongo/db/ftdc/ftdc_server.idl": "Both sides added new FTDC server parameters in the same location. HEAD added diagnosticDataCollectionEnableSystemMetricsDisks and diagnosticDataCollectionEnableSystemMetricsMounts; upstream (theirs) added diagnosticDataCollectionEnableLockContentionMetrics. These are non-overlapping additions, so all three parameters were retained, preserving both the existing changes and upstream's new ObservableMutex lock contention metric parameter."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "No symbol was removed or renamed; the conflict was purely additive on both sides. All conflict markers were removed and the IDL block remains syntactically consistent with surrounding parameter definitions."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides added new server parameters. I'll keep both sets."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/ftdc/ftdc_server.idl`.\n\nBoth sides added distinct, non-overlapping FTDC server parameters at the same location:\n- **HEAD**: `diagnosticDataCollectionEnableSystemMetricsDisks` and `diagnosticDataCollectionEnableSystemMetricsMounts`\n- **Upstream**: `diagnosticDataCollectionEnableLockContentionMetrics` (from the ObservableMutex work in SERVER-121996)\n\nI kept all three parameters, removed all conflict markers, and wrote the JSON response to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260708_103129_799353.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.204 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}

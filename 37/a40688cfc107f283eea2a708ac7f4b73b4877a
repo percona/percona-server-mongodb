@@ -1,0 +1,304 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1e641c8db98373ab614d0e52708d341352cfe1b3",
+    "merge_commit": "e703910580ab42cbcce466ccabf1c5da81c7a20b"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "1e641c8db98373ab614d0e52708d341352cfe1b3",
+    "theirs_commit": "e703910580ab42cbcce466ccabf1c5da81c7a20b",
+    "base_commit": "1b51af3418d8ff468b50e5ddcb1b472e0e7aebdf",
+    "files": [
+      "src/mongo/db/ftdc/ftdc_server.idl"
+    ],
+    "conflict_types": {
+      "src/mongo/db/ftdc/ftdc_server.idl": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/ftdc/ftdc_server.idl": "diff --cc src/mongo/db/ftdc/ftdc_server.idl\nindex 93f3d8de447,fb9d6f60280..00000000000\n--- a/src/mongo/db/ftdc/ftdc_server.idl\n+++ b/src/mongo/db/ftdc/ftdc_server.idl\n@@@ -149,16 -149,8 +149,28 @@@ server_parameters\n++<<<<<<< HEAD\n +    diagnosticDataCollectionEnableSystemMetricsDisks:\n +        description: \"Enable the capture of 'disks' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsDisks\n +        redact: false\n +\n +    diagnosticDataCollectionEnableSystemMetricsMounts:\n +        description: \"Enable the capture of 'mounts' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts\n +        redact: false\n +\n++||||||| 1b51af3418d\n++=======\n+     diagnosticDataCollectionEnableLockContentionMetrics:\n+         description: \"Enable the capture of lock contention metrics from ObservableMutex in FTDC.\"\n+         default: true\n+         set_at: [startup, runtime]\n+         cpp_vartype: \"AtomicWord<bool>\"\n+         cpp_varname: gDiagnosticDataCollectionEnableLockContentionMetrics\n+         redact: false\n+ \n++>>>>>>> e703910580ab42cbcce466ccabf1c5da81c7a20b"
+    },
+    "their_commits": {
+      "src/mongo/db/ftdc/ftdc_server.idl": [
+        "f9e82f362e4c8f4e3ffa240c4c775b91690f3524"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "e703910580ab42cbcce466ccabf1c5da81c7a20b",
+    "merged_commits": [
+      "e703910580ab42cbcce466ccabf1c5da81c7a20b",
+      "c8588a6060c90ca67d5433cb3ffed885bbae8fad",
+      "5b353c63f472c8a534ec76cf8b3598f4a00723ed",
+      "f9e82f362e4c8f4e3ffa240c4c775b91690f3524",
+      "be9651c4b5711c3a8d1de2f2f8c0c360208ecb85",
+      "dd16baf8d8bfe27d8a643260aa3152fcc10b6cbe",
+      "e54eedfdc8b5ae6b0c8990cbfeb406cceeed8985",
+      "f743add54f2710c1298ee0e29e6432f13e416537",
+      "4588d5c5648041171a2056021eb21c2f0515417a",
+      "c037ffd5cc8e0d5541f686aeb10a18f612823428",
+      "996efefca736e13c59e77567e30549c0f2ddfad3",
+      "bd550ae89e7254059ff1f3d9b6b731972c7366b9",
+      "a639f023b589a50b4f4411d6a4287c4ea30c4b5b",
+      "6798e526a4318ca3f49af3fb859f6eb421422cb2",
+      "3155ed1cecb64bfe40c2fab97e29b36f2c18a957",
+      "bb4275d17aec6058cd51ed188838f6daa2fca847",
+      "cfafbd9fc3411723648c4bc3fc29b16fe8975208",
+      "aef8f9744c8b919656c5ed45bf12360b63360eb2",
+      "e4784afa51959135ce232cf06c41f85e5393a1ed",
+      "2e0c032d179caeae05ea60b214f68b55228eb704",
+      "3ef2e7e45f6899fbcb65378cf312542183edeb58",
+      "ca300263043161d1f2f2e353d80e72a67aaf4e6b",
+      "aa04671cfc71165f5e5aa1b4fe0aec61c95e931d",
+      "996a547d80290f72c75e1f2e8400ac40e732d090",
+      "2adcecaf9b9058405f00b36a5061b1dea47fb188",
+      "14a97315745db388c8da6a0db56316516e2e4fbc",
+      "40e7205a2d06e19ee0350b6aee51659ce32773df",
+      "08a8bfd904fb94e47948b511efac94407050775b",
+      "e9d3860db4a1723753e7db83a7ab86a7984c21c7",
+      "06611aa56b695697d7f9797fbe5008015e7d7191",
+      "5da008c9b0def9c3fbff537e68aa9dbe38e14b1d",
+      "29fd2d5040fcc5439fbc583e4f16779ed2d305f8",
+      "8ac55a1fb20bac2889a03e388d6a2f657b072608",
+      "a12c0e6dc919bec4ad094af921d31f2c3d15e5c5",
+      "311de46f0f0cf73ec25f5c1fb9a1f6a128c4559f",
+      "866ee17781cae492ae47a0a2cc0b6cf73f7745ce",
+      "bb4d1d4ec2ff31906d0bacc498290d74561bc400",
+      "5e29d550c37bbc3a68b3318812ff9ab0196aa2af",
+      "ecade3a65a7cb4da6a29fbb5c1948ec51bb59c91",
+      "abac027cce1dcc4c1af556692d96d789cfc0c029",
+      "7078a66bcc383d7b39eb7e94ad2b295e7098e2ab",
+      "de3a3d48fa89fd9ea41d45e4013c6d08a9924b2a",
+      "ef89dfc8ffa7f8fc60e1444199e43ae5d9e03303",
+      "2f4222ffea2488e3a0f039a152485c1759f8aafc",
+      "048473577d0674b09bfbd5463f376df3c75b12b2",
+      "8135e3ac3c404798790ae72f52aabda34dd07db1",
+      "a5b596d8de4517b43e3a8cb06e7a4b2f8b043ea8",
+      "f6794e9d04b24e792732e54b4ec7c6d863e6b1d3",
+      "bbce99774acb500e2b2e9c9ed60a160b1de10388",
+      "a53d1cf6fb5a887d7e7b9a87049643456493414f",
+      "8e38d7ef2e8044f98fd37129b48301bed49d62ec",
+      "eed223a09bd539b19f451ecc841809c3fe7fa9ca",
+      "6a12966a4878ff2f3db7ed18b546eaf7febf1b23",
+      "5bbe25934f3767a8da0d63f2607ff2b5eefad714",
+      "17a82732063c3deed9f77a85498f54c4ef959c53",
+      "56c33777f75a61c3423d1e62e6b3ad0e7334dacd",
+      "fd2dd7227a6b8c8798bb12072f5ab435e941f278",
+      "343a16a665021241bbb59462e518a1f06650cb92",
+      "15a71b2eece3d8f6c762e1da28766dc2e228b17a",
+      "7f853efacff07843599523f492a66acf021480ba",
+      "b2c3a2962708947a616fc568f6fea6f4ddd69c87",
+      "c4dec4ee9b84f6431223b999ce340b1d495c4071",
+      "fb6560f4c61d6497be4537065dd48c25b726f66d",
+      "6a05ae4db6135030648ab7d1c7a2b8b23a3d0579"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/ftdc/ftdc_server.idl",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'e703910580a' into master",
+        "resolved": {
+          "src/mongo/db/ftdc/ftdc_server.idl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in ftdc_server.idl where each side\nadded distinct server parameters. Kept both sets of parameters.\n\nResolved:\n\tsrc/mongo/db/ftdc/ftdc_server.idl\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "993b3f845ffc942ebbc5545969f96ebb1ddfe7d5"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 75464,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.369259,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000683,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 7052,
+        "outputTokens": 5389,
+        "cacheReadInputTokens": 123407,
+        "cacheCreationInputTokens": 21902,
+        "webSearchRequests": 0,
+        "costUSD": 0.36857599999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000683
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 7052,
+            "output": 5389,
+            "cache_read": 123407,
+            "cache_creation": 21902
+          },
+          "cost_usd": 0.36857599999999996
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's what this merge introduces (diff base `1b51af3418d` \u2192 merge commit `e703910580a`):\n\n**Key upstream changes:**\n- **10 jstest all-commands catalogs** \u2014 remove the now-deleted internal command `_configsvrConvertShardRefsInNamespaceMetadata` from their skip maps.\n- **`src/mongo/db/BUILD.bazel`** \u2014 dependency label updated from `//src/mongo/db/query/query_stats:plan_shape_counters` to `//src/mongo/db/query/query_stats/plan_shape_counters` (target moved to its own package).\n- **`ftdc_server.idl`** \u2014 adds the `diagnosticDataCollectionEnableLockContentionMetrics` FTDC server parameter plus a description-string typo fix.\n- **`wiredtiger.h.in`** \u2014 declares a new public `wiredtiger_repair()` API.\n\n**Reviewer-critical note:** `ftdc_server.idl` is the sole real (both-modified) conflict. Upstream added `LockContentionMetrics` in the exact block where the Percona fork had added `SystemMetricsDisks`/`SystemMetricsMounts`. I verified the fork tip (`1e641c8`) carries the disks/mounts params and the base has neither, so the correct resolution must keep **both** the Percona params and upstream's new param \u2014 they must not be dropped.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commits (base 1b51af3418d -> e703910580a) into the Percona fork. The incoming changes remove the internal command '_configsvrConvertShardRefsInNamespaceMetadata' from the various all-commands test catalogs, fix a Bazel dependency label for plan_shape_counters, add a new FTDC server parameter 'diagnosticDataCollectionEnableLockContentionMetrics' (plus a description-string typo fix in ftdc_server.idl), and declare a new 'wiredtiger_repair' entry point in the WiredTiger public header.",
+      "auto_merged": {
+        "jstests/core/catalog/views/views_all_commands.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: isAnInternalCommand}' entry from the viewsCommandTests map, reflecting upstream removal of that internal command.",
+        "jstests/libs/write_concern_all_commands.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"internal command\"}' entry from both the wcCommandsTests and wcTimeseriesCommandsTests maps.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: isAnInternalCommand}' entry from the allCommands map.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: isPrimaryOnly}' entry from the allCommands map.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: isAnInternalCommand}' entry from the allCommands map.",
+        "jstests/sharding/database_versioning_all_commands.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"internal command\"}' entry from the allTestCases map.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"internal command\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"primary only\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"primary only\"}' entry from the testCases map.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Removes the '_configsvrConvertShardRefsInNamespaceMetadata: {skip: \"primary only\"}' entry from the testCases map.",
+        "src/mongo/db/BUILD.bazel": "Updates one dependency label from '//src/mongo/db/query/query_stats:plan_shape_counters' to '//src/mongo/db/query/query_stats/plan_shape_counters', reflecting that the plan_shape_counters target now lives in its own Bazel package.",
+        "src/mongo/db/ftdc/ftdc_server.idl": "Adds a new server parameter 'diagnosticDataCollectionEnableLockContentionMetrics' (default true, settable at startup/runtime, AtomicWord<bool> gDiagnosticDataCollectionEnableLockContentionMetrics) to enable capture of ObservableMutex lock contention metrics in FTDC. Also fixes a quoting typo in the 'diagnosticDataCollectionFileSizeMB' description string. This file was a both-modified conflict: upstream added the lock-contention parameter while the fork added the SystemMetricsDisks/SystemMetricsMounts parameters in the same region.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a declaration for a new public API function 'wiredtiger_repair(WT_CONNECTION *connection, const char *config)' returning a library-owned diagnostic string, with an accompanying doc comment noting it is not thread-safe."
+      },
+      "review_notes": "The only real conflict is in src/mongo/db/ftdc/ftdc_server.idl (both modified). Upstream added the 'diagnosticDataCollectionEnableLockContentionMetrics' parameter; the Percona fork independently added 'diagnosticDataCollectionEnableSystemMetricsDisks' and 'diagnosticDataCollectionEnableSystemMetricsMounts' in the same server_parameters block. The resolution must KEEP BOTH the fork's SystemMetricsDisks/SystemMetricsMounts parameters AND upstream's new LockContentionMetrics parameter (do not drop the Percona-specific ones). All other files auto-merged cleanly. Note that upstream also fixed a stray quote in the diagnosticDataCollectionFileSizeMB description; keep that fix."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read. Now I'll write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's what this merge introduces (diff base `1b51af3418d` \u2192 merge commit `e703910580a`):\n\n**Key upstream changes:**\n- **10 jstest all-commands catalogs** \u2014 remove the now-deleted internal command `_configsvrConvertShardRefsInNamespaceMetadata` from their skip maps.\n- **`src/mongo/db/BUILD.bazel`** \u2014 dependency label updated from `//src/mongo/db/query/query_stats:plan_shape_counters` to `//src/mongo/db/query/query_stats/plan_shape_counters` (target moved to its own package).\n- **`ftdc_server.idl`** \u2014 adds the `diagnosticDataCollectionEnableLockContentionMetrics` FTDC server parameter plus a description-string typo fix.\n- **`wiredtiger.h.in`** \u2014 declares a new public `wiredtiger_repair()` API.\n\n**Reviewer-critical note:** `ftdc_server.idl` is the sole real (both-modified) conflict. Upstream added `LockContentionMetrics` in the exact block where the Percona fork had added `SystemMetricsDisks`/`SystemMetricsMounts`. I verified the fork tip (`1e641c8`) carries the disks/mounts params and the base has neither, so the correct resolution must keep **both** the Percona params and upstream's new param \u2014 they must not be dropped."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260708_103010_851418.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.204 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "37a40688cfc107f283eea2a708ac7f4b73b4877a",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "3e5cf293cb774afeee6493cae47759dcf2c84d17",
+      "message": "Merge commit 'e703910580a' into master"
+    },
+    {
+      "sha": "993b3f845ffc942ebbc5545969f96ebb1ddfe7d5",
+      "message": "Resolve conflicts for merge commit 'e703910580a' into master"
+    }
+  ]
+}

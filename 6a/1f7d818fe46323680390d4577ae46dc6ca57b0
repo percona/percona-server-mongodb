@@ -1,0 +1,149 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1b45816a22ffce7019ff304e477ef95130b98e06",
+    "merge_commit": "fa51be8344c4612a35f89cb92df8de7e49290dc8"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "merge_context": {
+    "merge_commit": "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+    "merged_commits": [
+      "fa51be8344c4612a35f89cb92df8de7e49290dc8",
+      "87c0af4a696f207d8793721adf4d726092f15e37",
+      "dd82c0f2ebdff829fd6c81d3cb16f4b6336edddc",
+      "472bbd385fda9cbedaade13fdc664e665a60c73c",
+      "e87af31b754a47f67137eb03cf824d5f787e72fc",
+      "bdf4a43e4ab6ebeb69c049b00a3471009be39e91",
+      "58e36cdc79066838fd18ec9bef6de9ba048e9d2d",
+      "73337e952c1b5158c1faeb87e4eadf03f38bd542",
+      "06494656cbb0c6eee32d54fccae90bfc2fd3e1c8",
+      "b982485e2f7a37d2875216528ce9cdd9070465c1",
+      "64f8bb052db18c7bb360760020297f89791714a2",
+      "16cb74444f7598076165a21a0580097de995e228",
+      "e304e774442f64025c6917e54a1d98d91f89545d",
+      "c14b3f0db2fc422b601fac61b01412cb90616da6",
+      "350afec8658c3ea0d991ce41a5c9960af401a4f8",
+      "d88dc539845acfa443578a326ce6495a23534a47",
+      "5ecce4e934817a958d48d64d1030ccb52e1a050f",
+      "63f4844de41a97db893a66be41eab404c526b8d7"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/testing/fixtures/_builder.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 31763,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.18635625,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000683,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2538,
+        "cacheReadInputTokens": 35424,
+        "cacheCreationInputTokens": 16717,
+        "webSearchRequests": 0,
+        "costUSD": 0.18567325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000683
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2538,
+            "cache_read": 35424,
+            "cache_creation": 16717
+          },
+          "cost_usd": 0.18567325
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge diff (`1c287af4e8f` \u2192 `fa51be8344c4`) for all nine auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in:\n\n- **resmoke extension fixtures** (`_builder.py`, `replicaset.py`, `shardedcluster.py`, `standalone.py`) \u2014 mechanical refactor from the `MONGOT_EXTENSION_NAME` constant to a `get_mongot_extension_name()` accessor function.\n- **`curop_test.cpp`** \u2014 new plan-shape counter categories (`QsnNodeCounter`, `AccessPathCounter`) exercised in the additive-metrics tests.\n- **`commands_lib.js`** \u2014 two internal aggregation stages (`$_internalListQuerySettings`, `$_internalQuerySettingsDebugShape`) added to the auth-testing skip list.\n- **Three BUILD.bazel files** \u2014 purely additive dependency/source-list entries.\n\nAll files merged cleanly with no conflict markers, and no Percona-specific code appears in these diffs.",
+    "response": {
+      "summary": "Upstream merge into the PSMDB master fork. The incoming changes are all cleanly auto-merged (ort strategy). The main themes are: (1) resmoke extension fixtures switch from the module-level constant MONGOT_EXTENSION_NAME to a get_mongot_extension_name() accessor function; (2) new plan-shape counter categories (QsnNodeCounter and AccessPathCounter) added to CurOp additive-metrics tests; (3) two new internal aggregation stages ($_internalListQuerySettings and $_internalQuerySettingsDebugShape) added to the auth-testing skip list; and (4) several Bazel BUILD dependency and test-source additions.",
+      "auto_merged": {
+        "buildscripts/resmokelib/testing/fixtures/_builder.py": "Replaces the import and use of the MONGOT_EXTENSION_NAME constant with the get_mongot_extension_name() function. In _deferred_mongot_extension_kwargs, load_extensions now uses [get_mongot_extension_name()] instead of [MONGOT_EXTENSION_NAME].",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Updates the extensions import block to drop MONGOT_EXTENSION_NAME and add get_mongot_extension_name. In ReplicaSetFixture the generate_now filter now compares against get_mongot_extension_name() instead of the constant.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Same accessor migration: the import list drops MONGOT_EXTENSION_NAME and adds get_mongot_extension_name. ShardedClusterFixture's generate_now filter and the find_and_generate_named_extension_configs call (extension_names and the dynamic_options key) now use get_mongot_extension_name() instead of MONGOT_EXTENSION_NAME.",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py": "Same accessor migration: import list drops MONGOT_EXTENSION_NAME and adds get_mongot_extension_name. In MongoDFixture the dynamic_options key now uses get_mongot_extension_name() instead of the constant.",
+        "jstests/auth/lib/commands_lib.js": "Adds two entries to the skippedAuthTestingAggStages list: $_internalListQuerySettings (internal generator seeding the $querySettings desugar) and $_internalQuerySettingsDebugShape (internal stage appended by the $querySettings desugar for showDebugQueryShape, covered via the $querySettings auth tests).",
+        "src/mongo/db/BUILD.bazel": "Adds dependencies to several targets: //src/mongo/otel/traces/sampler and //src/mongo/db/query:explain_policy to library targets, //src/mongo/idl:ifr_sender_version.cpp to a target's srcs/deps, and //src/mongo/otel/traces/sampler to a mongo_cc_unit_test target's deps.",
+        "src/mongo/db/curop_test.cpp": "Extends the AdditiveMetrics tests to cover new plan-shape counter categories. Adds using-declarations for AccessPathCounter and QsnNodeCounter, increments and aggregates counts for QsnNodeCounter::kCollscanWithFilter, AccessPathCounter::kCollscan, and AccessPathCounter::kBtreeIxscan in AddingAdditiveMetricsObjectsTogetherShouldAddFieldsTogether, and adds corresponding increments/assertions in AdditiveMetricsShouldAggregateCursorMetrics.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds deps to a library target (//src/mongo/db/pipeline/search:mongot_extension_name and //src/mongo/db/query:explain_policy) and to two mongo_cc_unit_test targets (//src/mongo/db/query/query_knobs:query_knob_configuration_test_util and //src/mongo/util:version_impl).",
+        "src/mongo/s/BUILD.bazel": "Adds client_metadata_propagation_egress_hook_test.cpp to a mongo_cc_unit_test's srcs and //src/mongo/util:version_impl to its deps."
+      },
+      "review_notes": "All listed files auto-merged cleanly with no conflict markers. The resmoke fixture changes are a mechanical refactor from a MONGOT_EXTENSION_NAME constant to a get_mongot_extension_name() accessor; verify all four fixture files consistently import and use the accessor. No Percona-specific code appears in these diffs. The Bazel changes are purely additive dependency/source list entries."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge diff (`1c287af4e8f` \u2192 `fa51be8344c4`) for all nine auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in:\n\n- **resmoke extension fixtures** (`_builder.py`, `replicaset.py`, `shardedcluster.py`, `standalone.py`) \u2014 mechanical refactor from the `MONGOT_EXTENSION_NAME` constant to a `get_mongot_extension_name()` accessor function.\n- **`curop_test.cpp`** \u2014 new plan-shape counter categories (`QsnNodeCounter`, `AccessPathCounter`) exercised in the additive-metrics tests.\n- **`commands_lib.js`** \u2014 two internal aggregation stages (`$_internalListQuerySettings`, `$_internalQuerySettingsDebugShape`) added to the auth-testing skip list.\n- **Three BUILD.bazel files** \u2014 purely additive dependency/source-list entries.\n\nAll files merged cleanly with no conflict markers, and no Percona-specific code appears in these diffs."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260713_221201_110808.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.207 (Claude Code)"
+    }
+  }
+}

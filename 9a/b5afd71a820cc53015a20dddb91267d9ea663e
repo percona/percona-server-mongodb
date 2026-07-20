@@ -1,0 +1,511 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "a8e91ea4075a084a99b4c0ae49fd964355fd4ad3",
+    "merge_commit": "1c287af4e8f11749cebb169b352b66beb5e3f990"
+  },
+  "mergai_version": "0.1.dev1+gaa14b121b",
+  "conflict_context": {
+    "ours_commit": "a8e91ea4075a084a99b4c0ae49fd964355fd4ad3",
+    "theirs_commit": "1c287af4e8f11749cebb169b352b66beb5e3f990",
+    "base_commit": "0b22cf9c3b6f019e0618ee721ae26f27e2c7f104",
+    "files": [
+      "MODULE.bazel.lock",
+      "buildscripts/resmokelib/configure_resmoke.py",
+      "src/mongo/db/ftdc/ftdc_server.idl"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "buildscripts/resmokelib/configure_resmoke.py": "both modified",
+      "src/mongo/db/ftdc/ftdc_server.idl": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex ad3e7af11d1,e1655692543..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -365,1 -365,1 +365,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"Gm66lr+Xo7xKjtVOx0pbvPGF3x1AR5PV2ksbZ++h0Z0=\",\n++||||||| 0b22cf9c3b6\n++        \"bzlTransitiveDigest\": \"LOjvJfvvj5aj/SmkM1NIJB10HSKEl4gYhlVqy9APw3M=\",\n++=======\n+         \"bzlTransitiveDigest\": \"IrYH+a7AsYhcP1C1eWf52uQbgGa+XlCaD11SNgek5WM=\",\n++>>>>>>> 1c287af4e8f11749cebb169b352b66beb5e3f990",
+      "buildscripts/resmokelib/configure_resmoke.py": "diff --cc buildscripts/resmokelib/configure_resmoke.py\nindex 94607b1164e,3bf90176c42..00000000000\n--- a/buildscripts/resmokelib/configure_resmoke.py\n+++ b/buildscripts/resmokelib/configure_resmoke.py\n@@@ -1254,44 -1236,0 +1248,89 @@@ def _find_mfp_plugin_source() -> str\n++<<<<<<< HEAD\n +def _detect_js_engine(mongod_executable: Optional[str]) -> Optional[str]:\n +    \"\"\"Return the JS engine name reported by the mongod binary, or None if the binary does not exist\n +    or it cannot be determined (i.e. --version does not output javascriptEngine).\n +\n +    Runs ``mongod --version`` and parses the ``javascriptEngine`` field from the Build Info JSON.\n +    If the binary exists, returns e.g. ``\"mozjs\"`` or ``\"mozjs-wasm\"``, or ``none``.\n +    Note that ''none'' is a valid JS engine that indicates the server was built without a JS engine,\n +    and is not the same as returning None to indicate the binary doesn't exist.\n +\n +    When ``mongod_executable`` is not specified, falls back to the default executable name\n +    (``\"mongod\"``), which may be resolved via PATH (e.g. via DEPS_PATH in the Bazel test runner).\n +    \"\"\"\n +    executable = mongod_executable or _config.DEFAULT_MONGOD_EXECUTABLE\n +    if shutil.which(executable) is None:\n +        return None\n +    # Sanitizer builds can take tens of seconds to start up. In the Bazel remote-test\n +    # runner mongod is also slow to become runnable at configure time (binary staging via\n +    # DEPS_PATH), so a short timeout skips detection and mis-classifies a mozjs-wasm build;\n +    # use a generous timeout so the probe reliably completes there too.\n +    version_timeout_secs = 120 if _config.IS_SAN else 60\n +    try:\n +        result = subprocess.run(\n +            [executable, \"--version\"],\n +            capture_output=True,\n +            text=True,\n +            timeout=version_timeout_secs,\n +        )\n +        # The output is: \"db version v...\\nBuild Info: <pretty-printed JSON>\\n\"\n +        # Grab everything from \"Build Info: \" to the end and parse it as one JSON blob.\n +        marker = \"Build Info:\"\n +        idx = result.stdout.find(marker)\n +        if idx != -1:\n +            build_info = json.loads(result.stdout[idx + len(marker) :].strip())\n +            return build_info.get(\"javascriptEngine\")\n +        reason = \"'Build Info:' marker not found in --version output\"\n +    except Exception as exc:  # pylint: disable=broad-except\n +        reason = repr(exc)\n +    print(\n +        f\"Warning: failed to detect the JS engine from '{executable} --version' ({reason}).\",\n +        file=sys.stderr,\n +    )\n +    return None\n +\n +\n++||||||| 0b22cf9c3b6\n++def _detect_js_engine(mongod_executable: Optional[str]) -> Optional[str]:\n++    \"\"\"Return the JS engine name reported by the mongod binary, or None if the binary does not exist\n++    or it cannot be determined (i.e. --version does not output javascriptEngine).\n++\n+ (... 34 more added lines...)\n++    return None\n++\n++\n++=======\n++>>>>>>> 1c287af4e8f11749cebb169b352b66beb5e3f990",
+      "src/mongo/db/ftdc/ftdc_server.idl": "diff --cc src/mongo/db/ftdc/ftdc_server.idl\nindex 0b40a75616b,580940a2f49..00000000000\n--- a/src/mongo/db/ftdc/ftdc_server.idl\n+++ b/src/mongo/db/ftdc/ftdc_server.idl\n@@@ -149,16 -149,8 +149,28 @@@ server_parameters\n++<<<<<<< HEAD\n +    diagnosticDataCollectionEnableSystemMetricsDisks:\n +        description: \"Enable the capture of 'disks' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsDisks\n +        redact: false\n +\n +    diagnosticDataCollectionEnableSystemMetricsMounts:\n +        description: \"Enable the capture of 'mounts' subsection of system metrics in FTDC.\"\n +        default: true\n +        set_at: [startup, runtime]\n +        cpp_vartype: \"AtomicWord<bool>\"\n +        cpp_varname: gDiagnosticDataCollectionEnableSystemMetricsMounts\n +        redact: false\n +\n++||||||| 0b22cf9c3b6\n++=======\n+     diagnosticDataCollectionEnableLockContentionMetrics:\n+         description: \"Enable the capture of lock contention metrics from ObservableMutex in FTDC.\"\n+         default: true\n+         set_at: [startup, runtime]\n+         cpp_vartype: \"AtomicWord<bool>\"\n+         cpp_varname: gDiagnosticDataCollectionEnableLockContentionMetrics\n+         redact: false\n+ \n++>>>>>>> 1c287af4e8f11749cebb169b352b66beb5e3f990"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "3935e76022f814708564c4189b9ee0813a952955"
+      ],
+      "buildscripts/resmokelib/configure_resmoke.py": [
+        "5ff157a4217fd2553404c4417a99c874a5c9808d"
+      ],
+      "src/mongo/db/ftdc/ftdc_server.idl": [
+        "f373254ed04b426589af0147fc4e96c0619c2728"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "1c287af4e8f11749cebb169b352b66beb5e3f990",
+    "merged_commits": [
+      "1c287af4e8f11749cebb169b352b66beb5e3f990",
+      "18b6a450ff64bc480aa646f361503c1d2af3d459",
+      "feb5d0776a7a866a4161a9e6e1da88971b2703b4",
+      "8408018591da57ad72d131d9980764ffdebbe31b",
+      "88f913cd3b88e8ce0bc2790428a23755cf37b3ed",
+      "fffd00f333479d233f0449d83405d03e590e6696",
+      "16b4aab62ca0445138d12b1384136af7b7925a40",
+      "104ad0352344b3a65ec7acb42311a718f1a4ca2e",
+      "433970027da08726c02fe396f948bc5ea8a66676",
+      "7cc3d0f330a8211e02d248835a8cd7c8a10c41bb",
+      "5c1f0e46f1c6454b52df29d02668759aea08a5e9",
+      "3935e76022f814708564c4189b9ee0813a952955",
+      "8b90707d2a62f9f6d11baa39142fd90eb9b0c0a0",
+      "476acfa90350163bfa0b174983b0d5141dd5cde1",
+      "7787ce9cc34709f220c13c2eeb85961527b19a68",
+      "c7adbf1c4ae1236b311db8bd8ed48b986fc180f2",
+      "58698820c4180aa5f0a94b73fe2f2cd31401f0cf",
+      "6f8645a1eb44f4f2a94cf0901a3a51649defe639",
+      "fd371c531aa4dbf34b3abaebbb75d331eb774a49",
+      "ca34c054424fbd890d6e2fd60a5404fde7a3093a",
+      "825ee63d869f475a35e35dd2e6c31978795493c9",
+      "79d38494f458067e00246610e25be2119931ca51",
+      "a1abf25695fdf89ca3e638287a9b83e4a13e6eb3",
+      "f373254ed04b426589af0147fc4e96c0619c2728",
+      "f0ff39c9e60b0206a40e12c2ae9a40f99104b9e8",
+      "e30977dfc0e9804287a8384e883759c227be39e4",
+      "587c9ddaa44229c1f941b43e3845c355d1064773",
+      "dd38c65c65845963f6aa9f14b46e0a362d7fc2de",
+      "e9fd01a1cdca4fb8cffe3d791c2947b7478bf4c3",
+      "d899a6c90ea27b1c5eb645b8bda6c0e3dd803733",
+      "525da668646d64758f361179f3bb1792708c1456",
+      "b47f7226c5dcb421812896748af02e06c5104bf2",
+      "6b88d92e5e1977567b328bc72a8adbbf584c31b0",
+      "5dc8bbca44d127781e5d564c39b09fb1bf0f7c9a",
+      "ffb2c98bda0028102e9af5ae87123d8da1bf6e1a",
+      "d7b2c8f2dce0e7fe69475a5c5e83aa7647a51ea4",
+      "5ff157a4217fd2553404c4417a99c874a5c9808d",
+      "964cf98adde5ef8e1d914d6b5aaf1ed01236f7ac",
+      "92596f11730d08ac1a99230ae64dc354969c27df",
+      "ea1d0fc156345cae87908e3ed9df4e09e516d3d3",
+      "cd8463a6d9716b05980e3902713f2445d64e1205",
+      "943767c9b47bb9692e6322c52e939ea2f5718e8c",
+      "963dc7aa5fdc8bbfa02e9412e62986515cee6612",
+      "b1bb6efffb8fbe38639e45996c2909c72117e75f",
+      "8bca718e9e7161da27440a529061380a9935d659",
+      "2c15ef648e4956a68f10fd129b6e674b98036b54",
+      "6d6adc311b28d72c5c06ded4c49611796b106cea",
+      "e6d53a8d10c8791519d55be9781551c43164c2a6",
+      "5d25bd523e3d115e9f9c95d959a01f1ec0a6e776",
+      "69c33613834b5a8ff3b9492917fd4a20dcbb207c",
+      "de4f1baa16a5af76fd7ec6da20200b77d90af87e"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/audit.cpp",
+      "src/mongo/db/audit.h",
+      "src/mongo/db/auth/sasl_plain_server_conversation.cpp",
+      "src/mongo/db/auth/sasl_scram_server_conversation.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_init_test.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/platforms/local_config_platform.bzl",
+        "buildscripts/resmokelib/config.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp",
+        "src/mongo/crypto/jwks_fetcher_factory.h",
+        "src/mongo/crypto/jwks_fetcher_impl.cpp",
+        "src/mongo/crypto/jwks_fetcher_impl.h",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/audit.cpp",
+        "src/mongo/db/auth/authorization_backend_local.cpp",
+        "src/mongo/db/auth/authorization_manager_global.cpp",
+        "src/mongo/db/auth/authorization_manager_impl.cpp",
+        "src/mongo/db/auth/authorization_manager_impl.h",
+        "src/mongo/db/auth/authorization_manager_test.cpp",
+        "src/mongo/db/auth/sasl_mechanism_policies.h",
+        "src/mongo/db/auth/sasl_options.h",
+        "src/mongo/db/auth/security_file.cpp",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/exec/document_value/value.cpp",
+        "src/mongo/db/exec/mutable_bson/algorithm.h",
+        "src/mongo/db/ftdc/ftdc_server.idl",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp",
+        "src/mongo/db/fts/fts_language.cpp",
+        "src/mongo/db/fts/fts_matcher.cpp",
+        "src/mongo/db/fts/fts_query_impl.cpp",
+        "src/mongo/db/fts/fts_query_impl.h",
+        "src/mongo/db/fts/fts_query_parser.cpp",
+        "src/mongo/db/fts/fts_query_parser.h",
+        "src/mongo/db/fts/fts_tokenizer.h",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/namespace_string_util_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/query/query_tester/mock_version_info.h",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/startup_warnings_common.cpp",
+        "src/mongo/db/storage/encryption_hooks.cpp",
+        "src/mongo/db/storage/encryption_hooks.h",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/storage_engine_init.cpp",
+        "src/mongo/db/storage/storage_engine_metadata.cpp",
+        "src/mongo/db/storage/storage_engine_metadata.h",
+        "src/mongo/db/storage/storage_engine_metadata_test.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/db/topology/cluster_add_shard_cmd.cpp",
+        "src/mongo/idl/ifr_sender_version_test.cpp",
+        "src/mongo/logv2/log.h",
+        "src/mongo/rpc/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/s/write_ops/write_op.cpp",
+        "src/mongo/s/write_ops/write_op.h",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/shell_options.cpp",
+        "src/mongo/shell/shell_options.h",
+        "src/mongo/shell/shell_utils_extended.cpp",
+        "src/mongo/tools/mongobridge_tool/mongobridge_options.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/mongo/util/buildinfo.cpp",
+        "src/mongo/util/exit_code.h",
+        "src/mongo/util/file.h",
+        "src/mongo/util/net/http_client.cpp",
+        "src/mongo/util/net/http_client.h",
+        "src/mongo/util/net/http_client_curl.cpp",
+        "src/mongo/util/net/ssl_options.cpp",
+        "src/mongo/util/net/ssl_options_test.cpp",
+        "src/mongo/util/net/ssl_types.h",
+        "src/mongo/util/options_parser/option_description.cpp",
+        "src/mongo/util/options_parser/option_description.h",
+        "src/mongo/util/processinfo_linux.cpp",
+        "src/mongo/util/stacktrace_libunwind_test_functions.cpp",
+        "src/mongo/util/stacktrace_test.cpp",
+        "src/mongo/util/version.cpp",
+        "src/mongo/util/version.h",
+        "src/mongo/util/version_impl.tpl.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 210486,
+    "num_turns": 14,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.9213644999999999,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000683,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 28,
+        "outputTokens": 16916,
+        "cacheReadInputTokens": 392133,
+        "cacheCreationInputTokens": 48252,
+        "webSearchRequests": 0,
+        "costUSD": 0.9206814999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000683
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 28,
+            "output": 16916,
+            "cache_read": 392133,
+            "cache_creation": 48252
+          },
+          "cost_usd": 0.9206814999999999
+        }
+      }
+    },
+    "text_result": "I've written the JSON response describing the merge. Here's what I found and documented:\n\n**Summary of the merge** (`0b22cf9c3b6` \u2192 `1c287af4e8f`, ~50 upstream commits):\n\n- **Dominant change (SERVER-127760):** rewrites nearly every file's license header from the full multi-line SSPL/OpenSSL-exception block to a two-line SPDX form. This is the recurring 2-added/28-deleted pattern across ~90 of the listed files and is purely cosmetic.\n\n**Functional changes I verified in the actual diffs:**\n- `.bazelrc` / `local_config_platform.bzl` \u2014 new `native_toolchain` build config (SERVER-128104).\n- `curop.cpp` / `curop_test.cpp` \u2014 new `metrics.query.peakMemoryUsageOperation` gauge + test (SERVER-130076).\n- `ftdc_server.idl` \u2014 new `diagnosticDataCollectionEnableLockContentionMetrics` parameter + quote fix (SERVER-121996).\n- `kv_engine.h` / `storage_engine*.{h,cpp}` / `wiredtiger_kv_engine.{h,cpp}` \u2014 new `isInLeaderMode()` API (SERVER-130201).\n- `configure_resmoke.py` / `config.py` \u2014 removal of JS-engine detection & `mozjs_wasm_unsupported` tags (SERVER-130270).\n- `shardedcluster.py` \u2014 resharding document verification enabled in fixtures (SERVER-94478).\n- Various `BUILD.bazel` dep additions (write throttler, OTel metrics, stream terminator stage).\n- `error_codes.yml` \u2014 removed error codes 515/516.\n\n**Key review notes flagged:** the three conflicts (configure_resmoke.py's fork-side `_detect_js_engine`, ftdc_server.idl's fork disks/mounts params, and the MODULE.bazel.lock regeneration), plus the mongolint change that lets the linter accept both header styles.\n\nPer the prompt's direction rules, I described only what the `diff base \u2192 merge commit` diff shows, and did not treat fork-specific customizations as merge changes.",
+    "response": {
+      "summary": "Merge of ~50 upstream commits. The dominant change is SERVER-127760, which rewrites every source file's license header from the full multi-line SSPL/OpenSSL-exception block to a two-line SPDX form (a `// Copyright (c) MongoDB, Inc.` line plus `// SPDX-License-Identifier: SSPL-1.0`); this accounts for the bulk of the touched files (the recurring 2-added/28-deleted change) and is purely cosmetic. On top of that, several functional upstream changes come in: SERVER-128104 adds a `native_toolchain` Bazel config for building with a local/third-party C++ toolchain; SERVER-130076/SERVER-7cc3d0f adds query memory-tracking metrics (a system-wide `metrics.query.peakMemoryUsageOperation` gauge in CurOp exported to serverStatus/OpenTelemetry); SERVER-129876 introduces a new write throttler (new build deps); SERVER-121996 adds an FTDC server parameter `diagnosticDataCollectionEnableLockContentionMetrics`; SERVER-130201 adds an `isInLeaderMode()` storage-engine API; SERVER-130270 removes the `_detect_js_engine`/`mozjs_wasm_unsupported` tag mechanism from resmoke; and SERVER-94478 enables resharding document verification in test fixtures. The three conflicting files were auto-conflicted; see per-file notes.",
+      "auto_merged": {
+        ".bazelrc": "Adds a new `native_toolchain` Bazel common config (SERVER-128104) that builds with a native/third-party C++ toolchain instead of the hermetic mongo toolchain: sets `USE_NATIVE_TOOLCHAIN=1` and `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=0`, forces the lld linker, and pulls in `--config=local`, with usage examples in comments.",
+        "MODULE.bazel.lock": "Only the `bzlTransitiveDigest` value changes (lock-file digest update from the toolchain/module changes). No manual merge; regenerate via bazel as per the conflict hint.",
+        "bazel/platforms/local_config_platform.bzl": "Tightens the native-toolchain check to `USE_NATIVE_TOOLCHAIN == \"1\"` and, in that branch, appends the `@//bazel/platforms:use_native_toolchain` constraint to the generated platform constraints (SERVER-128104).",
+        "buildscripts/resmokelib/config.py": "Removes the `JS_ENGINE` config global and its comment (SERVER-130270, removal of the mozjs_wasm_unsupported tag mechanism).",
+        "buildscripts/resmokelib/configure_resmoke.py": "Upstream removes the `_detect_js_engine()` helper and its call site that set `_config.JS_ENGINE` and appended `mozjs_wasm_unsupported`/`requires_mozjs_wasm` to the excluded tags (SERVER-130270). CONFLICT: the fork carries its own variant of `_detect_js_engine` (with an increased probe timeout); the diff base\u2192merge diff shows upstream deleting this function entirely.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Enables `reshardingDocumentVerification` and sets `reshardingDocumentValidationMaxCollectionSizeBytes` to 1GiB on mongod in non-multiversion sharded-cluster suites, to keep resharding document-count validation coverage (SERVER-94478).",
+        "jstests/auth/lib/commands_lib.js": "Adds `$_internalStreamTerminator` to the list of internal-only aggregation stages skipped in auth command testing.",
+        "src/mongo/base/error_codes.yml": "Removes the `ConnectionClosedByPeer` (515) and `ConnectionEstablishmentTimeout` (516) error codes (both had NetworkError/RetriableError categories); minor whitespace adjustment near code 512.",
+        "src/mongo/client/sasl_oidc_client_conversation.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/crypto/jwks_fetcher_factory.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/crypto/jwks_fetcher_impl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/crypto/jwks_fetcher_impl.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/BUILD.bazel": "Adds build dependencies: `otel_metrics_service` to a library, and the `write_throttler`/`write_throttler_admission_context` targets plus test-only deps (commands, shard_role, attached_storage) for the new write throttler (SERVER-129876) and OTel metrics work.",
+        "src/mongo/db/audit.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/authorization_backend_local.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/authorization_manager_global.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/authorization_manager_impl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/authorization_manager_impl.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/authorization_manager_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/sasl_mechanism_policies.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/sasl_options.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/auth/security_file.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds a dependency on `//src/mongo/db/admission:write_throttler_admission_context` (SERVER-129876).",
+        "src/mongo/db/commands/profile_common.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/curop.cpp": "License header rewritten to SPDX, plus new memory-tracking metric (SERVER-130076): adds a system-wide Int64 gauge `metrics.query.peakMemoryUsageOperation` created via `otel::metrics::MetricsService` (exposed in serverStatus and OpenTelemetry) with an atomic high-water-mark, updated on each operation's tracked-memory update via a compare-and-swap loop. New includes for cluster_role, otel metrics, and atomic_word.",
+        "src/mongo/db/curop.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/curop_test.cpp": "License header rewritten to SPDX, plus a new unit test `SystemWidePeakMemoryUsageOperationMetric` that reads the `metrics.query.peakMemoryUsageOperation` value from the serverStatus metric tree and verifies the peak high-water mark (SERVER-130076).",
+        "src/mongo/db/exec/document_value/value.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/exec/mutable_bson/algorithm.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/ftdc/ftdc_server.idl": "Adds the `diagnosticDataCollectionEnableLockContentionMetrics` server parameter (default true, startup/runtime, AtomicWord<bool>, var `gDiagnosticDataCollectionEnableLockContentionMetrics`) to toggle FTDC capture of ObservableMutex lock-contention metrics (SERVER-121996), and fixes a stray quote in the `diagnosticDataCollectionFileSizeMB` description. CONFLICT was with fork-side FTDC system-metrics parameters (disks/mounts), which are unrelated and retained.",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_language.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_matcher.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_query_impl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_query_impl.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_query_parser.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_query_parser.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/fts/fts_tokenizer.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/initialize_server_global_state.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/mongod_main.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/mongod_options.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/namespace_string_reserved.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/namespace_string_util_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/op_debug.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the new `document_source_internal_stream_terminator` source and its agg exec stage to the pipeline libraries, plus a `query_knob_configuration` test dependency.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/query/query_tester/mock_version_info.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/server_options.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/server_options_helpers.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/server_options_server_helpers.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/startup_recovery.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/startup_warnings_common.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/encryption_hooks.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/encryption_hooks.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/kv/kv_engine.h": "License header rewritten to SPDX, plus a new virtual `isInLeaderMode()` method defaulting to false (SERVER-130201, step-up leader detection).",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/storage_engine.h": "License header rewritten to SPDX, plus a new pure-virtual `isInLeaderMode()` on the StorageEngine interface (SERVER-130201).",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "License header rewritten to SPDX, plus `StorageEngineImpl::isInLeaderMode()` delegating to the underlying KV engine (SERVER-130201).",
+        "src/mongo/db/storage/storage_engine_impl.h": "License header rewritten to SPDX, plus the `isInLeaderMode()` override declaration (SERVER-130201).",
+        "src/mongo/db/storage/storage_engine_init.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/storage_engine_metadata.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/storage_engine_metadata.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/storage_engine_metadata_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "License header rewritten to SPDX, plus `WiredTigerKVEngine::isInLeaderMode()` which reads the WT `WT_STAT_CONN_DISAGG_ROLE_LEADER` fast statistic via an uninterruptible session (SERVER-130201).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "License header rewritten to SPDX, plus the `isInLeaderMode()` override declaration (SERVER-130201).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/db/topology/cluster_add_shard_cmd.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/idl/ifr_sender_version_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/logv2/log.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/rpc/BUILD.bazel": "Adds the `client_metadata_server_parameters_gen` source and new deps (auth, server_status_metric) to the client_metadata library, and a `clock_source_mock` test dep (related to the hello `clientUpdate` work, SERVER-130379).",
+        "src/mongo/s/BUILD.bazel": "Adds a `//src/mongo/db:commands` dependency to a mongos unit-test target.",
+        "src/mongo/s/mongos_main.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/s/write_ops/write_op.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/s/write_ops/write_op.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/shell/mongo_main.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/shell/shell_options.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/shell/shell_options.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/shell/shell_utils_extended.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/tools/mongobridge_tool/mongobridge_options.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/transport/BUILD.bazel": "Adds a `//src/mongo/rpc:telemetry_context_section` dependency to a transport target.",
+        "src/mongo/util/buildinfo.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/exit_code.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/file.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/http_client.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/http_client.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/http_client_curl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/ssl_options.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/ssl_options_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/net/ssl_types.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/options_parser/option_description.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/options_parser/option_description.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/processinfo_linux.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/stacktrace_libunwind_test_functions.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/stacktrace_test.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/version.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/version.h": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change.",
+        "src/mongo/util/version_impl.tpl.cpp": "License header rewritten to the SPDX 2-liner (SERVER-127760); no functional change."
+      },
+      "review_notes": "1) The vast majority of listed files change only their license header (SERVER-127760, 'rewrite all license headers to SPDX 2-liner'); reviewers can skip these as non-functional. Note the corresponding mongolint change (SERVER-127760, commit 433970027da) makes the linter accept either the SPDX header or the legacy SSPL header. 2) configure_resmoke.py conflicted because the fork carries its own `_detect_js_engine` variant while upstream removes JS-engine detection entirely (SERVER-130270). Confirm the intended resolution: if the fork wants to keep mozjs-wasm gating, its version of `_detect_js_engine` and the JS_ENGINE handling in config.py must be preserved; otherwise accept the upstream removal. 3) ftdc_server.idl conflicted because the fork adds disks/mounts FTDC system-metrics parameters near where upstream adds `diagnosticDataCollectionEnableLockContentionMetrics`; both sets of parameters should coexist. 4) MODULE.bazel.lock must be regenerated with bazel per the conflict hint (digest-only change). 5) Verify the new build deps for the write throttler (SERVER-129876) and OTel metrics resolve in the fork's Bazel graph."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to write an accurate description. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the JSON response describing the merge. Here's what I found and documented:\n\n**Summary of the merge** (`0b22cf9c3b6` \u2192 `1c287af4e8f`, ~50 upstream commits):\n\n- **Dominant change (SERVER-127760):** rewrites nearly every file's license header from the full multi-line SSPL/OpenSSL-exception block to a two-line SPDX form. This is the recurring 2-added/28-deleted pattern across ~90 of the listed files and is purely cosmetic.\n\n**Functional changes I verified in the actual diffs:**\n- `.bazelrc` / `local_config_platform.bzl` \u2014 new `native_toolchain` build config (SERVER-128104).\n- `curop.cpp` / `curop_test.cpp` \u2014 new `metrics.query.peakMemoryUsageOperation` gauge + test (SERVER-130076).\n- `ftdc_server.idl` \u2014 new `diagnosticDataCollectionEnableLockContentionMetrics` parameter + quote fix (SERVER-121996).\n- `kv_engine.h` / `storage_engine*.{h,cpp}` / `wiredtiger_kv_engine.{h,cpp}` \u2014 new `isInLeaderMode()` API (SERVER-130201).\n- `configure_resmoke.py` / `config.py` \u2014 removal of JS-engine detection & `mozjs_wasm_unsupported` tags (SERVER-130270).\n- `shardedcluster.py` \u2014 resharding document verification enabled in fixtures (SERVER-94478).\n- Various `BUILD.bazel` dep additions (write throttler, OTel metrics, stream terminator stage).\n- `error_codes.yml` \u2014 removed error codes 515/516.\n\n**Key review notes flagged:** the three conflicts (configure_resmoke.py's fork-side `_detect_js_engine`, ftdc_server.idl's fork disks/mounts params, and the MODULE.bazel.lock regeneration), plus the mongolint change that lets the linter accept both header styles.\n\nPer the prompt's direction rules, I described only what the `diff base \u2192 merge commit` diff shows, and did not treat fork-specific customizations as merge changes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260713_172229_593187.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.207 (Claude Code)"
+    }
+  }
+}
