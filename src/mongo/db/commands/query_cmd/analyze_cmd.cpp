@@ -122,7 +122,7 @@ StatusWith<BSONObj> analyzeCommandAsAggregationCommand(OperationContext* opCtx,
 void runSampleMode(OperationContext* opCtx,
                    const NamespaceString& nss,
                    boost::optional<int> sampleSizeOpt,
-                   boost::optional<SamplingCEMethodEnum> samplingMethodOpt,
+                   boost::optional<SamplingCEMethodEnum> requestedSamplingMethodOpt,
                    boost::optional<int> numChunksOpt) {
     uassert(
         ErrorCodes::CommandNotSupported,
@@ -131,11 +131,12 @@ void runSampleMode(OperationContext* opCtx,
             VersionContext::getDecoration(opCtx),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot()));
 
-    uassert(12433001,
-            str::stream() << "Must provide samplingMethod when using mode 'sample'",
-            samplingMethodOpt);
+    // 'samplingMethod' is optional on the command. Default to the
+    // persistent-sample read path's method (internalQuerySamplingCEMethodForPersistentSamples).
+    QueryKnobConfiguration qkc(query_settings::QuerySettings{});
+    const SamplingCEMethodEnum requestedSamplingMethod = requestedSamplingMethodOpt.value_or(
+        qkc.getInternalQuerySamplingCEMethodForPersistentSamples());
 
-    SamplingCEMethodEnum requestedSamplingMethod = samplingMethodOpt.value();
     boost::optional<ce::SamplingTechniqueEnum> actualSamplingMethod;
     boost::optional<UUID> collUUID;
     BSONArrayBuilder docsArr;
@@ -165,7 +166,6 @@ void runSampleMode(OperationContext* opCtx,
         if (sampleSizeOpt) {
             sampleSize = *sampleSizeOpt;
         } else {
-            QueryKnobConfiguration qkc(query_settings::QuerySettings{});
             sampleSize = ce::SamplingEstimatorImpl::calculateSampleSize(
                 qkc.getConfidenceInterval(), qkc.getSamplingMarginOfError());
         }
@@ -224,8 +224,8 @@ void runSampleMode(OperationContext* opCtx,
         numChunksOpt = boost::none;
     }
 
-    std::string docId =
-        ce::buildPersistentSampleId(*collUUID, samplingMethodToPersist, sampleSize, numChunksOpt);
+    const BSONObj docId =
+        ce::makePersistentSampleIdObj(*collUUID, samplingMethodToPersist, sampleSize, numChunksOpt);
 
     // Build the sample document using IDL field name constants to guarantee the stored document
     // matches the schema expected by PersistentSampleLoader.
@@ -233,7 +233,8 @@ void runSampleMode(OperationContext* opCtx,
     sampleDocBuilder.append(ce::PersistentSampleDoc::k_idFieldName, docId);
     sampleDocBuilder.append(ce::PersistentSampleDoc::kCollectionUuidFieldName,
                             collUUID->toString());
-    sampleDocBuilder.append(ce::PersistentSampleDoc::kSchemaVersionFieldName, 1);
+    sampleDocBuilder.append(ce::PersistentSampleDoc::kSchemaVersionFieldName,
+                            ce::kPersistentSampleSchemaVersion);
     sampleDocBuilder.appendDate(ce::PersistentSampleDoc::kCreatedAtFieldName, Date_t::now());
     sampleDocBuilder.append(ce::PersistentSampleDoc::kSampleSizeFieldName,
                             static_cast<long long>(sampleSize));

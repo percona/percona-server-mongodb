@@ -47,6 +47,31 @@ export var MetadataConsistencyChecker = (function () {
             return false;
         };
 
+        // Returns true if 'e' is consistent with a CollectionUUIDMismatch resulting from a
+        // $listCatalog query on the "system.sessions" collection executing concurrently with the
+        // 'backgroundSessionCollectionDrop' hook.
+        //
+        // The 'backgroundSessionCollectionDrop' hook does not synchronize with the DDL, which
+        // allows the 'checkMetadataConsistency' command to observe inconsistent state while the
+        // hook is dropping and re-creating the collection across multiple shards.
+        //
+        // We treat those inconsistencies as expected when the hook is active.
+        const uuidMismatchOnSessionsCollection = function (e) {
+            if (e.code !== ErrorCodes.CollectionUUIDMismatch) {
+                return false;
+            }
+
+            // If the caller obtained 'e' via an exception handler, the shell may not have populated
+            // it with the 'extraAttr' fields, so we pull them from the original command result.
+            const res = e.extraAttr && (e.extraAttr.res ?? e.extraAttr);
+            return Boolean(
+                res &&
+                    res.db === "config" &&
+                    res.expectedCollection === "system.sessions" &&
+                    res.actualCollection === null,
+            );
+        };
+
         const checkMetadataConsistency = function () {
             jsTest.log("Started metadata consistency check");
 
@@ -63,7 +88,9 @@ export var MetadataConsistencyChecker = (function () {
 
             // Since bucket collections are not created atomically with their view, it may happen
             // that checkMetadataConsistency interleaves with the creation steps in case of stepdown
-            const isStepdownSuite = Boolean(TestData.runningWithShardStepdowns);
+            const isStepdownSuite =
+                Boolean(TestData.runningWithShardStepdowns) ||
+                Boolean(TestData.runningWithStepdowns);
             if (isStepdownSuite) {
                 for (let i = inconsistencies.length - 1; i >= 0; i--) {
                     if (inconsistencies[i].type == "MalformedTimeseriesBucketsCollection") {
@@ -100,7 +127,7 @@ export var MetadataConsistencyChecker = (function () {
                     return false;
                 }
 
-                // TODO (SERVER-131045): Re-enable this check.
+                // TODO (SERVER-131571): Re-enable this check.
                 const isPausedMigrationShardCatalogEntryMismatch =
                     innerDetails.field === "shardCatalogEntry" &&
                     innerDetails.source === "inMemoryShardCatalog" &&
@@ -157,6 +184,20 @@ export var MetadataConsistencyChecker = (function () {
                 // simply accept the error here.
                 jsTest.log(
                     "Ignoring ConflictingOperationInProgress error during checkMetadataConsistency",
+                );
+            } else if (
+                Boolean(TestData.backgroundSessionCollectionDrop) &&
+                uuidMismatchOnSessionsCollection(e)
+            ) {
+                // Tolerate the error described in uuidMismatchOnSessionsCollection(), which is
+                // similar to the inconsistency that is ignored by the above
+                // 'isSessionsCollectionPrimaryMismatch' check.
+                //
+                // TODO SERVER-131444: This mismatch should return an inconsistency instead of
+                // failing with an error, making this block unnecessary.
+                jsTest.log(
+                    "Ignoring CollectionUUIDMismatch error on config.system.sessions during " +
+                        "checkMetadataConsistency due to background sessions collection drop",
                 );
             } else {
                 // For all the other errors re-throw the exception

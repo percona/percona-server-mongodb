@@ -5,7 +5,7 @@
   "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
   "version": 6,
   "metadata": {
-    "timestamp": "2026-07-14T08:08:13Z",
+    "timestamp": "2026-07-17T16:26:17Z",
     "lifecycles": [
       {
         "phase": "pre-build"
@@ -209,11 +209,11 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a",
+      "bom-ref": "pkg:generic/valgrind/valgrind@3.17.0",
       "author": "The Valgrind Developers",
       "group": "valgrind",
       "name": "valgrind.h",
-      "version": "093bef43d69236287ccc748591c9560a71181b0a",
+      "version": "3.17.0",
       "description": "This header file is part of Valgrind, a dynamic binary instrumentation framework.",
       "scope": "required",
       "licenses": [
@@ -224,7 +224,7 @@
         }
       ],
       "copyright": "Copyright (C) 2000-2017 Julian Seward. All rights reserved.",
-      "purl": "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a?vcs_url=https%3A%2F%2Fsourceware.org%2Fgit%2F%3Fp%3Dvalgrind.git",
+      "purl": "pkg:generic/valgrind/valgrind@3.17.0?vcs_url=https%3A%2F%2Fsourceware.org%2Fgit%2F%3Fp%3Dvalgrind.git",
       "externalReferences": [
         {
           "url": "https://sourceware.org/git/valgrind.git",
@@ -2756,7 +2756,7 @@
         "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
         "pkg:generic/unicode-org/unicode@8.0.0",
-        "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a",
+        "pkg:generic/valgrind/valgrind@3.17.0",
         "pkg:github/aappleby/smhasher@a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb",
         "pkg:github/abseil/abseil-cpp@20250512.1",
         "pkg:github/antirez/linenoise@6cdc775807e57b2c3fd64bd207814f8ee1fe35f3",
@@ -2828,7 +2828,7 @@
       "dependsOn": []
     },
     {
-      "ref": "pkg:generic/valgrind/valgrind@093bef43d69236287ccc748591c9560a71181b0a",
+      "ref": "pkg:generic/valgrind/valgrind@3.17.0",
       "dependsOn": []
     },
     {

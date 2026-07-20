@@ -14,8 +14,6 @@
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/import_collection_oplog_entry_gen.h"
 #include "mongo/db/index_builds/index_builds_common.h"
-// TODO (SERVER-126257): Remove once index build side writes cannot be torn.
-#include "mongo/db/index_builds/primary_driven/tearable_side_write_redo_state.h"
 #include "mongo/db/logical_time_validator.h"
 #include "mongo/db/namespace_string.h"
 #include "mongo/db/namespace_string_reserved.h"
@@ -111,9 +109,11 @@ Date_t getWallClockTimeForOpLog(OperationContext* opCtx) {
 /**
  * Generates contents for the 'm' field of an OplogEntry.
  */
-repl::OplogEntrySizeMetadata makeOperationSizeMetadata(int32_t replicatedSizeDelta) {
+repl::OplogEntrySizeMetadata makeOperationSizeMetadata(boost::optional<int32_t> replicatedSizeDelta,
+                                                       boost::optional<int64_t> docHash) {
     SingleOpSizeMetadata m;
     m.setSz(replicatedSizeDelta);
+    m.setH(docHash);
     return m;
 }
 
@@ -133,6 +133,22 @@ int64_t computeDocValidationHash(const BSONObj& doc) {
     auto sha =
         SHA256Block::computeHashWithCtx(&ctx, {ConstDataRange(doc.objdata(), doc.objsize())});
     return ConstDataView(reinterpret_cast<const char*>(sha.data())).read<LittleEndian<int64_t>>();
+}
+
+// Computes the per-document validation hash if needed, and, if there is any size metadata to
+// record, attaches it to the given oplog entry.
+template <typename OplogEntryOrOperation>
+void setSizeMetadataIfNeeded(OplogEntryOrOperation& entry,
+                             boost::optional<int32_t> replicatedSizeDelta,
+                             const BSONObj& doc,
+                             bool useValidationHash) {
+    boost::optional<int64_t> docHash;
+    if (useValidationHash) {
+        docHash = computeDocValidationHash(doc);
+    }
+    if (replicatedSizeDelta || docHash) {
+        entry.setSizeMetadata(makeOperationSizeMetadata(replicatedSizeDelta, docHash));
+    }
 }
 
 repl::OpTime logOperation(OperationContext* opCtx,
@@ -758,13 +774,11 @@ std::vector<repl::OpTime> _logInsertOps(OperationContext* opCtx,
         const auto docKey = getDocumentKey(collectionPtr, insertedDoc).getShardKeyAndId();
         oplogEntry.setObject2(docKey);
 
-        if (useValidationHash) {
-            oplogEntry.setDocHash(computeDocValidationHash(insertedDoc));
-        }
-
+        boost::optional<int32_t> replicatedSizeDelta;
         if (isReplicatedFastCountEnabled(opCtx)) {
-            oplogEntry.setSizeMetadata(makeOperationSizeMetadata(insertedDoc.objsize()));
+            replicatedSizeDelta = insertedDoc.objsize();
         }
+        setSizeMetadataIfNeeded(oplogEntry, replicatedSizeDelta, insertedDoc, useValidationHash);
         oplogEntry.setOpTime(insertStatementOplogSlot);
         oplogEntry.setDestinedRecipient(
             shardingWriteRouter.getReshardingDestinedRecipient(begin[i].doc));
@@ -876,12 +890,13 @@ void OpObserverImpl::onInserts(OperationContext* opCtx,
                 shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
                 operation.setIsTimeseries(true);
             }
-            if (useValidationHash) {
-                operation.setDocHash(computeDocValidationHash(iter->doc));
-            }
-
-            if (useReplicatedSizeCount) {
-                operation.setSizeMetadata(makeOperationSizeMetadata(iter->doc.objsize()));
+            {
+                boost::optional<int32_t> replicatedSizeDelta;
+                if (useReplicatedSizeCount) {
+                    replicatedSizeDelta = iter->doc.objsize();
+                }
+                setSizeMetadataIfNeeded(
+                    operation, replicatedSizeDelta, iter->doc, useValidationHash);
             }
 
             // versionContext is set in the batched write oplog entry, but not each individual op.
@@ -920,11 +935,13 @@ void OpObserverImpl::onInserts(OperationContext* opCtx,
             if (!recordIds.empty()) {
                 operation.setRecordId(recordIds[i++]);
             }
-            if (useValidationHash) {
-                operation.setDocHash(computeDocValidationHash(iter->doc));
-            }
-            if (useReplicatedSizeCount) {
-                operation.setSizeMetadata(makeOperationSizeMetadata(iter->doc.objsize()));
+            {
+                boost::optional<int32_t> replicatedSizeDelta;
+                if (useReplicatedSizeCount) {
+                    replicatedSizeDelta = iter->doc.objsize();
+                }
+                setSizeMetadataIfNeeded(
+                    operation, replicatedSizeDelta, iter->doc, useValidationHash);
             }
             if (inRetryableInternalTransaction) {
                 operation.setInitializedStatementIds(iter->stmtIds);
@@ -1040,12 +1057,8 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
         operation.setDestinedRecipient(
             shardingWriteRouter->getReshardingDestinedRecipient(args.updateArgs->updatedDoc));
         operation.setFromMigrateIfTrue(args.updateArgs->source == OperationSource::kFromMigrate);
-        if (useValidationHash) {
-            operation.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
-        }
-        if (args.replicatedSizeDelta) {
-            operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(
+            operation, args.replicatedSizeDelta, args.updateArgs->updatedDoc, useValidationHash);
         if (args.updateArgs->mustCheckExistenceForInsertOperations) {
             operation.setCheckExistenceForDiffInsert(true);
         }
@@ -1120,12 +1133,8 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
             operation.setRecordId(args.updateArgs->replicatedRecordId);
         }
 
-        if (useValidationHash) {
-            operation.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
-        }
-        if (args.replicatedSizeDelta) {
-            operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(
+            operation, args.replicatedSizeDelta, args.updateArgs->updatedDoc, useValidationHash);
 
         if (args.updateArgs->changeStreamPreAndPostImagesEnabledForCollection) {
             invariant(!args.updateArgs->preImageDoc.isEmpty(),
@@ -1173,12 +1182,8 @@ void OpObserverImpl::onUpdate(OperationContext* opCtx,
             oplogEntry.setRecordId(args.updateArgs->replicatedRecordId);
         }
 
-        if (useValidationHash) {
-            oplogEntry.setDocHash(computeDocValidationHash(args.updateArgs->updatedDoc));
-        }
-        if (args.replicatedSizeDelta) {
-            oplogEntry.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(
+            oplogEntry, args.replicatedSizeDelta, args.updateArgs->updatedDoc, useValidationHash);
 
         opTime = replLogUpdate(opCtx, args, &oplogEntry, _operationLogger.get());
         if (opAccumulator) {
@@ -1245,15 +1250,10 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
         operation.setVersionContext(boost::none);
         operation.setDestinedRecipient(destinedRecipient);
         operation.setFromMigrateIfTrue(args.fromMigrate);
-        if (useValidationHash) {
-            operation.setDocHash(computeDocValidationHash(doc));
-        }
         if (!args.replicatedRecordId.isNull()) {
             operation.setRecordId(args.replicatedRecordId);
         }
-        if (args.replicatedSizeDelta) {
-            operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(operation, args.replicatedSizeDelta, doc, useValidationHash);
         if (coll->isNewTimeseriesWithoutView() &&
             shouldSetIsTimeseriesField(VersionContext::getDecoration(opCtx))) {
             operation.setIsTimeseries(true);
@@ -1285,15 +1285,10 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
             MutableOplogEntry::makeDeleteOperation(nss, uuid, documentKey.getShardKeyAndId());
         operation.setVersionContextIfHasOperationFCV(VersionContext::getDecoration(opCtx));
 
-        if (useValidationHash) {
-            operation.setDocHash(computeDocValidationHash(doc));
-        }
         if (!args.replicatedRecordId.isNull()) {
             operation.setRecordId(args.replicatedRecordId);
         }
-        if (args.replicatedSizeDelta) {
-            operation.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(operation, args.replicatedSizeDelta, doc, useValidationHash);
         if (inRetryableInternalTransaction) {
             operation.setInitializedStatementIds({stmtId});
             if (args.retryableFindAndModifyLocation ==
@@ -1333,17 +1328,11 @@ void OpObserverImpl::onDelete(OperationContext* opCtx,
             }
         }
 
-        if (useValidationHash) {
-            oplogEntry.setDocHash(computeDocValidationHash(doc));
-        }
-
         if (!args.replicatedRecordId.isNull()) {
             oplogEntry.setRecordId(args.replicatedRecordId);
         }
 
-        if (args.replicatedSizeDelta) {
-            oplogEntry.setSizeMetadata(makeOperationSizeMetadata(*args.replicatedSizeDelta));
-        }
+        setSizeMetadataIfNeeded(oplogEntry, args.replicatedSizeDelta, doc, useValidationHash);
 
         opTime = replLogDelete(opCtx,
                                nss,
@@ -2351,23 +2340,11 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
     auto& batchedWriteContext = BatchedWriteContext::get(opCtx);
     auto* batchedOps = batchedWriteContext.getBatchedOperations(opCtx);
 
-    // Consume the "tearable side write" redo state on every committing path of this function, so an
-    // armed redo UUID never leaks onto the OperationContext and the per-attempt "flag persisted"
-    // marker is reset.
-    //
-    // TODO (SERVER-126257): Remove once index build side writes cannot be torn.
-    auto consumeTearableSideWriteRedoState = [&] {
-        auto& redoState = index_builds::primary_driven::getTearableSideWriteRedoState(opCtx);
-        redoState.disarm();
-        redoState.resetFlagPersisted();
-    };
-
     // Ensure that no one previously reserved any timestamps for this operation.
     invariant(batchedOps->isEmpty() ||
               !shard_role_details::getRecoveryUnit(opCtx)->isTimestamped());
 
     if (batchedOps->isEmpty()) {
-        consumeTearableSideWriteRedoState();
         return;
     } else if (batchedOps->numOperations() == 1) {
         MutableOplogEntry oplogEntry;
@@ -2406,7 +2383,6 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
                 onWriteOpCompleted(
                     opCtx, oplogEntry.getStatementIds(), sessionTxnRecord, oplogEntry.getNss());
 
-                consumeTearableSideWriteRedoState();
                 return;
             }
             default:
@@ -2448,10 +2424,6 @@ void OpObserverImpl::onBatchedWriteCommit(OperationContext* opCtx,
                                         /*prepare=*/false,
                                         /*respectAtomicGroups=*/true);
     }
-
-    // The multi-op path commits below; consume the redo state so it does not leak onto a later
-    // write on this OperationContext.
-    consumeTearableSideWriteRedoState();
 
     std::size_t opTimeOffset = 0;
     if (applyOpsOplogSlotAndOperationAssignment.numOperationsWithNeedsRetryImage > 0) {
@@ -2581,13 +2553,6 @@ void OpObserverImpl::onBatchedWriteAbort(OperationContext* opCtx) {
     auto& batchedWriteContext = BatchedWriteContext::get(opCtx);
     batchedWriteContext.clearBatchedOperations(opCtx);
     batchedWriteContext.setWritesAreBatched(false);
-
-    // Clear the per-attempt "flag persisted" marker so the next batched-write attempt on this
-    // OperationContext re-detects a tearable side write. The armed redo UUID is intentionally left
-    // set so it survives this rollback and is visible to the redo.
-    //
-    // TODO (SERVER-126257): Remove once index build side writes cannot be torn.
-    index_builds::primary_driven::getTearableSideWriteRedoState(opCtx).resetFlagPersisted();
 }
 
 void OpObserverImpl::onPreparedTransactionCommit(OperationContext* opCtx,

@@ -193,10 +193,6 @@ inline Atomic<bool>& gKnobNoTableScan = storageGlobalParams.noTableScan;
          kInternalMaxEdgesInJoinGraphName,                                                \
          internalMaxEdgesInJoinGraph,                                                     \
          getMaxEdgesInJoinGraph)                                                          \
-    KNOB(kInferSingleTablePredicates,                                                     \
-         kInternalInferSingleTablePredicatesName,                                         \
-         internalInferSingleTablePredicates,                                              \
-         getInferSingleTablePredicates)                                                   \
     KNOB(kMaxNumberNodesConsideredForImplicitEdges,                                       \
          kInternalMaxNumberNodesConsideredForImplicitEdgesName,                           \
          internalMaxNumberNodesConsideredForImplicitEdges,                                \
@@ -234,6 +230,10 @@ inline Atomic<bool>& gKnobNoTableScan = storageGlobalParams.noTableScan;
          kInternalQueryNumChunksForChunkBasedSamplingName,                                \
          internalQueryNumChunksForChunkBasedSampling,                                     \
          getNumChunksForChunkBasedSampling)                                               \
+    KNOB(kEnablePersistentNDVStats,                                                       \
+         kInternalQueryEnablePersistentNDVStatsName,                                      \
+         internalQueryEnablePersistentNDVStats,                                           \
+         getEnablePersistentNDVStats)                                                     \
     /* Pipeline rewrites */                                                               \
     KNOB(kEnablePathArrayness,                                                            \
          kInternalEnablePathArraynessName,                                                \
@@ -264,6 +264,10 @@ inline Atomic<bool>& gKnobNoTableScan = storageGlobalParams.noTableScan;
          kInternalQuerySamplingCEMethodName,                                              \
          CBRSamplingCEMethod,                                                             \
          getInternalQuerySamplingCEMethod)                                                \
+    KNOB(kSamplingCEMethodForPersistentSamples,                                           \
+         kInternalQuerySamplingCEMethodForPersistentSamplesName,                          \
+         PersistentSampleCEMethod,                                                        \
+         getInternalQuerySamplingCEMethodForPersistentSamples)                            \
     KNOB(kJoinReorderMode,                                                                \
          kInternalJoinReorderModeName,                                                    \
          JoinReorderMode,                                                                 \
