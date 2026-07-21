@@ -469,14 +469,10 @@ install_deps() {
         # bazel/remote_execution_container/repin_dockerfiles.sh:
         yum -y install $OPENSSL_EXCLUDE cyrus-sasl-gssapi glibc-devel procps-ng systemtap-sdt-devel ncurses-libs
       fi
-      wget https://curl.se/download/curl-7.77.0.tar.gz -O curl-7.77.0.tar.gz
-      tar -xzf curl-7.77.0.tar.gz
-      cd curl-7.77.0
-        ./configure --with-openssl
-        make -j${NCPU}
-        make install
-      cd ../
-#
+      # dropped vendored curl 7.77.0: scons-era static-link dep (pkg-config
+      # libcurl --static) the bazel build doesn't use — bazel links system
+      # libcurl. it only shadowed system libcurl via LD_LIBRARY_PATH and
+      # broke git-over-https on el10 (PSMDB-1943).
       install_golang
       if [ x"$RHEL" = x8 ]; then
         if [ -f /opt/rh/gcc-toolset-9/enable ]; then
