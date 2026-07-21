@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 43,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.7936731224884259,
-    "files_affected": 298,
-    "total_additions": 8788,
-    "total_deletions": 2061,
+    "commits_behind": 48,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.1853334914351852,
+    "files_affected": 314,
+    "total_additions": 9380,
+    "total_deletions": 2085,
     "date_range": {
       "first": "2026-07-20T02:24:43+00:00",
-      "last": "2026-07-20T20:37:57+00:00"
+      "last": "2026-07-21T04:20:10+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,56 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "03913d95ace6873f6cdd9513d984d16ce3453cff",
+      "short_sha": "03913d95ace",
+      "date": "2026-07-21T04:20:10+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-124383: Consult persistence provider in primary-driven index build checks (#52532)\" (#59137)"
+    },
+    {
+      "sha": "fe82f6afeb60d1e5ef4d08389d0d3373b6bd5aca",
+      "short_sha": "fe82f6afeb6",
+      "date": "2026-07-20T20:59:40-04:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-129267: Ensure DDLs bump the current collectionVersion (#58143)"
+    },
+    {
+      "sha": "12f316663ed1c50ab1185d29addded4c06701161",
+      "short_sha": "12f316663ed",
+      "date": "2026-07-20T15:37:44-07:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-131811 Intentionally leak OTEL static sync primitives (#59095)"
+    },
+    {
+      "sha": "34c7f865648174254f3936d43ba6e9e9b9f5aabb",
+      "short_sha": "34c7f865648",
+      "date": "2026-07-20T21:51:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-131370 Acquire critical section of the temporary resharding collection in DDLs (#58633)\" (#59108)"
+    },
+    {
+      "sha": "f84183e6c1f55aa323e23f4e6c41e9f6eecf2162",
+      "short_sha": "f84183e6c1f",
+      "date": "2026-07-20T17:06:25-04:00",
+      "author": {
+        "name": "Malik Endsley",
+        "email": "malik.endsley@mongodb.com"
+      },
+      "summary": "SERVER-124383: Consult persistence provider in primary-driven index build checks (#52532)"
+    },
     {
       "sha": "d30b6b9b1f5bae2d6c35f2e422fcb144b7c179bc",
       "short_sha": "d30b6b9b1f5",
@@ -514,10 +564,51 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "f84183e6c1f55aa323e23f4e6c41e9f6eecf2162",
+        "short_sha": "f84183e6c1f",
+        "date": "2026-07-20T17:06:25-04:00",
+        "author": {
+          "name": "Malik Endsley",
+          "email": "malik.endsley@mongodb.com"
+        },
+        "summary": "SERVER-124383: Consult persistence provider in primary-driven index build checks (#52532)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "src/mongo/db/index_builds/BUILD.bazel"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "03913d95ace6873f6cdd9513d984d16ce3453cff",
+        "short_sha": "03913d95ace",
+        "date": "2026-07-21T04:20:10+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-124383: Consult persistence provider in primary-driven index build checks (#52532)\" (#59137)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 38,
+          "num_of_lines": 652,
+          "lines_added": 186,
+          "lines_deleted": 466,
+          "num_of_dirs": 15
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-20 21:27:32",
+  "generated_at": "2026-07-21 06:51:32",
   "branch_name": "master",
   "display_name": "master"
 }
