@@ -70,6 +70,9 @@ override_dh_auto_install:
 override_dh_strip:
 	dh_strip -a --dbg-package=percona-server-mongodb-dbg
 
+override_dh_compress:
+	dh_compress -Xsbom.cdx.json
+
 override_dh_installinit:
 	dh_installinit -a --name=mongod
 
