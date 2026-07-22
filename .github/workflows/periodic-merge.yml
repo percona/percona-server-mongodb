@@ -96,8 +96,9 @@ jobs:
       # any expensive work (the upstream fetch in 'fork init', status, pick).
       # This only needs the mergai CLI, the checked-out .mergai/config.yml, and a
       # token - no upstream remote - so it precedes 'fork init'. The pre-PR window
-      # (a trigger-merge run dispatched but still awaiting privileged-ops approval)
-      # is covered by the early-fail guard in mergai.yml's trigger-merge job.
+      # (a trigger-merge run dispatched but not yet far enough to have created a
+      # branch) is covered by the early-fail guard in mergai.yml's trigger-merge
+      # job.
       - name: Stop if a merge is already in progress
         id: guard
         env:
@@ -152,7 +153,7 @@ jobs:
       # Phase 2: dispatch trigger-merge to do the actual pick + merge. No sha is
       # passed - trigger-merge picks the commit itself (deterministic or AI per
       # the MERGAI_MERGE_PICK_MODE variable), keeping any AI-token use inside the
-      # privileged-ops job.
+      # trigger-merge job (which carries the AI secrets via the `ai` environment).
       - name: Trigger merge
         if: steps.guard.outputs.proceed == 'true' && steps.gate.outputs.merge == 'true'
         env:

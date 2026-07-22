@@ -163,8 +163,8 @@ longer fast-forwardable and `/fast-forward` fails. Post a `/mergai rebase` comme
 force-pushes it. The rebase preserves merge commits and mergai notes and reuses previously recorded
 conflict solutions, so the PR becomes fast-forwardable again (then post `/fast-forward`).
 
-Like the other comment-driven commands, it runs under the `privileged-ops` environment, so a
-required reviewer must approve the run before it acts. If the rebase hits conflicts it cannot
+Like `/fast-forward`, it runs under the `push-approve` environment (whereas `/mergai review fix`
+uses `ai-approve`), so a required reviewer must approve the run before it acts. If the rebase hits conflicts it cannot
 auto-resolve, the bot comments on the PR and you must rebase locally
 (`mergai notes update && mergai context init && mergai rebase origin/<base>`).
 
