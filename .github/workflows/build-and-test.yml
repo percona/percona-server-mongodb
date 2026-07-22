@@ -105,12 +105,15 @@ env:
 # trying to ship build artifacts between runners.
 #
 # One-time environment setup (GH repo settings UI):
-#   - `rbe-approve`: required reviewers = dev-psmdb team. Carries
+#   - `rbe-approve`: required reviewers = dev-psmdb-approvers team. Carries
 #     PSMDB_RBE_GHA_AUDIENCE + PSMDB_RBE_OIDC_ISSUER secrets.
 #   - `rbe`: NO required reviewers. Same two secrets, same values.
-#     "Deployment branches and tags" restricted to `master` and
-#     `mergai/**` so a feature-branch workflow can't target `rbe`
-#     and bypass the gate.
+#     "Deployment branches and tags" = ALL branches. This workflow runs on
+#     pull_request_target and GitHub evaluates the environment branch rule
+#     against the PR HEAD ref, so restricting `rbe` to `master`/`mergai/**`
+#     would block ordinary same-repo PR builds (feature branches). Fork PRs
+#     are kept off `rbe` by the gate ternary below (they resolve to
+#     `rbe-approve` and require approval), not by a branch rule.
 #
 # One-time repo/org Variables (GH repo settings UI -> Variables):
 #   - PSMDB_RBE_ENABLED = 'true' to run the RBE pipeline (see the env block
