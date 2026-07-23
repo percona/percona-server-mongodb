@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "53f88a4bc714b63eb1aa478bd799b389aea39878",
+    "merge_commit": "03913d95ace6873f6cdd9513d984d16ce3453cff"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '03913d95ace' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): upstream commit da815a79cd8 (SERVER-131455)\nchanged catalog::initializeCollectionCatalog to require an InitMode\nargument, dropping the old 2-arg overload. The Percona-specific FCBIS\ncode (initial_syncer_fcb.cpp) still called the removed 2-arg signature,\nso I adapted the call site to the new API instead of resurrecting the\nremoved overload.\n\nResolved:\n\tsrc/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp\n\nCI: build-and-test run 30005247778 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "bf28a538df356a1af418f1fed5620ddb57b945a1"
+    }
+  ]
+}
