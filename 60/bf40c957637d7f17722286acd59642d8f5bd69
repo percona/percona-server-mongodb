@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e626f3ee65641bc41aa134c1f8a11e641782ce89",
+    "merge_commit": "d5f806ba9dd690c6c0e6e2cdba4f9110462ed190"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'd5f806ba9dd' into master",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in bazel/resmoke/resmoke.bzl by keeping Percona's\nremoval of the enterprise-module jstests references while adopting the\nnew non-enterprise write_path/timeseries/pbt file group additions from\nupstream.\n\nResolved:\n\tbazel/resmoke/resmoke.bzl\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "60bf40c957637d7f17722286acd59642d8f5bd69"
+    }
+  ]
+}
