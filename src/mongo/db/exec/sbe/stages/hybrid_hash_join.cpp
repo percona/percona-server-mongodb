@@ -3,6 +3,7 @@
 
 #include "mongo/db/exec/sbe/stages/hybrid_hash_join.h"
 
+#include "mongo/base/error_codes.h"
 #include "mongo/db/sorter/sorter_file_name.h"
 #include "mongo/db/sorter/sorter_template_defs.h"  // IWYU pragma: keep
 #include "mongo/db/stats/counters.h"
@@ -98,15 +99,13 @@ public:
         // Two-pass save: collect all copies into fresh rows before freeing any old saved buffers.
         value::MaterializedRow newSavedKey(_probeKey.size());
         for (size_t i = 0; i < _probeKey.size(); ++i) {
-            auto [tag, val] = _probeKey.getViewOfValue(i);
-            newSavedKey.reset(i, value::TagValueOwned::fromRaw(value::copyValue(tag, val)));
+            newSavedKey.reset(i, _probeKey.getViewOfValue(i).copy());
         }
         _savedProbeKey = std::move(newSavedKey);
 
         value::MaterializedRow newSavedProject(_probeProject.size());
         for (size_t i = 0; i < _probeProject.size(); ++i) {
-            auto [tag, val] = _probeProject.getViewOfValue(i);
-            newSavedProject.reset(i, value::TagValueOwned::fromRaw(value::copyValue(tag, val)));
+            newSavedProject.reset(i, _probeProject.getViewOfValue(i).copy());
         }
         _savedProbeProject = std::move(newSavedProject);
     }
@@ -118,12 +117,10 @@ public:
         // into these buffers via its outer accessor; releasing them would leave those views
         // dangling.
         for (size_t i = 0; i < _savedProbeKey.size(); ++i) {
-            auto [tag, val] = _savedProbeKey.getViewOfValue(i);
-            _probeKey.reset(i, false, tag, val);
+            _probeKey.reset(i, _savedProbeKey.getViewOfValue(i));
         }
         for (size_t i = 0; i < _savedProbeProject.size(); ++i) {
-            auto [tag, val] = _savedProbeProject.getViewOfValue(i);
-            _probeProject.reset(i, false, tag, val);
+            _probeProject.reset(i, _savedProbeProject.getViewOfValue(i));
         }
     }
 
@@ -563,6 +560,11 @@ void HybridHashJoin::addBuild(value::MaterializedRow key, value::MaterializedRow
  * the largest partitions until memory usage is under the limit.
  */
 void HybridHashJoin::enablePartitioning() {
+    uassert(ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed,
+            "Exceeded memory limit for $lookup, but didn't allow external spilling; pass "
+            "allowDiskUse:true to opt in",
+            _allowDiskUse);
+
     // Initialize the partition buffers and metadata and bloom filter
     _partitionBuffers.resize(kNumPartitions);
     _partitionMemUsage.resize(kNumPartitions, 0);
@@ -826,8 +828,8 @@ boost::optional<JoinCursor> HybridHashJoin::nextSpilledJoinCursor() {
         // to further subdivide the data. The higher level uses different hash bits to ensure
         // progress
 
-        std::unique_ptr<HybridHashJoin> join =
-            std::make_unique<HybridHashJoin>(_memLimit, _collator, boost::none, _stats);
+        std::unique_ptr<HybridHashJoin> join = std::make_unique<HybridHashJoin>(
+            _memLimit, _collator, _allowDiskUse, boost::none, _stats);
         join->_recursionLevel = _recursionLevel + 1;
         join->_fileStats = _fileStats;
         _stats.recursionDepthMax = std::max(_stats.recursionDepthMax, 1 + _recursionLevel);
