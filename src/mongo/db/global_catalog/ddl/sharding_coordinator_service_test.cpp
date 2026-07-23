@@ -48,8 +48,8 @@ public:
     }
 
     std::unique_ptr<repl::PrimaryOnlyService> makeService(ServiceContext* serviceContext) override {
-        return std::make_unique<ShardingCoordinatorService>(
-            serviceContext, std::move(_externalStateFactory), [](ServiceContext*) {});
+        return std::make_unique<ShardingCoordinatorService>(serviceContext,
+                                                            std::move(_externalStateFactory));
     }
 
     void setUp() override {
@@ -57,6 +57,10 @@ public:
         _testExecutor = makeTestExecutor();
 
         DDLLockManager::get(getServiceContext())->setRecoverable(ddlService());
+    }
+
+    void stepUp(OperationContext* opCtx) {
+        PrimaryOnlyServiceMongoDTest::stepUp(opCtx);
     }
 
     void tearDown() override {
@@ -182,6 +186,8 @@ protected:
         }
         metadata.setForwardableOpMetadata(fom);
         metadata.setDatabaseVersion(DatabaseVersion{UUID::gen(), Timestamp(1, 0)});
+        metadata.setAuthoritativeMetadataAccessLevel(
+            AuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed);
         MigrationBlockingOperationCoordinatorDocument doc;
         doc.setShardingCoordinatorMetadata(metadata);
         return doc;

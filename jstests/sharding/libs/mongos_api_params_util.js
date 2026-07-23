@@ -1327,6 +1327,10 @@ export let MongosAPIParametersUtil = (function () {
             skip: "executes locally on mongos (not sent to any remote node)",
         },
         {
+            commandName: "listMetricsFilteringAllowlist",
+            skip: "executes locally on mongos (not sent to any remote node)",
+        },
+        {
             commandName: "listIndexes",
             run: {
                 inAPIVersion1: true,

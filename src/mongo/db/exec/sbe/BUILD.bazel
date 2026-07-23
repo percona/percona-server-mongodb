@@ -85,6 +85,7 @@ mongo_cc_library(
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/memory_tracking",
         "//src/mongo/db/query:random_utils",
+        "//src/mongo/db/query:record_id_range",
         "//src/mongo/db/query/compiler/logical_model/sort_pattern",
         "//src/mongo/db/query/compiler/metadata:query_metadata",
         "//src/mongo/db/query/compiler/physical_model/index_bounds",
@@ -109,6 +110,23 @@ mongo_cc_library(
         "//src/mongo/db:cluster_role",
         "//src/mongo/db/pipeline/spilling:spilling_stats",
         "//src/mongo/db/query/client_cursor:cursor_response_idl",
+    ],
+)
+
+# The out-of-line query-memory load-shedding shim called from the CanInterrupt inline in stages.h.
+# It lives in its own leaf so both query_sbe_storage (lower layer) and query_sbe_stages (which
+# depends on query_sbe_storage) can link the symbol without a dependency cycle, and so the widely
+# included stages.h header does not pull the load-shedding library into every SBE compile.
+mongo_cc_library(
+    name = "query_sbe_load_shedding_shim",
+    srcs = [
+        "//src/mongo/db/exec/sbe/stages:stages.cpp",
+    ],
+    deps = [
+        ":query_sbe",
+        "//src/mongo:base",
+        "//src/mongo/db/memory_tracking:query_memory_load_shedding",
+        "//src/mongo/db/query:plan_yield_policy_sbe",
     ],
 )
 
@@ -150,6 +168,7 @@ mongo_cc_library(
     ],
     deps = [
         ":query_sbe",
+        ":query_sbe_load_shedding_shim",
         ":query_sbe_plan_stats",
         ":query_sbe_storage",
         "//src/mongo/bson/dotted_path:dotted_path_support",
@@ -159,6 +178,7 @@ mongo_cc_library(
         "//src/mongo/db/exec:js_function",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/memory_tracking",
+        "//src/mongo/db/memory_tracking:query_memory_load_shedding",
         "//src/mongo/db/pipeline",
         "//src/mongo/db/query:plan_yield_policy",
         "//src/mongo/db/query:plan_yield_policy_sbe",
@@ -184,15 +204,18 @@ mongo_cc_library(
     srcs = [
         "//src/mongo/db/exec/sbe/stages:generic_scan.cpp",
         "//src/mongo/db/exec/sbe/stages:ix_scan.cpp",
+        "//src/mongo/db/exec/sbe/stages:multi_range_clustered_scan_stage.cpp",
         "//src/mongo/db/exec/sbe/stages:random_scan.cpp",
         "//src/mongo/db/exec/sbe/stages:scan.cpp",
     ],
     deps = [
         ":query_sbe",
+        ":query_sbe_load_shedding_shim",
         "//src/mongo/db/exec:scoped_timer",
         "//src/mongo/db/index:index_access_method",
         "//src/mongo/db/index:preallocated_container_pool",
         "//src/mongo/db/query:plan_yield_policy_sbe",
+        "//src/mongo/db/query:record_id_range",
         "//src/mongo/db/query/compiler/physical_model/index_bounds",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/storage:index_entry_comparison",
@@ -219,6 +242,20 @@ mongo_cc_library(
         "//src/mongo/executor:thread_pool_task_executor",
         "//src/mongo/executor:thread_pool_task_executor_test_fixture",
         "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_library(
+    name = "clustered_scan_stage_test_fixtures",
+    srcs = [
+        "//src/mongo/db/exec/sbe/stages:clustered_scan_stage_test_fixtures.cpp",
+    ],
+    deps = [
+        ":sbe_plan_stage_test",
+        "//src/mongo/db:dbhelpers",
+        "//src/mongo/db:record_id_helpers",
+        "//src/mongo/db/query:record_id_range",
+        "//src/mongo/db/shard_role/shard_catalog:collection_options",
     ],
 )
 
@@ -348,6 +385,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/exec/sbe/expressions:sbe_ts_second_ts_increment_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_unwind_array_builtin_test.cpp",
         "//src/mongo/db/exec/sbe/expressions:sbe_variable_test.cpp",
+        "//src/mongo/db/exec/sbe/stages:multi_range_clustered_scan_stage_test.cpp",
         "//src/mongo/db/exec/sbe/util:bloom_filter_test.cpp",
         "//src/mongo/db/exec/sbe/util:stage_results_printer_test.cpp",
         "//src/mongo/db/exec/sbe/values:block_test.cpp",
@@ -371,6 +409,7 @@ mongo_cc_unit_test(
     ],
     tags = ["mongo_unittest_eighth_group"],
     deps = [
+        ":clustered_scan_stage_test_fixtures",
         ":sbe_plan_stage_test",
         ":sbe_unittest_base",
         "//src/mongo/db:service_context_d_test_fixture",
