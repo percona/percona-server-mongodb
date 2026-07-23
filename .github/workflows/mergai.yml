@@ -1030,8 +1030,12 @@ jobs:
           mergai context init
           if ! mergai rebase "origin/$BASE_REF"; then
             mergai rebase --abort || true
-            gh pr comment "$PR_NUMBER" --body \
-              "\`/mergai rebase\` onto \`$BASE_REF\` could not complete automatically. Rebase locally with \`mergai notes update && mergai context init && mergai rebase origin/$BASE_REF\`, then push the branch and notes."
+            # Post via `mergai pr comment` (not `gh`) so the comment carries the
+            # config-gated run-link footer, like every other bot comment. The PR
+            # type is auto-detected from the checked-out branch.
+            mergai pr --repo "$GITHUB_REPOSITORY" comment --allow-missing --body \
+              "\`/mergai rebase\` onto \`$BASE_REF\` could not complete automatically. Rebase locally with \`mergai notes update && mergai context init && mergai rebase origin/$BASE_REF\`, then push the branch and notes." \
+              || echo "::warning::could not post rebase-failure comment"
             echo "::error::mergai rebase onto '$BASE_REF' could not complete automatically (unresolved conflicts)."
             exit 1
           fi
@@ -1042,6 +1046,9 @@ jobs:
           # body (rebuilt from the current note data) to reflect the new base.
           mergai pr --repo "$GITHUB_REPOSITORY" update \
             || echo "::warning::'mergai pr update' failed"
-          gh pr comment "$PR_NUMBER" --body \
-            "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch."
+          # Post via `mergai pr comment` (not `gh`) so the comment carries the
+          # config-gated run-link footer, like every other bot comment.
+          mergai pr --repo "$GITHUB_REPOSITORY" comment --allow-missing --body \
+            "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch." \
+            || echo "::warning::could not post rebase-success comment"
           echo "Rebase of $HEAD_REF onto $BASE_REF completed successfully"

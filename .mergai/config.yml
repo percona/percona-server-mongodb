@@ -23,6 +23,20 @@ project:
   upstream_term: "upstream"
 
 # -----------------------------------------------------------------------------
+# RUN LINK CONFIGURATION
+# -----------------------------------------------------------------------------
+# When running under GitHub Actions, link mergai's output back to the workflow
+# run that produced it: a footer on every PR comment the bot posts (CI-fix
+# explanations, review replies, acknowledgements), and a "Triggered by" link in
+# the merge-pick section of the PR description. The link is built from the
+# standard Actions environment (GITHUB_SERVER_URL / GITHUB_REPOSITORY /
+# GITHUB_RUN_ID); outside Actions there is nothing to link and it is a no-op.
+run_link:
+  # Off by default in mergai; enabled here so maintainers can click straight
+  # from a bot comment or merge pick to the run that made it.
+  enabled: true
+
+# -----------------------------------------------------------------------------
 # FORK CONFIGURATION
 # -----------------------------------------------------------------------------
 # Configuration for the 'fork' subcommand which handles syncing with upstream.
