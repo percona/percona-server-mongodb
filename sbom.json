@@ -25,6 +25,13 @@
       "group": "percona",
       "name": "percona-server-mongodb",
       "version": "v8.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "SSPL-1.0"
+          }
+        }
+      ],
       "cpe": "cpe:2.3:a:percona:percona-server-mongodb:8.3.*:*:*:*:*:*:*:*",
       "purl": "pkg:github/percona/percona-server-mongodb@v8.3",
       "externalReferences": [
