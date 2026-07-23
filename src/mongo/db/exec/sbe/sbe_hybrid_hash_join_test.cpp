@@ -5,6 +5,7 @@
  * This file contains tests for sbe::HybridHashJoin.
  */
 
+#include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/exec/sbe/sbe_plan_stage_test.h"
@@ -33,7 +34,9 @@ namespace {
  */
 value::MaterializedRow makeKeyRow(int64_t key) {
     value::MaterializedRow row(1);
-    row.reset(0, true, value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(key));
+    row.reset(0,
+              value::TagValueOwned::fromRaw(value::TypeTags::NumberInt64,
+                                            value::bitcastFrom<int64_t>(key)));
     return row;
 }
 
@@ -43,7 +46,7 @@ value::MaterializedRow makeKeyRow(int64_t key) {
 value::MaterializedRow makeProjectRow(std::string_view payload) {
     auto [tag, val] = value::makeNewString(payload);
     value::MaterializedRow row(1);
-    row.reset(0, true, tag, val);
+    row.reset(0, value::TagValueOwned::fromRaw(tag, val));
     return row;
 }
 
@@ -73,7 +76,7 @@ std::vector<int64_t> drainCursor(JoinCursor& cursor) {
 value::MaterializedRow makeStringKeyRow(std::string_view key) {
     auto [tag, val] = value::makeNewString(key);
     value::MaterializedRow row(1);
-    row.reset(0, true, tag, val);
+    row.reset(0, value::TagValueOwned::fromRaw(tag, val));
     return row;
 }
 
@@ -117,8 +120,12 @@ std::vector<MatchTuple> drainCursorWithProjects(JoinCursor& cursor) {
  */
 value::MaterializedRow makeCompositeKeyRow(int64_t key1, int64_t key2) {
     value::MaterializedRow row(2);
-    row.reset(0, true, value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(key1));
-    row.reset(1, true, value::TypeTags::NumberInt64, value::bitcastFrom<int64_t>(key2));
+    row.reset(0,
+              value::TagValueOwned::fromRaw(value::TypeTags::NumberInt64,
+                                            value::bitcastFrom<int64_t>(key1)));
+    row.reset(1,
+              value::TagValueOwned::fromRaw(value::TypeTags::NumberInt64,
+                                            value::bitcastFrom<int64_t>(key2)));
     return row;
 }
 
@@ -131,9 +138,11 @@ protected:
     static constexpr uint64_t kDefaultMemLimit = 256;
     HashJoinStats stats;
 
-    std::unique_ptr<HybridHashJoin> makeHHJ(CollatorInterface* collator = nullptr) {
+    std::unique_ptr<HybridHashJoin> makeHHJ(CollatorInterface* collator = nullptr,
+                                            bool allowDiskUse = true) {
         stats = {};
-        return std::make_unique<HybridHashJoin>(kDefaultMemLimit, collator, boost::none, stats);
+        return std::make_unique<HybridHashJoin>(
+            kDefaultMemLimit, collator, allowDiskUse, boost::none, stats);
     }
 };
 
@@ -355,6 +364,26 @@ TEST_F(HybridHashJoinTestFixture, SpillTriggersOnMemoryLimit) {
     ASSERT_GT(stats.spillingStats.getSpilledRecords(), 0u);
     ASSERT_GT(stats.spillingStats.getSpilledDataStorageSize(), 0u);
     ASSERT_GT(stats.numPartitionsSpilled, 0);
+}
+
+TEST_F(HybridHashJoinTestFixture, SpillThrowsWhenDiskUseNotAllowed) {
+    auto hhj = makeHHJ(nullptr /* collator */, false /* allowDiskUse */);
+
+    // Inserting enough rows to exceed the tiny memory limit must throw
+    // QueryExceededMemoryLimitNoDiskUseAllowed instead of partitioning and spilling, because disk
+    // use is not allowed.
+    ASSERT_THROWS_CODE(
+        [&] {
+            for (int i = 0; i < 50; ++i) {
+                auto payload = "payload_" + std::to_string(i);
+                hhj->addBuild(makeKeyRow(i), makeProjectRow(payload));
+            }
+        }(),
+        DBException,
+        ErrorCodes::QueryExceededMemoryLimitNoDiskUseAllowed);
+
+    // No spilling should have occurred.
+    ASSERT_FALSE(stats.usedDisk);
 }
 
 TEST_F(HybridHashJoinTestFixture, SpilledPartitionsProcessedCorrectly) {
@@ -1286,12 +1315,12 @@ TEST_F(HybridHashJoinTestFixture, SaveRestoreWithBsonCrossSlotAliasing) {
     ASSERT_LT(subDocPtr, docPtr + BSONObj(docPtr).objsize());
 
     value::MaterializedRow probeProject(2);
-    probeProject.reset(0, true, docTag, docVal);  // slot 0: owns the full-document buffer
-    probeProject.reset(
-        1,
-        false,
-        value::TypeTags::bsonObject,
-        value::bitcastFrom<const char*>(subDocPtr));  // slot 1: non-owned, inside slot 0
+    // slot 0: owns the full-document buffer
+    probeProject.reset(0, value::TagValueOwned::fromRaw(docTag, docVal));
+    // slot 1: non-owned, inside slot 0
+    probeProject.reset(1,
+                       value::TagValueView{value::TypeTags::bsonObject,
+                                           value::bitcastFrom<const char*>(subDocPtr)});
 
     auto cursor = JoinCursor::empty();
     hhj->probe(probeKey, probeProject, cursor);
@@ -1309,8 +1338,9 @@ TEST_F(HybridHashJoinTestFixture, SaveRestoreWithBsonCrossSlotAliasing) {
         ASSERT_EQ(savedTag, value::TypeTags::bsonObject);
         const char* savedDocPtr = value::bitcastTo<const char*>(savedVal);
         const char* savedSubPtr = BSONObj(savedDocPtr)["subdoc"].embeddedObject().objdata();
-        probeProject.reset(
-            1, false, value::TypeTags::bsonObject, value::bitcastFrom<const char*>(savedSubPtr));
+        probeProject.reset(1,
+                           value::TagValueView{value::TypeTags::bsonObject,
+                                               value::bitcastFrom<const char*>(savedSubPtr)});
     }
 
     // Second save: probeProject[1] now aliases into _savedProbeProject[0]'s buffer.
