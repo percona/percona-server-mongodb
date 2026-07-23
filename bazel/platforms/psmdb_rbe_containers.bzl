@@ -85,24 +85,27 @@
 
 PSMDB_REMOTE_EXECUTION_CONTAINERS = {
     "amazon_linux_2023": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:amazonlinux-2023-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "debian12": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-bookworm-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "debian13": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-trixie-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:debian-trixie-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "rhel8": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-8-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "rhel9": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-9-8.0-b0032483117d50bee5738876670970d37039a041",
+    },
+    "rhel10": {
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:oraclelinux-10-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "ubuntu22": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-jammy-8.0-b0032483117d50bee5738876670970d37039a041",
     },
     "ubuntu24": {
-        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-8.0-07c5bd008df3acb6e853ebd7c4fefa609c0d03ef",
+        "container-url": "docker://docker.io/perconalab/psmdb-rbe:ubuntu-noble-8.0-b0032483117d50bee5738876670970d37039a041",
     },
 }
