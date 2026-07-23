@@ -2687,12 +2687,8 @@ mongo_cc_library(
         "//src/mongo/db/audit:audit_commands",
         "//src/mongo/db/auth:auth_op_observer",
         "//src/mongo/db/auth:authserver",
-<<<<<<< HEAD
         "//src/mongo/db/auth/oidc:oidc_commands",
-||||||| d5f806b
-=======
         "//src/mongo/db/memory_tracking:query_memory_server_status_section",
->>>>>>> d1782b62fb2492569fc843eb06146193e7aa5d22
         "//src/mongo/db/shard_role/shard_catalog:catalog_impl",
         "//src/mongo/db/shard_role/shard_catalog:collection_options",
         "//src/mongo/db/shard_role/shard_catalog:document_validation",
