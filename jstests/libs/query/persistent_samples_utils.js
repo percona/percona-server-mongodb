@@ -19,6 +19,7 @@ export const sampleDocFieldNames = {
     createdAtField: "createdAt",
     docsField: "docs",
     schemaVersionField: "schemaVersion",
+    pageNoField: "pageNo",
 };
 
 export function getExpectedSamplingMethod(db, requestedSamplingMethod) {
@@ -109,15 +110,34 @@ export function dropSamplesColl(db) {
     );
 }
 
-// Returns the expected _id object for a sample document.
+// Asserts that the persistent samples collection exists and is clustered on _id.
+export function assertSamplesCollClustered(db) {
+    const collInfos = db.getCollectionInfos({name: samplesCollName});
+    assert.eq(1, collInfos.length, `Expected exactly one ${samplesCollName} collection to exist`, {
+        collInfos,
+    });
+    const clusteredIndex = collInfos[0].options.clusteredIndex;
+    assert(clusteredIndex, `Expected ${samplesCollName} to be clustered`, {collInfos});
+    assert.eq(
+        {[sampleDocFieldNames.idField]: 1},
+        clusteredIndex.key,
+        `Expected ${samplesCollName} to be clustered on _id`,
+        {collInfos},
+    );
+}
+
+// Returns the expected _id object for a sample document. The field order here must mirror
+// ce::PersistentSampleId in persistent_sample.idl in order to successfully match the _id object.
 // samplingType is "random" or "chunk"; sampleSize is the sample count encoded in the _id.
 // numChunks is included in the _id only for chunk mode.
+// pageNo defaults to 0 (expected when only 1 page exists) and is always present in the _id.
 export function getExpectedId(
     uuid,
     samplingType,
     sampleSize,
     expectedSchemaVersion = kPersistentSampleSchemaVersion,
     numChunks = null,
+    pageNo = 0,
 ) {
     const id = {
         [sampleDocFieldNames.schemaVersionField]: NumberInt(expectedSchemaVersion),
@@ -133,6 +153,7 @@ export function getExpectedId(
         );
         id[sampleDocFieldNames.numChunksField] = NumberInt(numChunks);
     }
+    id[sampleDocFieldNames.pageNoField] = NumberInt(pageNo);
     return id;
 }
 
