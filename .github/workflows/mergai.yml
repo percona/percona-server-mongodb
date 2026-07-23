@@ -116,10 +116,13 @@ jobs:
       # gate, dispatch with an explicit merge-pick input.
       #
       # Every path passes --record, so `merge-pick` writes the chosen pick's
-      # metadata (type + sha + strategy + human summary) to a state file that
-      # `mergai context init` reads and attaches to the note as `merge_pick`.
-      # That metadata then renders into the PR description and survives finalize
-      # -- no reasoning/summary is threaded back through the shell here.
+      # metadata (type + sha + strategy + human summary, and -- when run_link is
+      # enabled in .mergai/config.yml -- the URL of this trigger-merge run,
+      # captured from the Actions environment) to a state file that `mergai
+      # context init` reads and attaches to the note as `merge_pick`. That
+      # metadata then renders into the PR description (with a "Triggered by"
+      # link back to this run) and survives finalize -- no reasoning/summary is
+      # threaded back through the shell here.
       - name: Determine merge pick
         id: pick
         env:
