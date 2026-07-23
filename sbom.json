@@ -1863,6 +1863,48 @@
       ]
     },
     {
+      "type": "application",
+      "bom-ref": "pkg:github/mongodb/mongo@v8.3",
+      "supplier": {
+        "name": "MongoDB, Inc.",
+        "url": [
+          "https://mongodb.com"
+        ]
+      },
+      "author": "MongoDB, Inc.",
+      "publisher": "MongoDB, Inc.",
+      "group": "mongodb",
+      "name": "mongodb/mongo",
+      "version": "v8.3",
+      "cpe": "cpe:2.3:a:mongodb:mongodb:8.3.*:*:*:*:*:*:*:*",
+      "purl": "pkg:github/mongodb/mongo@v8.3",
+      "externalReferences": [
+        {
+          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt",
+          "comment": "Server Side Public License 1.0",
+          "type": "license"
+        },
+        {
+          "url": "https://www.mongodb.com/products/self-managed/community-edition",
+          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.",
+          "type": "website"
+        },
+        {
+          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
+          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.",
+          "type": "website"
+        },
+        {
+          "url": "https://www.mongodb.com/docs/manual/release-notes/",
+          "type": "release-notes"
+        },
+        {
+          "url": "https://github.com/mongodb/mongo",
+          "type": "vcs"
+        }
+      ]
+    },
+    {
       "type": "library",
       "bom-ref": "pkg:github/nlohmann/json@v3.11.3",
       "author": "Niels Lohmann",
@@ -2706,7 +2748,7 @@
       ]
     },
     {
-      "ref": "pkg:github/percona/percona-server-mongodb@v8.3",
+      "ref": "pkg:github/mongodb/mongo@v8.3",
       "dependsOn": [
         "pkg:deb/debian/firefox-esr@140.9.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
@@ -2755,10 +2797,7 @@
         "pkg:github/veorq/siphash@32d067603b93b47828700880649198e0bfbbcffa",
         "pkg:github/wiredtiger/wiredtiger@12.0.0",
         "pkg:pypi/ocspbuilder@0.10.2",
-        "pkg:pypi/ocspresponder@0.5.0",
-        "pkg:github/libarchive/libarchive@v3.8.4",
-        "pkg:github/aws/aws-sdk-cpp@1.11.471",
-        "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d"
+        "pkg:pypi/ocspresponder@0.5.0"
       ]
     },
     {
@@ -2784,6 +2823,15 @@
     {
       "ref": "pkg:github/pcre2project/pcre2@pcre2-10.40",
       "dependsOn": []
+    },
+    {
+      "ref": "pkg:github/percona/percona-server-mongodb@v8.3",
+      "dependsOn": [
+        "pkg:github/aws/aws-sdk-cpp@1.11.471",
+        "pkg:github/libarchive/libarchive@v3.8.4",
+        "pkg:github/mongodb/mongo@v8.3",
+        "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d"
+      ]
     },
     {
       "ref": "pkg:github/protocolbuffers/protobuf@v6.31.1",
