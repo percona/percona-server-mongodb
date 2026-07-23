@@ -408,6 +408,7 @@ jobs:
       contents: read # checkout
       pull-requests: read # read PR labels (mergai-skip-ci-fix)
       security-events: read # mergai ci status -> classify clang-tidy via code-scanning analyses
+      statuses: write # publish the ci-gate commit status on the PR head
     # Serialize completions for the same branch so two near-simultaneous
     # workflow_run events can't each observe the other as in-progress and both
     # no-op (a deadlock). The last-queued gate sees the full set done. This
@@ -420,6 +421,30 @@ jobs:
       state: ${{ steps.gate.outputs.state }}
       skip_ci_fix: ${{ steps.skip-label.outputs.skip_ci_fix }}
     steps:
+      # Publish a per-watched-workflow ci-gate status up front, so the PR shows
+      # THIS gate run as in-progress for the workflow that triggered it (e.g.
+      # "mergai / ci-gate (clang-tidy)") while it runs. Each watched workflow
+      # gets its own status context, so the gate runs triggered by different
+      # completions no longer overwrite each other or leave the check pointing
+      # at a finished run while a newer one is still going -- you can see the
+      # gate finished for one workflow and is still in-progress for another. The
+      # "Report ci-gate status" step below resolves this pending status. (Only
+      # ci-gate is split per workflow; ci-handle stays a single context.)
+      - name: Mark ci-gate in-progress for this watched workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / ci-gate ($WF_NAME)" \
+            -f target_url="$RUN_URL" \
+            -f description="processing $WF_NAME completion" \
+            || echo "::warning::could not publish pending ci-gate status"
+
       # Checkout with the default token: the gate only reads workflow-run
       # status and the watched set from .mergai/config.yml - no writes, so no
       # GitHub App token needed.
@@ -476,6 +501,38 @@ jobs:
             echo "skip_ci_fix=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Resolve the per-watched-workflow "mergai / ci-gate (<workflow>)" check
+      # published as pending at the top of this job. workflow_run jobs are
+      # invisible on the PR by default, so we publish a commit status on the PR
+      # head SHA. The status STATE reflects whether THIS JOB executed cleanly --
+      # NOT the gate's verdict about the watched workflows: ci-gate is green
+      # whenever it ran, even when it decides the watched CI failed (that verdict
+      # is surfaced in the description). The context is scoped to the triggering
+      # workflow so parallel gate runs don't overwrite each other. target_url
+      # deep-links to this run.
+      - name: Report ci-gate status on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          JOB_STATUS: ${{ job.status }}
+          GATE_STATE: ${{ steps.gate.outputs.state }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          case "$JOB_STATUS" in
+            success) STATE=success ;;
+            cancelled) STATE=error ;;
+            *) STATE=failure ;;
+          esac
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f context="mergai / ci-gate ($WF_NAME)" \
+            -f target_url="$RUN_URL" \
+            -f description="gate: ${GATE_STATE:-unknown}" \
+            || echo "::warning::could not publish ci-gate status"
+
   ci-handle:
     needs: ci-gate
     # Only failure reaches the privileged job; in-progress/none/success simply
@@ -497,11 +554,36 @@ jobs:
       cancel-in-progress: false
     environment: privileged-ops
     runs-on: ubuntu-latest
+    # The default GITHUB_TOKEN is used only to publish the ci-handle commit
+    # status (below); all real work uses the scoped GitHub App tokens. Restrict
+    # it to statuses:write accordingly.
+    permissions:
+      statuses: write # publish the ci-handle commit status on the PR head
     env:
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
       GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
       GOOGLE_GENAI_USE_VERTEXAI: "true"
     steps:
+      # Publish the "mergai / ci-handle" check as pending up front. The auto-fix
+      # agent can run for a while, and the "Report ci-handle status" step only
+      # publishes when the job ends -- without this, ci-handle is invisible in
+      # the PR checks section while it runs. This pending status is resolved by
+      # that final step. Uses the default GITHUB_TOKEN (statuses:write), so it
+      # runs before the GitHub App tokens are created.
+      - name: Mark ci-handle in-progress on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / ci-handle" \
+            -f target_url="$RUN_URL" \
+            -f description="handle: running" \
+            || echo "::warning::could not publish pending ci-handle status"
+
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -725,6 +807,33 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: mergai notes push
+
+      # Surface this job on the PR as the "mergai / ci-handle" check (see the
+      # ci-gate equivalent). The status reflects whether THIS JOB executed
+      # cleanly -- a green ci-handle means the auto-fix run finished without
+      # error, whatever it decided to do (fix, relocate, or no-op). It only
+      # appears when the job actually runs (i.e. ci-gate saw a failure).
+      - name: Report ci-handle status on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          JOB_STATUS: ${{ job.status }}
+          HANDLE_STATE: ${{ steps.recheck.outputs.state }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          case "$JOB_STATUS" in
+            success) STATE=success ;;
+            cancelled) STATE=error ;;
+            *) STATE=failure ;;
+          esac
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f context="mergai / ci-handle" \
+            -f target_url="$RUN_URL" \
+            -f description="handle: ${HANDLE_STATE:-n/a}" \
+            || echo "::warning::could not publish ci-handle status"
 
   # Handle code-review feedback on a mergai PR. Triggered by:
   #   * a `/mergai review fix` comment on the PR (issue_comment), or
