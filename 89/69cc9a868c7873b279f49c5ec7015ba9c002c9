@@ -1,0 +1,144 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e626f3ee65641bc41aa134c1f8a11e641782ce89",
+    "merge_commit": "d5f806ba9dd690c6c0e6e2cdba4f9110462ed190"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 60549,
+      "num_turns": 6,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.26996725,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000688,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 12,
+          "outputTokens": 4555,
+          "cacheReadInputTokens": 92101,
+          "cacheCreationInputTokens": 17487,
+          "webSearchRequests": 0,
+          "costUSD": 0.26927924999999997,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 17,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000688
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 12,
+              "output": 4555,
+              "cache_read": 92101,
+              "cache_creation": 17487
+            },
+            "cost_usd": 0.26927924999999997
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\nThe conflict was in a Bazel `data` list of test file targets:\n- **Ours (Percona/HEAD)**: had removed all `//src/mongo/db/modules/enterprise/jstests/...` entries \u2014 the enterprise module isn't part of the PSMDB fork.\n- **Theirs (upstream)**: kept the enterprise entries, added a new enterprise entry (`external_auth_aws`), and added two new **non-enterprise** entries under `//jstests/write_path/timeseries/pbt/`.\n\nResolution: preserved Percona's removal of the enterprise references and pulled in only the two new non-enterprise `pbt` entries (`geodata` and `lib`). Response JSON written.",
+      "response": {
+        "summary": "Resolved the conflict in bazel/resmoke/resmoke.bzl by keeping Percona's removal of the enterprise-module jstests references while adopting the new non-enterprise write_path/timeseries/pbt file group additions from upstream.",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Percona's side (ours) had removed all '//src/mongo/db/modules/enterprise/jstests/...' entries from the data list, since the enterprise module is not part of the PSMDB fork. Upstream (theirs) kept those enterprise entries, added a new enterprise entry (external_auth_aws), and added two new non-enterprise entries ('//jstests/write_path/timeseries/pbt/geodata:all_javascript_files' and '//jstests/write_path/timeseries/pbt/lib:all_javascript_files'). Resolution keeps the enterprise references removed (preserving Percona's change) and adds only the two new non-enterprise pbt entries from upstream."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The empty 'ours' side of the conflict indicates Percona removed all enterprise-module jstests target references from this list; that removal was preserved. Only the upstream additions that are not under src/mongo/db/modules/enterprise (the two write_path/timeseries/pbt entries) were incorporated. All conflict markers removed."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The conflict is clear. HEAD (Percona/ours) removed all the enterprise-module jstests references. Upstream (theirs) kept them and added two new non-enterprise `write_path/timeseries/pbt` lines plus an `external_auth_aws` enterprise line. The correct resolution keeps Percona's removal of the enterprise references while adopting the new non-enterprise `pbt` additions."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\nThe conflict was in a Bazel `data` list of test file targets:\n- **Ours (Percona/HEAD)**: had removed all `//src/mongo/db/modules/enterprise/jstests/...` entries \u2014 the enterprise module isn't part of the PSMDB fork.\n- **Theirs (upstream)**: kept the enterprise entries, added a new enterprise entry (`external_auth_aws`), and added two new **non-enterprise** entries under `//jstests/write_path/timeseries/pbt/`.\n\nResolution: preserved Percona's removal of the enterprise references and pulled in only the two new non-enterprise `pbt` entries (`geodata` and `lib`). Response JSON written."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260723_191653_083726.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.218 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
