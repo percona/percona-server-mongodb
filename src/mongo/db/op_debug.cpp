@@ -726,7 +726,7 @@ void OpDebug::append(OperationContext* opCtx,
         }
 
         if (userAcquisitionStats->shouldReportLDAPOperationStats()) {
-            BSONObjBuilder ldapOperationStatsBuilder;
+            BSONObjBuilder ldapOperationStatsBuilder(b.subobjStart("LDAPOperations"));
             userAcquisitionStats->reportLdapOperationStats(
                 &ldapOperationStatsBuilder, opCtx->getServiceContext()->getTickSource());
         }
@@ -1148,7 +1148,10 @@ std::function<BSONObj(OpDebug::AppendArgs)> OpDebug::appendStaged(OperationConte
                 &userCacheAcquisitionStatsBuilder,
                 args.opCtx->getServiceContext()->getTickSource());
         }
+    });
 
+    addIfNeeded("LDAPOperations", [](auto field, auto args, auto& b) {
+        auto userAcquisitionStats = args.curop.getUserAcquisitionStats();
         if (userAcquisitionStats->shouldReportLDAPOperationStats()) {
             BSONObjBuilder ldapOperationStatsBuilder(b.subobjStart(field));
             userAcquisitionStats->reportLdapOperationStats(

@@ -1575,7 +1575,7 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
                                       repl::clearLocalOplogPtr(opCtx->getServiceContext());
                                   });
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-    catalog::initializeCollectionCatalog(opCtx, storageEngine);
+    catalog::initializeCollectionCatalog(opCtx, storageEngine, catalog::InitMode::kStorageChange);
     storageEngine->notifyStorageStartupRecoveryComplete();
     if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
         return {ErrorCodes::InternalError,
