@@ -189,6 +189,8 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.wiredTiger.collectErrors");
     static constexpr MetricName kWiredTigerEngineNotReadyErrors =
         MetricNameMaker::make("mongodb.serverStatus.wiredTiger.engineNotReadyErrors");
+    static constexpr MetricName kTicketingSystemCollectErrors =
+        MetricNameMaker::make("mongodb.serverStatus.wiredTiger.ticketingSystem.collectErrors");
 
     // Ingress Request Rate Limiter (Admission Control) Metrics. These mirror the fields that
     // RateLimiter::appendStats() historically reported under
@@ -239,6 +241,8 @@ public:
             "serverStatus.otelTracingSampler.externalSpan.rateLimiter.rejectedAdmissions");
 
     // Query Execution Team Metrics
+    static constexpr MetricName kQueryMemoryLoadSheddingOperationsShed =
+        MetricNameMaker::make("mongodb.serverStatus.queryMemory.loadShedding.operationsShed");
     static constexpr MetricName kChangeStreamCursorsTotalOpened =
         MetricNameMaker::make("mongodb.serverStatus.metrics.changeStreams.cursor.totalOpened");
     static constexpr MetricName kChangeStreamCursorsLifespan =

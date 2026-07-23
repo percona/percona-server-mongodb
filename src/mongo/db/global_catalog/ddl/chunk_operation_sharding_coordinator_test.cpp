@@ -47,8 +47,8 @@ public:
     std::unique_ptr<repl::PrimaryOnlyService> makeService(ServiceContext* serviceContext) override {
         auto externalStateFactory =
             std::make_unique<ShardingCoordinatorExternalStateFactoryForTest>(_externalState);
-        return std::make_unique<ShardingCoordinatorService>(
-            serviceContext, std::move(externalStateFactory), [](ServiceContext*) {});
+        return std::make_unique<ShardingCoordinatorService>(serviceContext,
+                                                            std::move(externalStateFactory));
     }
 
     void setUp() override {
@@ -257,6 +257,8 @@ TEST_F(ChunkOperationShardingCoordinatorTest, SmokeTest) {
 
     ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
     coorMetadata.setForwardableOpMetadata(forwardableOpMetadata);
+    coorMetadata.setAuthoritativeMetadataAccessLevel(
+        AuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed);
 
     doc.setShardingCoordinatorMetadata(std::move(coorMetadata));
 
@@ -282,6 +284,8 @@ TEST_F(ChunkOperationShardingCoordinatorTest, SuccessfulRunRecordsCommittedStati
     ShardingCoordinatorMetadata coorMetadata{{kTestNs, CoordinatorTypeEnum::kTestCoordinator}};
     ForwardableOperationMetadata forwardableOpMetadata(_opCtx);
     coorMetadata.setForwardableOpMetadata(forwardableOpMetadata);
+    coorMetadata.setAuthoritativeMetadataAccessLevel(
+        AuthoritativeMetadataAccessLevelEnum::kWritesAndReadsAllowed);
     doc.setShardingCoordinatorMetadata(std::move(coorMetadata));
 
     auto coordinator = std::make_shared<TestChunkOperationShardingCoordinator>(

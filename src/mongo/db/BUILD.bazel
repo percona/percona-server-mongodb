@@ -2025,6 +2025,7 @@ mongo_cc_library(
         "//src/mongo/db/geo:geoparser",
         "//src/mongo/db/matcher:path",
         "//src/mongo/db/memory_tracking",
+        "//src/mongo/db/memory_tracking:query_memory_load_shedding",
         "//src/mongo/db/pipeline:aggregation_request_helper",
         "//src/mongo/db/pipeline:lite_parsed_document_source",
         "//src/mongo/db/pipeline:variable_validation",
@@ -2686,7 +2687,12 @@ mongo_cc_library(
         "//src/mongo/db/audit:audit_commands",
         "//src/mongo/db/auth:auth_op_observer",
         "//src/mongo/db/auth:authserver",
+<<<<<<< HEAD
         "//src/mongo/db/auth/oidc:oidc_commands",
+||||||| d5f806b
+=======
+        "//src/mongo/db/memory_tracking:query_memory_server_status_section",
+>>>>>>> d1782b62fb2492569fc843eb06146193e7aa5d22
         "//src/mongo/db/shard_role/shard_catalog:catalog_impl",
         "//src/mongo/db/shard_role/shard_catalog:collection_options",
         "//src/mongo/db/shard_role/shard_catalog:document_validation",
@@ -2713,6 +2719,7 @@ mongo_cc_library(
         "keys_collection_client_direct",
         "//src/mongo/db/topology/vector_clock:logical_time_metadata_hook",
         "//src/mongo/db/matcher:expressions_mongod_only",
+        "metrics_policy_manager_impl",
         "mirror_maestro",
         "mongod_options",
         "mongod_options_init",
@@ -2821,9 +2828,9 @@ mongo_cc_library(
         "//conditions:default": [],
     }) + select({
         "//bazel/config:enterprise_feature_ldap_enabled": [
+            "//src/mongo/db/modules/enterprise/src/ldap:ldap_check_cyrus_sasl_version",
             "//src/mongo/db/modules/enterprise/src/ldap:ldap_manager_init",
             "//src/mongo/db/modules/enterprise/src/ldap:ldap_options_mongod",
-            "//src/mongo/db/modules/enterprise/src/ldap:openssl_init_legacy",
         ],
         "//conditions:default": [],
     }) + select({
@@ -2912,6 +2919,7 @@ mongo_cc_library(
         "//src/mongo/db/admission:flow_control",
         "//src/mongo/db/admission:flow_control_parameters",
         "//src/mongo/db/auth:auth_op_observer",
+        "//src/mongo/db/memory_tracking:query_memory_load_shedding",
         "//src/mongo/db/shard_role/shard_catalog:catalog_helpers",
         "//src/mongo/db/shard_role/shard_catalog:catalog_impl",
         "//src/mongo/db/collection_crud",
@@ -3751,6 +3759,7 @@ mongo_cc_benchmark(
     srcs = ["crud_bm.cpp"],
     tags = ["sep_bm"],
     deps = [
+        ":metrics_policy_manager_impl",
         ":mongod_options_init",
         ":read_write_concern_defaults_mock",
         ":server_base",
@@ -3960,4 +3969,103 @@ mongo_cc_unit_test(
         "//src/mongo/otel/metrics:metrics_test_util",
         "//src/mongo/unittest",
     ],
+)
+
+mongo_cc_library(
+    name = "metrics_filtering_util",
+    srcs = [
+        "metrics_filtering_util.cpp",
+    ],
+    hdrs = [
+        "metrics_filtering_util.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_library(
+    name = "metrics_filtering_util_test_helpers",
+    srcs = [
+        "metrics_filtering_util_test_helpers.cpp",
+    ],
+    hdrs = [
+        "metrics_filtering_util_test_helpers.h",
+    ],
+    deps = [
+        ":metrics_filtering_util",
+        "//src/mongo:base",
+        "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "metrics_filtering_util_test",
+    srcs = [
+        "metrics_filtering_util_test.cpp",
+    ],
+    tags = ["mongo_unittest_fifth_group"],
+    deps = [
+        ":metrics_filtering_util",
+        ":metrics_filtering_util_test_helpers",
+        "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_library(
+    name = "metrics_policy_manager",
+    srcs = [
+        "metrics_policy_manager.cpp",
+    ],
+    hdrs = [
+        "metrics_policy_manager.h",
+    ],
+    deps = [
+        ":metrics_filtering_util",
+        ":service_context",
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_library(
+    name = "metrics_policy_manager_default",
+    srcs = [
+        "metrics_policy_manager_default.cpp",
+    ],
+    hdrs = [
+        "metrics_policy_manager_default.h",
+    ],
+    deps = [
+        ":metrics_policy_manager",
+        ":service_context",
+        "//src/mongo:base",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "metrics_policy_manager_default_test",
+    srcs = [
+        "metrics_policy_manager_default_test.cpp",
+    ],
+    tags = ["mongo_unittest_first_group"],
+    deps = [
+        ":metrics_policy_manager",
+        ":metrics_policy_manager_default",
+        ":service_context",
+        "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_library(
+    name = "metrics_policy_manager_impl",
+    deps = [
+        ":metrics_policy_manager_default",
+        ":service_context",
+        "//src/mongo:base",
+    ] + select({
+        "//bazel/config:build_atlas_required_settings": [
+            "//src/mongo/db/modules/atlas/src/disagg_storage:metrics_policy_manager_disagg",
+        ],
+        "//conditions:default": [],
+    }),
 )
