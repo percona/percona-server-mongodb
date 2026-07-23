@@ -114,6 +114,12 @@ jobs:
       # merge) they print nothing, so MERGE_PICK is empty and the merge steps
       # below are skipped. "next" ignores the gate. To merge regardless of the
       # gate, dispatch with an explicit merge-pick input.
+      #
+      # Every path passes --record, so `merge-pick` writes the chosen pick's
+      # metadata (type + sha + strategy + human summary) to a state file that
+      # `mergai context init` reads and attaches to the note as `merge_pick`.
+      # That metadata then renders into the PR description and survives finalize
+      # -- no reasoning/summary is threaded back through the shell here.
       - name: Determine merge pick
         id: pick
         env:
@@ -123,39 +129,29 @@ jobs:
           MERGE_PICK=""
           if [ -n "$INPUT_PICK" ]; then
             echo "Using explicit merge-pick input (gate bypassed): $INPUT_PICK"
-            MERGE_PICK="$INPUT_PICK"
+            # Record as a manual pick, attributing it to the dispatcher.
+            MERGE_PICK=$(mergai fork merge-pick --manual "$INPUT_PICK" \
+              --actor "$GITHUB_ACTOR" --record)
           else
             case "$MERGE_PICK_MODE" in
               ai)
                 echo "Merge-pick mode: ai (gate-respecting)"
-                # --json carries the agent's reasoning alongside the sha; --next
-                # would print only the bare sha and the reasoning would be lost.
-                PICK_JSON=$(mergai fork merge-pick --ai --json)
+                # --json carries the sha for capture; --record persists the
+                # agent's reasoning as the pick summary. Capture first, then
+                # parse: a closed gate prints nothing, so piping straight into
+                # jq would feed it empty input.
+                PICK_JSON=$(mergai fork merge-pick --ai --json --record)
                 if [ -n "$PICK_JSON" ]; then
                   MERGE_PICK=$(printf '%s' "$PICK_JSON" | jq -r '.sha // empty')
-                  AI_SOURCE=$(printf '%s' "$PICK_JSON" | jq -r '.source // empty')
-                  AI_REASONING=$(printf '%s' "$PICK_JSON" | jq -r '.reasoning // empty')
-                  echo "AI pick source: ${AI_SOURCE:-unknown}"
-                  if [ -n "$AI_REASONING" ]; then
-                    echo "AI pick reasoning: $AI_REASONING"
-                    {
-                      echo "### AI merge-pick"
-                      echo ""
-                      echo "- commit: \`${MERGE_PICK}\`"
-                      echo "- source: ${AI_SOURCE:-unknown}"
-                      echo ""
-                      echo "${AI_REASONING}"
-                    } >> "$GITHUB_STEP_SUMMARY"
-                  fi
                 fi
                 ;;
               next)
                 echo "Merge-pick mode: next (raw strategy pick; ignores the gate)"
-                MERGE_PICK=$(mergai fork merge-pick --next)
+                MERGE_PICK=$(mergai fork merge-pick --next --record)
                 ;;
               *)
                 echo "Merge-pick mode: gate (gate-respecting deterministic)"
-                MERGE_PICK=$(mergai fork merge-pick --gate)
+                MERGE_PICK=$(mergai fork merge-pick --gate --record)
                 ;;
             esac
           fi
@@ -166,9 +162,15 @@ jobs:
           else
             echo "Merge pick: $MERGE_PICK"
             git show --stat "$MERGE_PICK"
+            # Surface the recorded pick metadata in the job summary. mergai
+            # renders it from the same recorded pick that `context init`
+            # attaches to the note and that ends up in the PR description.
+            mergai fork show-pick --format markdown >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Initialize merge context with commit SHA and target branch info.
+      # Initialize merge context with commit SHA and target branch info. This
+      # also reads .cache/mergai/merge_pick.json (written above) and attaches
+      # the pick metadata to the note as `merge_pick`.
       - name: mergai context init
         if: steps.pick.outputs.pick != ''
         run: mergai context init "$MERGE_PICK"
