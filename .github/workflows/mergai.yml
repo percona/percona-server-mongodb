@@ -114,6 +114,15 @@ jobs:
       # merge) they print nothing, so MERGE_PICK is empty and the merge steps
       # below are skipped. "next" ignores the gate. To merge regardless of the
       # gate, dispatch with an explicit merge-pick input.
+      #
+      # Every path passes --record, so `merge-pick` writes the chosen pick's
+      # metadata (type + sha + strategy + human summary, and -- when run_link is
+      # enabled in .mergai/config.yml -- the URL of this trigger-merge run,
+      # captured from the Actions environment) to a state file that `mergai
+      # context init` reads and attaches to the note as `merge_pick`. That
+      # metadata then renders into the PR description (with a "Triggered by"
+      # link back to this run) and survives finalize -- no reasoning/summary is
+      # threaded back through the shell here.
       - name: Determine merge pick
         id: pick
         env:
@@ -123,39 +132,29 @@ jobs:
           MERGE_PICK=""
           if [ -n "$INPUT_PICK" ]; then
             echo "Using explicit merge-pick input (gate bypassed): $INPUT_PICK"
-            MERGE_PICK="$INPUT_PICK"
+            # Record as a manual pick, attributing it to the dispatcher.
+            MERGE_PICK=$(mergai fork merge-pick --manual "$INPUT_PICK" \
+              --actor "$GITHUB_ACTOR" --record)
           else
             case "$MERGE_PICK_MODE" in
               ai)
                 echo "Merge-pick mode: ai (gate-respecting)"
-                # --json carries the agent's reasoning alongside the sha; --next
-                # would print only the bare sha and the reasoning would be lost.
-                PICK_JSON=$(mergai fork merge-pick --ai --json)
+                # --json carries the sha for capture; --record persists the
+                # agent's reasoning as the pick summary. Capture first, then
+                # parse: a closed gate prints nothing, so piping straight into
+                # jq would feed it empty input.
+                PICK_JSON=$(mergai fork merge-pick --ai --json --record)
                 if [ -n "$PICK_JSON" ]; then
                   MERGE_PICK=$(printf '%s' "$PICK_JSON" | jq -r '.sha // empty')
-                  AI_SOURCE=$(printf '%s' "$PICK_JSON" | jq -r '.source // empty')
-                  AI_REASONING=$(printf '%s' "$PICK_JSON" | jq -r '.reasoning // empty')
-                  echo "AI pick source: ${AI_SOURCE:-unknown}"
-                  if [ -n "$AI_REASONING" ]; then
-                    echo "AI pick reasoning: $AI_REASONING"
-                    {
-                      echo "### AI merge-pick"
-                      echo ""
-                      echo "- commit: \`${MERGE_PICK}\`"
-                      echo "- source: ${AI_SOURCE:-unknown}"
-                      echo ""
-                      echo "${AI_REASONING}"
-                    } >> "$GITHUB_STEP_SUMMARY"
-                  fi
                 fi
                 ;;
               next)
                 echo "Merge-pick mode: next (raw strategy pick; ignores the gate)"
-                MERGE_PICK=$(mergai fork merge-pick --next)
+                MERGE_PICK=$(mergai fork merge-pick --next --record)
                 ;;
               *)
                 echo "Merge-pick mode: gate (gate-respecting deterministic)"
-                MERGE_PICK=$(mergai fork merge-pick --gate)
+                MERGE_PICK=$(mergai fork merge-pick --gate --record)
                 ;;
             esac
           fi
@@ -166,9 +165,15 @@ jobs:
           else
             echo "Merge pick: $MERGE_PICK"
             git show --stat "$MERGE_PICK"
+            # Surface the recorded pick metadata in the job summary. mergai
+            # renders it from the same recorded pick that `context init`
+            # attaches to the note and that ends up in the PR description.
+            mergai fork show-pick --format markdown >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Initialize merge context with commit SHA and target branch info.
+      # Initialize merge context with commit SHA and target branch info. This
+      # also reads .cache/mergai/merge_pick.json (written above) and attaches
+      # the pick metadata to the note as `merge_pick`.
       - name: mergai context init
         if: steps.pick.outputs.pick != ''
         run: mergai context init "$MERGE_PICK"
@@ -403,6 +408,7 @@ jobs:
       contents: read # checkout
       pull-requests: read # read PR labels (mergai-skip-ci-fix)
       security-events: read # mergai ci status -> classify clang-tidy via code-scanning analyses
+      statuses: write # publish the ci-gate commit status on the PR head
     # Serialize completions for the same branch so two near-simultaneous
     # workflow_run events can't each observe the other as in-progress and both
     # no-op (a deadlock). The last-queued gate sees the full set done. This
@@ -415,6 +421,30 @@ jobs:
       state: ${{ steps.gate.outputs.state }}
       skip_ci_fix: ${{ steps.skip-label.outputs.skip_ci_fix }}
     steps:
+      # Publish a per-watched-workflow ci-gate status up front, so the PR shows
+      # THIS gate run as in-progress for the workflow that triggered it (e.g.
+      # "mergai / ci-gate (clang-tidy)") while it runs. Each watched workflow
+      # gets its own status context, so the gate runs triggered by different
+      # completions no longer overwrite each other or leave the check pointing
+      # at a finished run while a newer one is still going -- you can see the
+      # gate finished for one workflow and is still in-progress for another. The
+      # "Report ci-gate status" step below resolves this pending status. (Only
+      # ci-gate is split per workflow; ci-handle stays a single context.)
+      - name: Mark ci-gate in-progress for this watched workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / ci-gate ($WF_NAME)" \
+            -f target_url="$RUN_URL" \
+            -f description="processing $WF_NAME completion" \
+            || echo "::warning::could not publish pending ci-gate status"
+
       # Checkout with the default token: the gate only reads workflow-run
       # status and the watched set from .mergai/config.yml - no writes, so no
       # GitHub App token needed.
@@ -471,6 +501,38 @@ jobs:
             echo "skip_ci_fix=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Resolve the per-watched-workflow "mergai / ci-gate (<workflow>)" check
+      # published as pending at the top of this job. workflow_run jobs are
+      # invisible on the PR by default, so we publish a commit status on the PR
+      # head SHA. The status STATE reflects whether THIS JOB executed cleanly --
+      # NOT the gate's verdict about the watched workflows: ci-gate is green
+      # whenever it ran, even when it decides the watched CI failed (that verdict
+      # is surfaced in the description). The context is scoped to the triggering
+      # workflow so parallel gate runs don't overwrite each other. target_url
+      # deep-links to this run.
+      - name: Report ci-gate status on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          JOB_STATUS: ${{ job.status }}
+          GATE_STATE: ${{ steps.gate.outputs.state }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          case "$JOB_STATUS" in
+            success) STATE=success ;;
+            cancelled) STATE=error ;;
+            *) STATE=failure ;;
+          esac
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f context="mergai / ci-gate ($WF_NAME)" \
+            -f target_url="$RUN_URL" \
+            -f description="gate: ${GATE_STATE:-unknown}" \
+            || echo "::warning::could not publish ci-gate status"
+
   ci-handle:
     needs: ci-gate
     # Only failure reaches the privileged job; in-progress/none/success simply
@@ -492,11 +554,36 @@ jobs:
       cancel-in-progress: false
     environment: privileged-ops
     runs-on: ubuntu-latest
+    # The default GITHUB_TOKEN is used only to publish the ci-handle commit
+    # status (below); all real work uses the scoped GitHub App tokens. Restrict
+    # it to statuses:write accordingly.
+    permissions:
+      statuses: write # publish the ci-handle commit status on the PR head
     env:
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
       GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION }}
       GOOGLE_GENAI_USE_VERTEXAI: "true"
     steps:
+      # Publish the "mergai / ci-handle" check as pending up front. The auto-fix
+      # agent can run for a while, and the "Report ci-handle status" step only
+      # publishes when the job ends -- without this, ci-handle is invisible in
+      # the PR checks section while it runs. This pending status is resolved by
+      # that final step. Uses the default GITHUB_TOKEN (statuses:write), so it
+      # runs before the GitHub App tokens are created.
+      - name: Mark ci-handle in-progress on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / ci-handle" \
+            -f target_url="$RUN_URL" \
+            -f description="handle: running" \
+            || echo "::warning::could not publish pending ci-handle status"
+
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -720,6 +807,33 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
         run: mergai notes push
+
+      # Surface this job on the PR as the "mergai / ci-handle" check (see the
+      # ci-gate equivalent). The status reflects whether THIS JOB executed
+      # cleanly -- a green ci-handle means the auto-fix run finished without
+      # error, whatever it decided to do (fix, relocate, or no-op). It only
+      # appears when the job actually runs (i.e. ci-gate saw a failure).
+      - name: Report ci-handle status on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          JOB_STATUS: ${{ job.status }}
+          HANDLE_STATE: ${{ steps.recheck.outputs.state }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          case "$JOB_STATUS" in
+            success) STATE=success ;;
+            cancelled) STATE=error ;;
+            *) STATE=failure ;;
+          esac
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="$STATE" \
+            -f context="mergai / ci-handle" \
+            -f target_url="$RUN_URL" \
+            -f description="handle: ${HANDLE_STATE:-n/a}" \
+            || echo "::warning::could not publish ci-handle status"
 
   # Handle code-review feedback on a mergai PR. Triggered by:
   #   * a `/mergai review fix` comment on the PR (issue_comment), or
@@ -1028,8 +1142,12 @@ jobs:
           mergai context init
           if ! mergai rebase "origin/$BASE_REF"; then
             mergai rebase --abort || true
-            gh pr comment "$PR_NUMBER" --body \
-              "\`/mergai rebase\` onto \`$BASE_REF\` could not complete automatically. Rebase locally with \`mergai notes update && mergai context init && mergai rebase origin/$BASE_REF\`, then push the branch and notes."
+            # Post via `mergai pr comment` (not `gh`) so the comment carries the
+            # config-gated run-link footer, like every other bot comment. The PR
+            # type is auto-detected from the checked-out branch.
+            mergai pr --repo "$GITHUB_REPOSITORY" comment --allow-missing --body \
+              "\`/mergai rebase\` onto \`$BASE_REF\` could not complete automatically. Rebase locally with \`mergai notes update && mergai context init && mergai rebase origin/$BASE_REF\`, then push the branch and notes." \
+              || echo "::warning::could not post rebase-failure comment"
             echo "::error::mergai rebase onto '$BASE_REF' could not complete automatically (unresolved conflicts)."
             exit 1
           fi
@@ -1040,6 +1158,9 @@ jobs:
           # body (rebuilt from the current note data) to reflect the new base.
           mergai pr --repo "$GITHUB_REPOSITORY" update \
             || echo "::warning::'mergai pr update' failed"
-          gh pr comment "$PR_NUMBER" --body \
-            "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch."
+          # Post via `mergai pr comment` (not `gh`) so the comment carries the
+          # config-gated run-link footer, like every other bot comment.
+          mergai pr --repo "$GITHUB_REPOSITORY" comment --allow-missing --body \
+            "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch." \
+            || echo "::warning::could not post rebase-success comment"
           echo "Rebase of $HEAD_REF onto $BASE_REF completed successfully"
