@@ -33,6 +33,7 @@
 #include "mongo/db/pipeline/lite_parsed_desugarer.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/pipeline/search/search_helper_bson_obj.h"
+#include "mongo/db/query/query_shape/serialization_options.h"
 #include "mongo/db/views/resolved_view.h"
 
 namespace mongo {
@@ -134,7 +135,12 @@ buildResolvedPipelineForRegularView(OperationContext* opCtx,
     auto pipeline =
         Pipeline::parseFromLiteParsed(lpp, expCtx, nullptr, false, true /* useStubInterface */);
 
-    return {pipeline->serializeToBson(), std::move(lpp)};
+    // The serialized BSON will soon be re-parsed when we restart the agg path with the resolved
+    // pipeline. Set serializeForReparse so search stages emit user-form rather than the full IDL
+    // form — the latter would carry mongotQuery/mergingPipeline from a prior planShardedSearch and
+    // trip the internal-field check on re-parse.
+    SerializationOptions opts{.serializeForReparse = true};
+    return {pipeline->serializeToBson(opts), std::move(lpp)};
 }
 
 /**
@@ -199,6 +205,16 @@ void PipelineResolver::applyViewToLiteParsed(LiteParsedPipeline* userLPP,
     userLPP->handleView(viewInfo, resolvedNamespaces);
 }
 
+void PipelineResolver::validateStagesOnView(LiteParsedPipeline* userLPP,
+                                            const ResolvedView& resolvedView,
+                                            const NamespaceString& viewNss,
+                                            const ResolvedNamespaceMap& resolvedNamespaces,
+                                            const LiteParserOptions& options) {
+    auto viewInfo = resolvedView.toViewInfo(viewNss, options);
+    LiteParsedDesugarer::desugar(viewInfo.viewPipeline.get());
+    userLPP->bindViewInfoToStages(viewInfo, resolvedNamespaces);
+}
+
 PipelineResolver::MongosViewRequestResult PipelineResolver::buildResolvedMongosViewRequest(
     OperationContext* opCtx,
     const AggregateCommandRequest& request,
@@ -218,6 +234,21 @@ PipelineResolver::MongosViewRequestResult PipelineResolver::buildResolvedMongosV
         resolvedView.timeseries()) {
         resolvedPipeline =
             buildResolvedPipelineForSimpleCase(ifrContext, resolvedView, request.getPipeline());
+
+        // For mongot pipelines on views, validate that extension stages are allowed. The legacy
+        // first stage handles view resolution itself, but subsequent extension stages still need
+        // view validation. Timeseries views are skipped; their pipeline is fully resolved above via
+        // buildResolvedPipelineForSimpleCase.
+        if (!resolvedView.timeseries()) {
+            LiteParserOptions options{.ifrContext = ifrContext};
+            auto lpp = LiteParsedPipeline(request, true, options);
+            lpp.makeOwned();
+            LiteParsedDesugarer::desugar(&lpp);
+            auto resolvedNamespaces =
+                helpers.resolveInvolvedNamespaces(lpp.getInvolvedNamespaces());
+            validateStagesOnView(&lpp, resolvedView, requestedNss, resolvedNamespaces, options);
+        }
+
         userLPP = boost::none;
     } else {
         std::tie(resolvedPipeline, userLPP) = buildResolvedPipelineForRegularView(

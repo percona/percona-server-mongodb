@@ -210,6 +210,8 @@ class GenerateAndCheckPerfResultsFixture(unittest.TestCase):
         self.bm_threads_report = cbr._BenchmarkThreadsReport(_BM_CONTEXT)
 
         self.cbr_hook = cbr.GenerateAndCheckPerfResults(None, None)
+        self.cbr_hook.logger = mock.MagicMock()
+        self.cbr_hook.fixture = None
 
         self.cbr_hook.create_time = datetime.datetime.fromtimestamp(
             _START_TIME, tz=datetime.timezone.utc
@@ -237,6 +239,99 @@ class TestGenerateAndCheckPerfResults(GenerateAndCheckPerfResultsFixture):
         # self.assertRaises(Exception, self.cbr_hook._generate_cedar_report)
         with self.assertRaisesRegex(CedarReportError, _BM_REPORT_1["name"]):
             self.cbr_hook._generate_cedar_report(report)
+
+    @mock.patch("buildscripts.resmokelib.testing.hooks.generate_and_check_perf_results._config")
+    @mock.patch(
+        "buildscripts.resmokelib.testing.hooks.generate_and_check_perf_results.CheckPerfResultTestCase"
+    )
+    def test_check_pass_fail_uses_config_project_name(
+        self, MockCheckPerfResultTestCase, mock_config
+    ):
+        mock_config.EVERGREEN_PROJECT_NAME = "mongodb-mongo-v8.3-staging"
+        mock_config.EVERGREEN_REQUESTER = "github_pr"
+        mock_config.EVERGREEN_REVISION = "abc123"
+
+        self.cbr_hook.variant = "test-variant"
+        self.cbr_hook.performance_thresholds = {
+            "BM_Name1/arg1/arg with space": {
+                "test-variant": [
+                    {
+                        "thread_level": 1,
+                        "metrics": [
+                            {"name": "latency", "bound_direction": "upper", "threshold_limit": 500}
+                        ],
+                    }
+                ]
+            }
+        }
+
+        mock_hook_test_case = mock.MagicMock()
+        MockCheckPerfResultTestCase.create_after_test.return_value = mock_hook_test_case
+
+        benchmark_reports = self.cbr_hook._parse_report(_BM_FULL_REPORT)
+        cedar_formatted_results = self.cbr_hook._generate_cedar_report(benchmark_reports)
+
+        with mock.patch.object(
+            self.cbr_hook, "_retrieve_base_commit_value", return_value=50
+        ) as mock_retrieve:
+            self.cbr_hook._check_pass_fail(
+                benchmark_reports,
+                cedar_formatted_results,
+                mock.MagicMock(),
+                mock.MagicMock(),
+            )
+
+            mock_retrieve.assert_called_once_with(
+                url=cbr.GET_TIMESERIES_URL,
+                test_name="BM_Name1/arg1/arg with space",
+                task_name=cbr.SEP_BENCHMARKS_TASK_NAME,
+                variant="test-variant",
+                measurement="latency",
+                args={"thread_level": 1},
+                base_commit="abc123",
+                project="mongodb-mongo-v8.3-staging",
+            )
+
+    @mock.patch("buildscripts.resmokelib.testing.hooks.generate_and_check_perf_results._config")
+    @mock.patch(
+        "buildscripts.resmokelib.testing.hooks.generate_and_check_perf_results.CheckPerfResultTestCase"
+    )
+    def test_check_pass_fail_raises_when_project_name_is_none(
+        self, MockCheckPerfResultTestCase, mock_config
+    ):
+        mock_config.EVERGREEN_PROJECT_NAME = None
+        mock_config.EVERGREEN_REQUESTER = "github_pr"
+        mock_config.EVERGREEN_REVISION = "abc123"
+
+        self.cbr_hook.variant = "test-variant"
+        self.cbr_hook.performance_thresholds = {
+            "BM_Name1/arg1/arg with space": {
+                "test-variant": [
+                    {
+                        "thread_level": 1,
+                        "metrics": [
+                            {"name": "latency", "bound_direction": "upper", "threshold_limit": 500}
+                        ],
+                    }
+                ]
+            }
+        }
+
+        mock_hook_test_case = mock.MagicMock()
+        MockCheckPerfResultTestCase.create_after_test.return_value = mock_hook_test_case
+
+        benchmark_reports = self.cbr_hook._parse_report(_BM_FULL_REPORT)
+        cedar_formatted_results = self.cbr_hook._generate_cedar_report(benchmark_reports)
+
+        with self.assertRaisesRegex(
+            ServerFailure, "Unable to determine the Evergreen project name"
+        ):
+            self.cbr_hook._check_pass_fail(
+                benchmark_reports,
+                cedar_formatted_results,
+                mock.MagicMock(),
+                mock.MagicMock(),
+            )
 
 
 class TestBenchmarkThreadsReport(GenerateAndCheckPerfResultsFixture):
@@ -286,6 +381,29 @@ class TestBenchmarkThreadsReport(GenerateAndCheckPerfResultsFixture):
         self.assertEqual(name_obj.thread_count, "1")
         self.assertEqual(name_obj.statistic_type, "mean")
         self.assertEqual(name_obj.base_name, "BM_baseline_match_simple/0")
+
+    def test_iterations_from_name(self):
+        name_obj = self.bm_threads_report.parse_bm_name(
+            {"name": "BM_Name/iterations:10000/threads:10"}
+        )
+        self.assertEqual(name_obj.thread_count, "10")
+        self.assertEqual(name_obj.statistic_type, None)
+        self.assertEqual(name_obj.base_name, "BM_Name")
+
+        name_obj = self.bm_threads_report.parse_bm_name(
+            {
+                "name": "BM_Name/arg name:100/iterations:10000/threads:10_mean",
+                "aggregate_name": "mean",
+            }
+        )
+        self.assertEqual(name_obj.thread_count, "10")
+        self.assertEqual(name_obj.statistic_type, "mean")
+        self.assertEqual(name_obj.base_name, "BM_Name/arg name:100")
+
+        name_obj = self.bm_threads_report.parse_bm_name({"name": "BM_Name/iterations:10000"})
+        self.assertEqual(name_obj.thread_count, "1")
+        self.assertEqual(name_obj.statistic_type, None)
+        self.assertEqual(name_obj.base_name, "BM_Name")
 
     def test_generate_multithread_cedar_metrics(self):
         self.bm_threads_report.add_report(

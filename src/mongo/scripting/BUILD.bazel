@@ -45,6 +45,7 @@ mongo_cc_library(
         ":bson_template_evaluator",
         "//src/mongo/client:clientdriver_minimal",
         "//src/mongo/db:server_base",
+        "//src/mongo/scripting/mozjs/server:server_jsfiles",
         "//src/mongo/shell:mongojs",
         "//src/mongo/util:md5",
     ],
@@ -83,6 +84,7 @@ mongo_cc_library(
     }],
     deps = [
         ":scripting_common",
+        "//src/mongo/bson:bson_validate",
         "//src/mongo/util:buildinfo",
     ] + select({
         "//bazel/config:js_engine_none": [

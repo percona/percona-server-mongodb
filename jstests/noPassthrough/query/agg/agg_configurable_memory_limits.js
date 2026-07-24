@@ -1,4 +1,6 @@
 // Tests that certain aggregation operators have configurable memory limits.
+import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
+
 const conn = MongoRunner.runMongod();
 assert.neq(null, conn, "mongod was unable to start up");
 const db = conn.getDB("test");
@@ -145,6 +147,75 @@ assert.commandWorked(bulk.execute());
     // Now lower the limit to test that its configuration is obeyed.
     assert.commandWorked(db.adminCommand({setParameter: 1, internalQueryMaxRangeBytes: memLimitArray}));
     assert.throwsWithCode(() => coll.aggregate([{$project: {a: {$range: [0, 100]}}}]), ErrorCodes.ExceededMemoryLimit);
+})();
+
+(function testInternalQueryMaxExpressionOutputBytesSetting() {
+    const largeObject = {};
+    const largeArrayOfArrays = [];
+    for (let i = 0; i < 20; ++i) {
+        // Add "$_id" to prevent constant folding
+        const largeRange = {$range: [{$add: ["$_id", i * 10]}, {$add: ["$_id", (i + 1) * 10]}]};
+        largeArrayOfArrays.push(largeRange);
+        largeObject["field" + i] = largeRange;
+    }
+
+    const pipelines = [
+        [{$project: {a: {$expr: largeObject}}}],
+        [{$project: {a: largeArrayOfArrays}}],
+        [{$project: {a: {$concatArrays: largeArrayOfArrays}}}],
+        [{$project: {a: {$setUnion: largeArrayOfArrays}}}],
+        [{$project: {a: {$zip: {inputs: largeArrayOfArrays}}}}],
+    ];
+
+    if (FeatureFlagUtil.isPresentAndEnabled(db, "ConvertBinDataVectors")) {
+        pipelines.push([{$project: {a: {$convert: {input: HexData(9, "1000" + "ff".repeat(20)), to: "array"}}}}]);
+    }
+
+    for (const pipeline of pipelines) {
+        assert.doesNotThrow(() => coll.aggregate(pipeline), [], tojson(pipeline));
+    }
+
+    assert.commandWorked(db.adminCommand({setParameter: 1, internalQueryMaxExpressionOutputBytes: memLimitArray}));
+
+    for (const pipeline of pipelines) {
+        assert.throwsWithCode(() => coll.aggregate(pipeline), ErrorCodes.ExceededMemoryLimit, [], tojson(pipeline));
+    }
+})();
+
+(function testInternalQueryMaxMemoryIntensiveExpressions() {
+    // Pipeline covering all 9 tracked memory-intensive expressions:
+    //   $addFields stage: $range (1)
+    //   $project stage:   $range (2), $map (3), $reduce (4), $concatArrays (5),
+    //                     $setUnion (6), $zip (7), $array literal (8), $object literal (9)
+    // The $addFields stage creates an array field so downstream expressions can reference it
+    // via "$arr" instead of introducing extra tracked sub-expressions.
+    // $array is triggered by the [1, 2, 3] literal inside $arrayElemAt's argument list.
+    // $object is triggered by the {a: "$y"} literal passed as the $mergeObjects argument.
+    const pipeline = [
+        {$addFields: {arr: {$range: [0, 3]}}},
+        {
+            $project: {
+                ranged: {$range: [0, 5]},
+                mapped: {$map: {input: "$arr", as: "x", in: "$$x"}},
+                reduced: {
+                    $reduce: {input: "$arr", initialValue: 0, in: {$add: ["$$value", "$$this"]}},
+                },
+                concat: {$concatArrays: ["$arr", "$arr"]},
+                union: {$setUnion: ["$arr", "$arr"]},
+                zipped: {$zip: {inputs: ["$arr", "$arr"]}},
+                firstOfArr: {$arrayElemAt: [[1, 2, 3], 0]},
+                merged: {$mergeObjects: {a: "$y"}},
+            },
+        },
+    ];
+
+    // Verify the pipeline works at the default limit.
+    assert.doesNotThrow(() => coll.aggregate(pipeline));
+
+    // Set limit below expression count (9) to trigger the error at parse time.
+    const originalVal = setParam("internalQueryMaxMemoryIntensiveExpressions", 8);
+    assert.throwsWithCode(() => coll.aggregate(pipeline), 12876600);
+    setParam("internalQueryMaxMemoryIntensiveExpressions", originalVal);
 })();
 
 MongoRunner.stopMongod(conn);

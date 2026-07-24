@@ -57,6 +57,10 @@ public:
         return emptyPositionInfo;
     }
 
+    int getApproximateSize() const override {
+        return sizeof(*this) + _block.getApproximateSize();
+    }
+
 private:
     MonoBlock _block;
     std::vector<int32_t> emptyPositionInfo;

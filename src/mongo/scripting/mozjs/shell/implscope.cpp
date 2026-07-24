@@ -83,9 +83,15 @@
 #include "mongo/util/str.h"
 
 #include <algorithm>
+#include <fstream>
 #include <iostream>
 #include <memory>
-#include <mutex>
+
+#ifdef __linux__
+#include <unistd.h>
+
+#include <sys/syscall.h>
+#endif
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
@@ -93,10 +99,18 @@ namespace mongo {
 
 // Generated symbols for JS files
 namespace JSFiles {
+// Shell-specific modules.
 extern const JSFile stringdiff;
-extern const JSFile types;
 extern const JSFile assert;
 extern const JSFile assert_global;
+
+// Shared helper scripts used by both the server and shell execution environments.
+extern const JSFile types;
+
+// Server-specific, self-contained (non-module) copy of assert.js, used to initialize the JS scope
+// in the server execution environment without the filesystem-backed module loader. (types.js is a
+// classic script, so the server loads JSFiles::types directly.)
+extern const JSFile server_assert;
 }  // namespace JSFiles
 
 namespace mozjs {
@@ -145,6 +159,18 @@ bool gFirstRuntimeCreated = false;
 
 bool closeToMaxMemory() {
     return mongo::sm::get_total_bytes() > (kInterruptGCThreshold * mongo::sm::get_max_bytes());
+}
+
+char* buildStackStringForGdb(MozJSImplScope* scope) {
+    auto stackStr = scope->buildStackString();
+    // We intentionally leak memory here to allow the value to be returned to a debugger without
+    // being destroyed.
+    char* ret = new char[stackStr.size() + 1];
+
+    std::memcpy(ret, stackStr.c_str(), stackStr.size());
+    ret[stackStr.size()] = '\0';
+
+    return ret;
 }
 
 /**
@@ -510,7 +536,7 @@ MozJSImplScope::MozRuntime::MozRuntime(const MozJSScriptEngine* engine,
             // don't have a good way of getting information about the
             // guard page on those platforms.
             //
-            // TODO: What if we are running on a platform with very
+            // What if we are running on a platform with very
             // large pages, like 4MB?
             const auto available_stack_space = available.value();
 
@@ -560,7 +586,18 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine, boost::optional<int> j
       _status(Status::OK()),
       _generation(0),
       _requireOwnedObjects(false),
+      _baseURL{[](const MozJSImplScope& scope) {
+          tassert(12883201,
+                  "BaseURL is not supported in the current context.",
+                  scope.supportsModules());
+          return scope.getModuleLoader().getBaseURL();
+      }},
       _hasOutOfMemoryException(false),
+      _moduleLoader([&]() {
+          return engine->executionEnvironment() == ExecutionEnvironment::Server
+              ? nullptr
+              : std::make_unique<ModuleLoader>(_engine->executionEnvironment());
+      }()),
       _binDataProto(_context),
       _bsonProto(_context),
       _codeProto(_context),
@@ -597,28 +634,25 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine, boost::optional<int> j
 
         JSAutoRealm ac(_context, _global);
         _environmentPreparer = std::make_unique<EnvironmentPreparer>(_context);
-        _moduleLoader = std::make_unique<ModuleLoader>();
-        uassert(ErrorCodes::JSInterpreterFailure, "Failed to create ModuleLoader", _moduleLoader);
-        uassert(ErrorCodes::JSInterpreterFailure,
-                "Failed to initialize ModuleLoader",
-                _moduleLoader->init(_context, engine->getLoadPath()));
 
-        _baseURL = _moduleLoader->getBaseURL();
+        if (supportsModules()) {
+            uassert(
+                ErrorCodes::JSInterpreterFailure, "Failed to create ModuleLoader", _moduleLoader);
+            uassert(ErrorCodes::JSInterpreterFailure,
+                    "Failed to initialize ModuleLoader",
+                    getModuleLoader().init(_context, engine->getLoadPath()));
+        }
 
         _checkErrorState(JS::InitRealmStandardClasses(_context));
 
         installBSONTypes();
 
         JS_FireOnNewGlobalObject(_context, _global);
-
-        execSetup(JSFiles::stringdiff);
-        execSetup(JSFiles::assert);
-        execSetup(JSFiles::assert_global);
-        execSetup(JSFiles::types);
+        _setupScripts();
 
         if (_engine->executionEnvironment() == ExecutionEnvironment::Server) {
-            // For legacy support in server-side javascript execution, delete the ECMAScript defined
-            // `Map` type and replace it with our `BSONAwareMap` implementation.
+            // For legacy support in server-side javascript execution, delete the ECMAScript
+            // defined `Map` type and replace it with our `BSONAwareMap` implementation.
             ObjectWrapper(_context, _global).deleteProperty("Map");
             ObjectWrapper(_context, _global).renameAndDeleteProperty("BSONAwareMap", "Map");
         }
@@ -640,6 +674,25 @@ MozJSImplScope::MozJSImplScope(MozJSScriptEngine* engine, boost::optional<int> j
 
 #endif
     currentJSScope = this;
+
+#ifdef __linux__
+    if (std::getenv("OUTPUT_DEBUG_JSSCOPE_ADDRESSES")) {
+        std::string filename = "./jsscope_debug_" + std::to_string(getpid()) + ".yml";
+
+        std::ofstream debugFile(filename, std::ios::app);
+        if (debugFile.is_open()) {
+            debugFile << "---\n"
+                      << "pid: " << getpid() << "\n"
+                      << "lwp: " << syscall(SYS_gettid) << "\n"
+                      << "thread_id: \"" << std::this_thread::get_id() << "\"\n"
+                      << "current_js_scope: \"" << static_cast<void*>(currentJSScope.load())
+                      << "\"\n"
+                      << "build_stack_string_for_gdb: \""
+                      << reinterpret_cast<void*>(&buildStackStringForGdb) << "\"\n";
+            debugFile.close();
+        }
+    }
+#endif
 }
 
 MozJSShellRuntimeInterface* getShellRuntime(JSContext* cx) {
@@ -658,7 +711,7 @@ MozJSImplScope::~MozJSImplScope() {
 }
 
 std::string MozJSImplScope::getBaseURL() const {
-    return _baseURL;
+    return _baseURL.get(*this);
 }
 
 bool MozJSImplScope::hasOutOfMemoryException() {
@@ -1027,8 +1080,8 @@ int MozJSImplScope::invoke(ScriptingFunction func,
     });
 }
 
-bool shouldTryExecAsModule(JSContext* cx, const std::string& name, bool success) {
-    if (name == MozJSImplScope::kInteractiveShellName) {
+bool MozJSImplScope::_shouldTryExecAsModule(const std::string& name, bool success) const {
+    if (name == kInteractiveShellName) {
         return false;
     }
 
@@ -1036,21 +1089,25 @@ bool shouldTryExecAsModule(JSContext* cx, const std::string& name, bool success)
         return false;
     }
 
-    JS::RootedValue ex(cx);
-    if (!JS_GetPendingException(cx, &ex) || !ex.isObject()) {
+    if (!supportsModules()) {
         return false;
     }
 
-    JS::RootedObject obj(cx, ex.toObjectOrNull());
-    JSErrorReport* report = JS_ErrorFromException(cx, obj);
+    JS::RootedValue ex(_context);
+    if (!JS_GetPendingException(_context, &ex) || !ex.isObject()) {
+        return false;
+    }
+
+    JS::RootedObject obj(_context, ex.toObjectOrNull());
+    JSErrorReport* report = JS_ErrorFromException(_context, obj);
     if (!report) {
         return false;
     }
 
     const JSClass* referenceError = js::ProtoKeyToClass(JSProto_ReferenceError);
-    // During runtime, we can get a ReferenceError: await is not defined because there can be await
-    // not in global scope, which is not detected during compile.
-    if (JS_InstanceOf(cx, obj, referenceError, nullptr) &&
+    // During runtime, we can get a ReferenceError: await is not defined because there can be
+    // await not in global scope, which is not detected during compile.
+    if (JS_InstanceOf(_context, obj, referenceError, nullptr) &&
         strstr(report->message().c_str(), "await is not defined")) {
         return true;
     }
@@ -1059,7 +1116,7 @@ bool shouldTryExecAsModule(JSContext* cx, const std::string& name, bool success)
     // since these can be indistinguishable from syntax errors either caused by not loading
     // as a module, or generic syntax errors regardless of scripts/modules.
     const JSClass* syntaxError = js::ProtoKeyToClass(JSProto_SyntaxError);
-    return JS_InstanceOf(cx, obj, syntaxError, nullptr);
+    return JS_InstanceOf(_context, obj, syntaxError, nullptr);
 }
 
 bool MozJSImplScope::exec(StringData code,
@@ -1084,12 +1141,12 @@ bool MozJSImplScope::exec(StringData code,
         success = scriptPtr != nullptr;
 
         JSObject* modulePtr = nullptr;
-        if (shouldTryExecAsModule(_context, name, success)) {
-            // If we should run this as a module, we need to clear the previous exception in order
-            // to catch stack traces for future exceptions.
+        if (_shouldTryExecAsModule(name, success)) {
+            // If we should run this as a module, we need to clear the previous exception in
+            // order to catch stack traces for future exceptions.
             JS_ClearPendingException(_context);
 
-            modulePtr = _moduleLoader->loadRootModuleFromSource(_context, name, code);
+            modulePtr = getModuleLoader().loadRootModuleFromSource(_context, name, code);
             success = modulePtr != nullptr;
         }
 
@@ -1111,12 +1168,12 @@ bool MozJSImplScope::exec(StringData code,
                 JS::RootedScript script(_context, scriptPtr);
                 success = JS_ExecuteScript(_context, script, &out);
 
-                if (shouldTryExecAsModule(_context, name, success)) {
-                    // If we should run this as a module, we need to clear the previous exception
-                    // in order to catch stack traces for future exceptions.
+                if (_shouldTryExecAsModule(name, success)) {
+                    // If we should run this as a module, we need to clear the previous
+                    // exception in order to catch stack traces for future exceptions.
                     JS_ClearPendingException(_context);
 
-                    modulePtr = _moduleLoader->loadRootModuleFromSource(_context, name, code);
+                    modulePtr = getModuleLoader().loadRootModuleFromSource(_context, name, code);
                     success = modulePtr != nullptr;
                 }
             }
@@ -1288,24 +1345,24 @@ Status MozJSImplScope::_checkForPendingException() {
         return Status(ErrorCodes::UnknownError, ErrorMessage::kUnknownError);
     }
 
-    // It's possible that we have an uncaught exception for OOM, which is reported on the exception
-    // status of the JSContext. We must check for this OOM exception before clearing the pending
-    // exception. This function checks both the status on the JSContext as well as the message
-    // string of the exception being provided.
+    // It's possible that we have an uncaught exception for OOM, which is reported on the
+    // exception status of the JSContext. We must check for this OOM exception before clearing
+    // the pending exception. This function checks both the status on the JSContext as well as
+    // the message string of the exception being provided.
     const auto isThrowingOOM = JS_IsThrowingOutOfMemoryException(_context, excn);
     if (isThrowingOOM) {
         return Status(ErrorCodes::JSInterpreterFailure, ErrorMessage::kOutOfMemory);
     }
 
-    // The pending JS exception needs to be cleared before we call ValueWriter below to print the
-    // exception. ValueWriter::toString() may call back into the Interpret, which asserts that we
-    // don't have an exception pending in DEBUG builds.
+    // The pending JS exception needs to be cleared before we call ValueWriter below to print
+    // the exception. ValueWriter::toString() may call back into the Interpret, which asserts
+    // that we don't have an exception pending in DEBUG builds.
     JS_ClearPendingException(_context);
 
     str::stream ss;
     if (excn.isObject()) {
-        // Exceptions originating from C++ should not get the "uncaught exception: " prefix. These
-        // exceptions thrown from mongo are represented as MongoStatusInfo, so we exclude
+        // Exceptions originating from C++ should not get the "uncaught exception: " prefix.
+        // These exceptions thrown from mongo are represented as MongoStatusInfo, so we exclude
         // MongoStatusInfo from having the prefix.
         if (!getProto<MongoStatusInfo>().instanceOf(excn)) {
             ss << ErrorMessage::kUncaughtException << ": ";
@@ -1317,8 +1374,8 @@ Status MozJSImplScope::_checkForPendingException() {
         auto stackStr = errorObj.getString(InternedString::stack);
         if (stackStr.empty()) {
             // The JavaScript Error objects resulting from C++ exceptions may not always have a
-            // non-empty "stack" property. We instead use the line and column numbers of where in
-            // the JavaScript code the C++ function was called from.
+            // non-empty "stack" property. We instead use the line and column numbers of where
+            // in the JavaScript code the C++ function was called from.
             auto fnameStr = errorObj.getString(InternedString::fileName);
             auto lineNum = errorObj.getNumberInt(InternedString::lineNumber);
             auto colNum = errorObj.getNumberInt(InternedString::columnNumber);
@@ -1384,8 +1441,31 @@ std::string MozJSImplScope::buildStackString() {
     }
 }
 
-ModuleLoader* MozJSImplScope::getModuleLoader() const {
-    return _moduleLoader.get();
+ModuleLoader& MozJSImplScope::getModuleLoader() const {
+    tassert(12883200,
+            "ModuleLoader not supported in this context.",
+            supportsModules() && _moduleLoader.get());
+    return *_moduleLoader;
+}
+
+bool MozJSImplScope::supportsModules() const {
+    return _engine->executionEnvironment() != ExecutionEnvironment::Server;
+}
+
+void MozJSImplScope::_setupScripts() {
+    if (supportsModules()) {
+        execSetup(JSFiles::stringdiff);
+        execSetup(JSFiles::assert);
+        execSetup(JSFiles::assert_global);
+        execSetup(JSFiles::types);
+    } else {
+        // In the server execution environment the module loader is unavailable, so use the
+        // self-contained (non-module) copy of assert.js. types.js is a classic script and loads
+        // directly; assert_global.js is unnecessary because server_assert.js defines its globals
+        // directly.
+        execSetup(JSFiles::server_assert);
+        execSetup(JSFiles::types);
+    }
 }
 
 }  // namespace mozjs

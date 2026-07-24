@@ -21,18 +21,18 @@ extensions:
   mongot_extension:
     base_url: https://mongot-extension.s3.amazonaws.com/release/
     name: mongot-extension
-    version: 1.0.3
+    version: 1.0.7
     variants:
-      amazon2-x86_64: 42c7272ba2ddf53c9b17496cf6a788815598c4ab4929732e4c95afc2dd538c5b
-      amazon2-aarch64: 1098000b912bae71878d810cd67142df98de9f39e3c3a9cdcf5f20098ef15a29
-      amazon2023-x86_64: 2dd820f3ee2c88fe4293a7885b1a2317ae983beae69326811b8c02380dbae736
-      amazon2023-aarch64: 34296db3d49701fe058d51cacac9977b9806c0aa1b41d74737864b06ba5262f5
+      amazon2-x86_64: ef61b38beb8ba58a2e4f0c98403294f63c109ecc071af71f3d104fd5403249ea
+      amazon2-aarch64: 2f0bf87234861515e70ecc2cba6eb52b4e8a39ef43e18cd4a02a7cf71825aa01
+      amazon2023-x86_64: f5672efb22b5087cf3d210700cc208d753d40afae9457f187766902e4258ad0a
+      amazon2023-aarch64: 8276374b386bcea293249a4d29c7e6b25f7f86f3b4086fb3ecf05af4028c04ba
   rerank_extension:
     base_url: https://mongot-extension.s3.amazonaws.com/release/
     name: rerank-extension
-    version: 1.0.3
+    version: 1.0.7
     variants:
-      amazon2-x86_64: 7bb7a68fa0ff7dace6fa0553507dae12aa5d4450b887a987d02187fb8a444259
-      amazon2-aarch64: 281c357b5647028c11d5616710ab4a7bf7da7bfc6d53a32929699206ffecfc43
-      amazon2023-x86_64: f3af21a84cc4f65955a473090e166dff83f57797e081eaca9a402b316b22feb1
-      amazon2023-aarch64: 71c2775c66a80ad0647ec8d44643f389c77ee2ed95931fea1c7d97758bcd5de5
+      amazon2-x86_64: 51fb158207e562a8ab5667e5ca84790a113fb4ff8c4c9f904733254ff22dc6e0
+      amazon2-aarch64: 8b7ac912c91468a595c1077819f1917356b3e462a20ebf8236ad2a0cded59cd3
+      amazon2023-x86_64: 95f80ddc305f6485c2fa587002c646c00a42a52f65d658120a00592b3d67e9d8
+      amazon2023-aarch64: 22abb4831b7677000df3d52e6bfdbb2310cfa05400e3f1afe2314269ee5326b3

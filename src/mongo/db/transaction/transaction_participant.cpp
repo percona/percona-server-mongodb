@@ -35,6 +35,7 @@
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/util/builder.h"
+#include "mongo/db/client.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/curop.h"
@@ -901,6 +902,17 @@ bool TransactionParticipant::Participant::_shouldRestartTransactionOnReuseActive
             "txnNumber"_attr = o().activeTxnNumberAndRetryCounter.getTxnNumber());
         return true;
     } else if (o().txnState.isInSet(TransactionState::kAbortedWithoutPrepare)) {
+        // Only startTransaction (kStart) may restart an aborted transaction in place. A
+        // startOrContinueTransaction (sub-router) must not: it would silently drop the prior
+        // attempt's writes, and could resurrect a participant that coordinateCommitTransaction
+        // recovery already aborted. NoSuchTransaction carries TransientTransactionError, so the
+        // whole transaction retries at a new txnNumber.
+        uassert(ErrorCodes::NoSuchTransaction,
+                str::stream() << "Cannot restart transaction "
+                              << o().activeTxnNumberAndRetryCounter.getTxnNumber() << " on session "
+                              << _sessionId()
+                              << " because it was aborted and only startTransaction may restart it",
+                action == TransactionActions::kStart);
         LOGV2_DEBUG(
             11362501,
             3,
@@ -1079,6 +1091,18 @@ void TransactionParticipant::Participant::_beginMultiDocumentTransaction(
     OperationContext* opCtx,
     const TxnNumberAndRetryCounter& txnNumberAndRetryCounter,
     const boost::optional<TransactionRuntimeContext>& transactionRuntimeContext) {
+    auto limit = gMaxConcurrentMultiDocumentTransactions.load();
+    if (limit > 0 && !isProcessInternalClient(*opCtx->getClient())) {
+        auto currentOpen =
+            ServerTransactionsMetrics::get(opCtx->getServiceContext())->getCurrentOpen();
+        uassert(ErrorCodes::TooManyOpenTransactions,
+                str::stream() << "cannot start a new multi-document transaction; there are already "
+                              << currentOpen
+                              << " open transactions, which meets or exceeds the limit of "
+                              << limit,
+                currentOpen < static_cast<decltype(currentOpen)>(limit));
+    }
+
     // Aborts any in-progress txns.
     _setNewTxnNumberAndRetryCounter(opCtx, txnNumberAndRetryCounter);
     p().autoCommit = false;

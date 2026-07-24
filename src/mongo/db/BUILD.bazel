@@ -44,7 +44,6 @@ mongo_cc_library(
         ":startup_warnings_common",
         "//src/mongo/db/repl:repl_coordinator_interface",
         "//src/mongo/db/repl:repl_settings",
-        "//src/mongo/db/timeseries:timeseries_options",
         "//src/mongo/util:processinfo",
     ],
 )
@@ -1791,6 +1790,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/sbe/values:util.cpp",
         "//src/mongo/db/exec/sbe/values:value.cpp",
         "//src/mongo/db/exec/sbe/values:value_printer.cpp",
+        "//src/mongo/db/exec/sbe/values:value_size.cpp",
     ],
     deps = [
         "//src/mongo:base",
