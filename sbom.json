@@ -29,8 +29,7 @@
       "licenses": [
         {
           "license": {
-            "id": "SSPL-1.0",
-            "url": "https://www.mongodb.com/legal/licensing/community-edition"
+            "id": "SSPL-1.0"
           }
         }
       ],
