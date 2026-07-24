@@ -2023,11 +2023,13 @@
       "name": "mongodb/mongo",
       "version": "master",
       "description": "The MongoDB Database",
+      "scope": "required",
       "licenses": [
         {
           "expression": "SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License"
         }
       ],
+      "copyright": "MongoDB, Inc.",
       "cpe": "cpe:2.3:a:mongodb:mongodb:master:*:*:*:*:*:*:*",
       "purl": "pkg:github/mongodb/mongo@master",
       "externalReferences": [
@@ -2053,6 +2055,27 @@
         {
           "url": "https://github.com/mongodb/mongo",
           "type": "vcs"
+        }
+      ],
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "src/mongo"
+          }
+        ]
+      },
+      "properties": [
+        {
+          "name": "emits_persisted_data",
+          "value": "true"
+        },
+        {
+          "name": "internal:team_responsible",
+          "value": "MongoDB Team"
+        },
+        {
+          "name": "mdb_first_party",
+          "value": "true"
         }
       ]
     },
