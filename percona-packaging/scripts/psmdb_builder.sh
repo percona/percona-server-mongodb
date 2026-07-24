@@ -155,10 +155,14 @@ generate_release_sbom() {
     jq --indent 2 \
         --arg uuid "$uuid" \
         --arg timestamp "$timestamp" \
+        --arg version "$PSM_VER" \
         --arg release_version "$release_version" \
-        --arg purl_branch "pkg:github/percona/percona-server-mongodb@v$branch_version" \
-        --arg purl_release "pkg:github/percona/percona-server-mongodb@$release_version" \
-        --arg license_url "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/tags/psmdb-$release_version/LICENSE-Community.txt" \
+        --arg mdb_purl_branch "pkg:github/mongodb/mongo@v$branch_version" \
+        --arg mdb_purl_release "pkg:github/mongodb/mongo@$PSM_VER" \
+        --arg psmdb_purl_branch "pkg:github/percona/percona-server-mongodb@v$branch_version" \
+        --arg psmdb_purl_release "pkg:github/percona/percona-server-mongodb@$release_version" \
+        --arg mdb_license_url "https://raw.githubusercontent.com/mongodb/mongo/refs/tags/r$PSM_VER/LICENSE-Community.txt" \
+        --arg psmdb_license_url "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/tags/psmdb-$release_version/LICENSE-Community.txt" \
         --arg doc_url "https://docs.percona.com/percona-server-for-mongodb/$branch_version/index.html" \
         --arg rn_url "https://docs.percona.com/percona-server-for-mongodb/$release_version/release_notes/index.html" \
         --arg vcs_url "https://github.com/percona/percona-server-mongodb/tree/psmdb-$release_version" \
@@ -167,29 +171,48 @@ generate_release_sbom() {
             "lifecycles": [{"phase": "pre-build"}],
             "component": {
                 "type": "application",
-                "bom-ref": $purl_release,
+                "bom-ref": $psmdb_purl_release,
                 "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]},
                 "author": "Percona LLC",
                 "publisher": "Percona LLC",
                 "group": "percona",
                 "name": "percona-server-mongodb",
                 "version": $release_version,
+                "licenses": [{"license": {"id": "SSPL-1.0"}}],
                 "cpe": "cpe:2.3:a:percona:percona-server-mongodb:\($release_version):*:*:*:*:*:*:*",
-                "purl": $purl_release,
+                "purl": $psmdb_purl_release,
                 "externalReferences": [
-                    {"type": "license", "url": $license_url, "comment": "Server Side Public License 1.0"},
+                    {"type": "license", "url": $psmdb_license_url, "comment": "Server Side Public License 1.0"},
                     {"type": "website", "url": $doc_url, "comment": "documentation"},
                     {"type": "release-notes", "url": $rn_url},
                     {"type": "vcs", "url": $vcs_url}
                 ]
             },
             "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]}
-        } | if (.dependencies | any(.ref == $purl_branch)) then
-                (.dependencies[] | select(.ref == $purl_branch)).ref |= $purl_release
+        } | if (.components | any(.purl == $mdb_purl_branch)) then
+                (.components[] | select(.purl == $mdb_purl_branch) | .externalReferences[]
+                    | select(.type == "license")).url = $mdb_license_url
+                | (.components[] | select(.purl == $mdb_purl_branch)) += {
+                    "purl": $mdb_purl_release,
+                    "bom-ref": $mdb_purl_release,
+                    "version": $version,
+                    "cpe": "cpe:2.3:a:mongodb:mongodb:\($version):*:*:*:*:*:*:*"
+                }
             else
-                error("no dependency entry found matching \($purl_branch)")
+                error("no component entry found matching \($mdb_purl_branch)")
             end
-        | (.dependencies[].dependsOn[] | select(. == $purl_branch)) |= $purl_release' \
+        | if (.dependencies | any(.ref == $mdb_purl_branch)) then
+              (.dependencies[] | select(.ref == $mdb_purl_branch)).ref |= $mdb_purl_release
+          else
+              error("no dependency entry found matching \($mdb_purl_branch)")
+          end
+        | if (.dependencies | any(.ref == $psmdb_purl_branch)) then
+              (.dependencies[] | select(.ref == $psmdb_purl_branch)).ref |= $psmdb_purl_release
+          else
+              error("no dependency entry found matching \($psmdb_purl_branch)")
+          end
+        | (.dependencies[].dependsOn[] | select(. == $mdb_purl_branch)) |= $mdb_purl_release
+        | (.dependencies[].dependsOn[] | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
         "$src" > "$dst" || abort '`generate_release_sbom`: `jq` failed'
 }
 
