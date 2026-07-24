@@ -41,8 +41,11 @@ on:
 
 jobs:
   trigger-merge:
-    # 'privileged-ops' environment controls access to merge operations and AI tokens
-    environment: privileged-ops
+    # 'ai' environment carries the AI-agent secrets. Ungated:
+    # workflow_dispatch is inherently trusted (only write-access actors can
+    # dispatch), so no approval is required. Repo settings restrict this
+    # environment's deployment branches to master + mergai/**.
+    environment: ai
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
@@ -105,7 +108,7 @@ jobs:
       #      one of three values:
       #        * "ai"   -> the agent chooses the boundary within the gate's
       #                    candidate window (uses AI tokens, hence in this
-      #                    privileged-ops job); honors the gate.
+      #                    `ai` job); honors the gate.
       #        * "next" -> raw `merge-pick --next`: the first prioritized strategy
       #                    match, with NO gate and NO window cap.
       #        * "gate" -> gate-respecting deterministic pick (windowed). This is
@@ -177,7 +180,7 @@ jobs:
       # branch (main/conflict/solution/semantic) for $MERGE_PICK means another
       # trigger-merge run already started it. Abort rather than race it. This
       # also covers the window the periodic-merge workflow can't see (a run
-      # dispatched but still awaiting privileged-ops approval, with no PR yet).
+      # dispatched but not yet far enough to have created a branch, no PR yet).
       - name: Fail if a merge for this commit is already in progress
         if: steps.pick.outputs.pick != ''
         run: |
@@ -249,7 +252,9 @@ jobs:
           fi
 
   solution-merged:
-    environment: privileged-ops
+    # No deployment environment: this job needs no AI/RBE secrets (only the
+    # repo-level App token) and the trigger is inherently trusted -- a
+    # pull_request with merged==true means a write-access actor merged it.
     # Solution PRs (textual conflict resolution) merge into the conflict
     # branch. Semantic PRs merge into main and are handled by `semantic-merged`.
     if: >-
@@ -295,7 +300,9 @@ jobs:
           mergai pr --repo "$GITHUB_REPOSITORY" create main --skip-commit-list-on-failure
 
   semantic-merged:
-    environment: privileged-ops
+    # No deployment environment: needs no AI/RBE secrets (only the repo-level
+    # App token) and the trigger is inherently trusted (pull_request
+    # merged==true => merged by a write-access actor).
     # Semantic PRs merge into the main branch.
     # Once merged, run finalize and then force-push main.
     # The main PR (main -> target) already exists and updates itself,
@@ -380,23 +387,32 @@ jobs:
   # is green or fire once per workflow; gating on the aggregate state makes
   # the loop converge.
   #
-  # The state machine is split into two jobs so the privileged half only runs
-  # when there is privileged work to do:
+  # The state machine is split into two jobs so the secret-bearing half only
+  # runs when there is work to do:
   #   * ci-gate   - read-only. Computes the aggregate state with the default
   #                 GITHUB_TOKEN; needs no AI tokens, no GitHub App token, and
-  #                 no `privileged-ops` environment. Runs on every completion.
-  #   * ci-handle - privileged. Gated on ci-gate's state == failure, so
-  #                 in-progress/none/success completions never spin it up (and
-  #                 never trip the privileged-ops approval/secrets path).
-  #                 success is a no-op now that folding into the merge commit
-  #                 is finalize-only.
+  #                 no deployment environment. Runs on every completion.
+  #   * ci-handle - carries the AI-agent secrets via the `ai` environment.
+  #                 Gated on ci-gate's state == failure, so in-progress/none/
+  #                 success completions never spin it up (and never touch the
+  #                 AI-secret path). success is a no-op now that folding into
+  #                 the merge commit is finalize-only.
   ci-gate:
     # Only react to watched-workflow completions. The workflow also fires on
     # workflow_dispatch and pull_request (for other jobs); without this guard
     # ci-gate would run on those too, since the mergai/* branch filter on the
     # workflow_run trigger only constrains workflow_run events. The branch
     # filter itself stays on the trigger.
-    if: github.event_name == 'workflow_run'
+    #
+    # Same-repo guard: the `mergai/**` branch filter alone is not a trust
+    # boundary -- a fork PR can name its head branch `mergai/...`, and when its
+    # format/clang-tidy run (pull_request) completes it emits a workflow_run
+    # whose head_branch matches. Requiring head_repository == this repo ensures
+    # the watched run came from a same-repo (write-access) branch, so an external
+    # fork cannot reach ci-gate/ci-handle (the secret-bearing `ai` path).
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       actions: read # mergai ci status -> get_workflow_runs
@@ -450,7 +466,7 @@ jobs:
       # PR for the head branch to suppress the AI auto-fixer. We resolve the PR
       # from head_branch and read its labels live (the label is typically added
       # after the PR opens, so the workflow_run payload can't be trusted for it).
-      # When set, ci-handle is gated off below, so the privileged-ops job never
+      # When set, ci-handle is gated off below, so the `ai` job never
       # spins up. Removing the label lets the next watched-workflow completion
       # resume auto-fixing. Failures here fall through to skip_ci_fix=false so a
       # transient API error never silently disables fixing.
@@ -478,19 +494,24 @@ jobs:
     # (that is finalize-only, after a human merges the review PR), so it is a
     # no-op.
     # The `mergai-skip-ci-fix` label on the PR suppresses the auto-fixer
-    # entirely: with it set, even a failure is a no-op and this privileged-ops
-    # job never starts.
-    if: needs.ci-gate.outputs.state == 'failure' && needs.ci-gate.outputs.skip_ci_fix != 'true'
-    # Serialize approved handle jobs for the same branch. Each watched-workflow
-    # completion enqueues its own ci-handle, and each waits on the privileged-ops
-    # approval independently, so two can be approved close together and race on
-    # `git push` / `mergai notes push`. `cancel-in-progress: false` queues the
-    # later one instead of cancelling a fix mid-push; its handle-time re-check
-    # then sees the first one's pushed result and no-ops.
+    # entirely: with it set, even a failure is a no-op and this `ai` job never
+    # starts.
+    # The same-repo guard is repeated here (not just inherited via ci-gate) as
+    # defense in depth: it keeps the ungated `ai` environment unreachable by a
+    # fork-triggered workflow_run even if ci-gate's own guard regresses.
+    if: >-
+      needs.ci-gate.outputs.state == 'failure'
+      && needs.ci-gate.outputs.skip_ci_fix != 'true'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    # Serialize handle jobs for the same branch. Each watched-workflow
+    # completion enqueues its own ci-handle, so two can start close together and
+    # race on `git push` / `mergai notes push`. `cancel-in-progress: false`
+    # queues the later one instead of cancelling a fix mid-push; its handle-time
+    # re-check then sees the first one's pushed result and no-ops.
     concurrency:
       group: ci-handle-exec-${{ github.event.workflow_run.head_branch }}
       cancel-in-progress: false
-    environment: privileged-ops
+    environment: ai
     runs-on: ubuntu-latest
     env:
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
@@ -596,14 +617,15 @@ jobs:
           mergai context init
 
       # Re-evaluate the gate at handle time. ci-gate froze its verdict into
-      # needs.ci-gate.outputs.state *before* the privileged-ops approval; the
-      # branch can recover in between (e.g. a cancelled watched run is re-run
-      # and passes), so that verdict may be stale by the time this job actually
-      # runs. Recompute the live state with the same check ci-gate uses and
-      # route the steps below off it, so an approval granted late (or a
-      # superseded failure) becomes a clean no-op instead of a fix against a
-      # now-green branch. The job-level `if:` still gates the privileged-ops
-      # request on the original failure; this only suppresses acting on it.
+      # needs.ci-gate.outputs.state *before* this job runs; the branch can
+      # recover in between (e.g. a cancelled watched run is re-run and passes),
+      # so that verdict may be stale by the time this job actually runs (it can
+      # sit in the concurrency queue behind an earlier handle). Recompute the
+      # live state with the same check ci-gate uses and route the steps below
+      # off it, so a late run (or a superseded failure) becomes a clean no-op
+      # instead of a fix against a now-green branch. The job-level `if:` still
+      # gates this job on the original failure; this only suppresses acting on
+      # it.
       - name: Re-check gate
         id: recheck
         env:
@@ -741,7 +763,11 @@ jobs:
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request != null
         && contains(github.event.comment.body, '/mergai review fix'))
-    environment: privileged-ops
+    # 'ai-approve' = AI-agent secrets + required-reviewer approval. The comment/
+    # review trigger fires for any user, so this stays gated: an untrusted
+    # commenter cannot start the secret-bearing job without a maintainer's
+    # approval. The CLI process_external filter is the second layer.
+    environment: ai-approve
     runs-on: ubuntu-latest
     # Serialize per-PR branch-mutation runs so two near-simultaneous triggers
     # don't race on the head branch. The group key (mergai-pr-<number>) is
@@ -791,8 +817,8 @@ jobs:
           # CUTOFF pins the run to the comment set as it stood when it was
           # triggered: the review's submission time, or the comment's creation
           # time. `mergai review fix --since` ignores anything posted (or
-          # edited) after it, so a comment added while this run waits for the
-          # privileged-ops approval cannot be pulled into the set.
+          # edited) after it, so a comment added while this run waits for
+          # approval cannot be pulled into the set.
           if [ "${{ github.event_name }}" = "pull_request_review" ]; then
             PR_NUMBER='${{ github.event.pull_request.number }}'
             HEAD_REF='${{ github.event.pull_request.head.ref }}'
@@ -916,14 +942,14 @@ jobs:
   # tip restores it. The rebase preserves merge commits and mergai notes and
   # reuses previously recorded conflict solutions, then force-pushes the branch.
   # As with review-handle, who may actually run this is gated by the
-  # privileged-ops environment (a required reviewer approves the deployment);
+  # 'push-approve' environment (a required reviewer approves the deployment);
   # the command filter and the mergai-branch check below scope *what* it acts on.
   rebase-handle:
     if: >-
       github.event_name == 'issue_comment'
       && github.event.issue.pull_request != null
       && contains(github.event.comment.body, '/mergai rebase')
-    environment: privileged-ops
+    environment: push-approve
     runs-on: ubuntu-latest
     # Serialize per-PR branch-mutation runs. Uses the shared group key
     # (mergai-pr-<number>, see review-handle) so a `/mergai rebase` and a review

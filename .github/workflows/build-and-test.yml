@@ -5,7 +5,7 @@ name: build-and-test
 # break RBE. Because we still need to build the PR's source, the checkout step
 # below overrides the default base ref to the PR head SHA. That re-introduces
 # the "pwn-request" risk (running untrusted code with a secret), which is
-# mitigated by routing untrusted authors through the rbe-external environment
+# mitigated by routing untrusted authors through the rbe-approve environment
 # whose required reviewers must approve every push.
 on:
   pull_request_target:
@@ -87,7 +87,7 @@ env:
 
 # Jobs: gate, format_gate, build, unittests, dbtests, jstests (plus the
 # jstests_gate decider). `gate` is a no-op whose only purpose is to host the
-# protected `rbe-external` environment so a single maintainer approval authorizes
+# protected `rbe-approve` environment so a single maintainer approval authorizes
 # the entire workflow run. `format_gate` waits for the `format` workflow and
 # gates `build`; the test jobs inherit the format requirement transitively via
 # build. See those jobs. The test jobs depend on `gate` (transitively) and use
@@ -105,12 +105,15 @@ env:
 # trying to ship build artifacts between runners.
 #
 # One-time environment setup (GH repo settings UI):
-#   - `rbe-external`: required reviewers = dev-psmdb team. Carries
+#   - `rbe-approve`: required reviewers = dev-psmdb-approvers team. Carries
 #     PSMDB_RBE_GHA_AUDIENCE + PSMDB_RBE_OIDC_ISSUER secrets.
 #   - `rbe`: NO required reviewers. Same two secrets, same values.
-#     "Deployment branches and tags" restricted to `master` and
-#     `mergai/**` so a feature-branch workflow can't target `rbe`
-#     and bypass the gate.
+#     "Deployment branches and tags" = ALL branches. This workflow runs on
+#     pull_request_target and GitHub evaluates the environment branch rule
+#     against the PR HEAD ref, so restricting `rbe` to `master`/`mergai/**`
+#     would block ordinary same-repo PR builds (feature branches). Fork PRs
+#     are kept off `rbe` by the gate ternary below (they resolve to
+#     `rbe-approve` and require approval), not by a branch rule.
 #
 # One-time repo/org Variables (GH repo settings UI -> Variables):
 #   - PSMDB_RBE_ENABLED = 'true' to run the RBE pipeline (see the env block
@@ -121,24 +124,26 @@ env:
 #   - PSMDB_RBE_HOST: the RBE host (no scheme/port); used to build the
 #     credential-helper flag (see the env block above).
 #
-# First-version trust model: every run goes through `gate` and pays the
-# approval cost, internal and external alike. Planned next step (NOT YET
-# IMPLEMENTED — needs security review + CODEOWNERS on .github/** first):
-# make `gate.environment` conditional on author_association so internal
-# PRs skip the approval. The ternary below sketches that; do NOT enable
-# it without first (1) auditing how a malicious .github/actions/**
-# change could exfiltrate the OIDC credential in the unattended path,
-# and (2) wiring CODEOWNERS on .github/** to dev-psmdb so the code-
-# review half of the gate actually fires.
+# Trust model: same-repo PRs (head repo == base repo) route to the ungated
+# `rbe` environment; forks/external PRs route to `rbe-approve` and pay the
+# approval cost. A branch can only exist in this repo if someone with write
+# access pushed it, so same-repo is the trust signal -- mergai bot PRs
+# (mergai/** on this repo) and maintainers' own branches skip the approval,
+# forks do not. author_association is intentionally NOT used (spoofable in some
+# contexts); same-repo is the reliable signal.
 #
-#   environment: ${{ (github.event.pull_request.head.repo.full_name == github.repository || contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)) && 'rbe' || 'rbe-external' }}
+# SECURITY PREREQUISITES for the production repo (defense in depth; less
+# critical on a personal test fork): (1) audit how a malicious
+# .github/actions/** change could exfiltrate the OIDC credential on the now
+# unattended `rbe` path, and (2) wire CODEOWNERS on .github/** to dev-psmdb so
+# such an edit cannot be merged.
 jobs:
-  # No-op gatekeeper. The approval click on this job's `rbe-external`
-  # environment authorizes the entire workflow run's downstream RBE
-  # access, including the `unittests` job that doesn't run until ~30
-  # minutes later. The maintainer reviewing the PR is implicitly
-  # approving every job that transitively depends on `gate`. Runs on every
-  # trigger; once approved the rest of the pipeline proceeds.
+  # No-op gatekeeper. For fork/external PRs the approval click on this job's
+  # `rbe-approve` environment authorizes the entire workflow run's downstream
+  # RBE access, including the `unittests` job that doesn't run until ~30
+  # minutes later -- the maintainer reviewing the PR is implicitly approving
+  # every job that transitively depends on `gate`. Same-repo PRs resolve to the
+  # ungated `rbe` environment and proceed with no click. Runs on every trigger.
   gate:
     name: gate
     # Master switch for the entire RBE pipeline: `vars.PSMDB_RBE_ENABLED` must
@@ -148,7 +153,7 @@ jobs:
     # dark on a repo/fork that has not opted into remote Bazel.
     if: ${{ vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
-    environment: rbe-external
+    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'rbe' || 'rbe-approve' }}
     steps:
       # Fail fast on RBE misconfiguration. This job runs only when
       # PSMDB_RBE_ENABLED == 'true', and in that case every RBE endpoint variable
@@ -282,12 +287,12 @@ jobs:
     # after retesting those assumptions.
     runs-on: ubuntu-24.04
     # Unattended environment (no required reviewers). Carries the same
-    # secrets as `rbe-external` so the credential helper resolves the
+    # secrets as `rbe-approve` so the credential helper resolves the
     # same OIDC audience/issuer values without a fresh approval prompt.
     # The `gate` job above is what authorizes us to be in `rbe` here.
     environment: rbe
     # Job-level env (not workflow-level) so environment-scoped secrets on
-    # `rbe` / `rbe-external` resolve correctly — workflow-level env can
+    # `rbe` / `rbe-approve` resolve correctly — workflow-level env can
     # only read repo/org secrets, never environment ones.
     env:
       PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
@@ -394,10 +399,11 @@ jobs:
     # phase, so the two barely contend for RBE workers; on a real code change
     # they may compete, which the bb-psmdb farm (300-way jobs) absorbs.
     needs: [gate, build]
-    # Gated on build success: build runs only after the gate approval AND format
-    # passing, so build.result == 'success' implies rbe-external was approved,
-    # the PR was not a draft, and format passed. !cancelled() keeps the explicit
-    # result check authoritative rather than the bare-needs short-circuit.
+    # Gated on build success: build runs only after the gate passed AND format
+    # passing, so build.result == 'success' implies the gate passed (fork:
+    # rbe-approve was approved; same-repo: ungated rbe), the PR was not a draft,
+    # and format passed. !cancelled() keeps the explicit result check
+    # authoritative rather than the bare-needs short-circuit.
     if: >-
       ${{ !cancelled()
       && vars.PSMDB_RBE_ENABLED == 'true'
@@ -407,7 +413,8 @@ jobs:
     runs-on: ubuntu-24.04
     # Same unattended `rbe` environment as `build` — see `build.environment`
     # above. `needs: build` transitively pulls in `needs: gate`, so this job
-    # only runs after the maintainer approved `rbe-external` on the gate.
+    # only runs after the gate passed (fork: rbe-approve approved by a
+    # maintainer; same-repo: ungated rbe).
     environment: rbe
     # See `build.env` above for why this is at job level, not workflow level.
     env:
@@ -538,8 +545,8 @@ jobs:
   # its own needs, so the pipeline is build -> {dbtests, unittests} -> jstests.
   # Each job gates on BUILD success, not on a sibling test job, so a failure in
   # one does not block the others: both test jobs run whenever build passed.
-  # `needs.gate.result == 'success'` preserves the rbe-external approval gate
-  # (it carries the same secrets via the `rbe` environment).
+  # `needs.gate.result == 'success'` preserves the gate (fork: rbe-approve
+  # approval; same-repo: ungated rbe — same secrets via the `rbe` environment).
   dbtests:
     name: dbtests
     needs: [gate, build]
@@ -748,8 +755,9 @@ jobs:
   #
   # The `if` uses !cancelled() + explicit result checks (not a bare `needs`) so
   # jstests still runs after a unittest failure. `needs.gate.result ==
-  # 'success'` keeps the security gate (jstests only runs after the rbe-external
-  # approval), and `needs.build.result == 'success'` means a failed build
+  # 'success'` keeps the security gate (jstests only runs after the gate passed:
+  # fork rbe-approve approval, or same-repo ungated rbe), and
+  # `needs.build.result == 'success'` means a failed build
   # (-> all test jobs skipped) still blocks jstests rather than slipping through
   # on a 'skipped' result, while a unittest failure (build still 'success')
   # does not.

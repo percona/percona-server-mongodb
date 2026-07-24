@@ -33,9 +33,12 @@ jobs:
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '/fast-forward')
     runs-on: ubuntu-latest
-    # Uses 'privileged-ops' environment for additional security controls
-    # on merge operations and AI token access
-    environment: privileged-ops
+    # 'push-approve' environment: required-reviewer approval before this job can
+    # push to a protected ref (fast-forward advances master). The /fast-forward
+    # comment can come from anyone, so the approval gate is the trust boundary
+    # (the in-job permission check below is the second layer). Carries no
+    # secrets beyond the repo-level App token.
+    environment: push-approve
 
     steps:
       # --- Authentication ---
