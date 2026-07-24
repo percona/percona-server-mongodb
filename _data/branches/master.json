@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 82,
+    "commits_behind": 84,
     "days_behind": 1,
-    "unmerged_oldest_age_days": 1.4328341703819445,
-    "files_affected": 462,
-    "total_additions": 12940,
-    "total_deletions": 2339,
+    "unmerged_oldest_age_days": 1.7363761423148147,
+    "files_affected": 475,
+    "total_additions": 13560,
+    "total_deletions": 2420,
     "date_range": {
       "first": "2026-07-22T13:10:47+00:00",
-      "last": "2026-07-23T21:30:43+00:00"
+      "last": "2026-07-23T23:20:27+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "0dabaf771f0b8586f09bd7c4dfb5b4e90c4fbe04",
+      "short_sha": "0dabaf771f0",
+      "date": "2026-07-24T01:20:27+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-132088 Use chunked memory trackers in SBE group stages (#59291)"
+    },
+    {
+      "sha": "48f1370f5469951df72a20d09b0950da0a9d1ae6",
+      "short_sha": "48f1370f546",
+      "date": "2026-07-24T08:56:37+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: b2038ab9cb782caffcda8d2f122ba685302eaa8c from branch mongodb-master (#59426)"
+    },
     {
       "sha": "3c5b001b9d817a402e46629f34e6c98dc47809c6",
       "short_sha": "3c5b001b9d8",
@@ -883,6 +903,28 @@
     },
     {
       "commit": {
+        "sha": "d1782b62fb2492569fc843eb06146193e7aa5d22",
+        "short_sha": "d1782b62fb2",
+        "date": "2026-07-23T08:53:09+00:00",
+        "author": {
+          "name": "mongo-pr-bot[bot]",
+          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "SERVER-110427 Update profiling data (#59400)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-d1782b62fb2/conflict",
+          "mergai/master-d1782b62fb2/main",
+          "mergai/master-d1782b62fb2/solution",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "0e8d697ef731ac6dbf6c6b183ada090c1aaeb440",
         "short_sha": "0e8d697ef73",
         "date": "2026-07-23T15:55:43+02:00",
@@ -906,7 +948,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-23 23:34:00",
+  "generated_at": "2026-07-24 06:51:06",
   "branch_name": "master",
   "display_name": "master"
 }
