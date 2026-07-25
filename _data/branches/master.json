@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 72,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.3782409169328702,
-    "files_affected": 455,
-    "total_additions": 14248,
-    "total_deletions": 4504,
+    "commits_behind": 91,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 2.3254489387731483,
+    "files_affected": 669,
+    "total_additions": 22122,
+    "total_deletions": 12352,
     "date_range": {
       "first": "2026-07-23T09:17:34+00:00",
-      "last": "2026-07-24T17:08:16+00:00"
+      "last": "2026-07-25T05:06:08+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,196 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "3a871fc6471335817b6ac1b913a47a504b3743b0",
+      "short_sha": "3a871fc6471",
+      "date": "2026-07-25T05:06:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-126247 Reject internal $search/$searchMeta routing fields from external clients (#54303)\" (#59623)"
+    },
+    {
+      "sha": "2bcd3e421ea8d4ace2f10a2cd08dee1ef556dfa1",
+      "short_sha": "2bcd3e421ea",
+      "date": "2026-07-25T01:38:08+03:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-127661 Validate startOrContinueTransaction requires autocommit (#54576)"
+    },
+    {
+      "sha": "62e660f18bc9065dcc0b06f5a29b469c8b95404d",
+      "short_sha": "62e660f18bc",
+      "date": "2026-07-24T15:31:03-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-130833 Only sample command names on ingress, not egress (#59379)"
+    },
+    {
+      "sha": "65ea998795b6e67f9d82b97301b0793bd8d611cf",
+      "short_sha": "65ea998795b",
+      "date": "2026-07-24T17:13:31-04:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-132046 Change the update hash to include both the h(pre-image) XOR h(post-image) (#59441)"
+    },
+    {
+      "sha": "4b251a03626aee7f9513953c67b7e21e9fb4e300",
+      "short_sha": "4b251a03626",
+      "date": "2026-07-24T15:33:34-05:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-126500 Replace poetry and rules_poetry with uv and rules_pycross (#58638)"
+    },
+    {
+      "sha": "a062602367729dab4940cba22c7920f55cbaedf2",
+      "short_sha": "a0626023677",
+      "date": "2026-07-24T16:29:47-04:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-132226: Retry docsExamined assertions in query_stats_delete_cmd_metrics.js to avoid write-conflict flakiness in sharded cases (#59573)"
+    },
+    {
+      "sha": "b0ac37bcdc7f384ce266751d702ea70738511f49",
+      "short_sha": "b0ac37bcdc7",
+      "date": "2026-07-24T16:08:04-04:00",
+      "author": {
+        "name": "H Gu",
+        "email": "haiyin.gu@mongodb.com"
+      },
+      "summary": "SERVER-130909 Precharge write-throttler cost and true-up to storage key writes (#58325)"
+    },
+    {
+      "sha": "94a8a175bbc037d21ccb773bfedaa643d397a110",
+      "short_sha": "94a8a175bbc",
+      "date": "2026-07-24T16:07:50-04:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-132220: retry inline mapReduce on resharding-induced QueryPlanKilled (#59567)"
+    },
+    {
+      "sha": "6c22be8f2bf5109ee9d895a7bc023bfbf00b9ebb",
+      "short_sha": "6c22be8f2bf",
+      "date": "2026-07-24T15:43:06-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-132191 Remove `primary_driven::enabled` overload without FCV (#59559)"
+    },
+    {
+      "sha": "12aa659f1e78afb39a7fe7c30509996a15a90e84",
+      "short_sha": "12aa659f1e7",
+      "date": "2026-07-24T15:42:56-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128533: Verify document hash (h) for deletes on non-primaries (#59554)"
+    },
+    {
+      "sha": "1b4fbe03b9d417204f69e56d0237102756ee92e2",
+      "short_sha": "1b4fbe03b9d",
+      "date": "2026-07-24T15:15:51-04:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-132166 Bump jepsen tag to v0.7.0-jepsen-mongodb-master (#59525)"
+    },
+    {
+      "sha": "baf9b420aa7ab5b2d126c59a1748c7c6857fbf23",
+      "short_sha": "baf9b420aa7",
+      "date": "2026-07-24T15:13:09-04:00",
+      "author": {
+        "name": "Ayesha Islam",
+        "email": "ayeshhaislamm@gmail.com"
+      },
+      "summary": "SERVER-130755 Add failure messages to CannotBuildIndexKeys validation (#58982)"
+    },
+    {
+      "sha": "7f36f458c1e286812f2df8f2f1181a285966bb02",
+      "short_sha": "7f36f458c1e",
+      "date": "2026-07-24T14:54:30-04:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-131588 Initialize all fields of PlanEnumeratorParams (#59503)"
+    },
+    {
+      "sha": "be85ee71199c52ef673991ab6ed2339bb9e5bc60",
+      "short_sha": "be85ee71199",
+      "date": "2026-07-24T14:33:22-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128516: Verify document hash (h) for inserts on non-primaries (#59322)"
+    },
+    {
+      "sha": "ebec0b1576dd431520e558e285c7e82f4011ef2e",
+      "short_sha": "ebec0b1576d",
+      "date": "2026-07-24T14:21:42-04:00",
+      "author": {
+        "name": "Lee Maguire",
+        "email": "lee.maguire@mongodb.com"
+      },
+      "summary": "SERVER-131898: Disable server-side JS engine on PPC variants (#59161)"
+    },
+    {
+      "sha": "839a10047d536d5f1cdc4fbaf482a2d44dff7795",
+      "short_sha": "839a10047d5",
+      "date": "2026-07-24T11:14:11-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-131950: Disallow creating the system.profile collection when local collections are unsupported (#58999)"
+    },
+    {
+      "sha": "9bce1a5732d6ba4b6ce4ff292b78e3453e602468",
+      "short_sha": "9bce1a5732d",
+      "date": "2026-07-24T13:27:29-04:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-126247 Reject internal $search/$searchMeta routing fields from external clients (#54303)"
+    },
+    {
+      "sha": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e",
+      "short_sha": "b22243acf40",
+      "date": "2026-07-24T18:11:13+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-131971: Scope hangDuringBatchInsert to the test collection in config_txns_reaping_interrupt.js (#59287)"
+    },
+    {
+      "sha": "5b581c3e2439696c9041b4aed880b2786f4cbc7b",
+      "short_sha": "5b581c3e243",
+      "date": "2026-07-24T18:09:48+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-132080: Lower resharding verification change streams batch time limit in balancer jscore passthroughs (#59331)"
+    },
     {
       "sha": "be7cd8cff244908061707fd61705de84a33e96fb",
       "short_sha": "be7cd8cff24",
@@ -849,10 +1039,56 @@
           "num_of_dirs": 15
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "ebec0b1576dd431520e558e285c7e82f4011ef2e",
+        "short_sha": "ebec0b1576d",
+        "date": "2026-07-24T14:21:42-04:00",
+        "author": {
+          "name": "Lee Maguire",
+          "email": "lee.maguire@mongodb.com"
+        },
+        "summary": "SERVER-131898: Disable server-side JS engine on PPC variants (#59161)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 40,
+          "num_of_lines": 196,
+          "lines_added": 189,
+          "lines_deleted": 7,
+          "num_of_dirs": 30
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "4b251a03626aee7f9513953c67b7e21e9fb4e300",
+        "short_sha": "4b251a03626",
+        "date": "2026-07-24T15:33:34-05:00",
+        "author": {
+          "name": "Zac Codiamat",
+          "email": "zac.codiamat@mongodb.com"
+        },
+        "summary": "SERVER-126500 Replace poetry and rules_poetry with uv and rules_pycross (#58638)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 133,
+          "num_of_lines": 13648,
+          "lines_added": 6126,
+          "lines_deleted": 7522,
+          "num_of_dirs": 78
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-24 18:22:10",
+  "generated_at": "2026-07-25 17:06:09",
   "branch_name": "master",
   "display_name": "master"
 }
