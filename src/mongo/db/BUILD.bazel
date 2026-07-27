@@ -380,6 +380,17 @@ idl_generator(
     ],
 )
 
+mongo_cc_library(
+    name = "landlock",
+    srcs = ["landlock.cpp"],
+    deps = [
+        ":server_base",
+        "//src/mongo:base",
+        "//src/mongo/db/commands/server_status:server_status_core",
+        "//src/mongo/util/options_parser",
+    ],
+)
+
 idl_generator(
     name = "mongod_options_encryption_gen",
     src = "mongod_options_encryption.idl",
@@ -669,6 +680,7 @@ mongo_cc_library(
         "//src/mongo/db/topology/user_write_block:replica_set_write_block_state.cpp",
     ],
     deps = [
+        ":commands",
         ":server_base",
         ":server_feature_flags",
         ":sharding_statistics",
@@ -1011,6 +1023,7 @@ mongo_cc_library(
         "//src/mongo/db/query:plan_yield_policy_impl.cpp",
         "//src/mongo/db/query:sbe_trial_runtime_executor.cpp",
         "//src/mongo/db/query/compiler/ce/exact:exact_cardinality_impl.cpp",
+        "//src/mongo/db/query/compiler/ce/sampling:persistent_sample_loader.cpp",
         "//src/mongo/db/query/compiler/ce/sampling:sampling_estimator_impl.cpp",
         "//src/mongo/db/query/compiler/optimizer/join:agg_join_model.cpp",
         "//src/mongo/db/query/compiler/optimizer/join:executor.cpp",
@@ -2658,6 +2671,7 @@ mongo_cc_library(
     deps = [
         # NOTE: If you need to add a static or mongo initializer to mongod startup,
         # please add that library here, as a private library dependency.
+        ":landlock",
         "//src/mongo/executor:async_rpc_error_info",
         "//src/mongo/executor:network_interface_factory",
         "//src/mongo/logv2/log_metric_initializer",
@@ -3308,7 +3322,6 @@ mongo_cc_unit_test(
         "startup_warnings_mongod_thp_test.cpp",
         "//src/mongo/db:namespace_string_test.cpp",
         "//src/mongo/db/sharding_environment:shard_id_test.cpp",
-        "//src/mongo/db/sharding_environment:shard_ref_test.cpp",
     ],
     tags = ["mongo_unittest_fifth_group"],
     target_compatible_with = select({

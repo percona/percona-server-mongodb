@@ -644,8 +644,14 @@ public:
         // and start recovering the resharding operation.
         pauseBeforeCTHolderInitialization->setMode(FailPoint::off, 0);
 
-        makeRecipientsProceedToDone(opCtx);
-        makeDonorsProceedToDone(opCtx);
+        // With featureFlagReshardingInitNoRefresh enabled, the abort path skips the
+        // observer wait and races kAborting -> kDone, so polling for kAborting and
+        // advancing participants would either spin or fail.
+        if (!resharding::gFeatureFlagReshardingInitNoRefresh.isEnabledAndIgnoreFCVUnsafe()) {
+            waitUntilCommittedCoordinatorDocReach(opCtx, CoordinatorStateEnum::kAborting);
+            makeRecipientsProceedToDone(opCtx);
+            makeDonorsProceedToDone(opCtx);
+        }
 
         // Wait for completion and verify the original abort reason is still used.
         ASSERT_EQ(coordinator->getCompletionFuture().getNoThrow(), abortReason0);
@@ -1372,6 +1378,30 @@ TEST_F(ReshardingCoordinatorServiceTest, AbortingReshardingOperationIncrementsMe
 
     ASSERT_EQ(cumulativeMetricsBSON["resharding"]["countStarted"].numberInt(), 1);
     ASSERT_EQ(cumulativeMetricsBSON["resharding"]["countCanceled"].numberInt(), 1);
+}
+
+TEST_F(ReshardingCoordinatorServiceTest, AbortTeardownRetriesResumeMigrationsBeforeRemovingDoc) {
+    externalState()->pushResumeMigrationsError(ErrorCodes::InternalError);
+
+    auto pauseAfterInsertCoordinatorDoc =
+        globalFailPointRegistry().find("pauseAfterInsertCoordinatorDoc");
+    auto timesEnteredFailPoint = pauseAfterInsertCoordinatorDoc->setMode(FailPoint::alwaysOn, 0);
+    auto coordinator = initializeAndGetCoordinator();
+
+    pauseAfterInsertCoordinatorDoc->waitForTimesEntered(timesEnteredFailPoint + 1);
+    coordinator->abort({resharding::kUserAbortReason, resharding::AbortType::kAbortSkipQuiesce});
+    pauseAfterInsertCoordinatorDoc->setMode(FailPoint::off, 0);
+
+    coordinator->getCompletionFuture().wait();
+    checkCoordinatorDocumentRemoved(operationContext());
+}
+
+TEST_F(ReshardingCoordinatorServiceTest, CommitTeardownRetriesResumeMigrationsBeforeRemovingDoc) {
+    externalState()->pushResumeMigrationsError(ErrorCodes::InternalError);
+    externalState()->pushResumeMigrationsError(ErrorCodes::HostUnreachable);
+
+    runReshardingToCompletion();
+    checkCoordinatorDocumentRemoved(operationContext());
 }
 
 TEST_F(ReshardingCoordinatorServiceTest, CoordinatorReturnsErrorCode) {
