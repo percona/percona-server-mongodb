@@ -1255,7 +1255,6 @@ void CurOp::reportState(BSONObjBuilder* builder,
     }
 }
 
-<<<<<<< HEAD
 bool CurOp::_shouldDBProfileWithRateLimit(long long slowMS) {
     auto rateLimit = serverGlobalParams.rateLimit.load();
     if (rateLimit > 1) {
@@ -1280,8 +1279,6 @@ bool CurOp::_shouldDBProfileWithRateLimit(long long slowMS) {
     return true;
 }
 
-||||||| d1782b6
-=======
 void CurOp::reportDebugInfo(BSONObjBuilder* builder) {
     builder->append("ns",
                     NamespaceStringUtil::serialize(_nss, SerializationContext::stateDefault()));
@@ -1327,7 +1324,6 @@ void CurOp::reportDebugInfo(BSONObjBuilder* builder) {
     }
 }
 
->>>>>>> 512d585a81f4b41e5b228b7c8c685f97fb612dd6
 CurOp::AdditiveResourceStats CurOp::getAdditiveResourceStats(
     const boost::optional<ExecutionAdmissionContext>& admCtx) {
     CurOp::AdditiveResourceStats stats;
