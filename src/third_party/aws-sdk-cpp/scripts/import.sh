@@ -130,6 +130,19 @@ find . -type d \
         -name "docs" -o -name "CMakeFiles" -o -name ".github" -o -name "clang-tidy" -o \
         -name "codebuild" -o -name ".builder"  -o -name "toolchains" \) \
     -exec rm -rf {} \; || true
+# PSMDB-2200: drop the aws-crt-cpp submodule's bundled copy of s2n-tls
+# (both the source under crt/s2n and the CMake-installed public headers
+# under include/s2n). It duplicates //src/third_party/s2n:s2n-tls (both
+# are non-namespaced C libraries), which breaks statically linked builds
+# with duplicate symbol errors. aws-c-io must depend on
+# //src/third_party/s2n:s2n-tls instead of building its own copy from
+# this path. Note: this must NOT match aws-c-io/source/s2n, which holds
+# aws-c-io's own (still-needed) s2n integration code.
+for s2n_pattern in "*/crt/s2n" "*/include/s2n"; do
+    s2n_dir=$(find . -type d -path "${s2n_pattern}" -print -quit)
+    [ -n "${s2n_dir}" ] || abort "expected the AWS CRT's bundled s2n-tls copy at '${s2n_pattern}'; the aws-sdk-cpp layout changed — re-check for s2n duplicates before importing"
+    rm -rf "${s2n_dir}"
+done
 # sub folders in source folders that are not needed
 find . -type d \
     \(  -name "darwin" -o -name "windows" -o -name "android" -o -name "msvc" -o -name "msvc" -o \
