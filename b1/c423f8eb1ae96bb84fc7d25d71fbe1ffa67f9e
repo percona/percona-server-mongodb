@@ -1,0 +1,293 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "f63e1bddbc14d3c708c8c1960e729f9e06cd3321",
+    "merge_commit": "512d585a81f4b41e5b228b7c8c685f97fb612dd6"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "conflict_context": {
+    "ours_commit": "f63e1bddbc14d3c708c8c1960e729f9e06cd3321",
+    "theirs_commit": "512d585a81f4b41e5b228b7c8c685f97fb612dd6",
+    "base_commit": "d1782b62fb2492569fc843eb06146193e7aa5d22",
+    "files": [
+      "src/mongo/db/curop.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/curop.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/curop.cpp": "diff --cc src/mongo/db/curop.cpp\nindex 194435c9681,ba2e25988e2..00000000000\n--- a/src/mongo/db/curop.cpp\n+++ b/src/mongo/db/curop.cpp\n@@@ -1257,24 -1254,45 +1258,73 @@@ void CurOp::reportState(BSONObjBuilder\n++<<<<<<< HEAD\n +bool CurOp::_shouldDBProfileWithRateLimit(long long slowMS) {\n +    auto rateLimit = serverGlobalParams.rateLimit.load();\n +    if (rateLimit > 1) {\n +        // Slow operations are always profiled\n +        if (elapsedTimeExcludingPauses() >= Milliseconds{slowMS}) {\n +            return true;\n +        }\n +        // Fast operations are sampled by rate limit\n +        if (_rateLimitSample == boost::none) {\n +            constexpr int64_t RATE_LIMIT_MULTIPLIER = 1LL << 52;\n +            static_assert(RATE_LIMIT_MAX * RATE_LIMIT_MULTIPLIER <=\n +                              std::numeric_limits<int64_t>::max(),\n +                          \"product of RATE_LIMIT_MAX and RATE_LIMIT_MULTIPLIER should not exceed \"\n +                          \"int64_t range\");\n +            const auto client = opCtx()->getClient();\n +            _rateLimitSample.emplace(client->getPrng().nextInt64(RATE_LIMIT_MULTIPLIER) *\n +                                         rateLimit <\n +                                     RATE_LIMIT_MULTIPLIER);\n +        }\n +        return *_rateLimitSample;\n +    }\n +    return true;\n +}\n +\n++||||||| d1782b6\n++=======\n+ void CurOp::reportDebugInfo(BSONObjBuilder* builder) {\n+     builder->append(\"ns\",\n+                     NamespaceStringUtil::serialize(_nss, SerializationContext::stateDefault()));\n+ (... 38 more added lines...)\n+         builder->append(\"storage\", _debug.storageStats->toBSON());\n+     }\n+ }\n+ \n++>>>>>>> 512d585a81f4b41e5b228b7c8c685f97fb612dd6"
+    },
+    "their_commits": {
+      "src/mongo/db/curop.cpp": [
+        "ba187fdea4e12c6f25574b5f15472fff3b04c22e"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "512d585a81f4b41e5b228b7c8c685f97fb612dd6",
+    "merged_commits": [
+      "512d585a81f4b41e5b228b7c8c685f97fb612dd6",
+      "9e950f5fd65744f774ddf0269fd3951ce1fa2561",
+      "59c95e4da869d98a7770fd7fa7fa7a4d69adcfa2",
+      "56ac53f13146ea7f73323a467f3dd3d9fa640db5",
+      "bf972a1b2780fc1ae78580f29d9e0f7930aa5635",
+      "0dabaf771f0b8586f09bd7c4dfb5b4e90c4fbe04",
+      "48f1370f5469951df72a20d09b0950da0a9d1ae6",
+      "3c5b001b9d817a402e46629f34e6c98dc47809c6",
+      "beb64c487297268ed7924874f7613650982f1254",
+      "ba187fdea4e12c6f25574b5f15472fff3b04c22e",
+      "fe83eb086255be959f796a3dfc85aed79ad02260",
+      "7c4be4e01596a77761792287c79e1d3c97a79ebe",
+      "4a62c1afe8be37078fb8355862fd0a04a71c08e8",
+      "fd098e781802be302fa7bb662229ce1f78ac9cff",
+      "a0191794809ce9a13d7f3016d7b542c0b6aa6b2a",
+      "86d156c612fde2a09f8086c77f61a76aa8892a12",
+      "500140201c4bea3e66b705c0e63841ff3674e513",
+      "d8e7623100f655e8ab432e16568688fc3ae48806",
+      "22e0bc561767a159cd09973f8fbe8eae65613337",
+      "785e63146cba54ae189bfa16aa48c852d9f8cc00",
+      "3c81de18c08e69250c01452cbc1d49999bf3c1d9",
+      "b8eafb2844703d7fc5858c3b9ba02138f8e53db0",
+      "fff04da52550103a94ff2d51b6916426ddff13fa",
+      "5a550d7b99773004fc47c42161780c65132a54dc",
+      "9a6ff5df56e05a89fbab6587cc8992cc98e790bf",
+      "6aa60aa378e7f8e61b4c6beff98f0dd732c57fb2",
+      "930ff2759b46e8b2bb1b7901d113bc62b8a3d959",
+      "691cb22b323f7c9baf0a8b24354292e3f5c1b527",
+      "dc6ddee7c23d04c51e26829cd1849784e7aa5f70",
+      "b85600bc10c173d7583b3b322f48690ff5818fdb",
+      "1e68a8e3c3226580d28aad92a57894d336561051",
+      "0d206aa35750c0a1a484006fd6d50e858f2acbbe",
+      "697a1d29594155e3e8c36c14cecec1b869e03fd1",
+      "f599ecce12d3ecdb1856d65d7056f84b1bc8fcb1",
+      "8f93162c79e39562e0d0b52353f433562505f8a2",
+      "4c925168a59777daae832748dc695a0d06665a33",
+      "89d187835e9886dd7d00557e5f9a1e5dffb0044d",
+      "22e74537449ddde78e5912692a3de5011d4459ab",
+      "bc8d75afd851bbdee0239b8c53011c78d6074589",
+      "0e8d697ef731ac6dbf6c6b183ada090c1aaeb440",
+      "905ab4484eb4a47321c3b2fe205beb528fda009a",
+      "bbe35e577dcaef631523c8dc39ec5f8e4720f2eb",
+      "ad5d02f24cd8208e71717da860cd5282ab432f1f",
+      "29c04a076223e696592adf489b5e96c25a902863",
+      "e34331814e8995771fa4ab30b0d8caf232bde619"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/libs/write_concern_all_commands.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/auth/builtin_roles.yml",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/servers.js"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '512d585a81f' into master",
+        "resolved": {
+          "src/mongo/db/curop.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in src/mongo/db/curop.cpp where both sides added\nnew, non-overlapping methods at the same location. Kept both: Percona's\n_shouldDBProfileWithRateLimit (rate-limit profiling) from HEAD and\nupstream's newly added reportDebugInfo method.\n\nResolved:\n\tsrc/mongo/db/curop.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "28f92395fcf9989c8b248d57174678cc148e2ae6"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 78610,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.34303399999999995,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000673,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 5722,
+        "cacheReadInputTokens": 109427,
+        "cacheCreationInputTokens": 23126,
+        "webSearchRequests": 0,
+        "costUSD": 0.342361,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000673
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 5722,
+            "cache_read": 109427,
+            "cache_creation": 23126
+          },
+          "cost_usd": 0.342361
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming diff (`d1782b62 \u2192 512d585a`) for each auto-merged file and written the JSON response.\n\nKey findings from the actual diffs:\n\n- **curop.cpp / curop.h / curop_test.cpp** \u2014 the main addition: a new `CurOp::reportDebugInfo()` that emits ns, redacted/snipped command, plan cache hashes, planSummary, secs_running, numYields, and pre-gathered storage stats for the lock manager dump, plus its unit test and header declaration. This is the conflict file \u2014 upstream's new method lands next to the fork's Percona-only `_shouldDBProfileWithRateLimit()`, which is **not** part of the incoming diff and coexists after resolution.\n- **op_debug.cpp** \u2014 refactor to use the `snipCommandForLogging()` helper.\n- **BUILD.bazel (db + s)** \u2014 new `landlock` library wired into mongod and mongos, plus a couple of source/dep list changes.\n- **action_type.idl / builtin_roles.yml** \u2014 rename `bypassReplicaSetWriteBlocking` \u2192 `bypassReplicaSetWritesBlocking`.\n- **mongod_main.cpp** \u2014 startup check failing on unsupported profiling level per storage mode.\n- **servers.js** \u2014 hang analyzer uses `RESMOKE_PYTHON`.\n- **write_concern_all_commands.js** \u2014 switch to `isUweEnabled()` helper.\n\nI only described symbols actually present in the `diff base \u2192 merge commit` output, and flagged the curop.cpp conflict for reviewers.",
+    "response": {
+      "summary": "Merges a batch of upstream MongoDB commits into the fork. The most substantial change adds a new CurOp::reportDebugInfo() method that emits a curated subset of an operation's state (namespace, redacted/snipped command, planCacheShapeHash, planCacheKey, planSummary, secs_running, numYields, and already-gathered storage stats) for enriching the lock manager dump's per-holder debugInfo, together with its unit test and Bazel/header wiring. Other changes: a refactor of OpDebug::report() to use the snipCommandForLogging() helper; a new 'landlock' cc_library wired into mongod and mongos; a rename of the bypassReplicaSetWriteBlocking action type/privilege to bypassReplicaSetWritesBlocking; a mongod startup check that fails if the configured profiling level is unsupported by the storage mode; a shell change to run the hang analyzer under RESMOKE_PYTHON; and a test-library switch to the isUweEnabled() helper. The only conflict was in src/mongo/db/curop.cpp, where upstream's new reportDebugInfo() lands next to the fork's own _shouldDBProfileWithRateLimit().",
+      "auto_merged": {
+        "jstests/libs/write_concern_all_commands.js": "Imports isUweEnabled from jstests/libs/query/uwe_utils.js and replaces the inline FeatureFlagUtil.isEnabled(coll.getDB(), \"UnifiedWriteExecutor\") check in shouldSkipTestCase with isUweEnabled(coll.getDB()). Behavior of the skip condition is otherwise unchanged.",
+        "src/mongo/db/BUILD.bazel": "Adds a new mongo_cc_library 'landlock' (srcs landlock.cpp; deps server_base, //src/mongo:base, server_status_core, options_parser). Adds ':commands' to the deps of one library and '//src/mongo/db/query/compiler/ce/sampling:persistent_sample_loader.cpp' as a source of another. Adds ':landlock' to the mongod main dependency list. Removes '//src/mongo/db/sharding_environment:shard_ref_test.cpp' from a mongo_cc_unit_test srcs list.",
+        "src/mongo/db/auth/action_type.idl": "Renames the action type entry bypassReplicaSetWriteBlocking to bypassReplicaSetWritesBlocking (both the enum key and its string value).",
+        "src/mongo/db/auth/builtin_roles.yml": "Renames the privilege bypassReplicaSetWriteBlocking to bypassReplicaSetWritesBlocking in the built-in role's action list, matching the action_type.idl rename.",
+        "src/mongo/db/curop.cpp": "Conflict file (both modified). Adds #include \"mongo/util/hex.h\" and implements the new CurOp::reportDebugInfo(BSONObjBuilder*) method after reportState(). It appends the serialized namespace; the redacted command (snipped via snipCommandForLogging for recognized commands, \"unrecognized\" when the Command* is null, or the redacted query otherwise); planCacheShapeHash and planCacheKey (zeroPaddedHex) when present; planSummary; secs_running computed from _start/_end; numYields; and, only if already collected, the storage stats BSON (it explicitly avoids calling into the storage engine because it runs while lock manager buckets are held). The fork-side _shouldDBProfileWithRateLimit() (rate-limit sampling) is a Percona customization that is not part of this incoming diff and coexists with the new method after conflict resolution.",
+        "src/mongo/db/curop.h": "Declares the new public method void reportDebugInfo(BSONObjBuilder* builder) on CurOp, documented as appending a curated subset of CurOp state for the lock manager dump's per-holder debugInfo, with a note that the associated Client must be locked when called from another thread.",
+        "src/mongo/db/curop_test.cpp": "Adds includes (namespace_string_util.h, storage/storage_stats.h, util/hex.h). Adds a MockStorageStats test helper implementing StorageStats (toBSON/appendToBsonObjBuilder/bytesRead/readingTime/clone/operator+=//-=) and a new test CurOpTest.ReportDebugInfoIncludesCurOpState that sets up a CurOp (ns, command, planSummary, planCacheShapeHash, planCacheKey, storageStats, yields), calls reportDebugInfo, and asserts the emitted BSON contains ns, redacted command, planCacheShapeHash, planCacheKey, planSummary, secs_running, numYields, and storage.data.bytesRead.",
+        "src/mongo/db/mongod_main.cpp": "Adds a startup check in _initAndListen: if the persistence provider does not support the configured serverGlobalParams.defaultProfile profiling level, it logs error 13170500 (profiling level / storage mode name) and exits cleanly with ExitCode::badOptions.",
+        "src/mongo/db/op_debug.cpp": "Refactors OpDebug::report(): replaces the inline mutablebson::Document construction plus curCommand->snipForLogging() with a single call to the snipCommandForLogging(curCommand, query) helper wrapped in redact() when adding the \"command\" attribute.",
+        "src/mongo/s/BUILD.bazel": "Adds '//src/mongo/db:landlock' to the deps of a mongo_cc_library (the mongos-side target), consuming the new landlock library introduced in src/mongo/db/BUILD.bazel.",
+        "src/mongo/shell/servers.js": "In the hang-analyzer launcher, chooses the Python interpreter via const python = _getEnv(\"RESMOKE_PYTHON\") || \"python\" and uses it as the first argument instead of the hardcoded \"python\", with updated comments explaining the RESMOKE_PYTHON preference and legacy-shell fallback."
+      },
+      "review_notes": "The only textual conflict was src/mongo/db/curop.cpp: upstream inserts the new reportDebugInfo() at the same location where the fork has its Percona-specific _shouldDBProfileWithRateLimit() (rate-limit profiling). Confirm both functions are present in the resolved file and that neither was dropped. The action type rename bypassReplicaSetWriteBlocking -> bypassReplicaSetWritesBlocking spans action_type.idl and builtin_roles.yml; verify no other fork code (roles, tests, docs) still references the old spelling. reportDebugInfo/op_debug.cpp both rely on snipCommandForLogging, which is not introduced in this diff (op_debug.h was unchanged) and is assumed to already exist. Bazel wiring adds a new 'landlock' library and its landlock.cpp source; ensure that source file merged in as expected and that the persistent_sample_loader.cpp source and removed shard_ref_test.cpp are consistent with the tree."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file using the authoritative diff base."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me examine the curop.cpp conflict file more closely, and check the servers.js diff continuation."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe every file. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming diff (`d1782b62 \u2192 512d585a`) for each auto-merged file and written the JSON response.\n\nKey findings from the actual diffs:\n\n- **curop.cpp / curop.h / curop_test.cpp** \u2014 the main addition: a new `CurOp::reportDebugInfo()` that emits ns, redacted/snipped command, plan cache hashes, planSummary, secs_running, numYields, and pre-gathered storage stats for the lock manager dump, plus its unit test and header declaration. This is the conflict file \u2014 upstream's new method lands next to the fork's Percona-only `_shouldDBProfileWithRateLimit()`, which is **not** part of the incoming diff and coexists after resolution.\n- **op_debug.cpp** \u2014 refactor to use the `snipCommandForLogging()` helper.\n- **BUILD.bazel (db + s)** \u2014 new `landlock` library wired into mongod and mongos, plus a couple of source/dep list changes.\n- **action_type.idl / builtin_roles.yml** \u2014 rename `bypassReplicaSetWriteBlocking` \u2192 `bypassReplicaSetWritesBlocking`.\n- **mongod_main.cpp** \u2014 startup check failing on unsupported profiling level per storage mode.\n- **servers.js** \u2014 hang analyzer uses `RESMOKE_PYTHON`.\n- **write_concern_all_commands.js** \u2014 switch to `isUweEnabled()` helper.\n\nI only described symbols actually present in the `diff base \u2192 merge commit` output, and flagged the curop.cpp conflict for reviewers."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260727_114902_266347.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "b1c423f8eb1ae96bb84fc7d25d71fbe1ffa67f9e",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "1a292ecf4e6c2d4f0e64f63dc004112d5fd01c9d",
+      "message": "Merge commit '512d585a81f' into master"
+    },
+    {
+      "sha": "28f92395fcf9989c8b248d57174678cc148e2ae6",
+      "message": "Resolve conflicts for merge commit '512d585a81f' into master"
+    }
+  ]
+}

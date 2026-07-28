@@ -1,0 +1,277 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "791057fa28fb4817a830afd6bd21069345f6b998",
+    "merge_commit": "d1782b62fb2492569fc843eb06146193e7aa5d22"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "conflict_context": {
+    "ours_commit": "791057fa28fb4817a830afd6bd21069345f6b998",
+    "theirs_commit": "d1782b62fb2492569fc843eb06146193e7aa5d22",
+    "base_commit": "d5f806ba9dd690c6c0e6e2cdba4f9110462ed190",
+    "files": [
+      "src/mongo/db/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "src/mongo/db/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/BUILD.bazel": "diff --cc src/mongo/db/BUILD.bazel\nindex 18f22be006a,51cb7cca201..00000000000\n--- a/src/mongo/db/BUILD.bazel\n+++ b/src/mongo/db/BUILD.bazel\n@@@ -2689,1 -2612,1 +2690,6 @@@ mongo_cc_library\n++<<<<<<< HEAD\n +        \"//src/mongo/db/auth/oidc:oidc_commands\",\n++||||||| d5f806b\n++=======\n+         \"//src/mongo/db/memory_tracking:query_memory_server_status_section\",\n++>>>>>>> d1782b62fb2492569fc843eb06146193e7aa5d22"
+    },
+    "their_commits": {
+      "src/mongo/db/BUILD.bazel": [
+        "84f627f05fd7803e586b169331c17deade82c550",
+        "9694e4eb391c13a97427221666cd3694d828494f",
+        "bca6962ef51626b20a340d05ec4ff7d78ac2b775",
+        "2b8aaf01b8ce016fe07c77b277bc197063785cd8"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "d1782b62fb2492569fc843eb06146193e7aa5d22",
+    "merged_commits": [
+      "d1782b62fb2492569fc843eb06146193e7aa5d22",
+      "6e6ce39a08cd13b7d982093df9fc964c29a4743d",
+      "bf7a8b68d3af826cb9110ef46b38efc660eccf78",
+      "13bb3243e00deecbd9f0cfbaa11a5f58868076d5",
+      "12fba7c1858e83d976f7289caabe9e38fa600475",
+      "3cc2509ac63e625c994e959b8dca680a2c1be335",
+      "84f627f05fd7803e586b169331c17deade82c550",
+      "71a9983546f0b89d72a4d62cb7e71d71364ed1c8",
+      "193dae7aa9ab15156c8c596552bb62712f1aff8d",
+      "2b949cb124b9202e86e0feeec489bd937507a36f",
+      "ac5eaa2ff7835afb6794eec5716dce1527afb0ba",
+      "8339733454ac280574ac90d96f618c9d14afc16a",
+      "8a61ff97a56965013adc00de5b63120301eb19c0",
+      "40f907adfeb45e24d1a4c9d2de3bc447729e0ed7",
+      "b606bc2ea4ea178e1e52161d9980cb163637a512",
+      "bfbd35db2ab634111f757b8a9f472e4afa75ddf2",
+      "c14dfb1a126fb99e31ab50b4a87ec2d5a059ca1e",
+      "be6a2eb4fed31e055d5d31ca7bc86a7b78d180af",
+      "1b2aa15d304a887df0c5cfe1aa7906b3dd6617a5",
+      "23d4a740e63fe7137daf4014c6cc88a4bc2007c7",
+      "591e94cc62f4859c41184231095352c7ca1fb14f",
+      "93d0ab0fe7f6158f1d73277b41ab6408c3f69cb4",
+      "9694e4eb391c13a97427221666cd3694d828494f",
+      "b6c14ead38e5b8f65f1852d04c947b38c657b142",
+      "41693e7176dd040878af2c9448761476ebc4ccf5",
+      "4427ffd93c670ed01d4e7b1f2013f63a1faba119",
+      "48a500455f5c5fb6c9fc50babbd51a3348d6fb8f",
+      "4dbc4684e3148c5345ac58966679670178b24847",
+      "f4b7e36298d4ace11dae8bf7d041aec15736f38b",
+      "f15844b5a92660e9e82a0b1c1e0e180859a9f28d",
+      "8c79518fa11334df8e0f95e359a7917a15f707eb",
+      "bca6962ef51626b20a340d05ec4ff7d78ac2b775",
+      "cf1fea2f38283871826e6a0f31730d5cc693f5cc",
+      "b23fcf10ee5e7786334f5d2f341dcdcc466dac45",
+      "570ecd833c3dc2e4f7067a1f8c9e5ef915e5a6ac",
+      "67004fd065ceaf649311c62b3ac94f64c4d855ca",
+      "37a86941136036543ced84a2150f34856dc0c1b7",
+      "2b8aaf01b8ce016fe07c77b277bc197063785cd8",
+      "72b398bb41b65354a9aa253d4a6f49dc5b9d8003",
+      "fe857ed40f226682e09c7f9579dd61bd34656244",
+      "5b47e56b2299b43c8793dabf97ce23986f23e401",
+      "8cb5dc99eefd554962464f05e8b187f2128d3948",
+      "439c17aa98ee2f8fe1dc696a41190ac875956ae4",
+      "f12153978348376368f8e0e719f1924fa8a97286"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 82126,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.35579574999999997,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 5795,
+        "cacheReadInputTokens": 106948,
+        "cacheCreationInputTokens": 25071,
+        "webSearchRequests": 0,
+        "costUSD": 0.35510275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 5795,
+            "cache_read": 106948,
+            "cache_creation": 25071
+          },
+          "cost_usd": 0.35510275
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diff for every file in the changeset and written the JSON response.\n\n**Summary of what this merge introduces (upstream changes):**\n\n1. **Metrics-filtering allowlist feature** \u2014 a new test-only command `listMetricsFilteringAllowlist` (new IDL generator, `.cpp` source, and dependencies in `src/mongo/db/commands/BUILD.bazel`), registered with appropriate skip reasons across all the all-commands test catalogs. New Bazel library targets: `metrics_filtering_util`, `metrics_policy_manager`, `metrics_policy_manager_default`, and `metrics_policy_manager_impl` (with atlas disagg conditional).\n\n2. **Query memory load shedding / RSS monitoring** \u2014 `mongod_main.cpp` now calls `startQueryMemoryRssMonitor` during startup; new dependencies on `query_memory_load_shedding` / `query_memory_server_status_section`.\n\n3. **New error codes** \u2014 520 `DDLCoordinatorMustRetryDueToFCVTransition`, 521 `QueryMemoryLimitExceeded`, 522 `RetryBackoff`.\n\n4. **Enterprise LDAP** \u2014 `ldap_check_cyrus_sasl_version` added, `openssl_init_legacy` removed in both `db` and `s` BUILD files.\n\n5. Minor: two new top-level Bazel aliases, a resmoke TODO comment, and a comment shortening in `mongos_main.cpp`.\n\n**On the conflict:** the only conflicting file was `src/mongo/db/BUILD.bazel`. The fork's HEAD line adds `oidc_commands` (a fork customization) while upstream adds `query_memory_server_status_section` in the same dependency list \u2014 both should be kept. I flagged this in the review notes.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes that introduce a metrics-filtering allowlist feature and query memory load-shedding support. New build targets appear for a metrics policy manager (metrics_filtering_util, metrics_policy_manager, metrics_policy_manager_default and its impl wrapper) and a new test-only command 'listMetricsFilteringAllowlist' is wired into the command layer and registered across the all-commands test catalogs. It also adds query-memory RSS pressure monitoring startup in mongod, three new error codes (DDLCoordinatorMustRetryDueToFCVTransition, QueryMemoryLimitExceeded, RetryBackoff), an enterprise LDAP dependency swap (ldap_check_cyrus_sasl_version replacing openssl_init_legacy), and minor comment/TODO adjustments.",
+      "auto_merged": {
+        "BUILD.bazel": "Adds two top-level aliases: 'wt_dump_catalog' and 'wt_dump_collection', each pointing at the corresponding //buildscripts target.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Adds a TODO(SERVER-131910) comment above the existing non-MIXED_BIN_VERSIONS guard that sets the reshardingDocumentVerification parameter, noting it should be re-enabled for mixed binary versions when last LTS is 9.0. No behavior change.",
+        "jstests/core/catalog/views/views_all_commands.js": "Registers the new 'listMetricsFilteringAllowlist' command in the views command test table with {skip: isUnrelated}.",
+        "jstests/libs/write_concern_all_commands.js": "Adds 'listMetricsFilteringAllowlist: {skip: \"does not accept write concern\"}' to both the standard and time-series write-concern command test tables.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Introduces an 'isTestOnlyCommand' skip reason constant and registers 'listMetricsFilteringAllowlist' with {skip: isTestOnlyCommand}.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Registers 'listMetricsFilteringAllowlist' with {skip: isNotAUserDataRead}.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds an 'isTestOnlyCommand' skip reason constant and registers 'listMetricsFilteringAllowlist' with {skip: isTestOnlyCommand}.",
+        "jstests/sharding/database_versioning_all_commands.js": "Registers 'listMetricsFilteringAllowlist' in two test-case tables: one skipped as a test-only command that executes locally on mongos, and one skipped as 'test-only command'.",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Adds a 'listMetricsFilteringAllowlist' entry skipped because it executes locally on mongos (not sent to any remote node).",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Registers 'listMetricsFilteringAllowlist: {skip: \"does not accept read or write concern\"}'.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Registers 'listMetricsFilteringAllowlist: {skip: \"does not return user data\"}'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Registers 'listMetricsFilteringAllowlist: {skip: \"does not return user data\"}'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Registers 'listMetricsFilteringAllowlist: {skip: \"does not return user data\"}'.",
+        "src/mongo/base/error_codes.yml": "Adds three new error codes: 520 DDLCoordinatorMustRetryDueToFCVTransition (InternalOnly, with a TODO SERVER-98118 to remove once 9.0 is last LTS), 521 QueryMemoryLimitExceeded (SystemOverloadedError, RetriableError), and 522 RetryBackoff.",
+        "src/mongo/db/BUILD.bazel": "Adds new dependencies to existing libraries (//src/mongo/db/memory_tracking:query_memory_load_shedding, :query_memory_server_status_section, and :metrics_policy_manager_impl) and to the crud_bm benchmark. In the enterprise LDAP select, adds ldap_check_cyrus_sasl_version and removes openssl_init_legacy. Defines several new targets: metrics_filtering_util (+ test helpers and unit test), metrics_policy_manager, metrics_policy_manager_default (+ unit test), and metrics_policy_manager_impl which conditionally pulls in the atlas disagg_storage metrics_policy_manager_disagg. This file had a conflict in the query server_status_section dependency list; per the diff the upstream 'query_memory_server_status_section' dependency is introduced alongside the fork's own entries.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds an idl_generator 'list_metrics_filtering_allowlist_command_gen' (from list_metrics_filtering_allowlist_command.idl) and wires the new list_metrics_filtering_allowlist_command.cpp source plus its generated IDL into the commands library. Adds dependencies on //src/mongo/db:metrics_filtering_util, :metrics_policy_manager_default, and //src/mongo/db/memory_tracking:query_memory_load_shedding.",
+        "src/mongo/db/mongod_main.cpp": "Includes memory_tracking/query_memory_load_shedding.h and calls startQueryMemoryRssMonitor(serviceContext) during _initAndListen after storage controls start and before accepting connections, with a comment explaining the placement (no-op when RSS monitoring is disabled).",
+        "src/mongo/s/BUILD.bazel": "Adds a dependency on //src/mongo/db:metrics_policy_manager_default and, in the enterprise LDAP select, adds ldap_check_cyrus_sasl_version and removes openssl_init_legacy.",
+        "src/mongo/s/mongos_main.cpp": "Shortens a comment before initializeCommandHooks(serviceContext), dropping the SystemBucketsMetricsCommandHooks explanation. No behavior change."
+      },
+      "review_notes": "The only textual conflict was in src/mongo/db/BUILD.bazel ('both modified'): the fork's HEAD line adds '//src/mongo/db/auth/oidc:oidc_commands' (a Percona/fork customization) while upstream adds '//src/mongo/db/memory_tracking:query_memory_server_status_section' in the same dependency list. Both entries must be preserved in the resolution \u2014 keep the fork's oidc_commands and also add the upstream query_memory_server_status_section. Confirm all conflict markers are removed. The metrics_policy_manager_impl target references an atlas-only target (//src/mongo/db/modules/atlas/src/disagg_storage:metrics_policy_manager_disagg) guarded by build_atlas_required_settings; verify this does not break Percona builds. The new listMetricsFilteringAllowlist command is test-only across the all-commands catalogs."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each file. Let me start with the conflict file and the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me look at the remaining files and verify the conflict resolution in the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now the jstests files and the merge commit's resolution of the conflict file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs retrieved. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diff for every file in the changeset and written the JSON response.\n\n**Summary of what this merge introduces (upstream changes):**\n\n1. **Metrics-filtering allowlist feature** \u2014 a new test-only command `listMetricsFilteringAllowlist` (new IDL generator, `.cpp` source, and dependencies in `src/mongo/db/commands/BUILD.bazel`), registered with appropriate skip reasons across all the all-commands test catalogs. New Bazel library targets: `metrics_filtering_util`, `metrics_policy_manager`, `metrics_policy_manager_default`, and `metrics_policy_manager_impl` (with atlas disagg conditional).\n\n2. **Query memory load shedding / RSS monitoring** \u2014 `mongod_main.cpp` now calls `startQueryMemoryRssMonitor` during startup; new dependencies on `query_memory_load_shedding` / `query_memory_server_status_section`.\n\n3. **New error codes** \u2014 520 `DDLCoordinatorMustRetryDueToFCVTransition`, 521 `QueryMemoryLimitExceeded`, 522 `RetryBackoff`.\n\n4. **Enterprise LDAP** \u2014 `ldap_check_cyrus_sasl_version` added, `openssl_init_legacy` removed in both `db` and `s` BUILD files.\n\n5. Minor: two new top-level Bazel aliases, a resmoke TODO comment, and a comment shortening in `mongos_main.cpp`.\n\n**On the conflict:** the only conflicting file was `src/mongo/db/BUILD.bazel`. The fork's HEAD line adds `oidc_commands` (a fork customization) while upstream adds `query_memory_server_status_section` in the same dependency list \u2014 both should be kept. I flagged this in the review notes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260723_234015_078659.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.218 (Claude Code)"
+    }
+  }
+}

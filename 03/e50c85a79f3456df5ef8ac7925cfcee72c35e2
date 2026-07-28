@@ -1,0 +1,120 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b1c423f8eb1ae96bb84fc7d25d71fbe1ffa67f9e",
+    "merge_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 19075,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.11620074999999999,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 1281,
+          "cacheReadInputTokens": 43703,
+          "cacheCreationInputTokens": 9857,
+          "webSearchRequests": 0,
+          "costUSD": 0.11552274999999998,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 1281,
+              "cache_read": 43703,
+              "cache_creation": 9857
+            },
+            "cost_usd": 0.11552274999999998
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/index_builds/BUILD.bazel`.\n\nBoth sides only *added* dependencies to the `index_builds_coordinator_mongod` target \u2014 no removals or renames were involved:\n- **HEAD (Percona):** `//src/mongo/db/audit:audit_impl`\n- **Upstream:** `//src/mongo/db/index_builds/primary_driven:enabled` and `//src/mongo/db/rss:replicated_storage_service`\n\nI took the union of all three additions, keeping the Percona `audit_impl` dep alongside the two upstream deps, and removed all conflict markers. The JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved a both-modified conflict in the index_builds BUILD.bazel deps list by combining additions from both sides.",
+        "resolved": {
+          "src/mongo/db/index_builds/BUILD.bazel": "The conflict was in the deps of the index_builds_coordinator_mongod target. HEAD (Percona) added '//src/mongo/db/audit:audit_impl' while upstream added '//src/mongo/db/index_builds/primary_driven:enabled' and '//src/mongo/db/rss:replicated_storage_service'. Kept all three additions, preserving the Percona audit_impl dependency alongside the upstream deps. Conflict markers removed."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Both sides only added dependencies (no removals or renames), so the resolution is a union of the additions. Order kept consistent with the surrounding alphabetical-ish grouping."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/index_builds/BUILD.bazel`.\n\nBoth sides only *added* dependencies to the `index_builds_coordinator_mongod` target \u2014 no removals or renames were involved:\n- **HEAD (Percona):** `//src/mongo/db/audit:audit_impl`\n- **Upstream:** `//src/mongo/db/index_builds/primary_driven:enabled` and `//src/mongo/db/rss:replicated_storage_service`\n\nI took the union of all three additions, keeping the Percona `audit_impl` dep alongside the two upstream deps, and removed all conflict markers. The JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260728_085509_512887.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.220 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}

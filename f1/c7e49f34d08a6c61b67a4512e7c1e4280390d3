@@ -1,0 +1,136 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "791057fa28fb4817a830afd6bd21069345f6b998",
+    "merge_commit": "d1782b62fb2492569fc843eb06146193e7aa5d22"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 24711,
+      "num_turns": 5,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.12839975,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 10,
+          "outputTokens": 1269,
+          "cacheReadInputTokens": 59456,
+          "cacheCreationInputTokens": 10595,
+          "webSearchRequests": 0,
+          "costUSD": 0.12772175000000002,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 10,
+              "output": 1269,
+              "cache_read": 59456,
+              "cache_creation": 10595
+            },
+            "cost_usd": 0.12772175000000002
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/BUILD.bazel`.\n\nBoth sides added a distinct dependency to the same `mongo_cc_library` deps list:\n- **HEAD (Percona):** `//src/mongo/db/auth/oidc:oidc_commands`\n- **theirs (upstream):** `//src/mongo/db/memory_tracking:query_memory_server_status_section`\n\nThese are independent additions, so I kept both and removed the conflict markers. The JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved a both-modified conflict in src/mongo/db/BUILD.bazel by keeping both distinct dependency entries added by each side.",
+        "resolved": {
+          "src/mongo/db/BUILD.bazel": "Both sides added a new dependency to the same mongo_cc_library deps list: Percona (HEAD) added '//src/mongo/db/auth/oidc:oidc_commands' and upstream (theirs) added '//src/mongo/db/memory_tracking:query_memory_server_status_section'. These are independent, non-conflicting additions, so both entries were kept. Conflict markers removed."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The conflict was a simple additive collision in a Bazel deps list. Kept the Percona-specific OIDC commands dependency and the upstream memory_tracking dependency together."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides added distinct dependency entries. Keep both."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/BUILD.bazel`.\n\nBoth sides added a distinct dependency to the same `mongo_cc_library` deps list:\n- **HEAD (Percona):** `//src/mongo/db/auth/oidc:oidc_commands`\n- **theirs (upstream):** `//src/mongo/db/memory_tracking:query_memory_server_status_section`\n\nThese are independent additions, so I kept both and removed the conflict markers. The JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260723_234140_444860.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.218 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}

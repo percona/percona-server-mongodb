@@ -1,0 +1,229 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b1c423f8eb1ae96bb84fc7d25d71fbe1ffa67f9e",
+    "merge_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "conflict_context": {
+    "ours_commit": "b1c423f8eb1ae96bb84fc7d25d71fbe1ffa67f9e",
+    "theirs_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e",
+    "base_commit": "512d585a81f4b41e5b228b7c8c685f97fb612dd6",
+    "files": [
+      "src/mongo/db/index_builds/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "src/mongo/db/index_builds/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/index_builds/BUILD.bazel": "diff --cc src/mongo/db/index_builds/BUILD.bazel\nindex 5c456d78a3b,06d95022cda..00000000000\n--- a/src/mongo/db/index_builds/BUILD.bazel\n+++ b/src/mongo/db/index_builds/BUILD.bazel\n@@@ -200,1 -206,2 +206,7 @@@ mongo_cc_library\n++<<<<<<< HEAD\n +        \"//src/mongo/db/audit:audit_impl\",\n++||||||| 512d585a81f\n++=======\n+         \"//src/mongo/db/index_builds/primary_driven:enabled\",\n+         \"//src/mongo/db/rss:replicated_storage_service\",\n++>>>>>>> b22243acf403e3936960d2ce9e556f6f9c7e2e2e"
+    },
+    "their_commits": {
+      "src/mongo/db/index_builds/BUILD.bazel": [
+        "d4e9b5245d56824ec22dcd5f04da6a1e0b93befa"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e",
+    "merged_commits": [
+      "b22243acf403e3936960d2ce9e556f6f9c7e2e2e",
+      "5b581c3e2439696c9041b4aed880b2786f4cbc7b",
+      "be7cd8cff244908061707fd61705de84a33e96fb",
+      "48f5915591d1d9de9939c51f5d7597dde9fdec17",
+      "853e01559a64456a1cb64750d2fe9ee3ad629d2c",
+      "38a7939fdb66053048fc5bf8735730efde4b8c28",
+      "8ab1ce3542c10900100762b7b91b55c5c68e3c0a",
+      "bd7da2cde8ea33d73a4561c4c68ac917e0d321d4",
+      "acb3cc236eb1f8db338d3c97755e8fa5783f4410",
+      "00d1f8a6f9a7198062cf5291996f4522f09b525f",
+      "3b593d5537487886d0a211b18353a4f10417b23b",
+      "45ad0e0c2e4336983077bd5bbb38e297eac59738",
+      "aa7183c571cdf2a869eb5c9590fb0a8565ff1a90",
+      "6476a7db73bae0a2fa26c1149b10722c4e777a38",
+      "afab934f279762ecda7ce46161028b874979f069",
+      "6b2e0bf9d5da31143cd463e54a120e854abc7631",
+      "407e13e6f9649a1c3164bcafd17b288f7bd84b3c",
+      "3b98c308153b6de0681075a6f7f31f58b05d8fd0",
+      "d4e9b5245d56824ec22dcd5f04da6a1e0b93befa",
+      "38f881063761e916c8dbcc4a6baa48d1d214d8f9",
+      "e39a52e39c6bd546a8427607e454c1ccc6fc10ab",
+      "8960a5f11e96e2e58ae8a48d8083bfb85bb6f7cc",
+      "5b37ee4eb8e62c8410d7e1426db25478a1d2ce6e",
+      "fd3531bdfa2ff6fa3601820ea3b607c260f2e48a",
+      "6dd1aec5bbf624691c0c812b615a45db7aa834e6",
+      "f1034570d0420fcfc675fb244049a7393db6903d",
+      "6ac0cc4a0a74490bdec2938088ab8a69837b0ebf",
+      "e4b30b48b7222f1cf4d30cb288eca02142f63c20",
+      "2401e005d0bc43e6a9f33723981f646458670be4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/shell/servers.js"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b22243acf40' into master",
+        "resolved": {
+          "src/mongo/db/index_builds/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in the index_builds BUILD.bazel deps\nlist by combining additions from both sides.\n\nResolved:\n\tsrc/mongo/db/index_builds/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8adc2708346b04d6c26cfcb5fa53848867c1f3fe"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32010,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.17505199999999999,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2530,
+        "cacheReadInputTokens": 34858,
+        "cacheCreationInputTokens": 14984,
+        "webSearchRequests": 0,
+        "costUSD": 0.174359,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2530,
+            "cache_read": 34858,
+            "cache_creation": 14984
+          },
+          "cost_usd": 0.174359
+        }
+      }
+    },
+    "text_result": "I've read the prompt and all the incoming diffs (`512d585a81f \u2192 b22243acf403`) for the seven auto-merged files, then wrote the JSON response.\n\nSummary of what the merge pulls in:\n- **BUILD.bazel files** (`db`, `commands`, `index_builds`, `repl/initial_sync`): add dependency edges on the new `primary_driven:enabled` and `rss:replicated_storage_service` targets.\n- **`pipeline/BUILD.bazel`**: adds `metrics_filtering_util` and `metrics_policy_manager` deps.\n- **`startup_recovery.cpp`**: the only substantive logic change \u2014 replaces the FCV/feature-flag check with `index_builds::primary_driven::enabled(opCtx)`, and makes single-collection offline validation return an error early (new `LOGV2_ERROR 11790202`) instead of skipping.\n- **`servers.js`**: resolves the extension path from `TEST_SRCDIR` under bazel test.\n\nThe one real conflict was in `src/mongo/db/index_builds/BUILD.bazel`, where the fork's Percona `audit:audit_impl` dependency coexists with upstream's new `primary_driven:enabled` / `rss:replicated_storage_service` deps on the same target \u2014 I flagged this in the review notes for verification.",
+    "response": {
+      "summary": "Upstream merge introducing the new primary-driven index builds machinery and the replicated storage service. Several BUILD.bazel files gain dependencies on '//src/mongo/db/index_builds/primary_driven:enabled' and '//src/mongo/db/rss:replicated_storage_service'. In startup_recovery.cpp, the FCV/feature-flag check for primary-driven index builds is replaced by a call to the new index_builds::primary_driven::enabled(opCtx) helper, and single-collection offline validation now returns a non-OK status (with a new error log) when the collection is not found at atClusterTime. servers.js resolves the extension library path from TEST_SRCDIR when running under bazel test.",
+      "auto_merged": {
+        "src/mongo/db/BUILD.bazel": "Adds a single dependency edge '//src/mongo/db/index_builds/primary_driven:enabled' to the mongo_cc_library target that already depends on the index_builds coordinator and multi_index_block.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds two dependencies to a mongo_cc_library target: '//src/mongo/db/index_builds/primary_driven:enabled' and '//src/mongo/db/rss:replicated_storage_service'.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds '//src/mongo/db/index_builds/primary_driven:enabled' to several mongo_cc_library targets, and additionally adds '//src/mongo/db/rss:replicated_storage_service' to two of them. Conflict: HEAD (fork) had added '//src/mongo/db/audit:audit_impl' (Percona audit) to one target while upstream added the primary_driven:enabled and rss:replicated_storage_service deps to the same target; the resolution keeps the Percona audit_impl dependency alongside the incoming upstream dependencies.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two dependencies to a mongo_cc_library target: '//src/mongo/db:metrics_filtering_util' and '//src/mongo/db:metrics_policy_manager'.",
+        "src/mongo/db/repl/initial_sync/BUILD.bazel": "Adds two dependencies to a mongo_cc_library target: '//src/mongo/db/index_builds/primary_driven:enabled' and '//src/mongo/db/rss:replicated_storage_service'.",
+        "src/mongo/db/startup_recovery.cpp": "Includes the new header 'mongo/db/index_builds/primary_driven/enabled.h'. In reconcileCatalogAndRestartUnfinishedIndexBuilds, replaces the VersionContext/FCV snapshot + gFeatureFlagPrimaryDrivenIndexBuilds.isEnabledUseLastLTSFCVWhenUninitialized(...) check with a call to index_builds::primary_driven::enabled(opCtx). In offlineValidateCollection, when validate() throws NamespaceNotFound with a read timestamp and a single collection is being validated (gValidateCollectionName not empty), now logs LOGV2_ERROR 11790202 and returns the error status early instead of skipping and continuing.",
+        "src/mongo/shell/servers.js": "MongoRunner.getExtensionPath now checks the TEST_SRCDIR environment variable; when set, it returns pathJoin(testSrcDir, '_main', 'install-extensions', 'lib', shared_library_name); otherwise it falls back to the previous getInstallPath('..', 'lib', shared_library_name)."
+      },
+      "review_notes": "Only one conflicting file (src/mongo/db/index_builds/BUILD.bazel), a Bazel dependency list conflict. The fork side contributed '//src/mongo/db/audit:audit_impl' (Percona audit) and upstream added the primary_driven:enabled and rss:replicated_storage_service deps to the same target; verify the resolution retained the Percona audit_impl entry alongside both incoming upstream entries and that no conflict markers remain. All other files auto-merged cleanly and are mechanical dependency additions except startup_recovery.cpp, which contains the substantive logic change (new enabled() helper usage and single-collection validation early-return)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt and all the incoming diffs (`512d585a81f \u2192 b22243acf403`) for the seven auto-merged files, then wrote the JSON response.\n\nSummary of what the merge pulls in:\n- **BUILD.bazel files** (`db`, `commands`, `index_builds`, `repl/initial_sync`): add dependency edges on the new `primary_driven:enabled` and `rss:replicated_storage_service` targets.\n- **`pipeline/BUILD.bazel`**: adds `metrics_filtering_util` and `metrics_policy_manager` deps.\n- **`startup_recovery.cpp`**: the only substantive logic change \u2014 replaces the FCV/feature-flag check with `index_builds::primary_driven::enabled(opCtx)`, and makes single-collection offline validation return an error early (new `LOGV2_ERROR 11790202`) instead of skipping.\n- **`servers.js`**: resolves the extension path from `TEST_SRCDIR` under bazel test.\n\nThe one real conflict was in `src/mongo/db/index_builds/BUILD.bazel`, where the fork's Percona `audit:audit_impl` dependency coexists with upstream's new `primary_driven:enabled` / `rss:replicated_storage_service` deps on the same target \u2014 I flagged this in the review notes for verification."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260728_085434_250030.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "2c836d48d8c1af7ce264c20b1e70dbf7dc579681",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "231337584e7df1b44168fd11094cec4f1f6a51b0",
+      "message": "Merge commit 'b22243acf40' into master"
+    },
+    {
+      "sha": "8adc2708346b04d6c26cfcb5fa53848867c1f3fe",
+      "message": "Resolve conflicts for merge commit 'b22243acf40' into master"
+    }
+  ]
+}

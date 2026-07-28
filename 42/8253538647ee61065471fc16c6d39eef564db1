@@ -1,0 +1,418 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "2c836d48d8c1af7ce264c20b1e70dbf7dc579681",
+    "merge_commit": "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "conflict_context": {
+    "ours_commit": "2c836d48d8c1af7ce264c20b1e70dbf7dc579681",
+    "theirs_commit": "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+    "base_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e",
+    "files": [
+      "MODULE.bazel.lock",
+      "jstests/suites/backup-restore/BUILD.bazel",
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "jstests/suites/backup-restore/BUILD.bazel": "deleted by us",
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 09b7d36dc7b,c8210f4a732..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -365,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"4G3G+NrTSC3oVrW2K/t2h4k3ZO5GAKEdGTikcPWVEC8=\",\n++||||||| b22243acf40\n++        \"bzlTransitiveDigest\": \"hKYNVSGErZ49H9Bu7qd5QVftZtx/GtMKqwCE/l2Y5Wk=\",\n++=======\n+         \"bzlTransitiveDigest\": \"lDwtGcgc6Aj2V3aJliaGeHsXypvHHXnWsLu7waCsLSc=\",\n++>>>>>>> ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": "diff --cc src/mongo/db/storage/wiredtiger/BUILD.bazel\nindex b0734f8d07e,5f3c9c421c7..00000000000\n--- a/src/mongo/db/storage/wiredtiger/BUILD.bazel\n+++ b/src/mongo/db/storage/wiredtiger/BUILD.bazel\n@@@ -100,2 -90,1 +100,7 @@@ mongo_cc_library\n++<<<<<<< HEAD\n +        \"//src/mongo/db/audit:audit_impl\",\n +        \"//src/mongo/db/encryption:key_management\",\n++||||||| b22243acf40\n++=======\n+         \"//src/mongo/db/admission:write_throttler_admission_context\",\n++>>>>>>> ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+        "65f9f4fad6390d260ffc0fe4dc5378686a283fdb",
+        "4b251a03626aee7f9513953c67b7e21e9fb4e300"
+      ],
+      "jstests/suites/backup-restore/BUILD.bazel": [
+        "387b81d582654f9cf413ffcff455edeed1acaefd"
+      ],
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": [
+        "b0ac37bcdc7f384ce266751d702ea70738511f49"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+    "merged_commits": [
+      "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+      "26e4ddfbce8f07bb626c07f5ccc90b38bc777c10",
+      "7746b2bf1f83a1930e2bb37abca4c8181c4794ad",
+      "a4a438b19097abcfc4ff92623318299e8cfd060f",
+      "017b5062d2e416691300a7fd284e13ef5981af87",
+      "eeaf2c6378e38ac3dc71faf5fbe0bf1d27fe9e48",
+      "39075ef15649fb66dc18bd333e75c926b113d2fa",
+      "3c704667ad13fb01d2c1759595cc1e9fe79288fd",
+      "9d4769a1cede078f26e8629b1403f0da7acfe534",
+      "3f08c32cd8fcdc6b2e05648533e02e8b730cebc4",
+      "387b81d582654f9cf413ffcff455edeed1acaefd",
+      "0a64dba3ee6f32e752ff8d98a0ead4bd5d2fe218",
+      "44e3b86e44ed6cf4e75307e446538f8db25d40e7",
+      "684a6b160ab60c6feb5f2fd26fa11ec788e26244",
+      "3846073cc0d9222b2a762b78173bf0680566c8d7",
+      "c1b0e76f4b236076399690de8da6e0fe396af043",
+      "3bb520a49ab7f5f7572959ba3f51c1a50a0de1ff",
+      "a0670f1d7d4a03c28784271f857c51db35e45b6f",
+      "c8df31cbe6b662a1aa17b32a56f4f6b42d73e12c",
+      "37d54c5664490054f6542820d64ed42184a07530",
+      "d870cbf9d4c528d0479cf9011ca96fa931a506e5",
+      "6cb5d839d09e760a36d5ab441ce33a608f12a6b4",
+      "33e72edc02936b33da18454ac5e056bee1c0cc2b",
+      "0b57b86158db06b59568d4f4f7dd77380e203bed",
+      "65f9f4fad6390d260ffc0fe4dc5378686a283fdb",
+      "cf698d09108e2945332eb6e04ac24ee9d7028f4a",
+      "fd4a808c2d79fd72089a6de5c2f10eddda69feb5",
+      "076f5e7752d5043e2a6ce3cf328aa01b8307f659",
+      "8cbf99c00552cd44f906c06abef86d29c48a56d7",
+      "cbde4f2d0654c7b29e4fdc355e379af6112b579d",
+      "371355f2755005ce8b7eb5220cbd4132c4bed62e",
+      "20d4ae7b41c8d98d3328e7fc678f12b5c16e3f1d",
+      "95fa8e1bfda1f40602fadfb7e1682884341be141",
+      "e08eb5e22f1658f5074139e535efb9c68c15c41c",
+      "813c041a4a9cee2d18eb0a42632efaa23bd8ed91",
+      "4548373464585de22943a87a8f9ad0627275aa46",
+      "d579c7ad22ee6d2614ccd533d61bf3b255da747c",
+      "c99b1d59c78c89ed8b867721226d3c54f4a9b7f2",
+      "dee3713d1f8aeb3fa805e0f663fdf3636cbb7bce",
+      "02bf9252941f5d0aee549ada2a9b7cc3586e08c8",
+      "616dbd708178d456cca91fe5c6465a929e9b5c14",
+      "bea671f027597afa1b89b4c625538b4f312face7",
+      "4e346e0a66d4fc888d5fb005879d7b28563cbb08",
+      "e5ae9b82096cce45546007cae2d792d7a8d41fbe",
+      "6692d61a8fad82839040b34b2482f78808372bcc",
+      "3a871fc6471335817b6ac1b913a47a504b3743b0",
+      "2bcd3e421ea8d4ace2f10a2cd08dee1ef556dfa1",
+      "62e660f18bc9065dcc0b06f5a29b469c8b95404d",
+      "65ea998795b6e67f9d82b97301b0793bd8d611cf",
+      "4b251a03626aee7f9513953c67b7e21e9fb4e300",
+      "a062602367729dab4940cba22c7920f55cbaedf2",
+      "b0ac37bcdc7f384ce266751d702ea70738511f49",
+      "94a8a175bbc037d21ccb773bfedaa643d397a110",
+      "6c22be8f2bf5109ee9d895a7bc023bfbf00b9ebb",
+      "12aa659f1e78afb39a7fe7c30509996a15a90e84",
+      "1b4fbe03b9d417204f69e56d0237102756ee92e2",
+      "baf9b420aa7ab5b2d126c59a1748c7c6857fbf23",
+      "7f36f458c1e286812f2df8f2f1181a285966bb02",
+      "be85ee71199c52ef673991ab6ed2339bb9e5bc60",
+      "ebec0b1576dd431520e558e285c7e82f4011ef2e",
+      "839a10047d536d5f1cdc4fbaf482a2d44dff7795",
+      "9bce1a5732d6ba4b6ce4ff292b78e3453e602468"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        ".gitignore",
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/resmokelib/core/programs.py",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/BUILD.bazel",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/shell_utils_extended.cpp",
+        "src/mongo/util/net/ssl_options_test.cpp",
+        "src/mongo/util/processinfo_linux.cpp",
+        "src/mongo/util/stacktrace_test.cpp"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'ff54e20bb15' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "jstests/suites/backup-restore/BUILD.bazel": "Resolved by human",
+          "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts. In the wiredtiger BUILD.bazel, merged\nboth sides' dependency additions (Percona's audit_impl and\nencryption:key_management with upstream's\nadmission:write_throttler_admission_context), keeping alphabetical\norder. Kept Percona's deliberate removal of the backup-restore test\nsuite by re-deleting the file upstream had modified. Resolved\nMODULE.bazel.lock by accepting HEAD's bzlTransitiveDigest and running\nbazel query to regenerate/validate the lock.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/BUILD.bazel\n\tjstests/suites/backup-restore/BUILD.bazel\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "3b109777fcf21455e710ea199cdc8cd3f91982c9"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 55290,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.25603975,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4,
+        "outputTokens": 4743,
+        "cacheReadInputTokens": 109427,
+        "cacheCreationInputTokens": 13237,
+        "webSearchRequests": 0,
+        "costUSD": 0.25603975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 4,
+            "output": 4743,
+            "cache_read": 109427,
+            "cache_creation": 13237
+          },
+          "cost_usd": 0.25603975
+        }
+      }
+    },
+    "text_result": "Fixed. I removed the `src/mongo/db/repl/initial_sync/initial_syncer.cpp` entry from `auto_merged` (it's listed under `important_files_modified`, not `auto_merged.files`) and updated the `review_notes` to no longer reference it. The response now describes only the 30 files in `merge_context.auto_merged.files`, each backed by the actual `diff base \u2192 merge commit` diff I read.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes since the fork diverged (base b22243acf40 -> merge commit ff54e20bb1). The main themes are: (1) migrating the Bazel `dependency` helper from the removed `@poetry//:dependencies.bzl` to the new `//bazel/uv:defs.bzl`; (2) making the server-side JavaScript engine conditional on the target platform so ppc64le builds link `scripting_none`, with matching test guards that skip scripting/mapReduce commands where JS is unavailable; (3) splitting the `metrics_policy_manager` Bazel target into mongod- and mongos-specific variants; (4) a large amount of mechanical IWYU include reordering across several C++ files (own header first, then std, then third-party, with `IWYU pragma: no_include` lines moved to the bottom); (5) tightening WiredTiger table-creation option validation; (6) new auth test coverage for forged `runtimeConstants.userRoles` and `$listSessions` `$_internalPredicate`; and a few smaller server behavior tweaks. The MODULE.bazel.lock is regenerated to match the new dependency graph.",
+      "auto_merged": {
+        ".bazelrc": "Adds a single blank line before the `venvs_site_packages=no` comment/setting block. No functional change.",
+        ".gitignore": "Adds `.venv/` (with an explanatory comment) so uv's default project environment, created when `uv sync` runs without UV_PROJECT_ENVIRONMENT/--active, is ignored.",
+        "BUILD.bazel": "Replaces the `load(\"@poetry//:dependencies.bzl\", \"dependency\")` with `load(\"//bazel/uv:defs.bzl\", \"dependency\")`, moving the `dependency` helper from the old poetry rules to the new uv-based defs.",
+        "MODULE.bazel.lock": "Regenerated Bazel module lock file reflecting updated/added registry dependencies (e.g. bazel_features 1.43.0, bazel_lib 3.1.0, package_metadata 0.0.7, newer rules_cc versions) and removed older entries. This is a machine-generated lock, not a hand-authored change; the conflict was resolved and the file regenerated.",
+        "bazel/config/BUILD.bazel": "Adds a new `selects.config_setting_group` named `server_js_engine_allowed` that matches both `:server_js_enabled` and `:not_ppc`. This ensures a server-side JS engine is only linked when server_js is enabled AND the target is not ppc64le, so any ppc64le build links scripting_none regardless of the server_js flag.",
+        "bazel/resmoke/resmoke.bzl": "Reworks how the resmoke config generator's Python import paths are computed. Adds loads for `py_exec_import_paths` (from //bazel/config:py_action_env), `py_test`, and `PyInfo`, and replaces the manual `$(BINDIR)/external/...` PyInfo.imports loop with a call to `py_exec_import_paths(ctx, [ctx.attr.generator])`. The `generator` attribute is now declared with `cfg = \"exec\"` so the config-generation action runs the exec-platform interpreter with exec-config wheels.",
+        "buildscripts/resmokelib/core/programs.py": "Adds a `remove_set_parameter_if_before_version` call that strips the `migrationRecipientPITHistoryToPreserveInSecs` set parameter for binary versions before 9.0.0.",
+        "buildscripts/resmokelib/testing/fixtures/standalone.py": "Defaults the `migrationRecipientPITHistoryToPreserveInSecs` suite set parameter to 1 when not already specified, with a comment explaining that this controls the point-in-time history window preserved by chunk migrations in tests (mirroring minSnapshotHistoryWindowInSeconds in production).",
+        "jstests/auth/lib/commands_lib.js": "Adds an `elevatedUserRolesRuntimeConstants` fixture and new negative test cases verifying that a forged `runtimeConstants.userRoles` is rejected for external clients on find/update/delete/findAndModify (sharded and non-sharded)/aggregate (with the appropriate mongod vs mongos error codes). Adds `$listSessions` `$_internalPredicate` auth tests requiring the `internal` (and, with allUsers:true, `listSessions`) cluster privileges. Adds an `isServerSideJavaScriptEnabled(conn)` helper (detects a scripting_none build via absence of the `js` sub-document in the `features` command) and gates the mapReduce_readonly/mapReduce_write test cases behind `skipTest` when server-side JS is unavailable.",
+        "jstests/core/catalog/views/views_all_commands.js": "Imports `isServerSideJavaScriptEnabled` and adds a `skipNoScripting: true` flag to the mapReduce view command test; the test loop now skips such commands when server-side JS is unavailable on the build.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Imports `isServerSideJavaScriptEnabled` and, when server-side JS is unavailable, skips the `mapReduce` command in the command loop rather than failing.",
+        "jstests/sharding/database_versioning_all_commands.js": "Imports `isServerSideJavaScriptEnabled` and, when server-side JS is unavailable and mapReduce would run, replaces the mapReduce test case with a `skip` entry so the rest of the coverage still runs.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds the `requires_scripting` tag (with a comment) because the test runs mapReduce with JS map/reduce functions.",
+        "src/mongo/db/BUILD.bazel": "Switches the `dependency` load from `@poetry` to `//bazel/uv:defs.bzl`. Renames the `metrics_policy_manager_impl` target to `metrics_policy_manager_mongod` (updating references in the server binary and crud_bm benchmark) and adds a new `metrics_policy_manager_mongos` target; the atlas disagg dependency is likewise split into `_disagg_mongod`/`_disagg_mongos`. Changes the scripting select from `//bazel/config:server_js_enabled` to `//bazel/config:server_js_engine_allowed`.",
+        "src/mongo/db/auth/BUILD.bazel": "Switches the `dependency` load from `@poetry//:dependencies.bzl` to `//bazel/uv:defs.bzl`. No other change.",
+        "src/mongo/db/commands/BUILD.bazel": "Removes the `//src/mongo/db/admission:write_throttler_admission_context` dependency from one mongo_cc_library and adds `//src/mongo/db/rss/attached_storage:attached_persistence_provider` to a mongo_cc_unit_test's deps.",
+        "src/mongo/db/initialize_server_global_state.cpp": "Moves the `IWYU pragma: no_include \"boost/system/detail/error_code.hpp\"` line from near the top includes to after the unistd.h block. Include-ordering only; no functional change.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Include reordering only: moves `<ctime>` into the std block and the absl/boost/fmt headers into a third-party block at the bottom (with the `no_include cxxabi.h` pragma). No functional change.",
+        "src/mongo/db/server_options_helpers.cpp": "Include reordering only: moves the boost/fmt includes and the two `IWYU pragma: no_include` lines into a third-party block after the std includes.",
+        "src/mongo/db/server_options_server_helpers.cpp": "Include reordering only: moves the boost/fmt includes and the `no_include` pragmas into a third-party block after the std includes.",
+        "src/mongo/db/startup_recovery.cpp": "Changes the call `index_builds::primary_driven::enabled(opCtx)` to pass an FCV snapshot: `index_builds::primary_driven::enabled(opCtx, serverGlobalParams.featureCompatibility.acquireFCVSnapshot())`.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Adds `#include \"mongo/db/storage/recovery_unit.h\"` and, when creating the MDB catalog for the first time, calls `shard_role_details::getRecoveryUnit(opCtx)->setSchemaEpoch(1)` so the catalog is created with the minimum schema epoch (the catalog is created before timestamping is available).",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds `//src/mongo/db/admission:write_throttler_admission_context` to the mongo_cc_library dependencies.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In checkTableCreationOptions, removes the old string-based `type=lsm` rejection (error 6627201) and replaces it with a parser-based check using WiredTigerConfigParser: the `type` option must be the unquoted identifier `file`; anything else returns ErrorCodes::IllegalOperation stating the WiredTiger 'type' option is not supported.",
+        "src/mongo/s/BUILD.bazel": "Changes the router's `metrics_policy_manager_default` dependency to the new `//src/mongo/db:metrics_policy_manager_mongos` target, and changes the scripting select from `//bazel/config:server_js_enabled` to `//bazel/config:server_js_engine_allowed`.",
+        "src/mongo/shell/BUILD.bazel": "Switches the `dependency` load from `@poetry//:dependencies.bzl` to `//bazel/uv:defs.bzl`. No other change.",
+        "src/mongo/shell/mongo_main.cpp": "Include reordering only: moves `mongo/shell/mongo_main.h` to the top as the module's own header and relocates the std, boost, and `IWYU pragma: no_include` lines into ordered blocks at the bottom. No functional change.",
+        "src/mongo/shell/shell_utils_extended.cpp": "Include reordering only: moves the `IWYU pragma: no_include \"boost/system/detail/error_code.hpp\"` line from the top boost block to after the unistd.h block.",
+        "src/mongo/util/net/ssl_options_test.cpp": "Removes the now-unnecessary `#include \"mongo/util/net/ssl_options.h\"`.",
+        "src/mongo/util/processinfo_linux.cpp": "Include reordering only: moves the boost/fmt includes into a third-party block after the std includes and relocates the `no_include` pragmas to the bottom.",
+        "src/mongo/util/stacktrace_test.cpp": "Include reordering only: puts `mongo/util/stacktrace.h` first as the file's own header and moves the fmt includes and `no_include` pragmas into ordered blocks at the bottom."
+      },
+      "review_notes": "Several of the C++ changes (initialize_server_global_state.cpp, replication_coordinator_impl.cpp, server_options_helpers.cpp, server_options_server_helpers.cpp, mongo_main.cpp, shell_utils_extended.cpp, processinfo_linux.cpp, stacktrace_test.cpp) are purely mechanical IWYU include reordering with no behavior change. Behavioral changes to verify: the ppc64le server-side-JS gating (new `server_js_engine_allowed` config group and the test skips keyed on `isServerSideJavaScriptEnabled`), the WiredTiger `type` option validation rewrite, the `metrics_policy_manager` mongod/mongos target split, the startup_recovery FCV-snapshot argument, and the storage_engine schema-epoch initialization. Note the poetry->uv `dependency` load migration touches several BUILD.bazel files. The `jstests/suites/backup-restore/BUILD.bazel` file was 'deleted by us' but the merge kept upstream's version, which only adds the `incompatible_debug_mode` tag; confirm this file is intended to exist in the fork. MODULE.bazel.lock was regenerated per the lock-file conflict-resolution procedure."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for the auto-merged files to describe them accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me read the actual diffs for these files in batches."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read. Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for every file in the changeset and written the JSON response. Key findings:\n\n**Themes this merge introduces (upstream changes since the fork diverged):**\n\n1. **Bazel poetry\u2192uv migration** \u2014 the `dependency` helper moves from `@poetry//:dependencies.bzl` to `//bazel/uv:defs.bzl` (root `BUILD.bazel`, `src/mongo/db`, `db/auth`, `shell`), plus `.gitignore` now ignores `.venv/`.\n\n2. **Server-side JS gating for ppc64le** \u2014 new `server_js_engine_allowed` config group requiring both `server_js_enabled` and `not_ppc`; several jstests now skip mapReduce/scripting commands when JS is compiled out.\n\n3. **`metrics_policy_manager` split** into `_mongod`/`_mongos` targets (and matching atlas disagg deps).\n\n4. **Mechanical IWYU include reordering** across 8+ C++ files (no behavior change).\n\n5. **Behavioral tweaks**: WiredTiger `type` option validation rewrite (drops the old `type=lsm` string check for a parser-based `type=file`-only check), `startup_recovery` passing an FCV snapshot, `storage_engine_impl` setting schema epoch 1 on catalog creation, and an initial_syncer `LOGV2_WARNING`\u2192`LOGV2_DEBUG` downgrade.\n\n6. **New auth tests** for forged `runtimeConstants.userRoles` and `$listSessions $_internalPredicate`.\n\nThe response flags the mechanical-only files, the behavioral ones to verify, and the `backup-restore/BUILD.bazel` \"deleted by us\" resolution (kept upstream's version, which only adds a tag) as a review point."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The validation failed because `initial_syncer.cpp` is only in `important_files_modified`, not in `auto_merged.files`. I'll rewrite without it."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Fixed. I removed the `src/mongo/db/repl/initial_sync/initial_syncer.cpp` entry from `auto_merged` (it's listed under `important_files_modified`, not `auto_merged.files`) and updated the `review_notes` to no longer reference it. The response now describes only the 30 files in `merge_context.auto_merged.files`, each backed by the actual `diff base \u2192 merge commit` diff I read."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260728_123533_750915.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "note_index": [
+    {
+      "sha": "428253538647ee61065471fc16c6d39eef564db1",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "7b3dfb342c598bdc62226ee8bac422ebff6ce33a",
+      "message": "Merge commit 'ff54e20bb15' into master"
+    },
+    {
+      "sha": "3b109777fcf21455e710ea199cdc8cd3f91982c9",
+      "message": "Resolve conflicts for merge commit 'ff54e20bb15' into master"
+    }
+  ]
+}

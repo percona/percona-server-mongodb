@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8bdd75650937f1240aa23fc00a9ca7f95ce17b6c",
+    "merge_commit": "59962ffd3dfd37f2d5bcac7ebf3b9e196b7703cf"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '59962ffd3df' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved conflicts in sbom.json and MODULE.bazel.lock. For sbom.json,\nkept Percona's serialNumber/version and supplier URL\n(https://percona.com) and removed the MongoDB-generated metadata.tools\nsection per the conflict hints. For MODULE.bazel.lock, removed the\nconflict markers by accepting one side and regenerated the file with\n'bazel query //...' as instructed.\n\nResolved:\n\tsbom.json\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "7bb805f2926f587fcf81958e08c0a376658dedc5"
+    }
+  ]
+}

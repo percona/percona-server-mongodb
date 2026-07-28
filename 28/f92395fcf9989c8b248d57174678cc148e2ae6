@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "f63e1bddbc14d3c708c8c1960e729f9e06cd3321",
+    "merge_commit": "512d585a81f4b41e5b228b7c8c685f97fb612dd6"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '512d585a81f' into master",
+        "resolved": {
+          "src/mongo/db/curop.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in src/mongo/db/curop.cpp where both sides added\nnew, non-overlapping methods at the same location. Kept both: Percona's\n_shouldDBProfileWithRateLimit (rate-limit profiling) from HEAD and\nupstream's newly added reportDebugInfo method.\n\nResolved:\n\tsrc/mongo/db/curop.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "28f92395fcf9989c8b248d57174678cc148e2ae6"
+    }
+  ]
+}
