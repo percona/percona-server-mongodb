@@ -442,14 +442,11 @@ mongo_cc_library(
         "dist/crt/aws-crt-cpp/crt/aws-c-io/include/aws/io/private/*.h",
         "dist/crt/aws-crt-cpp/crt/aws-c-io/source/*.h",
         "dist/crt/aws-crt-cpp/crt/aws-c-io/source/pkcs11/v2.40/*.h",
-        "dist/crt/aws-crt-cpp/crt/s2n/api/unstable/*.h",
     ]),
     copts = AWS_C_COMMON_INCLUDE + AWS_CRT_CPP_INCLUDE + [
         "-Isrc/third_party/aws-sdk-cpp/dist/crt/aws-crt-cpp/crt/aws-c-cal/include",
         "-Isrc/third_party/aws-sdk-cpp/dist/crt/aws-crt-cpp/crt/aws-c-common/include",
         "-Isrc/third_party/aws-sdk-cpp/dist/crt/aws-crt-cpp/crt/aws-c-io/include",
-        "-Isrc/third_party/aws-sdk-cpp/dist/crt/aws-crt-cpp/crt/s2n",
-        "-Isrc/third_party/aws-sdk-cpp/dist/crt/aws-crt-cpp/crt/s2n/api",
         "-Wno-error",
         "-Wstrict-prototypes",
         "-Wextra",
@@ -491,7 +488,7 @@ mongo_cc_library(
     deps = [
         "aws-c-cal",
         "aws-c-common",
-        "aws-s2n",
+        "//src/third_party/s2n:s2n-tls",
     ],
 )
 
