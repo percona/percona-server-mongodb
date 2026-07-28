@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b1c423f8eb1ae96bb84fc7d25d71fbe1ffa67f9e",
+    "merge_commit": "b22243acf403e3936960d2ce9e556f6f9c7e2e2e"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b22243acf40' into master",
+        "resolved": {
+          "src/mongo/db/index_builds/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in the index_builds BUILD.bazel deps\nlist by combining additions from both sides.\n\nResolved:\n\tsrc/mongo/db/index_builds/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "8adc2708346b04d6c26cfcb5fa53848867c1f3fe"
+    }
+  ]
+}
