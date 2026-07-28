@@ -203,13 +203,9 @@ mongo_cc_library(
         ":index_build_knobs_idl",
         ":index_builds_coordinator",
         ":resumable_index_builds_idl",
-<<<<<<< HEAD
         "//src/mongo/db/audit:audit_impl",
-||||||| 512d585a81f
-=======
         "//src/mongo/db/index_builds/primary_driven:enabled",
         "//src/mongo/db/rss:replicated_storage_service",
->>>>>>> b22243acf403e3936960d2ce9e556f6f9c7e2e2e
         "//src/mongo/db/s:forwardable_operation_metadata",
         "//src/mongo/db/shard_role",
         "//src/mongo/db/shard_role/shard_catalog:collection_catalog",
