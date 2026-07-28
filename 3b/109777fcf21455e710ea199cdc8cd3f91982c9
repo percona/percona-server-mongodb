@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "2c836d48d8c1af7ce264c20b1e70dbf7dc579681",
+    "merge_commit": "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa"
+  },
+  "mergai_version": "0.1.dev1+g07faa5a05",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'ff54e20bb15' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "jstests/suites/backup-restore/BUILD.bazel": "Resolved by human",
+          "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts. In the wiredtiger BUILD.bazel, merged\nboth sides' dependency additions (Percona's audit_impl and\nencryption:key_management with upstream's\nadmission:write_throttler_admission_context), keeping alphabetical\norder. Kept Percona's deliberate removal of the backup-restore test\nsuite by re-deleting the file upstream had modified. Resolved\nMODULE.bazel.lock by accepting HEAD's bzlTransitiveDigest and running\nbazel query to regenerate/validate the lock.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/BUILD.bazel\n\tjstests/suites/backup-restore/BUILD.bazel\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "3b109777fcf21455e710ea199cdc8cd3f91982c9"
+    }
+  ]
+}
