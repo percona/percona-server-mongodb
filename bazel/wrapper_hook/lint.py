@@ -346,7 +346,7 @@ class LintRunner:
                 self.bazel_bin,
                 "query",
                 "attr('tags','resmoke_suite_test',//...)",
-                "--output=xml",
+                "--output=build",
                 "--keep_going",
             ],
             capture_output=True,
@@ -374,19 +374,19 @@ class LintRunner:
             return
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".xml", delete=False, encoding="utf-8"
-        ) as tags_file:
-            tags_file.write(query.stdout)
-            tags_path = tags_file.name
+            mode="w", suffix=".build", delete=False, encoding="utf-8"
+        ) as info_file:
+            info_file.write(query.stdout)
+            info_path = info_file.name
 
         try:
             # The checker has no preview mode; under --dry-run just run the (read-only) check.
-            args = [f"--target-tags-xml={tags_path}"]
+            args = [f"--target-info-build={info_path}"]
             if fix and not dry_run:
                 args.append("--fix")
             self.run_bazel("//buildscripts:lint_resmoke_suite_tests", args)
         finally:
-            os.unlink(tags_path)
+            os.unlink(info_path)
 
     def refresh_module_lockfile(
         self,
@@ -886,8 +886,8 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
     elif existing_python_files:
         lr.run_bazel("//buildscripts:pyrightlint", ["lints"] + existing_python_files)
 
-    if lint_all or "poetry.lock" in files_to_lint or "pyproject.toml" in files_to_lint:
-        lr.run_bazel("//buildscripts:poetry_lock_check")
+    if lint_all or "uv.lock" in files_to_lint or "pyproject.toml" in files_to_lint:
+        lr.run_bazel("//buildscripts:uv_lock_check")
 
     if _should_check_copybara_generated_evergreen(lint_all, files_to_lint):
         lr.check_copybara_generated_evergreen(
@@ -1071,6 +1071,13 @@ def run_rules_lint(bazel_bin: str, args: list[str]):
     # Check pass: always run without fix mode to find remaining violations.
     # Runs after the fix pass (if any) so that auto-fixed violations are no longer
     # reported, but unfixable violations still cause a non-zero exit.
+    #
+    # check=True: any bazel-level failure fails lint immediately — a broken
+    # BUILD file in the change under lint, an aspect failure, or an owner
+    # target that is explicitly requested but platform-incompatible on the
+    # running host (e.g. //bazel/wrapper_hook:wrapper_hook on macOS via its
+    # transitive setup_clang_tidy dep). Fail-fast is deliberate: CI should
+    # surface these rather than skip them.
     subprocess.run([bazel_bin, "build"] + args, check=True, stdout=sys.stdout, stderr=sys.stderr)
 
     failing_reports = 0

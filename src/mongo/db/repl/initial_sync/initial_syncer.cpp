@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: SSPL-1.0
 
 
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <boost/smart_ptr.hpp>
-// IWYU pragma: no_include "cxxabi.h"
+#include "mongo/db/repl/initial_sync/initial_syncer.h"
+
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonelement.h"
@@ -23,7 +20,6 @@
 #include "mongo/db/repl/initial_sync/collection_cloner.h"
 #include "mongo/db/repl/initial_sync/database_cloner.h"
 #include "mongo/db/repl/initial_sync/initial_sync_state.h"
-#include "mongo/db/repl/initial_sync/initial_syncer.h"
 #include "mongo/db/repl/initial_sync/initial_syncer_common_stats.h"
 #include "mongo/db/repl/initial_sync/initial_syncer_factory.h"
 #include "mongo/db/repl/oplog.h"
@@ -67,6 +63,12 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/smart_ptr.hpp>
+// IWYU pragma: no_include "cxxabi.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kReplicationInitialSync
 
@@ -1884,8 +1886,9 @@ void InitialSyncer::_fcvFetcherCallback(const StatusWith<Fetcher::QueryResponse>
     if (!initialSyncWaitForSyncSourceLastStableRecoveryTs.load()) {
         // Server parameter is toggled off, skip waiting for stable recovery timestamp to advance on
         // sync source.
-        LOGV2_WARNING(
+        LOGV2_DEBUG(
             11318403,
+            2,
             "Skipping waiting for sync source stable recovery timestamp to advance on sync source "
             "because the 'initialSyncWaitForSyncSourceLastStableRecoveryTs' parameter is off",
             "beginFetchingTimestamp"_attr = _initialSyncState->beginFetchingTimestamp,

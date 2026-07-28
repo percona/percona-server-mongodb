@@ -228,6 +228,12 @@ let roles_all = {
     __system: 1,
 };
 
+let elevatedUserRolesRuntimeConstants = {
+    localNow: new Date(),
+    clusterTime: Timestamp(1, 1),
+    userRoles: [{_id: "admin.root", role: "root", db: "admin"}],
+};
+
 // Common test cases for the aggregation stages that perform transformation only.
 let testcases_transformationOnly = [
     {
@@ -2217,6 +2223,48 @@ export const authCommandsLib = {
                 cursor: {},
             },
             testcases: [{runOnDb: "config", roles: roles_all}],
+        },
+        {
+            // $_internalPredicate is only allowed for internal clients.
+            testname: "aggregate_listSessions_internalPredicate",
+            command: {
+                aggregate: "system.sessions",
+                pipeline: [{$listSessions: {$_internalPredicate: {"_id.uid": {$exists: true}}}}],
+                cursor: {},
+            },
+            testcases: [
+                {runOnDb: "config", roles: {__system: 1}},
+                {
+                    runOnDb: "config",
+                    privileges: [{resource: {cluster: true}, actions: ["internal"]}],
+                },
+            ],
+        },
+        {
+            // Combining allUsers:true with $_internalPredicate requires both 'listSessions' and
+            // 'internal' on the cluster resource.
+            testname: "aggregate_listSessions_allUsers_internalPredicate",
+            command: {
+                aggregate: "system.sessions",
+                pipeline: [
+                    {
+                        $listSessions: {
+                            allUsers: true,
+                            $_internalPredicate: {"_id.uid": {$exists: true}},
+                        },
+                    },
+                ],
+                cursor: {},
+            },
+            testcases: [
+                {runOnDb: "config", roles: {__system: 1}},
+                {
+                    runOnDb: "config",
+                    privileges: [
+                        {resource: {cluster: true}, actions: ["listSessions", "internal"]},
+                    ],
+                },
+            ],
         },
         {
             testname: "aggregate_lookup",
@@ -5715,6 +5763,119 @@ export const authCommandsLib = {
                 },
             ],
         },
+        // A forged value for 'runtimeConstants.userRoles' must be rejected for every external client, no
+        // matter how privileged.
+        {
+            testname: "find_runtime_constants_user_roles",
+            command: {find: "foo", filter: {}, runtimeConstants: elevatedUserRolesRuntimeConstants},
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: roles_all,
+                    privileges: [],
+                    // Error codes are different for mongod vs mongos.
+                    expectFailWithErrorCodes: [12843300, 51202],
+                },
+            ],
+        },
+        {
+            testname: "update_runtime_constants_user_roles",
+            command: {
+                update: "foo",
+                updates: [{q: {}, u: {$set: {a: 1}}}],
+                runtimeConstants: elevatedUserRolesRuntimeConstants,
+            },
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: roles_all,
+                    privileges: [],
+                    // Error codes are different for mongod vs mongos.
+                    expectFailWithErrorCodes: [12843300, 51195],
+                },
+            ],
+        },
+        {
+            testname: "delete_runtime_constants_user_roles",
+            command: {
+                delete: "foo",
+                deletes: [{q: {}, limit: 1}],
+                runtimeConstants: elevatedUserRolesRuntimeConstants,
+            },
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: roles_all,
+                    privileges: [],
+                    expectFailWithErrorCodes: [12843300],
+                },
+            ],
+        },
+        {
+            testname: "findAndModify_runtime_constants_user_roles",
+            command: {
+                findAndModify: "x",
+                query: {},
+                update: {$inc: {n: 1}},
+                runtimeConstants: elevatedUserRolesRuntimeConstants,
+            },
+            skipSharded: true,
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: roles_all,
+                    privileges: [],
+                    expectFailWithErrorCodes: [12843300],
+                },
+            ],
+        },
+        {
+            testname: "findAndModify_runtime_constants_user_roles_sharded",
+            command: {
+                findAndModify: "x",
+                query: {},
+                update: {$inc: {n: 1}},
+                runtimeConstants: elevatedUserRolesRuntimeConstants,
+            },
+            skipUnlessSharded: true,
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: {
+                        readWrite: 1,
+                        readWriteAnyDatabase: 1,
+                        dbOwner: 1,
+                        root: 1,
+                        __system: 1,
+                    },
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "x"}, actions: ["find", "update"]},
+                    ],
+                    // Error code depends on whether UWE is active.
+                    expectFailWithErrorCodes: [51196, 11423300],
+                },
+            ],
+        },
+        {
+            testname: "aggregate_runtime_constants_user_roles",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$match: {}}],
+                cursor: {},
+                runtimeConstants: elevatedUserRolesRuntimeConstants,
+            },
+            testcases: [
+                {
+                    runOnDb: firstDbName,
+                    roles: roles_read,
+                    privileges: [
+                        {resource: {db: firstDbName, collection: "foo"}, actions: ["find"]},
+                    ],
+                    // Error codes are different for mongod vs mongos.
+                    expectFailWithErrorCodes: [463840, 51143],
+                },
+            ],
+        },
         {
             testname: "flushRouterConfig",
             command: {flushRouterConfig: 1},
@@ -6689,6 +6850,7 @@ export const authCommandsLib = {
         },
         {
             testname: "mapReduce_readonly",
+            skipTest: (conn) => !isServerSideJavaScriptEnabled(conn),
             command: {
                 mapreduce: "x",
                 map: function () {
@@ -6723,6 +6885,7 @@ export const authCommandsLib = {
         },
         {
             testname: "mapReduce_write",
+            skipTest: (conn) => !isServerSideJavaScriptEnabled(conn),
             command: {
                 mapreduce: "x",
                 map: function () {
@@ -10696,6 +10859,19 @@ function isFeatureEnabled(conn, ...features) {
         adminDb.logout();
     }
     return features.every((key) => res[key]?.value);
+}
+
+// Returns true if the server was built with a server-side JavaScript engine. The `features`
+// command only reports its `js` sub-document when a global script engine is present, so its
+// absence identifies a scripting_none build (e.g. PPC, where server-side JS is compiled out).
+function isServerSideJavaScriptEnabled(conn) {
+    const adminDb = conn.getDB(adminDbName);
+    const authed = adminDb.auth("admin", "password");
+    const res = assert.commandWorked(adminDb.runCommand({features: 1}));
+    if (authed) {
+        adminDb.logout();
+    }
+    return res.js !== undefined;
 }
 
 function isForceClassicEngine(conn) {

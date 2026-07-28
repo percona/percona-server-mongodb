@@ -1,4 +1,4 @@
-load("@poetry//:dependencies.bzl", "dependency")
+load("//bazel/uv:defs.bzl", "dependency")
 load("//bazel:mongo_src_rules.bzl", "TCMALLOC_DEPS", "idl_generator", "mongo_cc_benchmark", "mongo_cc_binary", "mongo_cc_fuzzer_test_deprecated", "mongo_cc_integration_test", "mongo_cc_library", "mongo_cc_unit_test", "mongo_idl_library", "windows_rc")
 load("//bazel/config:render_template.bzl", "render_template")
 
@@ -2730,7 +2730,7 @@ mongo_cc_library(
         "keys_collection_client_direct",
         "//src/mongo/db/topology/vector_clock:logical_time_metadata_hook",
         "//src/mongo/db/matcher:expressions_mongod_only",
-        "metrics_policy_manager_impl",
+        "metrics_policy_manager_mongod",
         "mirror_maestro",
         "mongod_options",
         "mongod_options_init",
@@ -2877,7 +2877,7 @@ mongo_cc_library(
         ],
         "//conditions:default": [],
     }) + select({
-        "//bazel/config:server_js_enabled": [
+        "//bazel/config:server_js_engine_allowed": [
             "//src/mongo/scripting:scripting_server",
         ],
         "//conditions:default": ["//src/mongo/scripting:scripting_none"],
@@ -3769,7 +3769,7 @@ mongo_cc_benchmark(
     srcs = ["crud_bm.cpp"],
     tags = ["sep_bm"],
     deps = [
-        ":metrics_policy_manager_impl",
+        ":metrics_policy_manager_mongod",
         ":mongod_options_init",
         ":read_write_concern_defaults_mock",
         ":server_base",
@@ -4067,14 +4067,28 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_library(
-    name = "metrics_policy_manager_impl",
+    name = "metrics_policy_manager_mongod",
     deps = [
         ":metrics_policy_manager_default",
         ":service_context",
         "//src/mongo:base",
     ] + select({
         "//bazel/config:build_atlas_required_settings": [
-            "//src/mongo/db/modules/atlas/src/disagg_storage:metrics_policy_manager_disagg",
+            "//src/mongo/db/modules/atlas/src/disagg_storage:metrics_policy_manager_disagg_mongod",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+mongo_cc_library(
+    name = "metrics_policy_manager_mongos",
+    deps = [
+        ":metrics_policy_manager_default",
+        ":service_context",
+        "//src/mongo:base",
+    ] + select({
+        "//bazel/config:build_atlas_required_settings": [
+            "//src/mongo/db/modules/atlas/src/disagg_storage:metrics_policy_manager_disagg_mongos",
         ],
         "//conditions:default": [],
     }),

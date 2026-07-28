@@ -98,12 +98,16 @@ last-continuous:
       ticket: SERVER-95352
     - test_file: jstests/core/timeseries/write/timeseries_bypass_document_validation_raw_buckets.js
       ticket: SERVER-121714
+    - test_file: jstests/core/txns/multi_statement_transaction_command_args.js
+      ticket: SERVER-127661
     - test_file: jstests/fle2/implicit_ecoc_creation.js
       ticket: SERVER-126384
     - test_file: jstests/noPassthrough/ddl/clear_jumbo.js
       ticket: SERVER-125661
     - test_file: jstests/noPassthrough/ddl/list_collections_and_indexes_with_write_conflicts.js
       ticket: SERVER-131540
+    - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
+      ticket: SERVER-128433
     - test_file: jstests/noPassthrough/read_write_concern/read_pref.js
       ticket: SERVER-128221
     - test_file: jstests/noPassthrough/read_write_concern/read_preference_metrics_mongos.js
@@ -515,6 +519,8 @@ last-lts:
       ticket: SERVER-93099
     - test_file: jstests/core/txns/multi_statement_transaction_abort.js
       ticket: SERVER-84081
+    - test_file: jstests/core/txns/multi_statement_transaction_command_args.js
+      ticket: SERVER-127661
     - test_file: jstests/core/txns/rename_collection_not_blocked_by_txn.js
       ticket: SERVER-106706
     - test_file: jstests/core/write/bypass_empty_ts_replacement.js
@@ -565,6 +571,8 @@ last-lts:
       ticket: SERVER-110058
     - test_file: jstests/noPassthrough/query/out_merge/out_timeseries_cleans_up_bucket_collections.js
       ticket: SERVER-93149
+    - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
+      ticket: SERVER-128433
     - test_file: jstests/noPassthrough/read_write_concern/read_pref.js
       ticket: SERVER-128221
     - test_file: jstests/noPassthrough/read_write_concern/read_preference_metrics_mongos.js

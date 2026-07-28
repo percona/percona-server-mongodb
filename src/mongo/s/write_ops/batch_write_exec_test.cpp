@@ -1,11 +1,8 @@
 // Copyright (c) MongoDB, Inc.
 // SPDX-License-Identifier: SSPL-1.0
 
-#include "mongo/util/fail_point.h"
+#include "mongo/s/write_ops/batch_write_exec.h"
 
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-// IWYU pragma: no_include "cxxabi.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/bson/bsonobj.h"
@@ -45,11 +42,11 @@
 #include "mongo/rpc/op_msg.h"
 #include "mongo/s/session_catalog_router.h"
 #include "mongo/s/transaction_router.h"
-#include "mongo/s/write_ops/batch_write_exec.h"
 #include "mongo/s/write_ops/batched_command_request.h"
 #include "mongo/s/write_ops/batched_command_response.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
@@ -59,6 +56,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+// IWYU pragma: no_include "cxxabi.h"
 
 namespace mongo {
 namespace {
@@ -242,19 +243,19 @@ public:
         // Set up the shard registry to contain the fake shards
         setupShards({[] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName1), boost::none});
+                         shardType.setName(kShardName1);
                          shardType.setHost(kTestShardHost1.toString());
                          return shardType;
                      }(),
                      [] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName2), boost::none});
+                         shardType.setName(kShardName2);
                          shardType.setHost(kTestShardHost2.toString());
                          return shardType;
                      }(),
                      [] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName3), boost::none});
+                         shardType.setName(kShardName3);
                          shardType.setHost(kTestShardHost3.toString());
                          return shardType;
                      }()});
@@ -3705,13 +3706,13 @@ public:
         // Set up the shard registry to contain the fake shards
         setupShards({[] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName1), boost::none});
+                         shardType.setName(kShardName1);
                          shardType.setHost(kTestShardHost1.toString());
                          return shardType;
                      }(),
                      [] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName2), boost::none});
+                         shardType.setName(kShardName2);
                          shardType.setHost(kTestShardHost2.toString());
                          return shardType;
                      }()});
@@ -3823,13 +3824,13 @@ public:
         // Set up the shard registry to contain the fake shards
         setupShards({[] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName1), boost::none});
+                         shardType.setName(kShardName1);
                          shardType.setHost(kTestShardHost1.toString());
                          return shardType;
                      }(),
                      [] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName2), boost::none});
+                         shardType.setName(kShardName2);
                          shardType.setHost(kTestShardHost2.toString());
                          return shardType;
                      }()});
@@ -3974,13 +3975,13 @@ public:
         // Set up the shard registry to contain the fake shards
         setupShards({[] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName1), boost::none});
+                         shardType.setName(kShardName1);
                          shardType.setHost(kTestShardHost1.toString());
                          return shardType;
                      }(),
                      [] {
                          ShardType shardType;
-                         shardType.setHandle(ShardHandle{ShardId(kShardName2), boost::none});
+                         shardType.setName(kShardName2);
                          shardType.setHost(kTestShardHost2.toString());
                          return shardType;
                      }()});

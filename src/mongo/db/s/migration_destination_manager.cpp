@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: SSPL-1.0
 
 
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-// IWYU pragma: no_include "cxxabi.h"
+#include "mongo/db/s/migration_destination_manager.h"
+
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonelement.h"
 #include "mongo/bson/bsonmisc.h"
@@ -44,7 +42,6 @@
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/router_role/cluster_commands_helpers.h"
 #include "mongo/db/s/migration_batch_fetcher.h"
-#include "mongo/db/s/migration_destination_manager.h"
 #include "mongo/db/s/migration_util.h"
 #include "mongo/db/s/move_timing_helper.h"
 #include "mongo/db/s/range_deletion_task_gen.h"
@@ -78,6 +75,7 @@
 #include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/grid.h"
 #include "mongo/db/sharding_environment/sharding_feature_flags_gen.h"
+#include "mongo/db/sharding_environment/sharding_runtime_d_params_gen.h"
 #include "mongo/db/sharding_environment/sharding_statistics.h"
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/write_unit_of_work.h"
@@ -111,6 +109,11 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+// IWYU pragma: no_include "cxxabi.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kShardingMigration
 
@@ -2438,8 +2441,18 @@ bool MigrationDestinationManager::migrationWouldDropPITHistory(OperationContext*
                                                                const ChunkRange& enclosingChunk) {
     // Oldest timestamp the storage engine still retains a snapshot for. A point-in-time read below
     // it is rejected with SnapshotTooOld, so it is the exact lower bound of PIT reachability.
-    const auto oldestTimestamp =
-        opCtx->getServiceContext()->getStorageEngine()->getOldestTimestamp();
+    auto oldestTimestamp = opCtx->getServiceContext()->getStorageEngine()->getOldestTimestamp();
+
+    const auto overriddenPitWindowToPreserveInSecs =
+        gMigrationRecipientPITHistoryToPreserveInSecs.load();
+    if (MONGO_unlikely(overriddenPitWindowToPreserveInSecs >= 0)) {
+        const auto currTime = VectorClock::get(opCtx)->getTime();
+        const unsigned currTimeSeconds = currTime.clusterTime().asTimestamp().getSecs();
+        const unsigned preserveSecs = static_cast<unsigned>(overriddenPitWindowToPreserveInSecs);
+        const unsigned oldestSecs =
+            (currTimeSeconds > preserveSecs) ? (currTimeSeconds - preserveSecs) : 0U;
+        oldestTimestamp = Timestamp(oldestSecs, 0);
+    }
 
     // A stored chunk drops PIT history when it is owned by another shard, is not fully covered by
     // 'enclosingChunk', and its most recent ownership transition is still reachable by PIT reads.

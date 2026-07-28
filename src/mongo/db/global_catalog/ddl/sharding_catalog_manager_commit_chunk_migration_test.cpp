@@ -1,9 +1,6 @@
 // Copyright (c) MongoDB, Inc.
 // SPDX-License-Identifier: SSPL-1.0
 
-#include <boost/optional/optional.hpp>
-#include <fmt/format.h>
-// IWYU pragma: no_include "ext/alloc_traits.h"
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -50,6 +47,10 @@
 #include <memory>
 #include <string>
 #include <vector>
+
+#include <boost/optional/optional.hpp>
+#include <fmt/format.h>
+// IWYU pragma: no_include "ext/alloc_traits.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
@@ -115,11 +116,11 @@ TEST_F(CommitChunkMigrate, ChunksUpdatedCorrectly) {
     const auto collTimestamp = Timestamp(42);
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -386,11 +387,11 @@ TEST_F(CommitChunkMigrate, ChunksUpdatedCorrectlyWithoutControlChunk) {
     const auto collTimestamp = Timestamp(42);
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -452,11 +453,11 @@ TEST_F(CommitChunkMigrate, CheckCorrectOpsCommandNoCtlTrimHistory) {
     const auto collTimestamp = Timestamp(42);
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -517,11 +518,11 @@ TEST_F(CommitChunkMigrate, RejectOutOfOrderHistory) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -565,11 +566,11 @@ TEST_F(CommitChunkMigrate, RejectWrongCollectionEpoch0) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -616,11 +617,11 @@ TEST_F(CommitChunkMigrate, RejectWrongCollectionEpoch1) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -670,11 +671,11 @@ TEST_F(CommitChunkMigrate, CommitWithLastChunkOnShardShouldNotAffectOtherChunks)
     const auto collTimestamp = Timestamp(42);
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -756,11 +757,11 @@ TEST_F(CommitChunkMigrate, RejectMissingChunkVersion) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -805,11 +806,11 @@ TEST_F(CommitChunkMigrate, RejectOlderChunkVersion) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -858,11 +859,11 @@ TEST_F(CommitChunkMigrate, RejectMismatchedEpoch) {
     const auto collUUID = UUID::gen();
 
     ShardType shard0;
-    shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+    shard0.setName("shard0");
     shard0.setHost("shard0:12");
 
     ShardType shard1;
-    shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+    shard1.setName("shard1");
     shard1.setHost("shard1:12");
 
     setupShards({shard0, shard1});
@@ -1170,11 +1171,11 @@ private:
         CommitChunkMigrate::setUp();
 
         ShardType shard0;
-        shard0.setHandle(ShardHandle{ShardId("shard0"), boost::none});
+        shard0.setName("shard0");
         shard0.setHost("shard0:12");
 
         ShardType shard1;
-        shard1.setHandle(ShardHandle{ShardId("shard1"), boost::none});
+        shard1.setName("shard1");
         shard1.setHost("shard1:12");
 
         setupShards({shard0, shard1});

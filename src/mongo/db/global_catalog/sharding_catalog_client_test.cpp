@@ -1,13 +1,8 @@
 // Copyright (c) MongoDB, Inc.
 // SPDX-License-Identifier: SSPL-1.0
 
-#include <boost/cstdint.hpp>
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional/optional.hpp>
-#include <fmt/format.h>
-// IWYU pragma: no_include "cxxabi.h"
-// IWYU pragma: no_include "ext/alloc_traits.h"
+#include "mongo/db/global_catalog/sharding_catalog_client.h"
+
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bson_field.h"
 #include "mongo/bson/bsonelement.h"
@@ -18,7 +13,6 @@
 #include "mongo/db/commands.h"
 #include "mongo/db/error_labels.h"
 #include "mongo/db/generic_argument_util.h"
-#include "mongo/db/global_catalog/sharding_catalog_client.h"
 #include "mongo/db/global_catalog/type_chunk.h"
 #include "mongo/db/global_catalog/type_collection.h"
 #include "mongo/db/global_catalog/type_database_gen.h"
@@ -50,6 +44,14 @@
 #include <cstddef>
 #include <memory>
 #include <tuple>
+
+#include <boost/cstdint.hpp>
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional/optional.hpp>
+#include <fmt/format.h>
+// IWYU pragma: no_include "cxxabi.h"
+// IWYU pragma: no_include "ext/alloc_traits.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -278,17 +280,17 @@ TEST_F(ShardingCatalogClientTest, GetAllShardsValid) {
     configTargeter()->setFindHostReturnValue(HostAndPort("TestHost1"));
 
     ShardType s1;
-    s1.setHandle(ShardHandle{ShardId("shard0000"), boost::none});
+    s1.setName("shard0000");
     s1.setHost("ShardHost");
     s1.setDraining(false);
     s1.setTags({"tag1", "tag2", "tag3"});
 
     ShardType s2;
-    s2.setHandle(ShardHandle{ShardId("shard0001"), boost::none});
+    s2.setName("shard0001");
     s2.setHost("ShardHost");
 
     ShardType s3;
-    s3.setHandle(ShardHandle{ShardId("shard0002"), boost::none});
+    s3.setName("shard0002");
     s3.setHost("ShardHost");
 
     const vector<ShardType> expectedShardsList = {s1, s2, s3};
@@ -336,7 +338,7 @@ TEST_F(ShardingCatalogClientTest, GetAllShardsWithInvalidShard) {
     onFindCommand([](const RemoteCommandRequest& request) {
         // Valid ShardType
         ShardType s1;
-        s1.setHandle(ShardHandle{ShardId("shard0001"), boost::none});
+        s1.setName("shard0001");
         s1.setHost("ShardHost");
 
         return vector<BSONObj>{

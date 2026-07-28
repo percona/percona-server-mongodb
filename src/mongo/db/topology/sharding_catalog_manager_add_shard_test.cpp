@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: SSPL-1.0
 
 
-#include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
-#include <boost/optional.hpp>
-#include <boost/optional/optional.hpp>
-#include <fmt/format.h>
-// IWYU pragma: no_include "cxxabi.h"
+#include "mongo/db/sharding_environment/client/shard.h"
+
 #include "mongo/base/error_codes.h"
 #include "mongo/base/status.h"
 #include "mongo/base/status_with.h"
@@ -47,7 +43,6 @@
 #include "mongo/db/session/logical_session_cache.h"
 #include "mongo/db/session/logical_session_cache_noop.h"
 #include "mongo/db/session/session_catalog_mongod.h"
-#include "mongo/db/sharding_environment/client/shard.h"
 #include "mongo/db/sharding_environment/cluster_identity_loader.h"
 #include "mongo/db/sharding_environment/config_server_test_fixture.h"
 #include "mongo/db/sharding_environment/shard_id.h"
@@ -81,6 +76,13 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include <boost/move/utility_core.hpp>
+#include <boost/none.hpp>
+#include <boost/optional.hpp>
+#include <boost/optional/optional.hpp>
+#include <fmt/format.h>
+// IWYU pragma: no_include "cxxabi.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kSharding
 
@@ -788,7 +790,7 @@ TEST_F(AddShardTest, SuccessfullyAddReplicaSet) {
 
     // The shard doc inserted into the config.shards collection on the config server.
     ShardType expectedShard;
-    expectedShard.setHandle(ShardHandle{ShardId(expectedShardName), boost::none});
+    expectedShard.setName(expectedShardName);
     expectedShard.setHost(connString.toString());
 
     DatabaseType discoveredDB(DatabaseName::createDatabaseName_forTest(boost::none, "shardDB"),
@@ -865,7 +867,7 @@ TEST_F(AddShardTest, SuccessfullyAddConfigShard) {
 
     // The shard doc inserted into the config.shards collection on the config server.
     ShardType expectedShard;
-    expectedShard.setHandle(ShardHandle{ShardId(expectedShardName), boost::none});
+    expectedShard.setName(expectedShardName);
     expectedShard.setHost(connString.toString());
 
     DatabaseType discoveredDB(DatabaseName::createDatabaseName_forTest(boost::none, "shardDB"),
@@ -932,7 +934,7 @@ TEST_F(AddShardTest, ReplicaSetExtraHostsDiscovered) {
 
     // The shard doc inserted into the config.shards collection on the config server.
     ShardType expectedShard;
-    expectedShard.setHandle(ShardHandle{ShardId(expectedShardName), boost::none});
+    expectedShard.setName(expectedShardName);
     expectedShard.setHost(fullConnString.toString());
 
     DatabaseType discoveredDB(DatabaseName::createDatabaseName_forTest(boost::none, "shardDB"),
@@ -1020,7 +1022,7 @@ TEST_F(AddShardTest, AddExistingShardStandalone) {
 
     std::string existingShardName = "myShard";
     ShardType existingShard;
-    existingShard.setHandle(ShardHandle{ShardId(existingShardName), boost::none});
+    existingShard.setName(existingShardName);
     existingShard.setHost(shardTarget.toString());
 
     // Make sure the shard already exists.
@@ -1118,7 +1120,7 @@ TEST_F(AddShardTest, AddExistingShardReplicaSet) {
 
     std::string existingShardName = "myShard";
     ShardType existingShard;
-    existingShard.setHandle(ShardHandle{ShardId(existingShardName), boost::none});
+    existingShard.setName(existingShardName);
     existingShard.setHost(connString.toString());
 
     // Make sure the shard already exists.
@@ -1275,7 +1277,7 @@ TEST_F(AddShardTest, AddShardWithOverlappingHosts) {
 
     std::string existingShardName = "myShard";
     ShardType existingShard;
-    existingShard.setHandle(ShardHandle{ShardId(existingShardName), boost::none});
+    existingShard.setName(existingShardName);
     existingShard.setHost(connString.toString());
 
     // Make sure the shard already exists.

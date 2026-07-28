@@ -15,7 +15,9 @@ load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain")
 load("//bazel/install_rules:bolt.bzl", "bolt_optimize")
 load("@com_github_grpc_grpc//bazel:generate_cc.bzl", "generate_cc")
-load("@poetry//:dependencies.bzl", "dependency")
+load("//bazel/config:py_action_env.bzl", "py_exec_import_paths")
+load("//bazel/uv:defs.bzl", "dependency")
+load("@rules_python//python:py_info.bzl", "PyInfo")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_shared_library")
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_shared_library", "rust_test")
 load("@rules_proto//proto:defs.bzl", "proto_library")
@@ -1001,19 +1003,13 @@ def idl_generator_impl(ctx):
         [hdr[DefaultInfo].files for hdr in ctx.attr.hdrs]
     )
 
-    # collect deps from python modules and setup the corresponding
-    # path so all modules can be found by the toolchain.
-    python_path = []
-    for py_dep in ctx.attr.py_deps:
-        for path in py_dep[PyInfo].imports.to_list():
-            if path not in python_path:
-                python_path.append(ctx.expand_make_variables(
-                    "python_library_imports",
-                    "$(BINDIR)/external/" + path,
-                    ctx.var,
-                ))
-
+    # Collect deps from python modules and set up PYTHONPATH so the
+    # toolchain can find them at action-execution time. `py_deps` is
+    # `cfg = "exec"`; see py_exec_import_paths for why the exec bindir
+    # prefix must be derived rather than taken from $(BINDIR).
     py_depsets = [py_dep[PyInfo].transitive_sources for py_dep in ctx.attr.py_deps]
+
+    python_path = py_exec_import_paths(ctx, ctx.attr.py_deps)
 
     inputs = depset(transitive = [
         ctx.attr.src.files,
@@ -1093,6 +1089,19 @@ idl_generator_rule = rule(
                 dependency("pyyaml", group = "core"),
                 dependency("pymongo", group = "core"),
             ],
+            # SERVER-XXXX: pin py_deps to the EXEC config. idl_generator
+            # runs idlc.py at build time via ctx.actions.run() — the deps
+            # are inputs to the *action*, not runtime deps of the consumer
+            # target. Without `cfg = "exec"`, py_deps inherit the
+            # consumer's configuration. Under mongo's wasi_transition
+            # (mozjs wasm builds — see //bazel/toolchains/cc/mongo_wasm),
+            # py_deps get analyzed with `--platforms=//bazel/platforms:wasm32`,
+            # but pycross's per-wheel select() has no wasm32 branch and
+            # analysis fails. `cfg = "exec"` routes py_deps through the
+            # exec platform, whose constraints (linux/x86_64 on CI,
+            # darwin/aarch64 locally) do have matching pycross env
+            # branches.
+            cfg = "exec",
         ),
         "src": attr.label(
             doc = "The idl file to generate cpp/h files from.",
