@@ -97,13 +97,9 @@ mongo_cc_library(
         "//src/mongo/db:server_base",
         "//src/mongo/db:server_feature_flags",
         "//src/mongo/db:service_context",
-<<<<<<< HEAD
+        "//src/mongo/db/admission:write_throttler_admission_context",
         "//src/mongo/db/audit:audit_impl",
         "//src/mongo/db/encryption:key_management",
-||||||| b22243acf40
-=======
-        "//src/mongo/db/admission:write_throttler_admission_context",
->>>>>>> ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa
         "//src/mongo/db/rss:replicated_storage_service",
         "//src/mongo/db/storage:backup_cursor_hooks",
         "//src/mongo/db/storage:container",
