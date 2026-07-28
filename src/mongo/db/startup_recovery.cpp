@@ -19,6 +19,7 @@
 #include "mongo/db/index_builds/index_builds_common.h"
 #include "mongo/db/index_builds/index_builds_coordinator.h"
 #include "mongo/db/index_builds/multi_index_block.h"
+#include "mongo/db/index_builds/primary_driven/enabled.h"
 #include "mongo/db/index_builds/primary_driven/registry.h"
 #include "mongo/db/index_builds/primary_driven/util.h"
 #include "mongo/db/index_builds/rebuild_indexes.h"
@@ -554,10 +555,7 @@ void reconcileCatalogAndRestartUnfinishedIndexBuilds(
         return;
     }
 
-    const auto vCtx = VersionContext::getDecoration(opCtx);
-    const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-    if (feature_flags::gFeatureFlagPrimaryDrivenIndexBuilds.isEnabledUseLastLTSFCVWhenUninitialized(
-            vCtx, fcvSnapshot)) {
+    if (index_builds::primary_driven::enabled(opCtx)) {
         for (auto&& [buildUUID, entry] : reconcileResult.indexBuildsToRestart) {
             std::vector<IndexBuildInfo> builds;
             builds.reserve(entry.indexSpecsAndIdents.size());
@@ -772,6 +770,16 @@ StatusWith<bool> offlineValidateCollection(OperationContext* opCtx,
         // validate() throws NamespaceNotFound. That is a valid catalog state rather than
         // corruption, so skip the collection and continue validating the rest.
         if (e.code() == ErrorCodes::NamespaceNotFound && parsedOptions.getReadTimestamp()) {
+            if (!gValidateCollectionName.empty()) {
+                // If validating a single collection, return non-OK status to indicate that the
+                // collection was not validated and return early.
+                LOGV2_ERROR(
+                    11790202,
+                    "Single collection validation failed to complete, see logs for more details",
+                    "nss"_attr = nss.toStringForErrorMsg(),
+                    "error"_attr = e.toString());
+                return e.toStatus();
+            }
             LOGV2(11790100,
                   "Skipping validation of collection because it did not exist at atClusterTime",
                   "nss"_attr = nss.toStringForErrorMsg(),
