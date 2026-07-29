@@ -273,8 +273,8 @@ get_sources(){
         sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || abort '`sed` failed'
     #fi
 
-    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || abort '`go mod edit` failed'
-    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || abort '`go get` failed'
+    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 -dropreplace golang.org/x/text@v0.31.0 || abort '`go mod edit` failed'
+    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 golang.org/x/text@v0.39.0 || abort '`go get` failed'
     go mod tidy || abort '`go mod tidy` failed'
     go mod vendor || abort '`go mod vendor` failed'
     # Make downloaded Go packages writable to be able to remove them later
