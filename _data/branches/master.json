@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 44,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.6083661954745371,
-    "files_affected": 251,
-    "total_additions": 6758,
-    "total_deletions": 2317,
+    "commits_behind": 52,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.0449835085416668,
+    "files_affected": 277,
+    "total_additions": 7825,
+    "total_deletions": 2653,
     "date_range": {
       "first": "2026-07-28T05:49:20+00:00",
-      "last": "2026-07-28T19:38:37+00:00"
+      "last": "2026-07-29T00:36:05+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+      "short_sha": "bb7a39b05fe",
+      "date": "2026-07-29T10:36:05+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 09d06fa668530a865d3d66c903f4b0c731f8f2e5 from branch mongodb-master (#59783)"
+    },
+    {
+      "sha": "6485fd271092faa551f329a9afff323b46398f91",
+      "short_sha": "6485fd27109",
+      "date": "2026-07-28T16:15:49-07:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-128387 Remove proxy protocol role parsing (#55561)"
+    },
+    {
+      "sha": "0ced401ce3f53c807ba18cf66fb4cf8c4728ffa1",
+      "short_sha": "0ced401ce3f",
+      "date": "2026-07-29T01:52:38+03:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-132217 Force checkpoint past FCV transition in ReplicaSetFixture multiversion initiate (#59562)"
+    },
+    {
+      "sha": "1823ead065521038748baad2c5b2d09afc89eae1",
+      "short_sha": "1823ead0655",
+      "date": "2026-07-28T18:26:21-04:00",
+      "author": {
+        "name": "Kaitlin Mahar",
+        "email": "kaitlin.mahar@mongodb.com"
+      },
+      "summary": "SERVER-132468 Clear stepdown timestamp after demotion to follower (#59847)"
+    },
+    {
+      "sha": "fbf6bec91b232a49010d63c44cc0d41626a8e1e0",
+      "short_sha": "fbf6bec91b2",
+      "date": "2026-07-28T17:05:28-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-130187 Use PDIB test library in all PDIB tests that fail over (#59741)"
+    },
+    {
+      "sha": "f4da2fb70b4029ce26ab5eb98a85ab564f657a32",
+      "short_sha": "f4da2fb70b4",
+      "date": "2026-07-28T16:49:46-04:00",
+      "author": {
+        "name": "Jiaqi Tian",
+        "email": "jiaqi.tian@mongodb.com"
+      },
+      "summary": "SERVER-132360: Harden ticketholder timeout test against CI scheduling (#59740)"
+    },
+    {
+      "sha": "722bf810c07b0cab78ddd7d82a3ae5845ed0e2b1",
+      "short_sha": "722bf810c07",
+      "date": "2026-07-28T16:22:00-04:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-132349: Add SBE full variant to query alias (#59726)"
+    },
+    {
+      "sha": "6e4ea4b5d273ee3cc9ca8da42f54c8ecaa8a3c09",
+      "short_sha": "6e4ea4b5d27",
+      "date": "2026-07-28T16:17:59-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-128585: Verify document hash (h) for updates on non-primaries (#59668)"
+    },
     {
       "sha": "b8424adcd32c9191b1377275888f67a6a5132ff7",
       "short_sha": "b8424adcd32",
@@ -523,10 +603,28 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "1823ead065521038748baad2c5b2d09afc89eae1",
+        "short_sha": "1823ead0655",
+        "date": "2026-07-28T18:26:21-04:00",
+        "author": {
+          "name": "Kaitlin Mahar",
+          "email": "kaitlin.mahar@mongodb.com"
+        },
+        "summary": "SERVER-132468 Clear stepdown timestamp after demotion to follower (#59847)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-28 20:25:20",
+  "generated_at": "2026-07-29 06:54:04",
   "branch_name": "master",
   "display_name": "master"
 }
