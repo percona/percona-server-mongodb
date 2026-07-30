@@ -850,18 +850,137 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  # Runs the mongo_cc_integration_test targets ON the remote executors, the same
+  # way `unittests` runs the mongo_unittest targets. Each integration-test
+  # binary is a client that connects to a fixture; there is no fixture host on
+  # RBE, so //bazel:integration_test_wrapper (wired as --run_under by the
+  # psmdb_remote_integration_test config) starts a private mongod fixture
+  # inside each test action's own sandbox -- no change to the RBE worker image.
+  # mongod is pulled into the test's runfiles by the mongo_cc_integration_test
+  # macro, gated on //bazel/config:remote_test_enabled.
+  #
+  # `needs: [gate, build]` so it runs right after build, in PARALLEL with
+  # binary_tests and unittests (pipeline is build -> {binary_tests, unittests,
+  # integration_tests} -> jstests). Each job gates on BUILD success, not on a
+  # sibling test job, so a failure in one does not block the others. Like
+  # unittests it does not consume build's artifacts -- mongod and the test
+  # binaries are (re)built here as RBE cache hits.
+  #
+  # Each test picks its fixture topology via the `fixture` attribute on
+  # mongo_cc_integration_test, which the wrapper spins up in-sandbox: standalone
+  # (the default) plus the three that need a richer topology --
+  # network_interface_ssl_test (TLS), replica_set_monitor_integration_test
+  # (replica set), and grpc_transport_integration_test (gRPC).
+  integration_tests:
+    name: integration_tests
+    needs: [gate, build]
+    # Same gating rationale as unittests: build success implies the gate
+    # approval AND format passing. !cancelled() keeps the explicit result check
+    # authoritative rather than the bare-needs short-circuit.
+    if: >-
+      ${{ !cancelled()
+      && vars.PSMDB_RBE_ENABLED == 'true'
+      && needs.gate.result == 'success'
+      && needs.build.result == 'success' }}
+    # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
+    runs-on: ubuntu-24.04
+    # Same unattended `rbe` environment as build / unittests.
+    environment: rbe
+    # See `build.env` above for why this is at job level, not workflow level.
+    env:
+      PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
+      PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      # See the matching step in `build` for the rationale behind loading
+      # composite actions from a trusted base checkout under `_trusted/`.
+      - name: Checkout base (trusted) for composite actions
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.base_ref }}
+          path: _trusted
+          fetch-depth: 1
+
+      - name: Fetch tags
+        uses: ./_trusted/.github/actions/fetch-tags
+
+      - name: Free disk space and redirect Bazel to /mnt
+        uses: ./_trusted/.github/actions/free-disk-space
+
+      - name: Setup environment
+        uses: ./_trusted/.github/actions/setup-env
+
+      # psmdb_remote_integration_test (defined in .bazelrc.psmdb) extends
+      # upstream's remote_test with the mongo_integration_test tag selector, the
+      # --run_under fixture launcher, and the -cpu:2 exclusion. Keeping the
+      # filter there rather than on the CLI lets a local
+      # `bazel test --config=psmdb_buildfarm --config=psmdb_remote_integration_test //src/...`
+      # reproduce the CI filter byte-for-byte.
+      #
+      # Deliberately NOT passing --define=GIT_COMMIT_HASH here -- same rationale
+      # as the unittests job: remote_test links on RBE workers, so pinning the
+      # real SHA would invalidate the remote-link cache on every push. The
+      # config inherits GIT_COMMIT_HASH=nogitversion via remote_test.
+      - name: Test //src/... (mongo_integration_test) via RBE
+        run: |
+          bazel \
+            --output_user_root=/mnt/bazel \
+            --host_jvm_args=-Xmx12g \
+            test \
+            --config=psmdb_buildfarm \
+            --config=psmdb_remote_integration_test \
+            --remote_executor=$RBE_REMOTE_EXECUTOR \
+            --remote_cache=$RBE_REMOTE_CACHE \
+            --bes_backend=$RBE_BES_BACKEND \
+            --bes_results_url=$RBE_BES_RESULTS_URL \
+            --credential_helper=$RBE_CREDENTIAL_HELPER \
+            --jobs=300 \
+            --keep_going \
+            --test_output=errors \
+            --build_event_json_file=bazel-bep.json \
+            //src/...
+
+      # Render a pass/fail/skip table into the job summary from the BEP JSON --
+      # same composite action as unittests. if: always() so the summary appears
+      # on failure too.
+      - name: Report integration test results
+        if: always()
+        uses: ./_trusted/.github/actions/test-report
+        with:
+          title: "🧪 Integration test results"
+          detailed: "true"
+
+      # Upload bazel-testlogs (per-target test.log + test.xml) plus the BEP
+      # stream on failure -- mirrors the unittests failure-artifact upload.
+      - name: Upload integration test failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-test-failure-artifacts
+          path: |
+            bazel-testlogs/
+            bazel-bep.json
+          retention-days: 14
+          if-no-files-found: ignore
+
   # Decides whether the jstests job runs, from PR labels and a repo/org
   # variable. Labels are read fresh via `gh api` (not github.event.*.labels) so
   # the decision reflects the current label set -- same freshness trick as
   # format.yml / clang-tidy.yml.
   #
-  # `needs: [binary_tests, unittests]` (with `if: !cancelled()` so it still runs
-  # when those are skipped or failed) makes this resolve LATE -- after both
-  # parallel test jobs -- so it reads a ci-skip-jstests / ci-run-jstests label
-  # applied *while the build/tests were running* and that label takes effect on
-  # the same run. (The workflow is not triggered by label changes, so toggling a
-  # label after the run finishes only takes effect on the next push.) Depending on
-  # both keeps jstests serialized after the parallel binary_tests+unittests pair.
+  # `needs: [binary_tests, unittests, integration_tests]` (with `if:
+  # !cancelled()` so it still runs when those are skipped or failed) makes this
+  # resolve LATE -- after all three parallel test jobs -- so it reads a
+  # ci-skip-jstests / ci-run-jstests label applied *while the build/tests were
+  # running* and that label takes effect on the same run. (The workflow is not
+  # triggered by label changes, so toggling a label after the run finishes only
+  # takes effect on the next push.) Depending on all three keeps jstests
+  # serialized after the parallel binary_tests+unittests+integration_tests group.
   #
   # Precedence: ci-skip-jstests > ci-run-jstests > vars.RUN_JSTESTS (default run).
   #   - ci-skip-jstests label : force skip.
@@ -870,7 +989,7 @@ jobs:
   #                             'false' => skip unless ci-run-jstests is set.
   jstests_gate:
     name: jstests gate
-    needs: [binary_tests, unittests]
+    needs: [binary_tests, unittests, integration_tests]
     if: ${{ !cancelled() && vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     outputs:
@@ -909,12 +1028,14 @@ jobs:
 
   # Runs the Percona resmoke jstest suites on RBE. Separate runner / GH check
   # from build+unittests (see the build-vs-unittests rationale block at the top
-  # for why distinct runners are intentional). `needs: [binary_tests, unittests]`
-  # so it runs AFTER both parallel test jobs rather than alongside them -- jstests
-  # stays serialized at the tail (build -> {binary_tests, unittests} -> jstests)
-  # and avoids competing for the same RBE workers. Ordering only: the `if` gates
-  # on build success, not binary_tests/unittests success, so a unittest (or C++
-  # binary test) failure does not block jstests. It does not consume the upstream jobs'
+  # for why distinct runners are intentional). `needs: [binary_tests, unittests,
+  # integration_tests]` so it runs AFTER all three parallel test jobs rather
+  # than alongside them -- jstests stays serialized at the tail
+  # (build -> {binary_tests, unittests, integration_tests} -> jstests) and avoids
+  # competing for the same RBE workers. Ordering only: the `if` gates on build
+  # success, not sibling test-job success, so a unittest (or C++ binary test or
+  # integration-test) failure does not block jstests. It does not consume the
+  # upstream jobs'
   # artifacts -- mongod/mongos/mongo are rebuilt here as RBE cache hits.
   #
   # Gated on jstests_gate: skipped when ci-skip-jstests is set, or when
@@ -950,7 +1071,8 @@ jobs:
     # success, not their success, so a binary-test/unittest failure does not block
     # jstests -- all run whenever build passed. `build` is in needs so the `if`
     # can read needs.build.result.
-    needs: [gate, build, binary_tests, unittests, jstests_gate]
+    needs:
+      [gate, build, binary_tests, unittests, integration_tests, jstests_gate]
     # `draft == false` so jstests never runs on a draft (it runs once the PR is
     # marked ready). `build` is in needs so the `if` can read needs.build.result
     # (which implies format passed via format_gate).
