@@ -11,6 +11,7 @@
 #include "mongo/bson/dotted_path/dotted_path_support.h"
 #include "mongo/db/audit/audit.h"
 #include "mongo/db/client.h"
+<<<<<<< HEAD
 #include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/encryption/encryption_options.h"
@@ -20,10 +21,13 @@
 #include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
+||||||| ff54e20bb15
+#include "mongo/db/commands/server_status/server_status_metric.h"
+=======
+>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 #include "mongo/db/index_names.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/rss/replicated_storage_service.h"
-#include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/server_parameter.h"
 #include "mongo/db/server_recovery.h"
@@ -33,6 +37,7 @@
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/storage/journal_listener.h"
 #include "mongo/db/storage/key_format.h"
+#include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/kv_backup_block.h"
 #include "mongo/db/storage/master_key_rotation_completed.h"
 #include "mongo/db/storage/storage_file_util.h"
@@ -71,8 +76,13 @@
 #include "mongo/util/exit.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_and_backoff.h"
+<<<<<<< HEAD
 #include "mongo/util/progress_meter.h"
 #include "mongo/util/quick_exit.h"
+||||||| ff54e20bb15
+#include "mongo/util/quick_exit.h"
+=======
+>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/testing_proctor.h"
@@ -358,6 +368,7 @@ std::string toString(const StorageEngine::OldestActiveTransactionTimestampResult
         return r.getStatus().toString();
     }
 }
+<<<<<<< HEAD
 }  // namespace
 
 namespace {
@@ -722,6 +733,19 @@ void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int6
                key);
 }
 
+||||||| ff54e20bb15
+
+void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
+    std::visit(OverloadedVisitor{
+                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
+                   [&](int64_t k) {
+                       c->set_key(c, k);
+                   }},
+               key);
+}
+
+=======
+>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 }  // namespace
 
 class WiredTigerKVEngine::DataAtRestEncryption {
@@ -955,108 +979,14 @@ BlindWritePolicy WiredTigerKVEngineBase::chooseBlindWritePolicy(OperationContext
         : BlindWritePolicy::nonBlind;
 }
 
-Status WiredTigerKVEngineBase::insertIntoIdent(RecoveryUnit& ru,
-                                               std::string_view ident,
-                                               std::variant<std::span<const char>, int64_t> key,
-                                               std::span<const char> value,
-                                               BlindWritePolicy policy) {
-    invariant(ru.inUnitOfWork());
+std::unique_ptr<KVEngineDirectCrudCursor> WiredTigerKVEngineBase::getDirectCursor(
+    RecoveryUnit& ru, std::string_view ident, BlindWritePolicy policy) {
     auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-
     const bool allowOverwrite = policy == BlindWritePolicy::blind;
-    WiredTigerCursor cursor{
+    return std::make_unique<WiredTigerDirectCrudCursor>(
         getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident), allowOverwrite),
         WiredTigerUtil::buildTableUri(ident),
-        *wtRu.getSession()};
-    wtRu.assertInActiveTxn();
-    WT_CURSOR* c = cursor.get();
-
-    setKeyOnCursor(c, key);
-
-    c->set_value(c, WiredTigerItem{value}.get());
-
-    int rc = WT_OP_CHECK(wiredTigerCursorInsert(wtRu, c));
-    return wtRCToStatus(rc, cursor->session);
-}
-
-Status WiredTigerKVEngineBase::updateInIdent(RecoveryUnit& ru,
-                                             std::string_view ident,
-                                             std::variant<std::span<const char>, int64_t> key,
-                                             std::span<const char> value,
-                                             BlindWritePolicy policy) {
-    invariant(ru.inUnitOfWork());
-    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-
-    const bool allowOverwrite = policy == BlindWritePolicy::blind;
-    WiredTigerCursor cursor{
-        getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident), allowOverwrite),
-        WiredTigerUtil::buildTableUri(ident),
-        *wtRu.getSession()};
-    wtRu.assertInActiveTxn();
-    WT_CURSOR* c = cursor.get();
-
-    setKeyOnCursor(c, key);
-
-    c->set_value(c, WiredTigerItem{value}.get());
-
-    int rc = WT_OP_CHECK(wiredTigerCursorUpdate(wtRu, c));
-    if (rc == WT_NOTFOUND)
-        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
-    return wtRCToStatus(rc, cursor->session);
-}
-
-StatusWith<UniqueBuffer> WiredTigerKVEngineBase::getFromIdent(
-    RecoveryUnit& ru, std::string_view ident, std::variant<std::span<const char>, int64_t> key) {
-    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-
-    WiredTigerCursor cursor{getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident)),
-                            WiredTigerUtil::buildTableUri(ident),
-                            *wtRu.getSession()};
-    WT_CURSOR* c = cursor.get();
-
-    setKeyOnCursor(c, key);
-
-    int rc = WT_OP_CHECK(c->search(c));
-    if (rc == WT_NOTFOUND)
-        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
-    if (auto status = wtRCToStatus(rc, cursor->session); !status.isOK())
-        return status;
-
-    WiredTigerItem v;
-    rc = c->get_value(c, v.get());
-    if (auto status = wtRCToStatus(rc, cursor->session); !status.isOK())
-        return status;
-
-    UniqueBuffer out = UniqueBuffer::allocate(v.size());
-    // Guard the copy: a zero-length value (e.g. an empty-valued container key) has a null data
-    // pointer, and memcpy() with a null argument is undefined behavior even for a length of zero.
-    if (v.size() > 0) {
-        std::memcpy(out.get(), v.data(), v.size());
-    }
-    return out;
-}
-
-Status WiredTigerKVEngineBase::deleteFromIdent(RecoveryUnit& ru,
-                                               std::string_view ident,
-                                               std::variant<std::span<const char>, int64_t> key,
-                                               BlindWritePolicy policy) {
-    invariant(ru.inUnitOfWork());
-    auto& wtRu = WiredTigerRecoveryUnit::get(ru);
-
-    const bool allowOverwrite = policy == BlindWritePolicy::blind;
-    WiredTigerCursor cursor{
-        getWiredTigerCursorParams(wtRu, _getTableIdForIdent(ident), allowOverwrite),
-        WiredTigerUtil::buildTableUri(ident),
-        *wtRu.getSession()};
-    wtRu.assertInActiveTxn();
-    WT_CURSOR* c = cursor.get();
-
-    setKeyOnCursor(c, key);
-
-    int rc = WT_OP_CHECK(wiredTigerCursorRemove(wtRu, c));
-    if (rc == WT_NOTFOUND)
-        return Status(ErrorCodes::NoSuchKey, "No such key exists in ident");
-    return wtRCToStatus(rc, cursor->session);
+        *wtRu.getSession());
 }
 
 Status WiredTigerKVEngineBase::reconfigureLogging() {
@@ -3994,6 +3924,9 @@ void WiredTigerKVEngine::promoteToLeader() {
 void WiredTigerKVEngine::demoteToFollower() {
     static constexpr char followerConfig[] = "disaggregated=(role=\"follower\")";
     invariantWTOK(_conn->reconfigure(_conn, followerConfig), nullptr);
+    // Stepping down to follower clears WiredTiger's own step-down timestamp; keep our cached copy
+    // (returned by getStepDownTimestamp()) in sync so a later leader term starts with none set.
+    _stepDownTimestamp.store(0);
 }
 
 void WiredTigerKVEngine::setStableTimestamp(Timestamp stableTimestamp, bool force) {

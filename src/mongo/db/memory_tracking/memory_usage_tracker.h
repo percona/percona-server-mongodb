@@ -4,9 +4,11 @@
 #pragma once
 
 #include "mongo/db/memory_tracking/memory_usage_limit.h"
+#include "mongo/platform/compiler.h"
 #include "mongo/stdx/unordered_map.h"
 #include "mongo/util/modules.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -38,7 +40,26 @@ public:
 
     SimpleMemoryUsageTracker();
 
-    void add(int64_t diff);
+    /**
+     * Accumulates 'diff' into this tracker and up the base chain.
+     *
+     * The zero case is handled inline because it is hot and does nothing: a zero diff leaves the
+     * running total and the peak untouched, and leaves the chunk lower bound equal to
+     * '_lastReportedLowerBound' (that field is updated exactly when the bound moves), so no CurOp
+     * report is due either. Skipping it here avoids both the call and the walk up the base chain,
+     * each level of which does an integer division for the chunk check.
+     *
+     * Fixed-size accumulators make this the common case: $group calls add() once per input
+     * document with 'accumulator->getMemUsage() - prevMemUsage', which is always 0 for $sum and
+     * $count, and for $min / $max over scalars.
+     */
+    MONGO_COMPILER_ALWAYS_INLINE void add(int64_t diff) {
+        if (diff == 0) {
+            return;
+        }
+        addInternal(diff, true /* report */);
+    }
+
     void set(int64_t total);
 
     int64_t inUseTrackedMemoryBytes() const {
@@ -56,6 +77,22 @@ public:
     bool withinMemoryLimit(OperationContext* opCtx) const {
         return _inUseTrackedMemoryBytes <= _maxAllowedMemoryUsageBytes.get(opCtx) &&
             (!_base || _base->withinMemoryLimit(opCtx));
+    }
+
+    /**
+     * Returns how many more bytes can be added before this tracker or any ancestor in the base
+     * chain would exceed its own limit -- i.e. the same chain 'withinMemoryLimit()' checks, but
+     * expressed as a byte budget (the minimum headroom across the chain) rather than a boolean.
+     * Can be negative if some ancestor is already over its limit. Useful for sizing a heuristic
+     * (e.g. how much a caller may batch before it must check in with the tracker) without that
+     * heuristic having to know how deep or where in the chain the binding limit actually is.
+     */
+    int64_t remainingMemoryUsageBytes(OperationContext* opCtx) const {
+        int64_t remaining = _maxAllowedMemoryUsageBytes.get(opCtx) - _inUseTrackedMemoryBytes;
+        if (_base) {
+            remaining = std::min(remaining, _base->remainingMemoryUsageBytes(opCtx));
+        }
+        return remaining;
     }
 
     int64_t maxAllowedMemoryUsageBytes(OperationContext* opCtx) const {

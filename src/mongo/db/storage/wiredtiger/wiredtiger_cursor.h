@@ -3,15 +3,20 @@
 
 #pragma once
 
+#include "mongo/db/storage/kv/kv_engine.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_managed_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/shared_buffer.h"
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 
 #include <wiredtiger.h>
+
+#include <boost/optional.hpp>
 
 namespace mongo {
 
@@ -28,6 +33,12 @@ public:
         bool readOnce{false};
         bool allowOverwrite{false};
         bool random{false};
+        // When 'true', open the cursor with the WiredTiger debug=(size_stats) option so it
+        // accumulates a per-b-tree size summary as it traverses. Such cursors bypass the cursor
+        // cache so the summary counters are reset exactly once per open, and the owning cursor logs
+        // the summary when the scan completes. Requires an ordered walk, so it is incompatible with
+        // 'random'.
+        bool sizeStats{false};
     };
 
     /**
@@ -59,10 +70,22 @@ public:
         return &_session;
     }
 
+    // Called by the owning cursor when a forward walk has reached the end of the data, i.e. the
+    // size-stats scan is complete. In most cases this is a no-op.
+    void onScanComplete();
+
 protected:
     uint64_t _tableID;
     WiredTigerSession& _session;
     std::string _config;
+    // When 'true', this cursor was opened outside the cursor cache and must be closed (not returned
+    // to the cache) on destruction so its size-summary counters are never reused across opens.
+    bool _sizeStats = false;
+    // Set once a size_stats cursor has logged its summary, so onScanComplete() is idempotent.
+    bool _sizeStatsLogged = false;
+    // On-disk table URI, set only for size_stats cursors so onScanComplete() can read back and log
+    // the accumulated summary. Left unset (none) otherwise.
+    boost::optional<std::string> _uri;
 
     WT_CURSOR* _cursor = nullptr;  // Owned
 };
@@ -120,5 +143,25 @@ public:
 private:
     WT_CURSOR* _cursor = nullptr;  // Owned
     WiredTigerSession& _session;
+};
+
+/**
+ * A WiredTiger implementation of KVEngineDirectCrudCursor, wrapping a single reusable
+ * WiredTigerCursor for direct key-value CRUD operations on an ident.
+ */
+class WiredTigerDirectCrudCursor : public KVEngineDirectCrudCursor {
+public:
+    WiredTigerDirectCrudCursor(WiredTigerCursor::Params params,
+                               std::string_view uri,
+                               WiredTigerSession& session)
+        : _cursor(params, uri, session) {}
+
+    Status insert(RecoveryUnit& ru, Key key, std::span<const char> value) override;
+    Status update(RecoveryUnit& ru, Key key, std::span<const char> value) override;
+    StatusWith<UniqueBuffer> get(Key key) override;
+    Status remove(RecoveryUnit& ru, Key key) override;
+
+private:
+    WiredTigerCursor _cursor;
 };
 }  // namespace mongo
