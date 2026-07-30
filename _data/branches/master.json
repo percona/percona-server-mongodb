@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 114,
+    "commits_behind": 131,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 2.1362324192939814,
-    "files_affected": 564,
-    "total_additions": 16472,
-    "total_deletions": 4494,
+    "unmerged_oldest_age_days": 2.405198484814815,
+    "files_affected": 644,
+    "total_additions": 23398,
+    "total_deletions": 6684,
     "date_range": {
       "first": "2026-07-28T05:49:20+00:00",
-      "last": "2026-07-30T03:27:30+00:00"
+      "last": "2026-07-30T14:53:43+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,176 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "0c04591b03c287d6c1b19f805c94c56ccef4c41c",
+      "short_sha": "0c04591b03c",
+      "date": "2026-07-30T10:53:43-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-128832 Prevent use of ModuleLoader in server side JS (#55777)"
+    },
+    {
+      "sha": "c05fb71826092826fcd7c4afc88bfc3e320d25c1",
+      "short_sha": "c05fb718260",
+      "date": "2026-07-30T09:36:57-05:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-132402: Check reshardingDocumentVerification for tests to be compatible with multi version suites. (#59787)"
+    },
+    {
+      "sha": "09d046e88aa2040996b9a1a72ad1c0a7185e1219",
+      "short_sha": "09d046e88aa",
+      "date": "2026-07-30T16:24:00+02:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-132328 Remove CheckMetadataConsistency exclusion (#59823)"
+    },
+    {
+      "sha": "02c3d776712270caa8359d05f531e5d3c37c5caf",
+      "short_sha": "02c3d776712",
+      "date": "2026-07-30T10:16:35-04:00",
+      "author": {
+        "name": "Sam Frank",
+        "email": "sam.frank@mongodb.com"
+      },
+      "summary": "SERVER-127566 Limit FLE contention factor (#55546)"
+    },
+    {
+      "sha": "f243d0409196c27bbd522085133bd4c391f43216",
+      "short_sha": "f243d040919",
+      "date": "2026-07-30T16:13:15+02:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-127074 Reject splitVector on timeseries collections and add test coverage (#59867)"
+    },
+    {
+      "sha": "75cd01b463b6437ed5c54cd3560a14a320af8a1c",
+      "short_sha": "75cd01b463b",
+      "date": "2026-07-30T09:57:10-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-130371 Simplify checkpoint coordinator lifetime management (#59788)"
+    },
+    {
+      "sha": "51bfeec327a936cd8da9e596fa4d489f6f678651",
+      "short_sha": "51bfeec327a",
+      "date": "2026-07-30T14:24:57+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-132478 Make config server writes resilient to stepdowns in create_system_session.js (#59891)"
+    },
+    {
+      "sha": "2858cce5e4fb385a56e24ee02c882880ae17d6f2",
+      "short_sha": "2858cce5e4f",
+      "date": "2026-07-30T13:24:54+01:00",
+      "author": {
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
+      },
+      "summary": "SERVER-129082 Use WiredTiger's approximate leaf page count in JOO cost model (#57397)"
+    },
+    {
+      "sha": "14384c4220c3177e55e1caa0a0927a3cd161adbc",
+      "short_sha": "14384c4220c",
+      "date": "2026-07-30T13:32:03+02:00",
+      "author": {
+        "name": "Ivan Fefer",
+        "email": "ivan.fefer@mongodb.com"
+      },
+      "summary": "SERVER-124355 Set memory limits for $array, $object, $concatArrays, $setUnion and $zip in SBE (#59868)"
+    },
+    {
+      "sha": "022cb0baaafe9c5fc22488cf5f91351b1469ab37",
+      "short_sha": "022cb0baaaf",
+      "date": "2026-07-30T10:57:57+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-132493: Retry slow query log readback in query_settings_max_time_ms.js (#59884)"
+    },
+    {
+      "sha": "cb8274dc933177c3e498d2737bb3958644261344",
+      "short_sha": "cb8274dc933",
+      "date": "2026-07-30T10:48:10+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-132504: Wait for the index build scan phase before writing in PDIB tests (#59911)"
+    },
+    {
+      "sha": "711433fecb296525aa3dbff4f3f4f2975910356f",
+      "short_sha": "711433fecb2",
+      "date": "2026-07-30T10:26:09+01:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-128341 Fix crash when using $meta expressions in sort patterns (#54001)"
+    },
+    {
+      "sha": "0ff4d08eb2ff278b124bc8ffb566ca1dbb7e1503",
+      "short_sha": "0ff4d08eb2f",
+      "date": "2026-07-30T10:25:55+01:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-132491: Verify startup error messages without parallel shells in internal_validate_features_as_primary.js (#59872)"
+    },
+    {
+      "sha": "225cef61468b32537ed1543ca0f4b2184af6095d",
+      "short_sha": "225cef61468",
+      "date": "2026-07-30T11:22:03+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-131669 Add metrics and allow disabling of strict chunk checks (#59283)"
+    },
+    {
+      "sha": "ed96970b766e7ded71e0da57b23782a9783fdaf3",
+      "short_sha": "ed96970b766",
+      "date": "2026-07-30T10:45:12+02:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-132186 Add per-join-opt-phase timers & metrics (#59655)"
+    },
+    {
+      "sha": "93597e45dbcbd763cca771eb40e7986b15556ac4",
+      "short_sha": "93597e45dbc",
+      "date": "2026-07-30T18:07:43+10:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#59946)"
+    },
+    {
+      "sha": "18f98e8709c8c6fe96e7cf0797353a2319cbda55",
+      "short_sha": "18f98e8709c",
+      "date": "2026-07-30T10:01:44+02:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-132110 DDL coordinators: create new collections with `allowChunkOperations: false` (#59761)"
+    },
     {
       "sha": "05f38efe81ed1e38e429e0d585bc8bd77579b6c3",
       "short_sha": "05f38efe81e",
@@ -1244,6 +1414,27 @@
     },
     {
       "commit": {
+        "sha": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+        "short_sha": "bb7a39b05fe",
+        "date": "2026-07-29T10:36:05+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 09d06fa668530a865d3d66c903f4b0c731f8f2e5 from branch mongodb-master (#59783)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-bb7a39b05fe/conflict",
+          "mergai/master-bb7a39b05fe/solution",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "4f587216647a5e2ddebea91025d8019b6b8091ba",
         "short_sha": "4f587216647",
         "date": "2026-07-29T09:02:01-07:00",
@@ -1277,10 +1468,33 @@
           "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "0c04591b03c287d6c1b19f805c94c56ccef4c41c",
+        "short_sha": "0c04591b03c",
+        "date": "2026-07-30T10:53:43-04:00",
+        "author": {
+          "name": "Santiago Roche",
+          "email": "69868136+sroches@users.noreply.github.com"
+        },
+        "summary": "SERVER-128832 Prevent use of ModuleLoader in server side JS (#55777)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 17,
+          "num_of_lines": 5880,
+          "lines_added": 4287,
+          "lines_deleted": 1593,
+          "num_of_dirs": 9
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-30 09:05:27",
+  "generated_at": "2026-07-30 15:32:45",
   "branch_name": "master",
   "display_name": "master"
 }
