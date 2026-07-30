@@ -1,0 +1,336 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "34ae8a7fbf1ff7c2bce23e9045bd214802b6a0bc",
+    "merge_commit": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b"
+  },
+  "mergai_version": "0.1.dev1+g77f8a98e2",
+  "conflict_context": {
+    "ours_commit": "34ae8a7fbf1ff7c2bce23e9045bd214802b6a0bc",
+    "theirs_commit": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+    "base_commit": "ff54e20bb1566f35f7cc1f138a0c20e5f08dfaaa",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\nindex 942ee99b35d,6ad95b9ddfb..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n@@@ -14,9 -13,0 +14,14 @@@\n++<<<<<<< HEAD\n +#include \"mongo/db/commands/server_status/server_status_metric.h\"\n +#include \"mongo/db/curop.h\"\n +#include \"mongo/db/encryption/encryption_options.h\"\n +#include \"mongo/db/encryption/error.h\"\n +#include \"mongo/db/encryption/error_builder.h\"\n +#include \"mongo/db/encryption/key.h\"\n +#include \"mongo/db/encryption/key_entry.h\"\n +#include \"mongo/db/encryption/key_id.h\"\n +#include \"mongo/db/encryption/master_key_provider.h\"\n++||||||| ff54e20bb15\n++#include \"mongo/db/commands/server_status/server_status_metric.h\"\n++=======\n++>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b\n@@@ -74,2 -59,0 +79,7 @@@\n++<<<<<<< HEAD\n +#include \"mongo/util/progress_meter.h\"\n +#include \"mongo/util/quick_exit.h\"\n++||||||| ff54e20bb15\n++#include \"mongo/util/quick_exit.h\"\n++=======\n++>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b\n@@@ -361,364 -328,0 +371,378 @@@ std::string toString(const StorageEngin\n++<<<<<<< HEAD\n +}  // namespace\n +\n +namespace {\n +constexpr auto kKeyDbDirBasename = \"key.db\";\n +constexpr auto kRotationKeyDbDirBasename = \"key.db.rotation\";\n +constexpr auto kBackupKeyDbDirBasename = \"key.db.rotated\";\n +}  // namespace\n +\n +// Copy files and fill vectors for remove copied files and empty dirs\n +// Following files are excluded:\n +//   collection-*.wt\n +//   index-*.wt\n +//   collection/*.wt\n +//   index/*.wt\n +// Can throw standard exceptions\n +static void copy_keydb_files(const boost::filesystem::path& from,\n +                             const boost::filesystem::path& to,\n +                             std::vector<boost::filesystem::path>& emptyDirs,\n +                             std::vector<boost::filesystem::path>& copiedFiles,\n +                             bool* parent_empty = nullptr) {\n +    namespace fs = boost::filesystem;\n +    bool checkTo = true;\n +    bool empty = true;\n +\n +    for (auto& p : fs::directory_iterator(from)) {\n +        if (fs::is_directory(p.status())) {\n +            copy_keydb_files(p.path(), to / p.path().filename(), emptyDirs, copiedFiles, &empty);\n +        } else {\n +            static std::regex rex{\"/(collection|index)[-/][^/]+\\\\.wt$\"};\n +            std::smatch sm;\n +            if (std::regex_search(p.path().string(), sm, rex)) {  //  NOLINT\n +                empty = false;\n +                if (parent_empty)\n +                    *parent_empty = false;\n +            } else {\n +                if (checkTo) {\n +                    checkTo = false;\n +                    if (!fs::exists(to))\n +                        fs::create_directories(to);\n +                }\n +                fs::copy_file(p.path(), to / p.path().filename(), fs::copy_options::none);\n +                copiedFiles.push_back(p.path());\n +            }\n +        }\n +    }\n +\n +    if (empty)\n +        emptyDirs.push_back(from);\n +}\n +\n +namespace {\n +\n +StatusWith<std::deque<KVBackupBlock>> getBackupBlocksFromBackupCursor(\n +    boost::optional<Timestamp> checkpointTimestamp,\n +    WiredTigerSession* session,\n +    WT_CURSOR* cursor,\n +    bool incrementalBackup,\n +    bool fullBackup,\n +    std::string dbPath,\n +    const char* statusPrefix) {\n +    int wtRet;\n +    std::deque<KVBackupBlock> kvBackupBlocks;\n +    const char* filename;\n +    const auto directoryPath = boost::filesystem::path(dbPath);\n +    const auto wiredTigerLogFilePrefix = \"WiredTigerLog\";\n +    const auto isKeyDB = directoryPath.filename() == kKeyDbDirBasename;\n +    while ((wtRet = cursor->next(cursor)) == 0) {\n +        invariantWTOK(cursor->get_key(cursor, &filename), *session);\n +\n +        std::string name(filename);\n +\n +        boost::filesystem::path filePath = directoryPath;\n +        // KeyDB is configured to keep log files in the base dir.\n +        if (!isKeyDB && name.find(wiredTigerLogFilePrefix) == 0) {\n +            // TODO SERVER-13455:replace `journal/` with the configurable journal path.\n +            filePath /= boost::filesystem::path(\"journal\");\n +        }\n +        filePath /= name;\n +\n +        boost::system::error_code errorCode;\n +        const std::uint64_t fileSize = boost::filesystem::file_size(filePath, errorCode);\n +        uassert(31403,\n +                fmt::format(\"Failed to get a file's size. Filename: {} Error: {}\",\n +                            filePath.string(),\n +                            errorCode.message()),\n +                !errorCode);\n +\n +        if (incrementalBackup && !fullBackup) {\n +            // For a subsequent incremental backup, each BackupBlock corresponds to changes\n +            // made to data files since the initial incremental backup. Each BackupBlock has a\n +            // maximum size of options.blockSizeMB.\n +            // For each file listed, open a duplicate backup cursor and get the blocks to copy.\n +            std::stringstream ss;\n +            ss << \"incremental=(file=\" << filename << \")\";\n +            const std::string config = ss.str();\n +            WT_CURSOR* dupCursor;\n +            wtRet = session->open_cursor(nullptr, cursor, config.c_str(), &dupCursor);\n +            if (wtRet != 0) {\n +                return wtRCToStatus(wtRet, *session);\n +            }\n +\n +            bool fileUnchangedFlag = true;\n +            while ((wtRet = dupCursor->next(dupCursor)) == 0) {\n +                fileUnchangedFlag = false;\n +                uint64_t offset, size, type;\n +                invariantWTOK(dupCursor->get_key(dupCursor, &offset, &size, &type), *session);\n +                LOGV2_DEBUG(22311,\n +                            2,\n +                            \"Block to copy for incremental backup: filename: {filePath_string}, \"\n +                            \"offset: {offset}, size: {size}, type: {type}\",\n +                            \"filePath_string\"_attr = filePath.string(),\n +                            \"offset\"_attr = offset,\n +                            \"size\"_attr = size,\n +                            \"type\"_attr = type);\n +                kvBackupBlocks.push_back(\n +                    KVBackupBlock(/*ident=*/\"\", filePath.string(), offset, size, fileSize));\n +            }\n +\n +            // If the file is unchanged, push a BackupBlock with offset=0 and length=0. This allows\n +            // us to distinguish between an unchanged file and a deleted file in an incremental\n +            // backup.\n +            if (fileUnchangedFlag) {\n +                kvBackupBlocks.push_back(KVBackupBlock(\n +                    /*ident=*/\"\", filePath.string(), 0 /* offset */, 0 /* length */, fileSize));\n +            }\n +\n +            if (wtRet != WT_NOTFOUND) {\n +                return wtRCToStatus(wtRet, *session);\n +            }\n +\n +            wtRet = dupCursor->close(dupCursor);\n +            if (wtRet != 0) {\n +                return wtRCToStatus(wtRet, *session);\n +            }\n +        } else {\n +            // For a full backup or the initial incremental backup, each BackupBlock corresponds\n +            // to an entire file. Full backups cannot open an incremental cursor, even if they\n +            // are the initial incremental backup.\n +            const std::uint64_t length = incrementalBackup ? fileSize : 0;\n +            kvBackupBlocks.push_back(\n +                KVBackupBlock(/*ident=*/\"\", filePath.string(), 0 /* offset */, length, fileSize));\n +        }\n +    }\n +\n +    if (wtRet != WT_NOTFOUND) {\n +        return wtRCToStatus(wtRet, *session, statusPrefix);\n +    }\n +    return kvBackupBlocks;\n +}\n +\n +\n +/// Prepares directory for the encryption key database.\n +///\n +/// If the directory at `keyDbPath` exists, the function does nothing.\n +/// Otherwise, tries to reuse the data from the `betaKeyDbPath` if the latter\n +/// exists. If not, creates the directory at `keyDbpath`.\n +///\n +/// @param keyDbDir      the directory for encryption key database\n +/// @param betaKeyDbDir  the directory to import existing encryption key\n +///                      database files from\n +///\n +/// @returns `true` if fresh new directory has been created and `false` if\n +///           existing key database files are imported\n +/// @throws `encryption::Error` in case of any error\n +bool prepareKeyDbDir(const boost::filesystem::path& keyDbDir,\n +                     const boost::filesystem::path& betaKeyDbDir,\n +                     bool directoryPerDb) {\n +    namespace fs = boost::filesystem;\n +    if (fs::exists(keyDbDir)) {\n +        return false;\n +    }\n +    if (!fs::exists(betaKeyDbDir)) {\n +        try {\n +            fs::create_directory(keyDbDir);\n +            return true;\n +        } catch (std::exception& e) {\n +            throw encryption::ErrorBuilder(\"Can't create the encryption key database directory\",\n +                                           e.what())\n +                .append(\"encryptionKeyDatabaseDirectory\", keyDbDir.string())\n +                .error();\n +        }\n +    }\n +\n +    if (!directoryPerDb) {\n +        // --directoryperdb is not specified - just rename\n +        try {\n +            fs::rename(betaKeyDbDir, keyDbDir);\n +            return false;\n +        } catch (std::exception& e) {\n +            throw encryption::ErrorBuilder(\"Can't rename the encryption key database directory\",\n +                                           e.what())\n +                .append(\"oldName\", betaKeyDbDir.string())\n +                .append(\"newName\", keyDbDir.string())\n +                .error();\n +        }\n +    }\n +    // --directoryperdb specified - there are chances betaKeyDbPath contains\n +    // user data from 'keydb' database\n +    // move everything except\n +    //   collection-*.wt\n +    //   index-*.wt\n +    //   collection/*.wt\n +    //   index/*.wt\n +    try {\n +        std::vector<fs::path> emptyDirs;\n +        std::vector<fs::path> copiedFiles;\n +        copy_keydb_files(betaKeyDbDir, keyDbDir, emptyDirs, copiedFiles);\n +        for (auto&& file : copiedFiles) {\n +            fs::remove(file);\n +        }\n +        for (auto&& dir : emptyDirs) {\n +            fs::remove(dir);\n +        }\n +        return false;\n +    } catch (std::exception& e) {\n +        throw encryption::ErrorBuilder(\n +            \"Can't move encryption key database files from the old location to the new one\",\n +            e.what())\n +            .append(\"oldLocation\", betaKeyDbDir.string())\n +            .append(\"newLocation\", keyDbDir.string())\n +            .error();\n +    }\n +}\n +\n +void validateRotationIsPossible(const std::string& keyDbDir,\n +                                bool keyDbDirIsFresh,\n +                                const std::string& dbPath,\n +                                bool vaultRotateMasterKey,\n +                                bool kmipRotateMasterKey) {\n +    const char* kDbDirMsg =\n +        \"For opening an existing encrypted database, check correctness of the `--dbPath` command \"\n +        \"line option or the `storage.dbPath` configuration parameter\";\n +    const char* kRemoveVaultRotatationMsg =\n +        \"For creating a new empty encrypted database, remove the `--vaultRotateMasterKey` command \"\n +        \"line option and the `security.vault.rotateMasterKey` configuration parameter.\";\n +    const char* kRemoveKmipRotationMsg =\n +        \"For creating a new empty encrypted database, remove the `--kmipRotateMasterKey` command \"\n +        \"line option and the `security.kmip.rotateMasterKey` configuration parameter.\";\n +\n +    if (keyDbDirIsFresh && (vaultRotateMasterKey || kmipRotateMasterKey)) {\n +        std::array<const char*, 2u> actions = {\n +            {kDbDirMsg,\n +             (vaultRotateMasterKey ? kRemoveVaultRotatationMsg : kRemoveKmipRotationMsg)}};\n +\n +        throw encryption::ErrorBuilder(\n +            \"Master key rotation is in effect but there is no existing encryption key database.\")\n +            .append(\"dbPath\", dbPath)\n +            .append(\"encryptionKeyDatabaseDirectory\", keyDbDir)\n +            .append(\"possibleRemediationActions\", actions.begin(), actions.end())\n +            .error();\n +    }\n +}\n +\n +template <typename KeyDbDirHook>\n +std::pair<std::unique_ptr<EncryptionKeyDB>, std::unique_ptr<encryption::KeyId>> createKeyDb(\n +    const boost::filesystem::path& dbPath,\n +    KeyDbDirHook keyDbDirHook,\n +    const encryption::MasterKeyProvider& keyProvider,\n +    bool directoryPerDb) {\n +    namespace fs = boost::filesystem;\n +    fs::path keyDbDir = dbPath / kKeyDbDirBasename;\n +    bool keyDbDirIsFresh = prepareKeyDbDir(keyDbDir, dbPath / \"keydb\", directoryPerDb);\n +\n +    // It is required to remove the data in the `keyDbDir` directory if that\n +    // data has been created by a failed call to the `EncryptionKeyDB::create`\n +    // function (see below) and keep the data if it existed before the call.\n +    // Since we need to detect existing data in advance, we can't simply call\n +    // `boost::filesystem::is_empty` in the scope guard's functor.\n +    ScopeGuard keyDbDirGuard([&keyDbDir, keyDbDirIsFresh] {\n +        if (keyDbDirIsFresh) {\n +            fs::remove_all(keyDbDir);\n +        }\n +    });\n +\n +    keyDbDirHook(keyDbDir.string(), keyDbDirIsFresh);\n +\n +    try {\n +        auto [masterKey, masterKeyId] =\n +            keyDbDirIsFresh ? keyProvider.obtainMasterKey() : keyProvider.readMasterKey();\n +        auto keyDb = EncryptionKeyDB::create(keyDbDir.string(), masterKey);\n +        keyDbDirGuard.dismiss();\n +        return {std::move(keyDb), std::move(masterKeyId)};\n +    } catch (const encryption::Error& e) {\n +        throw encryption::ErrorBuilder(\"Can't create encryption key database\", e)\n +            .append(\"encryptionKeyDatabaseDirectory\", keyDbDir.string())\n +            .error();\n +    } catch (const std::exception& e) {\n +        throw encryption::ErrorBuilder(\"Can't create encryption key database\", e.what())\n +            .append(\"encryptionKeyDatabaseDirectory\", keyDbDir.string())\n +            .error();\n +    }\n +}\n +\n +void keyDbRotateMasterKey(std::unique_ptr<const EncryptionKeyDB> keyDb,\n +                          const boost::filesystem::path& dbPath,\n +                          const encryption::MasterKeyProvider& keyProvider) try {\n +    namespace fs = boost::filesystem;\n +    fs::path rotationKeyDbDir = dbPath / kRotationKeyDbDirBasename;\n +    if (fs::exists(rotationKeyDbDir)) {\n +        throw encryption::ErrorBuilder(\"Rotation key database directory already exists\")\n +            .append(\"rotationKeyDatabaseDirectory\", rotationKeyDbDir.string())\n +            .error();\n +    }\n +    try {\n +        fs::create_directory(rotationKeyDbDir);\n +    } catch (std::exception&) {\n +        throw encryption::ErrorBuilder(\"Can't create rotation key database directory\")\n +            .append(\"rotationKeyDatabaseDirectory\", rotationKeyDbDir.string())\n +            .error();\n +    }\n +    ScopeGuard rotationKeyDbDirGuard([&] { fs::remove_all(rotationKeyDbDir); });\n +\n +    auto [masterKey, masterKeyId] = keyProvider.obtainMasterKey(/* saveKey = */ false);\n +    std::unique_ptr<EncryptionKeyDB> rotationKeyDb =\n +        keyDb->clone(rotationKeyDbDir.string(), masterKey);\n +    if (!masterKeyId) {\n +        keyProvider.saveMasterKey(masterKey);\n +    }\n +    rotationKeyDbDirGuard.dismiss();\n +\n +    // close key db instances and rename dirs\n +    fs::path keyDbDir(keyDb->path());\n +    fs::path backupKeyDbDir = dbPath / kBackupKeyDbDirBasename;\n +    rotationKeyDb.reset(nullptr);\n +    keyDb.reset(nullptr);\n +    fs::remove_all(backupKeyDbDir);\n +    fs::rename(keyDbDir, backupKeyDbDir);\n +    fs::rename(rotationKeyDbDir, keyDbDir);\n +} catch (const encryption::Error& e) {\n +    throw encryption::ErrorBuilder(\"Can't rotate master encryption key\", e).error();\n +} catch (const std::exception& e) {\n +    throw encryption::ErrorBuilder(\"Can't rotate master encryption key\", e.what()).error();\n +}\n +\n +void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* keyDb) {\n +    // add Percona encryption extension\n +    std::stringstream ss;\n +    ss << \"local=(entry=percona_encryption_extension_init,early_load=true,config=(cipher=\"\n +       << cipherMode << \"))\";\n +    WiredTigerExtensions::get(getGlobalServiceContext()).addExtension(ss.str());\n +\n +    // add Percona encryption extension to SpillWiredTigerExtensions\n +    SpillWiredTigerExtensions::get(getGlobalServiceContext()).addExtension(ss.str());\n +\n +    // setup encryption hooks\n +    // WiredTigerEncryptionHooks instance should be created after EncryptionKeyDB (depends on it)\n +    std::unique_ptr<WiredTigerEncryptionHooks> hooks;\n +    if (cipherMode == \"AES256-CBC\") {\n +        hooks = std::make_unique<WiredTigerEncryptionHooksCBC>(keyDb);\n +    } else {  // AES256-GCM\n +        hooks = std::make_unique<WiredTigerEncryptionHooksGCM>(keyDb);\n +    }\n +    EncryptionHooks::set(getGlobalServiceContext(), std::move(hooks));\n +}\n +\n +void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {\n +    std::visit(OverloadedVisitor{\n +                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },\n +                   [&](int64_t k) {\n +                       c->set_key(c, k);\n +                   }},\n +               key);\n +}\n +\n++||||||| ff54e20bb15\n++\n++void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {\n++    std::visit(OverloadedVisitor{\n++                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },\n++                   [&](int64_t k) {\n++                       c->set_key(c, k);\n++                   }},\n++               key);\n++}\n++\n++=======\n++>>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": [
+        "1823ead065521038748baad2c5b2d09afc89eae1",
+        "ee2dda8ab2366b22fb3db7d09445a8659da63c1e"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+    "merged_commits": [
+      "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+      "6485fd271092faa551f329a9afff323b46398f91",
+      "0ced401ce3f53c807ba18cf66fb4cf8c4728ffa1",
+      "1823ead065521038748baad2c5b2d09afc89eae1",
+      "fbf6bec91b232a49010d63c44cc0d41626a8e1e0",
+      "f4da2fb70b4029ce26ab5eb98a85ab564f657a32",
+      "722bf810c07b0cab78ddd7d82a3ae5845ed0e2b1",
+      "6e4ea4b5d273ee3cc9ca8da42f54c8ecaa8a3c09",
+      "b8424adcd32c9191b1377275888f67a6a5132ff7",
+      "bb94d239f662ebaddadda3f418bb69670dd98578",
+      "ea3ae92ec458762838045153789eff07a0c4f7f0",
+      "8270264e0cd54544dfa3a2be1b548692bf0da12f",
+      "b6bf7c8d49ff768ebd489f2cd1b276aad7e13c94",
+      "cf717970108a7fa362246f40fd9e91b726d18319",
+      "2b3ee72781bf98bb1aadf9e16c65ca3e7eff8a52",
+      "dd4df0ffb353d44b1d6faf381ed0e49259d5a152",
+      "d8a2507a9bdb09a08b6d96af2578e5b21b52ff51",
+      "76d0805af2c61d7c6f67392d441e8096dff7198d",
+      "199d7e7c0b198c1b373e248dadf2cf842f393216",
+      "ee2dda8ab2366b22fb3db7d09445a8659da63c1e",
+      "de21dd71279e925f841c533fd8c163512e152bd9",
+      "cf12978b904e6c887cad3ada779cc405144cf56a",
+      "68a92d0eed31ddf34cbf34f9e4d43ad6ff369bb4",
+      "df4692cee948ae073e7fe59215e07a4275a50e7d",
+      "fea229b5b2f90aa0794ca33a69def6e6073dfeb6",
+      "d0478fa45a342567477cec7287ce5d490f3b6197",
+      "9e5e3a4bd673c4a2f5757dac33783d0eee36f2c0",
+      "d2cc75830ef646375456cb282df8bd0ea899d4e8",
+      "323c101e3d09d87d89f5e4a015e48e5111c3af57",
+      "fb9b8e57b0f3ed8b14fdf56c9ee62a8acc95c9fa",
+      "6094bf6c05e646fb12f7f97d2708ef68148dac2a",
+      "cc67f1d699738b1e72f27d46b31a8c04aa9c44ad",
+      "b616ef1d5a680926658a66a8485775f87585b996",
+      "bc4456822069df58e0f116ccc958b7e61f51bde4",
+      "39b4640ace12bcd0199bf300c2a86a9b6114b0b5",
+      "90292485ccb881c5feb6fb07a25095ab6a1cd886",
+      "7e8bd452196a5de246dbb7034304fe63d049ae3d",
+      "9b7cf139d9d87addc733911efb7c082d15ea0ebd",
+      "0ecd404d713f5418ec7b190412613b21316d4438",
+      "62a84e573d917a798c977145a6bdc86a7bc311bf",
+      "58c74f45f56652ec75a42e6874ba8351adb8b780",
+      "32a3780c0944e196216f311babf964e1c58bbbff",
+      "62daaaa9622eb0887c8587d54217ef45b08a4eac",
+      "32a2eb1a6bca20229afe8601a48b1a58a3bf90b6",
+      "ba0a71a2337176d5acf6fdbb7730adc95c3e4ad2",
+      "bb11bac65734a237c8711790e1a74c6a968f3c8d",
+      "ca1863fa8f2040057e9575f09f78e0fc1899d3c6",
+      "d04d4ca5e296cd1b41ca422510ea2af12fa39f88",
+      "ac7ee7545041647c0728c3354442e8beff52ac03",
+      "470734a0e36acc02667d6b4b2b60730787981dee",
+      "5fa101859e48f529e58bde7e6a33c834109453d1",
+      "8c066c8224ce21606612764528bfe5710586e5b7"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "buildscripts/resmokelib/core/programs.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/executor/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'bb7a39b05fe' into master",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the three conflicts in wiredtiger_kv_engine.cpp. All were\ndriven by upstream removing now-unused includes/helpers while Percona\nadded its own encryption/hot-backup code. Kept all Percona-specific\nadditions (encryption headers, curop.h/progress_meter.h needed by the\nhot-backup progress meter, and the key.db/backup helper functions), and\nfollowed upstream by dropping the symbols upstream deliberately deleted\nand that are unused in the file (server_status_metric.h, quick_exit.h,\nand the setKeyOnCursor helper).\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "86dac87268ac7a4dae427a93b91cb5eb3a275bfb"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 94899,
+    "num_turns": 8,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.5356197500000001,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 7158,
+        "cacheReadInputTokens": 186726,
+        "cacheCreationInputTokens": 42011,
+        "webSearchRequests": 0,
+        "costUSD": 0.53494175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 7158,
+            "cache_read": 186726,
+            "cache_creation": 42011
+          },
+          "cost_usd": 0.53494175
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's what I found:\n\n## Summary\n\nThis merge pulls upstream MongoDB changes (base `ff54e20` \u2192 merge commit `bb7a39b`) into the Percona fork. I read the actual `diff base \u2192 merge commit` diff for each of the 15 auto-merged files rather than inferring from names.\n\n**Dominant theme \u2014 KVEngine direct CRUD refactor:**\n- `kv_engine.h`: the four virtual methods (`insertIntoIdent`/`updateInIdent`/`getFromIdent`/`deleteFromIdent`) and `IdentKey` alias are replaced by a single `getDirectCursor()` returning a new `KVEngineDirectCrudCursor` abstract class (with `insert`/`update`/`get`/`remove`).\n- `wiredtiger_kv_engine.h/.cpp`: WiredTiger implementation follows suit via `getDirectCursor` returning a `WiredTigerDirectCrudCursor`; also `demoteToFollower` now resets `_stepDownTimestamp`.\n- `storage/BUILD.bazel`: drops the `storage_engine_direct_crud` target.\n\n**Other upstream changes:** WiredTiger `logStorageSizeStats` size-metrics logging (`wiredtiger_util.cpp/.h`), resmoke version-suffix handling and checkpoint-past-FCV logic, mongos `ShardFactory` builders keyed by `ShardId`, an `enableSizeStats` flag in offline validation, plus `.bazelrc` and several `BUILD.bazel` dependency tweaks.\n\n**Conflict note:** `wiredtiger_kv_engine.cpp` was a \"both modified\" conflict centered on the fork's Percona encryption-at-rest includes and key-DB helpers \u2014 I flagged in the review notes that those must be preserved while adopting the upstream `getDirectCursor` refactor.\n\nNote: the task was to *describe* the merge (per the prompt's read-only constraint), which I've done \u2014 I did not modify any source files or resolve the conflict.",
+    "response": {
+      "summary": "Merge of upstream MongoDB changes (base ff54e20 -> merge commit bb7a39b) into the Percona fork. The main theme is a refactor of the KVEngine direct key-value CRUD interface: the per-operation ident methods (insertIntoIdent/updateInIdent/getFromIdent/deleteFromIdent) are replaced by a single getDirectCursor() that returns a new KVEngineDirectCrudCursor abstraction, with the WiredTiger implementation updated accordingly. Additional upstream changes include a new WiredTiger b-tree size-stats logging helper, resmoke fixture/version-suffix handling improvements, mongos ShardFactory builders keyed by ShardId, an offline-validation size-stats flag, dropping the storage_engine_direct_crud build target, and various BUILD.bazel dependency and .bazelrc adjustments. One file (wiredtiger_kv_engine.cpp) merged with conflicts around Percona-specific encryption includes.",
+      "auto_merged": {
+        ".bazelrc": "Adds the build flag `--incompatible_default_to_explicit_init_py`, requiring Python packages to explicitly declare their __init__.py files instead of having rules_python synthesize them in executable runfiles.",
+        "buildscripts/resmokelib/core/programs.py": "Refactors binary-version detection: extracts a new `get_version_suffix(executable)` helper that returns the version suffix parsed from the binary name (e.g. '9.0') or None, and rewrites `get_binary_version` to use it (falling back to LATEST_FCV). In `mongod_program`, the removal of the `migrationRecipientPITHistoryToPreserveInSecs` set-parameter is now gated on the downloaded binary's version suffix and bumped from 9.0.0 to 9.1.0, because the v9.0 branch predates the parameter yet its binaries report the same 9.0 version as the latest binary.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Adds logic to force a checkpoint on the primary past the FCV transition before mixed-version nodes join (to prevent an initial-syncing node from copying a checkpoint that predates the FCV transition). Introduces two helpers: `_await_stable_timestamp_advanced` (waits until the primary's in-memory stable timestamp / readConcernMajorityOpTime advances past a given timestamp) and `_force_checkpoint_past_optime` (skips PV0 bare timestamps and storage engines lacking recover-to-stable-timestamp, otherwise waits for the stable timestamp, forces a checkpoint via `fsync`, and waits for lastStableRecoveryTimestamp to advance).",
+        "src/mongo/db/BUILD.bazel": "In the `landlock` library target, adds `landlock.h` to hdrs and adds deps `:serverinit`, `//src/mongo/db/storage:storage_options`, and `//src/mongo/util/net:ssl_options`. Adds `//src/mongo/db/s:sharding_runtime_d` to a mongo_cc_unit_test target's deps.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds `//src/mongo/db:server_feature_flags` to the deps of a mongo_cc_library target.",
+        "src/mongo/db/startup_recovery.cpp": "In `offlineValidateCollection`, the call to `collection_validation::parseValidateOptions` now passes an additional `enableSizeStats=true` argument.",
+        "src/mongo/db/storage/BUILD.bazel": "Removes the `storage_engine_direct_crud` mongo_cc_library target (and its `storage_engine_direct_crud.cpp` source) and drops the corresponding `//src/mongo/db/storage:storage_engine_direct_crud` dependency from a mongo_cc_unit_test target.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Refactors the KVEngine direct CRUD interface. Removes the `IdentKey` alias and the four virtual methods insertIntoIdent/updateInIdent/getFromIdent/deleteFromIdent, replacing them with a single `getDirectCursor(RecoveryUnit&, ident, BlindWritePolicy)` returning a `std::unique_ptr<KVEngineDirectCrudCursor>`. Adds a new `KVEngineDirectCrudCursor` abstract class (with a `Key` variant alias) exposing `insert`, `update`, `get`, and `remove` operations tied to a storage transaction. Marks `BlindWritePolicy` with `[[MONGO_MOD_PUBLIC]]`, forward-declares `KVEngineDirectCrudCursor`, and adds includes for shared_buffer.h, <span>, and <variant>.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Applies the KVEngine CRUD refactor to the WiredTiger implementation: removes the four per-operation ident methods (insertIntoIdent/updateInIdent/getFromIdent/deleteFromIdent) and the file-local `setKeyOnCursor` free function, replacing them with `WiredTigerKVEngineBase::getDirectCursor`, which returns a `WiredTigerDirectCrudCursor`. Drops the includes for server_status_metric.h, server_feature_flags_gen.h, and quick_exit.h, and adds an include for kv/kv_engine.h. In `demoteToFollower`, adds `_stepDownTimestamp.store(0)` to keep the cached step-down timestamp in sync when WiredTiger clears its own on step-down. NOTE: this file was a merge conflict ('both modified'); the conflict centered on Percona-specific encryption includes (encryption/*.h) and the fork's `copy_keydb_files`/`prepareKeyDbDir`/`keyDbRotateMasterKey`/`setUpWiredTigerEncryption` code, which must be preserved.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Mirrors the kv_engine.h interface change: removes the declarations of insertIntoIdent/updateInIdent/getFromIdent/deleteFromIdent and replaces them with a single `getDirectCursor(RecoveryUnit&, std::string_view ident, BlindWritePolicy)` override returning `std::unique_ptr<KVEngineDirectCrudCursor>`.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Adds `WiredTigerUtil::logStorageSizeStats`, which resolves the on-disk file URI backing a table b-tree, reads the accumulated per-b-tree size summary statistics (leaf/internal/overflow page and byte counts, key/value bytes and counts, max leaf page), builds a 9-bucket leaf-page-size histogram, and emits it all as a single LOGV2 'WiredTiger size metrics' log line.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Declares the new static method `WiredTigerUtil::logStorageSizeStats(WiredTigerSession&, const std::string& tableUri)` with documentation describing it reads back a debug=(size_stats) cursor's accumulated per-b-tree summary and logs it.",
+        "src/mongo/executor/BUILD.bazel": "Adds `//src/mongo/transport:transport_layer_common` to the deps of a mongo_cc_integration_test target.",
+        "src/mongo/s/mongos_main.cpp": "In `initializeSharding`, adds an include for shard_id.h and changes the ShardFactory `setBuilder` and `masterBuilder` callables to take a `const ShardId&` instead of a `const ShardHandle&`, constructing `ShardRemote` from the ShardId and looking up shard state via `getShardState(shardId)` (removing the prior TODO SERVER-127201 comments and `handle.name()` usage).",
+        "src/mongo/transport/BUILD.bazel": "Adds new dependencies: `//src/mongo/db/admission:egress_response_rate_limiter` and `//src/mongo/util:clock_sources` to a mongo_cc_library target, and `//src/mongo/db/admission:egress_response_rate_limiter` to a mongo_cc_unit_test target."
+      },
+      "review_notes": "The dominant upstream change is the KVEngine direct CRUD refactor spanning kv_engine.h, wiredtiger_kv_engine.h/.cpp, and the storage BUILD.bazel (removal of storage_engine_direct_crud). Reviewers should confirm the WiredTiger conflict resolution in wiredtiger_kv_engine.cpp preserves all Percona encryption-at-rest code (encryption/* includes, copy_keydb_files, prepareKeyDbDir, keyDbRotateMasterKey, setUpWiredTigerEncryption, and the Percona setKeyOnCursor if still needed by fork code) while adopting upstream's getDirectCursor/WiredTigerDirectCrudCursor and the demoteToFollower `_stepDownTimestamp.store(0)` change. All descriptions are derived from the ff54e20 -> bb7a39b diff; files not producing diff output were not described."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me examine the conflicted file's resolution in the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's what I found:\n\n## Summary\n\nThis merge pulls upstream MongoDB changes (base `ff54e20` \u2192 merge commit `bb7a39b`) into the Percona fork. I read the actual `diff base \u2192 merge commit` diff for each of the 15 auto-merged files rather than inferring from names.\n\n**Dominant theme \u2014 KVEngine direct CRUD refactor:**\n- `kv_engine.h`: the four virtual methods (`insertIntoIdent`/`updateInIdent`/`getFromIdent`/`deleteFromIdent`) and `IdentKey` alias are replaced by a single `getDirectCursor()` returning a new `KVEngineDirectCrudCursor` abstract class (with `insert`/`update`/`get`/`remove`).\n- `wiredtiger_kv_engine.h/.cpp`: WiredTiger implementation follows suit via `getDirectCursor` returning a `WiredTigerDirectCrudCursor`; also `demoteToFollower` now resets `_stepDownTimestamp`.\n- `storage/BUILD.bazel`: drops the `storage_engine_direct_crud` target.\n\n**Other upstream changes:** WiredTiger `logStorageSizeStats` size-metrics logging (`wiredtiger_util.cpp/.h`), resmoke version-suffix handling and checkpoint-past-FCV logic, mongos `ShardFactory` builders keyed by `ShardId`, an `enableSizeStats` flag in offline validation, plus `.bazelrc` and several `BUILD.bazel` dependency tweaks.\n\n**Conflict note:** `wiredtiger_kv_engine.cpp` was a \"both modified\" conflict centered on the fork's Percona encryption-at-rest includes and key-DB helpers \u2014 I flagged in the review notes that those must be preserved while adopting the upstream `getDirectCursor` refactor.\n\nNote: the task was to *describe* the merge (per the prompt's read-only constraint), which I've done \u2014 I did not modify any source files or resolve the conflict."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260730_113221_983614.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b",
+    "short_sha": "bb7a39b05fe",
+    "strategy": null,
+    "summary": "This is the 52nd commit in the window - squarely in the ~50 target band - and it is a vendored WiredTiger import ('Import wiredtiger: 09d06fa... from branch mongodb-master'). Third-party vendored imports are ideal merge boundaries: they touch a well-isolated set of files, rarely depend on the commits after them, and are easy to validate post-merge. Cutting here also keeps the SERVER-108218 revert pair intact for the next batch: the original 'Validate hybrid search subpipelines' (#59701, index 66) and its auto-revert (#59949, index 103) both sit past this point, so we avoid importing a change upstream has already decided to undo. It is the first vendored import in the window (the next is ~60 commits later, well beyond target), making it the best available boundary. The only minor tradeoff is that SERVER-132217's disagg follow-up (#59900) lands in the next batch, but the base commit (#59562) is self-contained and functional on its own, so no half-applied state results.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/30538652499"
+  },
+  "note_index": [
+    {
+      "sha": "fec8ca1a270aeb60e497fee50c0b016532306785",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "37dd77025a71fd147f4826ed07bdbbd1c05aeb8b",
+      "message": "Merge commit 'bb7a39b05fe' into master"
+    },
+    {
+      "sha": "86dac87268ac7a4dae427a93b91cb5eb3a275bfb",
+      "message": "Resolve conflicts for merge commit 'bb7a39b05fe' into master"
+    }
+  ]
+}
