@@ -1,22 +1,31 @@
 #!/bin/bash
 
-# Self-contained standalone-mongod fixture for running mongo_cc_integration_test
-# targets under `bazel test` (including on Bazel Remote Execution).
+# Self-contained mongod fixture for running mongo_cc_integration_test targets
+# under `bazel test` (including on Bazel Remote Execution).
 #
 # Integration test binaries are CLIENTS: they connect to a fixture whose
 # connection string is passed via --connectionString (default localhost:27017,
 # see src/mongo/unittest/integration_test_main.idl). In the resmoke flow that
 # fixture is started out-of-band on the CI host. On RBE there is no such host,
-# so this wrapper starts a private standalone mongod inside the test action's
-# own sandbox -- no Docker, no privileges, no change to the RBE worker image --
-# runs the test against it, and tears it down.
+# so this wrapper starts a private fixture inside the test action's own sandbox
+# -- no Docker, no privileges, no change to the RBE worker image -- runs the
+# test against it, and tears it down.
 #
 # Wired in via `--run_under=//bazel:integration_test_wrapper` (see the
-# psmdb_remote_integration_test config in .bazelrc.psmdb). The mongod binary is
-# supplied through the test's runfiles by the mongo_cc_integration_test macro
-# (data += //src/mongo/db:mongod, gated on //bazel/config:remote_test_enabled).
+# psmdb_remote_integration_test config in .bazelrc.psmdb). mongod, the wrapper,
+# and any fixture-specific runfiles (x509 certs, mongo shell) are supplied
+# through the test's runfiles by the mongo_cc_integration_test macro.
+#
+# The fixture topology is chosen per-test by the macro's `fixture` attribute,
+# surfaced here as $PSMDB_IT_FIXTURE:
+#   standalone (default) : one mongod on 127.0.0.1
+#   replset              : a 2-node replica set (rs.initiate via the mongo shell)
+#   tls                  : one mongod with TLS + X.509 cluster auth
+#   grpc                 : one mongod with TLS + featureFlagGRPC
 
 set -u
+
+FIXTURE="${PSMDB_IT_FIXTURE:-standalone}"
 
 # --- Locate the test binary (mirrors bazel/test_wrapper.sh runfiles logic) ----
 # With --nolegacy_external_runfiles the binary lives under $RUNFILES_DIR/_main/.
@@ -26,94 +35,218 @@ if [[ -n "${RUNFILES_DIR:-}" && ! -x "$test_bin" ]]; then
     test_bin="${RUNFILES_DIR}/_main/${test_bin}"
 fi
 
-# --- Locate mongod in the runfiles tree ---------------------------------------
-# The macro adds //src/mongo/db:mongod to `data`, so its output lands at
-# src/mongo/db/mongod under the runfiles root. Fall back to a search if the
-# canonical path is not present (e.g. a future output-path change).
-mongod_bin=""
-for cand in \
-    "${RUNFILES_DIR:-}/_main/src/mongo/db/mongod" \
-    "src/mongo/db/mongod"; do
-    if [[ -x "$cand" ]]; then
-        mongod_bin="$cand"
-        break
-    fi
-done
-if [[ -z "$mongod_bin" ]]; then
-    mongod_bin="$(find -L "${RUNFILES_DIR:-.}" . -type f -name mongod -perm -u+x 2>/dev/null | head -1)"
-fi
-if [[ -z "$mongod_bin" || ! -x "$mongod_bin" ]]; then
-    echo "integration_test_wrapper: could not locate the mongod binary in runfiles" >&2
+runfiles_main="${RUNFILES_DIR:-.}/_main"
+cert_dir="${runfiles_main}/x509"
+
+die() {
+    echo "integration_test_wrapper: $*" >&2
     exit 1
-fi
+}
 
-# --- Fixture working directory (ephemeral, writable, per-action) --------------
+# Locate a binary in the runfiles tree: try the canonical path, then search.
+find_runfile_bin() {
+    local relpath="$1" name="$2" cand
+    for cand in "${runfiles_main}/${relpath}" "${relpath}"; do
+        if [[ -x "$cand" ]]; then
+            echo "$cand"
+            return 0
+        fi
+    done
+    find -L "${RUNFILES_DIR:-.}" . -type f -name "$name" -perm -u+x 2>/dev/null | head -1
+}
+
+mongod_bin="$(find_runfile_bin "src/mongo/db/mongod" mongod)"
+[[ -n "$mongod_bin" && -x "$mongod_bin" ]] || die "could not locate the mongod binary in runfiles"
+
+# --- Per-action ephemeral fixture root ----------------------------------------
 fixture_dir="${TEST_TMPDIR:-/tmp}/it-fixture.$$"
-dbpath="${fixture_dir}/db"
-logpath="${fixture_dir}/mongod.log"
-mkdir -p "$dbpath"
+mkdir -p "$fixture_dir"
 
-# Derive a port that avoids the well-known 27017 to reduce collision risk when
-# actions are not fully network-isolated. mongod opens a TCP listener on
-# 127.0.0.1:$port AND a Unix domain socket at $dbpath/mongodb-$port.sock.
-port=$(( 20000 + ($$ % 20000) ))
-sock="${dbpath}/mongodb-${port}.sock"
+# mongod (and, under featureFlagGRPC, its gRPC ingress) creates a Unix domain
+# socket at <unixSocketPrefix>/mongodb-<port>.sock. AF_UNIX paths are capped at
+# ~107 chars (sockaddr_un.sun_path); $TEST_TMPDIR on an RBE worker
+# (/worker/build/N/root/bazel-out/.../test.runfiles/_main/...) is long enough
+# that appending the socket name overflows it -- gRPC's add_port treats that as
+# fatal ("Path name should not have more than 107 characters"), so the listener
+# never binds and the test hangs. Keep dbpath under $TEST_TMPDIR (disk space)
+# but point the socket at a SHORT /tmp dir. The socket filename carries the
+# port, so a single prefix is safe across all nodes in a fixture.
+sock_prefix="/tmp/it-sock.$$"
+mkdir -p "$sock_prefix"
 
+# A private port range for this action. Actions on RBE are isolated, and the
+# offset from $$ keeps concurrent local actions off the well-known 27017.
+port_base=$((20000 + ($$ % 20000)))
+
+# Track every mongod we spawn so the trap can tear them all down.
+mongod_pids=()
 cleanup() {
-    if [[ -n "${mongod_pid:-}" ]] && kill -0 "$mongod_pid" 2>/dev/null; then
-        kill "$mongod_pid" 2>/dev/null
-        wait "$mongod_pid" 2>/dev/null
-    fi
+    local pid
+    for pid in "${mongod_pids[@]:-}"; do
+        if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+            kill "$pid" 2>/dev/null
+            wait "$pid" 2>/dev/null
+        fi
+    done
+    rm -rf "${sock_prefix:-}" 2>/dev/null
 }
 trap cleanup EXIT
 
-# --- Start the standalone mongod fixture --------------------------------------
-# enableTestCommands + logComponentVerbosity{command:2} match the resmoke
-# integration_tests_standalone suite (buildscripts/resmokeconfig/suites/).
-"$mongod_bin" \
-    --dbpath="$dbpath" \
-    --port="$port" \
-    --bind_ip=127.0.0.1 \
-    --unixSocketPrefix="$dbpath" \
-    --logpath="$logpath" \
-    --setParameter=enableTestCommands=1 \
-    --setParameter=logComponentVerbosity='{command:2}' &
-mongod_pid=$!
+# Start one mongod. Args: <node-tag> <port> [extra mongod flags...].
+# Populates the global $last_node_dbpath and appends the pid to mongod_pids.
+start_mongod() {
+    local tag="$1" port="$2"
+    shift 2
+    local dbpath="${fixture_dir}/${tag}"
+    local logpath="${dbpath}/mongod.log"
+    mkdir -p "$dbpath"
+    last_node_dbpath="$dbpath"
+    last_node_log="$logpath"
+    "$mongod_bin" \
+        --dbpath="$dbpath" \
+        --port="$port" \
+        --bind_ip=127.0.0.1 \
+        --unixSocketPrefix="$sock_prefix" \
+        --logpath="$logpath" \
+        --setParameter=enableTestCommands=1 \
+        --setParameter=logComponentVerbosity='{command:2}' \
+        "$@" &
+    mongod_pids+=("$!")
+}
 
-# --- Wait for readiness -------------------------------------------------------
-ready=0
-for _ in $(seq 1 120); do
-    if grep -q "Waiting for connections" "$logpath" 2>/dev/null; then
-        ready=1
-        break
-    fi
-    if ! kill -0 "$mongod_pid" 2>/dev/null; then
-        echo "integration_test_wrapper: mongod exited before accepting connections" >&2
-        cat "$logpath" >&2 2>/dev/null
-        exit 1
-    fi
-    sleep 0.5
-done
-if [[ "$ready" -ne 1 ]]; then
-    echo "integration_test_wrapper: mongod did not become ready within timeout" >&2
+# Block until the most-recently-started mongod is accepting connections.
+wait_ready() {
+    local logpath="$1" pid="${mongod_pids[-1]}"
+    local i
+    for ((i = 0; i < 240; i++)); do
+        if grep -q "Waiting for connections" "$logpath" 2>/dev/null; then
+            return 0
+        fi
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "----- mongod log ($logpath) -----" >&2
+            cat "$logpath" >&2 2>/dev/null
+            die "mongod exited before accepting connections"
+        fi
+        sleep 0.5
+    done
+    echo "----- mongod log ($logpath) -----" >&2
     cat "$logpath" >&2 2>/dev/null
-    exit 1
-fi
+    die "mongod did not become ready within timeout"
+}
 
-# --- Choose the fixture transport ---------------------------------------------
-# Default to TCP loopback (localhost:$port), which mirrors the resmoke fixture
-# and is almost always available. Set PSMDB_IT_FIXTURE_TRANSPORT=uds to connect
-# over the Unix domain socket instead -- fully hermetic, used to validate on RBE
-# workers where loopback TCP might be restricted.
-if [[ "${PSMDB_IT_FIXTURE_TRANSPORT:-tcp}" == "uds" ]]; then
-    # URL-encode the socket path (mongo_uri requires the .sock suffix).
-    conn="mongodb://${sock//\//%2F}"
-else
+require_certs() {
+    local f
+    for f in ca.pem server.pem client.pem; do
+        [[ -f "${cert_dir}/${f}" ]] || die "missing x509 cert ${cert_dir}/${f} (is //x509:generate_main_certificates in this test's runfiles?)"
+    done
+}
+
+# Extra args appended to the test binary invocation (set by tls/grpc fixtures).
+test_extra_args=()
+
+case "$FIXTURE" in
+standalone)
+    port=$port_base
+    start_mongod standalone "$port"
+    wait_ready "$last_node_log"
     conn="localhost:${port}"
-fi
+    ;;
+
+tls)
+    # A single mongod with TLS and X.509 cluster auth. The SSL test
+    # (network_interface_ssl_test) reads its certs from $INSTALL_DIR/x509
+    # and connects as the internal __system user over TLS.
+    require_certs
+    port=$port_base
+    start_mongod tls "$port" \
+        --tlsMode=requireTLS \
+        --tlsCAFile="${cert_dir}/ca.pem" \
+        --tlsCertificateKeyFile="${cert_dir}/server.pem" \
+        --tlsClusterFile="${cert_dir}/server.pem" \
+        --clusterAuthMode=x509 \
+        --tlsAllowInvalidHostnames
+    wait_ready "$last_node_log"
+    # The test resolves $INSTALL_DIR/x509/{ca,client,server}.pem itself.
+    export INSTALL_DIR="${runfiles_main}"
+    conn="localhost:${port}"
+    ;;
+
+grpc)
+    # A single mongod with TLS + gRPC ingress. The test connects over the
+    # gRPC egress path with TLS client credentials.
+    require_certs
+    port=$port_base
+    grpc_port=$((port_base + 1))
+    start_mongod grpc "$port" \
+        --tlsMode=preferTLS \
+        --tlsCAFile="${cert_dir}/ca.pem" \
+        --tlsCertificateKeyFile="${cert_dir}/server.pem" \
+        --grpcPort="$grpc_port" \
+        --setParameter=featureFlagGRPC=true
+    wait_ready "$last_node_log"
+    # The gRPC egress client connects directly to the gRPC listener, so the
+    # connection string must name the gRPC port (not the normal wire port).
+    conn="localhost:${grpc_port}"
+    test_extra_args=(
+        --useEgressGRPC=true
+        --tlsMode=preferTLS
+        --tlsCAFile="${cert_dir}/ca.pem"
+        --tlsCertificateKeyFile="${cert_dir}/client.pem"
+    )
+    ;;
+
+replset)
+    # A 2-node replica set. rs.initiate() is issued via the mongo shell
+    # (staged as a runfile for this fixture), then we wait for a primary.
+    mongo_bin="$(find_runfile_bin "src/mongo/shell/mongo" mongo)"
+    [[ -n "$mongo_bin" && -x "$mongo_bin" ]] || die "could not locate the mongo shell in runfiles"
+    p0=$port_base
+    p1=$((port_base + 1))
+    start_mongod rs0 "$p0" --replSet=rs0
+    node0_log="$last_node_log"
+    start_mongod rs1 "$p1" --replSet=rs0
+    node1_log="$last_node_log"
+    wait_ready "$node0_log"
+    wait_ready "$node1_log"
+    # Initiate the set and wait for a writable primary in ONE shell process.
+    # A fresh shell per poll cost ~2s startup each (minutes of wall clock);
+    # a single long-lived connection also keeps db bound to the node we
+    # initiated. Use runCommand({hello:1}) rather than the db.hello() helper
+    # so this does not depend on shell-helper availability, and dump
+    # rs.status() on timeout so a genuine election failure is diagnosable.
+    init_js="
+            assert.commandWorked(rs.initiate({_id: 'rs0', members: [
+                {_id: 0, host: '127.0.0.1:${p0}'},
+                {_id: 1, host: '127.0.0.1:${p1}'}]}));
+            var ok = false;
+            for (var i = 0; i < 120; i++) {
+                try {
+                    if (db.runCommand({hello: 1}).isWritablePrimary === true) {
+                        ok = true;
+                        break;
+                    }
+                } catch (e) {}
+                sleep(500);
+            }
+            if (!ok) {
+                print('integration_test_wrapper: no primary; rs.status() = ' + tojson(rs.status()));
+            }
+            quit(ok ? 0 : 1);
+        "
+    "$mongo_bin" --host 127.0.0.1 --port "$p0" --quiet --eval "$init_js" ||
+        die "replica set did not elect a primary within timeout"
+    # integration_test_main parses --connectionString with
+    # ConnectionString::parse(), whose replica-set form is
+    # "<setName>/<host1>,<host2>" -- NOT a mongodb:// URI (that yields
+    # "FailedToParse: Did not consume whole string").
+    conn="rs0/127.0.0.1:${p0},127.0.0.1:${p1}"
+    ;;
+
+*)
+    die "unknown PSMDB_IT_FIXTURE='${FIXTURE}' (expected standalone|replset|tls|grpc)"
+    ;;
+esac
 
 # --- Run the test against the fixture -----------------------------------------
-"$test_bin" "$@" --connectionString="$conn"
-ret=$?
-
-exit $ret
+"$test_bin" "$@" "${test_extra_args[@]}" --connectionString="$conn"
+exit $?

@@ -696,11 +696,10 @@ mongo_cc_integration_test(
     srcs = [
         "replica_set_monitor_integration_test.cpp",
     ],
-    # Needs a replica-set fixture (asserts uri.type() == kReplicaSet); the
-    # standalone mongod started by //bazel:integration_test_wrapper is not a
-    # replica set, so exclude it from the psmdb_remote_integration_test profile
-    # (still run by the resmoke replica-set suite).
-    tags = ["incompatible_with_bazel_remote_test"],
+    # Runs on RBE against a 2-node replica set started by
+    # //bazel:integration_test_wrapper (fixture = "replset"); the test asserts
+    # uri.type() == kReplicaSet.
+    fixture = "replset",
     deps = [
         ":clientdriver_network",
         "//src/mongo/db:wire_version",
