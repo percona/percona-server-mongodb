@@ -76,11 +76,17 @@ jobs:
           echo "Successfully generated status JSON:"
           jq '.' "$OUTPUT_FILE"
 
+      - name: Copy OpenVEX files
+        run: |
+          set -euo pipefail
+          mkdir -p gh-pages-data/vex
+          cp -r vex/. gh-pages-data/vex/
+
       - name: Deploy data to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         with:
           github_token: ${{ steps.app-token.outputs.token }}
           publish_dir: ./gh-pages-data
           destination_dir: .
-          keep_files: true # Keep existing templates
+          keep_files: true # Keep existing templates and the OpenVEX files not in this push
           enable_jekyll: true

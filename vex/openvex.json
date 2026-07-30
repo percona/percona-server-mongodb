@@ -1,6 +1,6 @@
 {
   "@context": "https://openvex.dev/ns/v0.2.0",
-  "@id": "https://percona.github.io/percona-server-mongodb/openvex.json",
+  "@id": "https://percona.github.io/percona-server-mongodb/vex/openvex.json",
   "author": "Percona Security <security@percona.com>",
   "timestamp": "2026-07-28T16:54:00Z",
   "version": 1,
