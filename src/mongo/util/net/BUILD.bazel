@@ -435,6 +435,10 @@ mongo_cc_integration_test(
     srcs = [
         "network_interface_ssl_test.cpp",
     ],
+    # Needs a TLS-enabled fixture; the standalone mongod started by
+    # //bazel:integration_test_wrapper has no SSL, so exclude it from the
+    # psmdb_remote_integration_test profile (still run by the resmoke SSL suite).
+    tags = ["incompatible_with_bazel_remote_test"],
     target_compatible_with = select({
         "//bazel/config:ssl_enabled": [],
         "//conditions:default": ["@platforms//:incompatible"],

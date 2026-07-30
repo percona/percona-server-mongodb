@@ -266,6 +266,11 @@ mongo_cc_integration_test(
     srcs = [
         "grpc_transport_layer_integration_test.cpp",
     ],
+    # Needs a gRPC-configured fixture (must be run with gRPC parameters, per the
+    # resmoke integration_tests_standalone_grpc suite); the plain standalone
+    # mongod started by //bazel:integration_test_wrapper is not configured for
+    # gRPC, so exclude it from the psmdb_remote_integration_test profile.
+    tags = ["incompatible_with_bazel_remote_test"],
     deps = [
         "//src/mongo:base",
         "//src/mongo/transport:transport_layer_egress_init",
