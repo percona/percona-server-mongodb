@@ -11,8 +11,6 @@
 #include "mongo/bson/dotted_path/dotted_path_support.h"
 #include "mongo/db/audit/audit.h"
 #include "mongo/db/client.h"
-<<<<<<< HEAD
-#include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/encryption/error.h"
@@ -21,10 +19,6 @@
 #include "mongo/db/encryption/key_entry.h"
 #include "mongo/db/encryption/key_id.h"
 #include "mongo/db/encryption/master_key_provider.h"
-||||||| ff54e20bb15
-#include "mongo/db/commands/server_status/server_status_metric.h"
-=======
->>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 #include "mongo/db/index_names.h"
 #include "mongo/db/rss/persistence_provider.h"
 #include "mongo/db/rss/replicated_storage_service.h"
@@ -76,13 +70,7 @@
 #include "mongo/util/exit.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/log_and_backoff.h"
-<<<<<<< HEAD
 #include "mongo/util/progress_meter.h"
-#include "mongo/util/quick_exit.h"
-||||||| ff54e20bb15
-#include "mongo/util/quick_exit.h"
-=======
->>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/testing_proctor.h"
@@ -368,7 +356,6 @@ std::string toString(const StorageEngine::OldestActiveTransactionTimestampResult
         return r.getStatus().toString();
     }
 }
-<<<<<<< HEAD
 }  // namespace
 
 namespace {
@@ -724,28 +711,6 @@ void setUpWiredTigerEncryption(const std::string& cipherMode, EncryptionKeyDB* k
     EncryptionHooks::set(getGlobalServiceContext(), std::move(hooks));
 }
 
-void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
-    std::visit(OverloadedVisitor{
-                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
-                   [&](int64_t k) {
-                       c->set_key(c, k);
-                   }},
-               key);
-}
-
-||||||| ff54e20bb15
-
-void setKeyOnCursor(WT_CURSOR* c, const std::variant<std::span<const char>, int64_t>& key) {
-    std::visit(OverloadedVisitor{
-                   [&](const std::span<const char> k) { c->set_key(c, WiredTigerItem{k}.get()); },
-                   [&](int64_t k) {
-                       c->set_key(c, k);
-                   }},
-               key);
-}
-
-=======
->>>>>>> bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b
 }  // namespace
 
 class WiredTigerKVEngine::DataAtRestEncryption {
