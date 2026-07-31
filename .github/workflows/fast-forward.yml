@@ -15,6 +15,20 @@
 #   - Maintains clean, linear git history
 #   - Avoids unnecessary merge commits
 #   - Makes git log and bisect easier to work with
+#
+# The work is split into two jobs so the approval gate is visible on the PR:
+#   * fast-forward-check (ungated) validates the request and publishes a pending
+#     "Fast-Forward Merge" commit status on the PR head, so the checks section
+#     shows the job waiting while a required reviewer approves the deployment.
+#     (An issue_comment run is attributed to the default branch, so without this
+#     the environment approval gate would be invisible on the PR.)
+#   * fast-forward (push-approve environment) performs the merge after approval
+#     and resolves that status to success/failure.
+#
+# Commit statuses are published with the default GITHUB_TOKEN (github-actions[bot])
+# so the "Fast-Forward Merge" check shares the same icon as the mergai bot checks.
+# The App token is used only where it is actually needed: reading the PR /
+# commenter permission, posting comments, and pushing to the protected base ref.
 # =============================================================================
 name: Fast-Forward Merge
 
@@ -24,26 +38,31 @@ on:
     types: [created]
 
 jobs:
-  fast-forward:
-    name: Fast-Forward Merge
-    # Only run if:
-    # 1. Comment is on a pull request (not an issue)
-    # 2. Comment body contains '/fast-forward'
+  # ---------------------------------------------------------------------------
+  # Gate: validate the request and surface it on the PR *before* approval.
+  # ---------------------------------------------------------------------------
+  # Runs immediately (ungated) when the comment arrives. It validates the request
+  # (open / same-repo / commenter permission) and publishes a pending
+  # "Fast-Forward Merge" status on the PR head SHA so the PR shows the job waiting
+  # for approval. An invalid request gets a failure status + explanatory comment
+  # here and leaves proceed unset, so the merge job is skipped.
+  fast-forward-check:
+    name: Fast-Forward Merge (gate)
     if: |
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '/fast-forward')
     runs-on: ubuntu-latest
-    # 'push-approve' environment: required-reviewer approval before this job can
-    # push to a protected ref (fast-forward advances master). The /fast-forward
-    # comment can come from anyone, so the approval gate is the trust boundary
-    # (the in-job permission check below is the second layer). Carries no
-    # secrets beyond the repo-level App token.
-    environment: push-approve
-
+    permissions:
+      statuses: write # publish the "Fast-Forward Merge" status with the default token
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+      head_ref: ${{ steps.gate.outputs.head_ref }}
+      base_ref: ${{ steps.gate.outputs.base_ref }}
     steps:
-      # --- Authentication ---
-      # Generate a GitHub App token for elevated permissions.
-      # App tokens allow pushing to protected branches and bypass branch protection rules.
+      # App token: getCollaboratorPermissionLevel needs push access, and the
+      # rejection comment is posted as the bot. The commit statuses below use the
+      # default GITHUB_TOKEN instead, so their icon matches the mergai checks.
       - name: Create GitHub App token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -51,11 +70,13 @@ jobs:
           app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
 
-      # --- Gather PR Information ---
-      # Fetch PR details since issue_comment events don't include full PR data.
-      # We need: head SHA (for merge), head/base refs (branch names), and state.
-      - name: Get PR details
-        id: pr
+      # Fetch PR details (issue_comment events don't include full PR data) and
+      # validate state / fork / commenter permission. On an invalid request it
+      # posts an explanatory comment and records proceed=false; the status itself
+      # is published by the steps below (default token). head_sha is emitted even
+      # on rejection so the failure status can be attached to the PR head.
+      - name: Validate request
+        id: gate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
@@ -66,67 +87,120 @@ jobs:
               pull_number: context.issue.number
             });
             core.setOutput('head_sha', pr.data.head.sha);
-            core.setOutput('head_ref', pr.data.head.ref);
-            core.setOutput('base_ref', pr.data.base.ref);
-            core.setOutput('state', pr.data.state);
-            core.setOutput('head_repo', pr.data.head.repo.full_name);
-            core.setOutput('base_repo', pr.data.base.repo.full_name);
-
-      # --- Validation: PR State ---
-      # Prevent merging closed or already-merged PRs
-      - name: Check PR state
-        if: steps.pr.outputs.state != 'open'
-        run: |
-          echo "::error::Pull request is not open (state: ${{ steps.pr.outputs.state }})"
-          exit 1
-
-      # --- Validation: Fork PR ---
-      # Fast-forward merge is not supported for PRs from forks because the head
-      # branch ref doesn't exist in the origin repository
-      - name: Check fork PR
-        if: steps.pr.outputs.head_repo != steps.pr.outputs.base_repo
-        run: |
-          echo "::error::Fast-forward merge is not supported for PRs from forks. The head branch must be in the same repository."
-          echo "Head repo: ${{ steps.pr.outputs.head_repo }}"
-          echo "Base repo: ${{ steps.pr.outputs.base_repo }}"
-          exit 1
-
-      # --- Validation: User Permissions ---
-      # Verify the commenter has sufficient repository permissions.
-      # Only users with write, maintain, or admin access can trigger merges.
-      - name: Check merge permission
-        id: check-permission
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ steps.app-token.outputs.token }}
-          script: |
-            const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+            const reject = async (msg) => {
+              core.setOutput('proceed', 'false');
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `Fast-forward merge cannot proceed.\n\n${msg}`
+              });
+            };
+            // Prevent merging closed or already-merged PRs.
+            if (pr.data.state !== 'open') {
+              return reject(`Pull request is not open (state: ${pr.data.state}).`);
+            }
+            // Fork PRs: the head branch ref doesn't exist in the origin repo.
+            if (pr.data.head.repo.full_name !== pr.data.base.repo.full_name) {
+              return reject('Fast-forward merge is not supported for PRs from forks. The head branch must be in the same repository.');
+            }
+            // Only write/maintain/admin collaborators may advance the base ref.
+            const perm = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
               repo: context.repo.repo,
               username: context.actor
             });
-            const level = permission.data.permission;
-            const canMerge = ['admin', 'maintain', 'write'].includes(level);
-            core.setOutput('can_merge', canMerge);
-            if (!canMerge) {
-              core.setFailed(`User ${context.actor} does not have permission to merge (permission: ${level})`);
+            if (!['admin', 'maintain', 'write'].includes(perm.data.permission)) {
+              return reject(`User ${context.actor} does not have permission to merge (permission: ${perm.data.permission}).`);
             }
+            // Valid request: let the merge job run.
+            core.setOutput('proceed', 'true');
+            core.setOutput('head_ref', pr.data.head.ref);
+            core.setOutput('base_ref', pr.data.base.ref);
 
-      # --- Status Update: Pending ---
-      # Set commit status to 'pending' to indicate merge is in progress.
-      # This provides visual feedback in the PR UI.
-      - name: Set status pending
+      # Valid request: publish the pending "Fast-Forward Merge" check with the
+      # default token (github-actions[bot]) so its icon matches the mergai checks.
+      # Resolved by the merge job.
+      - name: Publish pending status (awaiting approval)
+        if: steps.gate.outputs.proceed == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: '${{ steps.pr.outputs.head_sha }}',
+              sha: '${{ steps.gate.outputs.head_sha }}',
               state: 'pending',
               context: 'Fast-Forward Merge',
-              description: 'Attempting fast-forward merge...',
+              description: 'Waiting for required-reviewer approval...',
+              target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
+      # Invalid request: publish a failure status (default token) to match the
+      # explanatory comment the validate step already posted.
+      - name: Publish rejection status
+        if: steps.gate.outputs.proceed == 'false'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ steps.gate.outputs.head_sha }}',
+              state: 'failure',
+              context: 'Fast-Forward Merge',
+              description: 'Request rejected; see comment',
+              target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
+  # ---------------------------------------------------------------------------
+  # Merge: perform the fast-forward *after* approval.
+  # ---------------------------------------------------------------------------
+  fast-forward:
+    name: Fast-Forward Merge
+    # Runs only when the gate validated the request and published the pending
+    # check. The push-approve environment then holds this job at "waiting for
+    # approval" -- visible on the PR via that pending status -- until a required
+    # reviewer approves. This job resolves the status to success/failure.
+    needs: fast-forward-check
+    if: needs.fast-forward-check.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # 'push-approve' environment: required-reviewer approval before this job can
+    # push to a protected ref (fast-forward advances master). The /fast-forward
+    # comment can come from anyone, so the approval gate is the trust boundary
+    # (the gate's permission check is the second layer). Carries no secrets
+    # beyond the repo-level App token.
+    environment: push-approve
+    permissions:
+      statuses: write # resolve the "Fast-Forward Merge" status with the default token
+
+    steps:
+      # App token for pushing to the protected base ref (bypasses branch
+      # protection). The commit statuses use the default GITHUB_TOKEN instead, so
+      # their icon matches the mergai checks.
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      # Approval was granted: flip the pending "Fast-Forward Merge" check from
+      # "waiting for approval" to "running".
+      - name: Set status running
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ needs.fast-forward-check.outputs.head_sha }}',
+              state: 'pending',
+              context: 'Fast-Forward Merge',
+              description: 'Approved; performing fast-forward merge...',
               target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             });
 
@@ -151,12 +225,12 @@ jobs:
       # 3. Pushes the updated base branch
       - name: Fast-forward merge
         id: merge
+        env:
+          BASE_REF: ${{ needs.fast-forward-check.outputs.base_ref }}
+          HEAD_REF: ${{ needs.fast-forward-check.outputs.head_ref }}
+          HEAD_SHA: ${{ needs.fast-forward-check.outputs.head_sha }}
         run: |
           set -e
-
-          BASE_REF="${{ steps.pr.outputs.base_ref }}"
-          HEAD_REF="${{ steps.pr.outputs.head_ref }}"
-          HEAD_SHA="${{ steps.pr.outputs.head_sha }}"
 
           echo "Base branch: $BASE_REF"
           echo "Head branch: $HEAD_REF"
@@ -197,7 +271,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `Fast-forward merge completed successfully.\n\nMerged \`${{ steps.pr.outputs.head_ref }}\` into \`${{ steps.pr.outputs.base_ref }}\` at commit ${{ steps.pr.outputs.head_sha }}.`
+              body: `Fast-forward merge completed successfully.\n\nMerged \`${{ needs.fast-forward-check.outputs.head_ref }}\` into \`${{ needs.fast-forward-check.outputs.base_ref }}\` at commit ${{ needs.fast-forward-check.outputs.head_sha }}.`
             });
 
       # Update commit status to 'success'
@@ -205,12 +279,12 @@ jobs:
         if: success()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: '${{ steps.pr.outputs.head_sha }}',
+              sha: '${{ needs.fast-forward-check.outputs.head_sha }}',
               state: 'success',
               context: 'Fast-Forward Merge',
               description: 'Fast-forward merge completed successfully',
@@ -238,14 +312,34 @@ jobs:
         if: failure()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: '${{ steps.pr.outputs.head_sha }}',
+              sha: '${{ needs.fast-forward-check.outputs.head_sha }}',
               state: 'failure',
               context: 'Fast-Forward Merge',
               description: 'Fast-forward merge failed',
+              target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
+      # --- Cancellation Handling ---
+      # On cancellation (manual cancel / timeout) neither the success nor failure
+      # step runs, which would leave the pending status stuck on the PR head.
+      # Resolve it to 'error' so the check doesn't hang.
+      - name: Set status cancelled
+        if: cancelled()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ needs.fast-forward-check.outputs.head_sha }}',
+              state: 'error',
+              context: 'Fast-Forward Merge',
+              description: 'Fast-forward merge was cancelled',
               target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             });
