@@ -1051,22 +1051,107 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: mergai notes push
 
+  # Gate + surface the `/mergai rebase` request on the PR. rebase-handle is gated
+  # by the push-approve environment, but issue_comment runs are attributed to the
+  # default branch, so the approval gate would be invisible in the PR's checks
+  # section. This ungated gate runs immediately and publishes a pending
+  # "mergai / rebase" commit status on the PR head SHA, so the checks section
+  # shows the job waiting for approval (the ci-gate/ci-handle idiom). It also
+  # validates the request (same-repo mergai PR); rebase-handle runs only when this
+  # gate sets proceed=true and resolves the pending check to success/failure.
+  rebase-gate:
+    if: >-
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request != null
+      && contains(github.event.comment.body, '/mergai rebase')
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write # publish the "mergai / rebase" commit status
+    outputs:
+      proceed: ${{ steps.pr.outputs.proceed }}
+      number: ${{ steps.pr.outputs.number }}
+      head_ref: ${{ steps.pr.outputs.head_ref }}
+      base_ref: ${{ steps.pr.outputs.base_ref }}
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      # Resolve the PR (issue_comment carries no refs) and confirm it is a
+      # same-repo mergai PR. A fork PR (with an explanatory comment) or a
+      # non-mergai PR leaves proceed unset, so rebase-handle is skipped and no
+      # pending approval check is published.
+      - name: Resolve and validate PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER='${{ github.event.issue.number }}'
+          read -r HEAD_REF BASE_REF CROSS_REPO HEAD_SHA < <(gh pr view "$PR_NUMBER" \
+            --json headRefName,baseRefName,isCrossRepository,headRefOid \
+            --jq '"\(.headRefName) \(.baseRefName) \(.isCrossRepository) \(.headRefOid)"')
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved PR #$PR_NUMBER (head: $HEAD_REF, base: $BASE_REF, cross_repo: $CROSS_REPO, head_sha: $HEAD_SHA)"
+          # Fork PRs: the head branch does not exist in this repo, so we can
+          # neither rebase it nor push it back.
+          if [ "$CROSS_REPO" = "true" ]; then
+            echo "PR #$PR_NUMBER is a fork (cross-repository) PR; /mergai rebase is not supported."
+            gh pr comment "$PR_NUMBER" --body \
+              "\`/mergai rebase\` is not supported for pull requests from forks: the head branch must live in this repository."
+            exit 0
+          fi
+          case "$HEAD_REF" in
+            mergai/*) ;;
+            *)
+              echo "PR #$PR_NUMBER is not a mergai PR; skipping."
+              exit 0 ;;
+          esac
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      # Surface the request as a pending "mergai / rebase" check so the PR shows
+      # the job waiting while approval is pending. Resolved by rebase-handle.
+      - name: Publish pending status (awaiting approval)
+        if: steps.pr.outputs.proceed == 'true'
+        env:
+          # Default token so the status is attributed to github-actions[bot],
+          # matching the icon of the other mergai commit statuses.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / rebase" \
+            -f target_url="$RUN_URL" \
+            -f description="waiting for required-reviewer approval" \
+            || echo "::warning::could not publish pending rebase status"
+
   # Rebase a mergai PR branch onto its base branch. Triggered by a
   # `/mergai rebase` comment on the PR. When the base branch (e.g. `master`)
   # advances after the PR opened, the head branch is no longer fast-forwardable
   # and `/fast-forward` fails; rebasing the mergai branch onto the current base
   # tip restores it. The rebase preserves merge commits and mergai notes and
   # reuses previously recorded conflict solutions, then force-pushes the branch.
-  # As with review-handle, who may actually run this is gated by the
-  # 'push-approve' environment (a required reviewer approves the deployment);
-  # the command filter and the mergai-branch check below scope *what* it acts on.
+  # Runs only after rebase-gate validated the request (proceed=true) and
+  # published the pending PR check; the push-approve environment then holds this
+  # job at "waiting for approval" until a required reviewer approves, and this
+  # job resolves the pending check to success/failure.
   rebase-handle:
-    if: >-
-      github.event_name == 'issue_comment'
-      && github.event.issue.pull_request != null
-      && contains(github.event.comment.body, '/mergai rebase')
+    needs: rebase-gate
+    if: needs.rebase-gate.outputs.proceed == 'true'
     environment: push-approve
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write # resolve the "mergai / rebase" commit status
     # Serialize per-PR branch-mutation runs. Uses the shared group key
     # (mergai-pr-<number>, see review-handle) so a `/mergai rebase` and a review
     # fix on the same PR can't run concurrently: both check out and push the
@@ -1086,47 +1171,26 @@ jobs:
           app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
           private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
 
-      # Resolve the PR number, head branch and base branch (the issue_comment
-      # payload carries none of them), and confirm this is a same-repo mergai
-      # PR. Anything else sets is_mergai=false and every later step is skipped
-      # (the job ends green).
-      - name: Resolve PR
-        id: pr
+      # Approval was granted (this job is past the push-approve gate): flip the
+      # pending "mergai / rebase" check from "waiting for approval" to "running".
+      - name: Mark rebase running
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ needs.rebase-gate.outputs.head_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
-          PR_NUMBER='${{ github.event.issue.number }}'
-          read -r HEAD_REF BASE_REF CROSS_REPO < <(gh pr view "$PR_NUMBER" \
-            --json headRefName,baseRefName,isCrossRepository \
-            --jq '"\(.headRefName) \(.baseRefName) \(.isCrossRepository)"')
-          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
-          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
-          echo "Resolved PR #$PR_NUMBER (head: $HEAD_REF, base: $BASE_REF, cross_repo: $CROSS_REPO)"
-          # Fork PRs: the head branch does not exist in this repo, so the
-          # checkout below would fail and there is nothing we could push back.
-          # Bail out early with a clear comment rather than a cryptic checkout
-          # error. mergai's own branches are always same-repo.
-          if [ "$CROSS_REPO" = "true" ]; then
-            echo "is_mergai=false" >> "$GITHUB_OUTPUT"
-            echo "PR #$PR_NUMBER is a fork (cross-repository) PR; /mergai rebase is not supported."
-            gh pr comment "$PR_NUMBER" --body \
-              "\`/mergai rebase\` is not supported for pull requests from forks: the head branch must live in this repository."
-            exit 0
-          fi
-          case "$HEAD_REF" in
-            mergai/*) echo "is_mergai=true" >> "$GITHUB_OUTPUT" ;;
-            *)
-              echo "is_mergai=false" >> "$GITHUB_OUTPUT"
-              echo "PR #$PR_NUMBER is not a mergai PR; skipping." ;;
-          esac
+          gh api "repos/$GH_REPO/statuses/$HEAD_SHA" \
+            -f state="pending" \
+            -f context="mergai / rebase" \
+            -f target_url="$RUN_URL" \
+            -f description="approved; running" \
+            || echo "::warning::could not update rebase status"
 
       - name: Checkout PR branch
-        if: steps.pr.outputs.is_mergai == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ steps.pr.outputs.head_ref }}
+          ref: ${{ needs.rebase-gate.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
@@ -1134,7 +1198,6 @@ jobs:
       # recorded solutions (deterministic), so this sets up the mergai CLI alone,
       # like solution-merged / semantic-merged.
       - name: Setup workflow environment
-        if: steps.pr.outputs.is_mergai == 'true'
         uses: ./.github/actions/setup-mergai-workflow
         with:
           setup-gcp: "false"
@@ -1155,13 +1218,12 @@ jobs:
       #      branch name: mergai/<target>-<sha>/<type>).
       - name: Rebase onto base branch
         id: rebase
-        if: steps.pr.outputs.is_mergai == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          HEAD_REF: ${{ steps.pr.outputs.head_ref }}
-          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          PR_NUMBER: ${{ needs.rebase-gate.outputs.number }}
+          HEAD_REF: ${{ needs.rebase-gate.outputs.head_ref }}
+          BASE_REF: ${{ needs.rebase-gate.outputs.base_ref }}
         run: |
           set -e
           echo "Rebasing $HEAD_REF onto $BASE_REF"
@@ -1182,6 +1244,9 @@ jobs:
           TYPE="${HEAD_REF##*/}"
           mergai notes push --context
           mergai branch push -f "$TYPE"
+          # The rebase rewrote the branch; expose the new tip so the status step
+          # can also resolve the check on the (now current) PR head SHA.
+          echo "final_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           # The rebase advanced merge_info.target_branch_sha, so refresh the PR
           # body (rebuilt from the current note data) to reflect the new base.
           mergai pr --repo "$GITHUB_REPOSITORY" update \
@@ -1192,6 +1257,43 @@ jobs:
             "Rebased \`$HEAD_REF\` onto \`$BASE_REF\` and force-pushed the branch." \
             || echo "::warning::could not post rebase-success comment"
           echo "Rebase of $HEAD_REF onto $BASE_REF completed successfully"
+
+      # Resolve the pending "mergai / rebase" check: green when the rebase pushed,
+      # red otherwise. Publishes on the SHA the gate posted the pending status to;
+      # the rebase force-pushes a new head, so also publish on the new tip so the
+      # PR reflects the outcome on its current head.
+      - name: Report rebase status on the PR
+        if: always()
+        env:
+          # Default token so the status is attributed to github-actions[bot],
+          # matching the icon of the other mergai commit statuses.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GATE_SHA: ${{ needs.rebase-gate.outputs.head_sha }}
+          FINAL_SHA: ${{ steps.rebase.outputs.final_sha }}
+          BASE_REF: ${{ needs.rebase-gate.outputs.base_ref }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          case "$JOB_STATUS" in
+            success)   STATE=success; DESC="rebased onto $BASE_REF" ;;
+            cancelled) STATE=error;   DESC="cancelled" ;;
+            *)         STATE=failure; DESC="rebase failed" ;;
+          esac
+          gh api "repos/$GH_REPO/statuses/$GATE_SHA" \
+            -f state="$STATE" \
+            -f context="mergai / rebase" \
+            -f target_url="$RUN_URL" \
+            -f description="$DESC" \
+            || echo "::warning::could not publish rebase status"
+          if [ -n "$FINAL_SHA" ] && [ "$FINAL_SHA" != "$GATE_SHA" ]; then
+            gh api "repos/$GH_REPO/statuses/$FINAL_SHA" \
+              -f state="$STATE" \
+              -f context="mergai / rebase" \
+              -f target_url="$RUN_URL" \
+              -f description="$DESC" \
+              || echo "::warning::could not publish rebase status on rebased head"
+          fi
 
   # Gate + surface the `/mergai fast-forward` request on the PR. fast-forward-handle
   # (below) is gated by the push-approve environment, but because this workflow is
