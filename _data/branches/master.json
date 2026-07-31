@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 83,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.3706083813541667,
-    "files_affected": 417,
-    "total_additions": 15909,
-    "total_deletions": 4195,
+    "commits_behind": 104,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 1.9599744598726854,
+    "files_affected": 514,
+    "total_additions": 23385,
+    "total_deletions": 6429,
     "date_range": {
       "first": "2026-07-29T07:56:44+00:00",
-      "last": "2026-07-30T16:02:19+00:00"
+      "last": "2026-07-30T23:05:15+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,216 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "1fea357a0b23298efec1ececdae0913503ee4215",
+      "short_sha": "1fea357a0b2",
+      "date": "2026-07-31T09:05:15+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 7ffeb12d6534f4f55ebdbd4b9a1b6077ccbdb83e from branch mongodb-master (#60008)"
+    },
+    {
+      "sha": "0c82c914f82682ec50b22d6a3844e7087c9de610",
+      "short_sha": "0c82c914f82",
+      "date": "2026-07-30T17:09:44-04:00",
+      "author": {
+        "name": "huayu-ouyang",
+        "email": "huayu.ouyang@mongodb.com"
+      },
+      "summary": "SERVER-132540 waitForQueryAnalysisWriterSetup should wait for config.analyzeShardKeySplitPoints as well (#59964)"
+    },
+    {
+      "sha": "aaac93fda6a551a40e49b56c5dd6533847ac2f46",
+      "short_sha": "aaac93fda6a",
+      "date": "2026-07-30T16:13:26-04:00",
+      "author": {
+        "name": "Sergei B",
+        "email": "sergei.b@mongodb.com"
+      },
+      "summary": "SERVER-132578 Improve logging when session disconnects (#60003)"
+    },
+    {
+      "sha": "8a475b63d0ef4d18df001d60366ae3cae7768b51",
+      "short_sha": "8a475b63d0e",
+      "date": "2026-07-30T16:09:47-04:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-131802 Fix boolean simplifier dropping a disjunct when converting x | ~x to a bitset tree (#59488)"
+    },
+    {
+      "sha": "84dd55c0b8790ab3e39ff9239db8a36a7fe9e595",
+      "short_sha": "84dd55c0b87",
+      "date": "2026-07-30T15:36:15-04:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-132383: Cap base backoff at max backoff, and warn if that happens (#59943)"
+    },
+    {
+      "sha": "3f328caced77e7ec77e53c6d56f2a5e8695a7cc8",
+      "short_sha": "3f328caced7",
+      "date": "2026-07-30T15:09:19-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-132611 Move FCV in progress check to after no conflicting instances are found (#60033)"
+    },
+    {
+      "sha": "419a91743bcb030d7f710842d043371b573f0b7e",
+      "short_sha": "419a91743bc",
+      "date": "2026-07-30T15:06:43-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-132610: Add missing data to no_passthrough (#60024)"
+    },
+    {
+      "sha": "188e1a818916dcc2e86ff0785683560e370eea0b",
+      "short_sha": "188e1a81891",
+      "date": "2026-07-30T14:49:59-04:00",
+      "author": {
+        "name": "Ayesha Islam",
+        "email": "ayeshhaislamm@gmail.com"
+      },
+      "summary": "SERVER-131626 Add bm testing for multikey indexes in collection validation suite (#59492)"
+    },
+    {
+      "sha": "965b02d2c90a3a60ae208ff92acc112fea8a28b1",
+      "short_sha": "965b02d2c90",
+      "date": "2026-07-30T14:47:04-04:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-132461 Tighten ShardingTestFixtureCommon::shutdownExecutorPool to ensure that join will not hang (#60031)"
+    },
+    {
+      "sha": "e6b58b1f50dd23f0843d851d5087775e774ea313",
+      "short_sha": "e6b58b1f50d",
+      "date": "2026-07-30T18:27:16+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-132565: tag query_settings upgrade/downgrade tests as future_git_tag_incompatible (#59990)"
+    },
+    {
+      "sha": "577eb391d20e5cb984f17dcb45af4a3a4cd5c823",
+      "short_sha": "577eb391d20",
+      "date": "2026-07-30T14:23:01-04:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-131356 Add metrics filtering to collStats command mongos (#59727)"
+    },
+    {
+      "sha": "ed23b5d335276659f71858321f7d7fac889937ee",
+      "short_sha": "ed23b5d3352",
+      "date": "2026-07-30T12:21:03-06:00",
+      "author": {
+        "name": "Saman Memaripour",
+        "email": "amirsaman.memaripour@mongodb.com"
+      },
+      "summary": "SERVER-116524 Resolve write-concern fulfillment per write concern (#59636)"
+    },
+    {
+      "sha": "421345ccf0243d8ad922ae6af61be75a796dbc4c",
+      "short_sha": "421345ccf02",
+      "date": "2026-07-30T13:02:12-05:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-130987 Run mfp_sharding on a large distro (#59980)"
+    },
+    {
+      "sha": "85219e8660694009c90b0e268ba280b2dd44d626",
+      "short_sha": "85219e86606",
+      "date": "2026-07-30T13:53:07-04:00",
+      "author": {
+        "name": "Karen Zhao",
+        "email": "146024684+karzhao@users.noreply.github.com"
+      },
+      "summary": "SERVER-127999 Remove command request payload logging (#55320)"
+    },
+    {
+      "sha": "9f0af6ab909a24cc4d0c9363a52427be494a5816",
+      "short_sha": "9f0af6ab909",
+      "date": "2026-07-30T13:10:18-04:00",
+      "author": {
+        "name": "Didier Nadeau",
+        "email": "didier.nadeau@mongodb.com"
+      },
+      "summary": "SERVER-131777 Fix wrong test exclusion tag in config_server_health_observer_crash.js (#59716)"
+    },
+    {
+      "sha": "a94e3fd1c182d9bfddb209b245cae7aad778496d",
+      "short_sha": "a94e3fd1c18",
+      "date": "2026-07-30T13:06:10-04:00",
+      "author": {
+        "name": "David Goffredo",
+        "email": "david.goffredo@mongodb.com"
+      },
+      "summary": "SERVER-129820: deterministic testing of handoff session (#59745)"
+    },
+    {
+      "sha": "b72a0eeba1b1d4cc890354b9ec5bebd00b7c0e84",
+      "short_sha": "b72a0eeba1b",
+      "date": "2026-07-30T13:03:54-04:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-132097 Fix timelib IANA scraping to get latest tzdb version (#59546)"
+    },
+    {
+      "sha": "55aa5a077003f2bb06c925d624f078d1a7ba512b",
+      "short_sha": "55aa5a07700",
+      "date": "2026-07-30T12:54:19-04:00",
+      "author": {
+        "name": "Cole Harbeck",
+        "email": "cole.harbeck@mongodb.com"
+      },
+      "summary": "SERVER-131601 Provide a way for a user with the privilege action to bypass replSetGetStatus metrics filtering to get filtered metrics (#59734)"
+    },
+    {
+      "sha": "06c58bf488d3be58bbbe8544a61762d755ed2e6b",
+      "short_sha": "06c58bf488d",
+      "date": "2026-07-30T09:47:34-07:00",
+      "author": {
+        "name": "Aditya Deshpande",
+        "email": "aditya.deshpande@mongodb.com"
+      },
+      "summary": "SERVER-128347 Validate BSON produced by Js engine (#57237)"
+    },
+    {
+      "sha": "9573cef4102a1809f46c1c97d0daa6acd83b6861",
+      "short_sha": "9573cef4102",
+      "date": "2026-07-30T17:24:07+01:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-132483 Extract non casual-consistent commands from timeseries_reads_setFCV.js (#59879)"
+    },
+    {
+      "sha": "590c7169aaa5df0e45a3fd2493ee714cd4092237",
+      "short_sha": "590c7169aaa",
+      "date": "2026-07-30T11:21:23-05:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-132472 Set the group record id on a clustered collection's op during a primary-driven index build (#59950)"
+    },
     {
       "sha": "6b71b76c3182bc01a115dec7f56f6b157b9ed369",
       "short_sha": "6b71b76c318",
@@ -949,10 +1159,33 @@
           "num_of_dirs": 9
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "1fea357a0b23298efec1ececdae0913503ee4215",
+        "short_sha": "1fea357a0b2",
+        "date": "2026-07-31T09:05:15+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 7ffeb12d6534f4f55ebdbd4b9a1b6077ccbdb83e from branch mongodb-master (#60008)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 57,
+          "num_of_lines": 7687,
+          "lines_added": 5596,
+          "lines_deleted": 2091,
+          "num_of_dirs": 19
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-07-30 16:50:23",
+  "generated_at": "2026-07-31 06:59:04",
   "branch_name": "master",
   "display_name": "master"
 }
