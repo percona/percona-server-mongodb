@@ -145,7 +145,8 @@ ReshardingCoordinator::ReshardingCoordinator(
           "ReshardingCoordinatorCancelableOpCtxPool")},
       _reshardingCoordinatorExternalState(externalState),
       _sessionTracker(this),
-      _isRecovery(coordinatorDoc.getState() > CoordinatorStateEnum::kUnused) {
+      _isRecovery(coordinatorDoc.getState() > CoordinatorStateEnum::kUnused),
+      _isRecoveryInQuiesce(coordinatorDoc.getState() == CoordinatorStateEnum::kQuiesced) {
     _reshardingCoordinatorObserver = std::make_shared<ReshardingCoordinatorObserver>();
 
     // If the coordinator is recovering from step-up, make sure to properly initialize the
@@ -576,7 +577,21 @@ ExecutorFuture<ReshardingCoordinatorDocument> ReshardingCoordinator::_runUntilRe
                        [this, executor](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
                            return _verifyFinalCollection(executor,
                                                          std::move(coordinatorDocChangedOnDisk));
-                       });
+                       })
+                   .then([this](ReshardingCoordinatorDocument coordinatorDocChangedOnDisk) {
+                       const auto currentFCV =
+                           serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+                       // TODO SERVER-132341: Convert to tassert.
+                       uassert(
+                           13222300,
+                           fmt::format(
+                               "Feature compatibility version is no longer the same version that "
+                               "resharding started with, startingFCV: {}, currentFCV: {}",
+                               resharding::getStartingFCVString(_metadata),
+                               multiversion::toString(currentFCV.getVersion())),
+                           resharding::isFCVTheSame(_metadata, currentFCV.getVersion()));
+                       return coordinatorDocChangedOnDisk;
+                   });
            })
         .onTransientError([this](const Status& status) {
             _metrics->onCoordinatorRetry("_runUntilReadyToCommit");
@@ -2571,6 +2586,12 @@ void ReshardingCoordinator::_updateChunkImbalanceMetrics(const NamespaceString& 
 }
 
 void ReshardingCoordinator::_logStatsOnCompletion(bool success) {
+    // An instance recovered from a kQuiesced document did not run the operation, so the primary
+    // that did has already logged its outcome.
+    if (_isRecoveryInQuiesce) {
+        return;
+    }
+
     BSONObjBuilder builder;
     BSONObjBuilder statsBuilder;
     BSONObjBuilder totalsBuilder;

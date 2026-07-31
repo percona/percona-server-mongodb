@@ -3,6 +3,8 @@
 
 #include "mongo/db/pipeline/expression.h"
 
+#include "mongo/base/data_view.h"
+#include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/bsontypes_util.h"
 #include "mongo/bson/oid.h"
@@ -903,9 +905,48 @@ const char* ExpressionCond::getOpName() const {
 
 /* ---------------------- ExpressionConstant --------------------------- */
 
+namespace {
+// Subtype 7 (Column) is banned; subtypes 2, 3, and 5 are structurally validated.
+void assertNoRestrictedBinDataSubtype(const BSONElement& elem) {
+    if (elem.type() == BSONType::binData) {
+        const auto subtype = elem.binDataType();
+        if (subtype == BinDataType::ByteArrayDeprecated) {
+            int len;
+            const char* data = elem.binData(len);
+            uassert(ErrorCodes::FailedToParse,
+                    "BinData subtype ByteArrayDeprecated (2) requires a valid inner length prefix",
+                    len >= 4 &&
+                        ConstDataView(data).read<LittleEndian<int32_t>>() ==
+                            static_cast<int32_t>(len - 4));
+        }
+        if (subtype == BinDataType::bdtUUID || subtype == BinDataType::MD5Type) {
+            int len;
+            elem.binData(len);
+            uassert(ErrorCodes::FailedToParse,
+                    str::stream() << "BinData subtype " << static_cast<int>(subtype)
+                                  << " requires exactly " << UUID::kNumBytes
+                                  << " bytes as an expression literal",
+                    len == UUID::kNumBytes);
+        }
+        uassert(ErrorCodes::FailedToParse,
+                "BSONColumn (BinData subtype 7) is not allowed as an expression literal",
+                subtype != BinDataType::Column);
+    } else if (elem.type() == BSONType::object || elem.type() == BSONType::array) {
+        for (const auto& child : elem.embeddedObject()) {
+            assertNoRestrictedBinDataSubtype(child);
+        }
+    } else if (elem.type() == BSONType::codeWScope) {
+        for (const auto& child : elem.codeWScopeObject()) {
+            assertNoRestrictedBinDataSubtype(child);
+        }
+    }
+}
+}  // namespace
+
 intrusive_ptr<Expression> ExpressionConstant::parse(ExpressionContext* const expCtx,
                                                     BSONElement exprElement,
                                                     const VariablesParseState& vps) {
+    assertNoRestrictedBinDataSubtype(exprElement);
     return new ExpressionConstant(expCtx, Value(exprElement));
 }
 
@@ -1650,6 +1691,7 @@ boost::intrusive_ptr<ExpressionObject> ExpressionObject::create(
 intrusive_ptr<ExpressionObject> ExpressionObject::parse(ExpressionContext* const expCtx,
                                                         BSONObj obj,
                                                         const VariablesParseState& vps) {
+    expCtx->checkAndIncrementMemoryIntensiveExprCount("$object"sv);
     // Make sure we don't have any duplicate field names.
     stdx::unordered_set<string> specifiedFields;
 
@@ -3855,6 +3897,7 @@ intrusive_ptr<Expression> ExpressionZip::parse(ExpressionContext* const expCtx,
             str::stream() << "$zip only supports an object as an argument, found "
                           << typeName(expr.type()),
             expr.type() == BSONType::object);
+    expCtx->checkAndIncrementMemoryIntensiveExprCount(expr.fieldNameStringData());
 
     auto useLongestLength = false;
     std::vector<boost::intrusive_ptr<Expression>> children;

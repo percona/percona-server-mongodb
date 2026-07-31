@@ -1,0 +1,91 @@
+// Copyright (c) MongoDB, Inc.
+// SPDX-License-Identifier: SSPL-1.0
+
+#pragma once
+
+#include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/op_debug.h"
+#include "mongo/db/query/query_stats/aggregated_metric.h"
+#include "mongo/db/query/query_stats/supplemental_metrics_stats.h"
+#include "mongo/util/modules.h"
+
+#include <cstdint>
+#include <memory>
+
+namespace mongo::query_stats {
+
+/**
+ * Supplemental query stats metrics collected by the join optimizer for a given query shape.
+ */
+class JoinOptimizationStatsEntry : public SupplementalStatsEntry {
+public:
+    explicit JoinOptimizationStatsEntry(const OpDebug::JoinOptimizationMetrics& metrics)
+        : SupplementalStatsEntry(SupplementalMetricType::JoinOptimization),
+          numNamespaces(metrics.numNamespaces),
+          numLookupsInSuffix(metrics.numLookupsInSuffix),
+          numJoinGraphNodes(metrics.numJoinGraphNodes),
+          numSyntacticEdges(metrics.numSyntacticEdges),
+          numInferredEdges(metrics.numInferredEdges),
+          numSyntacticExprJoinPredicates(metrics.numSyntacticExprJoinPredicates),
+          numSyntacticEqJoinPredicates(metrics.numSyntacticEqJoinPredicates),
+          numInferredEqJoinPredicates(metrics.numInferredEqJoinPredicates),
+          numInferredSingleTablePredicates(metrics.numInferredSingleTablePredicates) {
+        joinOptimizable.aggregate(metrics.joinOptimizable);
+        if (const auto& pe = metrics.planEnumerationMetrics) {
+            planEnumerationMetrics = PlanEnumerationMetrics{
+                1,
+                AggregatedMetric<int64_t>(pe->numPlansEnumerated),
+                AggregatedMetric<int64_t>(pe->numHashJoins),
+                AggregatedMetric<int64_t>(pe->numIndexedNestedLoopJoins),
+                AggregatedMetric<int64_t>(pe->numNestedLoopJoins),
+                AggregatedMetric<int64_t>(pe->numFinalPlanHashJoins),
+                AggregatedMetric<int64_t>(pe->numFinalPlanIndexedNestedLoopJoins),
+                AggregatedMetric<int64_t>(pe->numFinalPlanNestedLoopJoins),
+                AggregatedMetric<int64_t>(pe->numJoinNodesRejectedByCost),
+                AggregatedMetric<int64_t>(pe->numMemoizedNodes),
+                AggregatedMetric<double>(pe->winningPlanCost),
+            };
+        }
+        updateCount++;
+    }
+
+    void updateStats(const SupplementalStatsEntry* other) override;
+    void appendTo(BSONObjBuilder& builder) const override;
+    std::unique_ptr<SupplementalStatsEntry> clone() const override;
+
+    /**
+     * Once the metrics is created the updateCount is 1 i.e. the metricsEntry contains non
+     * aggregated data from one data point. Every consequent update increments the updateCount by 1.
+     */
+    uint64_t updateCount = 0;
+
+    AggregatedBool joinOptimizable;
+
+    AggregatedMetric<int64_t> numNamespaces;
+    AggregatedMetric<int64_t> numLookupsInSuffix;
+    AggregatedMetric<int64_t> numJoinGraphNodes;
+    AggregatedMetric<int64_t> numSyntacticEdges;
+    AggregatedMetric<int64_t> numInferredEdges;
+    AggregatedMetric<int64_t> numSyntacticExprJoinPredicates;
+    AggregatedMetric<int64_t> numSyntacticEqJoinPredicates;
+    AggregatedMetric<int64_t> numInferredEqJoinPredicates;
+    AggregatedMetric<int64_t> numInferredSingleTablePredicates;
+
+    struct PlanEnumerationMetrics {
+        // These metrics are only populated when we actually enumerate a plan- so we keep a count.
+        uint64_t numPlanEnumerations = 0;
+        AggregatedMetric<int64_t> numPlansEnumerated;
+        AggregatedMetric<int64_t> numHashJoins;
+        AggregatedMetric<int64_t> numIndexedNestedLoopJoins;
+        AggregatedMetric<int64_t> numNestedLoopJoins;
+        AggregatedMetric<int64_t> numFinalPlanHashJoins;
+        AggregatedMetric<int64_t> numFinalPlanIndexedNestedLoopJoins;
+        AggregatedMetric<int64_t> numFinalPlanNestedLoopJoins;
+        AggregatedMetric<int64_t> numJoinNodesRejectedByCost;
+        AggregatedMetric<int64_t> numMemoizedNodes;
+        AggregatedMetric<double> winningPlanCost;
+    };
+    boost::optional<PlanEnumerationMetrics> planEnumerationMetrics;
+};
+
+}  // namespace mongo::query_stats

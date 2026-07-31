@@ -370,7 +370,6 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> checkPlanCacheForPlan(
     return nullptr;
 }
 
-
 }  // namespace
 
 /**
@@ -389,6 +388,13 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                       "Pipeline or collection ineligible for join-reordering");
     }
 
+    // Initialize metrics after we determine that the query shape vaguely looks join-optimizable, as
+    // otherwise we would have these metrics for every aggregation. Note that on retry, these
+    // metrics will be (intentionally!) reset.
+    auto& od = CurOp::get(opCtx)->debug();
+    od.joinOptimizationMetrics.emplace();
+    auto& metrics = *od.joinOptimizationMetrics;
+
     // Try to build JoinGraph.
     const auto& config = pipeline.getContext()->getQueryKnobConfiguration();
     AggModelBuildParams buildParams{
@@ -396,7 +402,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
             JoinGraphBuildParams(config.getMaxNodesInJoinGraph(), config.getMaxEdgesInJoinGraph()),
         .maxNumberNodesConsideredForImplicitEdges =
             static_cast<size_t>(config.getMaxNumberNodesConsideredForImplicitEdges())};
-    auto swModel = AggJoinModel::constructJoinModel(pipeline, buildParams);
+    auto swModel = AggJoinModel::constructJoinModel(pipeline, buildParams, metrics);
     if (!swModel.isOK()) {
         // We failed to apply join-reordering, so we take the regular path.
         const auto status = swModel.getStatus();
@@ -456,6 +462,10 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
         LOGV2_DEBUG(11083907, 5, "Join plan cache miss, running optimization");
     }
 
+    // Initialize enumeration metrics if we're here- we don't want to do this on cache hits/
+    // whenever we don't plan.
+    metrics.planEnumerationMetrics.emplace();
+
     // Select access plans for each table in the join.
     SamplingEstimatorMap samplingEstimators =
         makeSamplingEstimators(mca, model.getGraph(), yieldPolicy, model.getJoinExpCtx());
@@ -503,7 +513,8 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                              costEstimator,
                                              hintedStrat ? std::move(*hintedStrat)
                                                          : getEnumerationStrategy(qkc),
-                                             useJoinPlanCache /* populateCachedJoinPlan */);
+                                             useJoinPlanCache /* populateCachedJoinPlan */,
+                                             *metrics.planEnumerationMetrics);
         }
 
         tassert(12016315,
@@ -518,7 +529,10 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                                 &costEstimator,
                                                 qkc.getRandomJoinOrderSeed(),
                                                 getPlanTreeShape(qkc.getJoinPlanTreeShape()),
-                                                getJoinMethod(qkc.getJoinMethod()));
+                                                getJoinMethod(qkc.getJoinMethod()),
+                                                false /* enableHJOrderPruning */,
+                                                3 /* maxRandomHintRetries */,
+                                                *metrics.planEnumerationMetrics);
     }();
     uassertStatusOK(swReordered.getStatus());
     auto reordered = std::move(swReordered.getValue());

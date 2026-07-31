@@ -403,6 +403,60 @@ public:
     };
     boost::optional<VectorSearchMetrics> vectorSearchMetrics = boost::none;
 
+    // Join optimization statistics captured per query shape for reporting by query stats. Populated
+    // only when a query appears to be join-optimizable (though we may still bail out).
+    struct JoinOptimizationMetrics {
+        // Was this query eligible for join optimization.
+        bool joinOptimizable = false;
+        // Number of unique namespaces that were pushed into the join model.
+        int numNamespaces = 0;
+        // Number of $lookup stages that remained in the non-join-reorderable query suffix.
+        int numLookupsInSuffix = 0;
+        // Number of nodes in the join graph. Note: this is the same as the number of $lookup stages
+        // that were pushed down into the join-reorderable query prefix.
+        int numJoinGraphNodes = 0;
+        // Number of edges in the join graph before inference.
+        int numSyntacticEdges = 0;
+        // Number of inferred edges.
+        int numInferredEdges = 0;
+        // Number of $expr equality join predicates in the join graph (before inference).
+        int numSyntacticExprJoinPredicates = 0;
+        // Number of simple equality ($eq) join predicates in the join graph (before inference).
+        int numSyntacticEqJoinPredicates = 0;
+        // Number of simple equality ($eq) join predicates that were inferred- note that these are
+        // the only type of join predicates we infer.
+        int numInferredEqJoinPredicates = 0;
+        // Number of inferred single-table predicates (one per predicate per table).
+        int numInferredSingleTablePredicates = 0;
+
+        // Metrics gathered while enumerating join plans. We only populate these fields if we have a
+        // cache miss.
+        struct PlanEnumerationMetrics {
+            // Number of plans considered in the final subset during plan enumeration.
+            int numPlansEnumerated = 0;
+            // Number of hash joins enumerated across all levels.
+            int numHashJoins = 0;
+            // Number of indexed nested loop joins enumerated across all levels.
+            int numIndexedNestedLoopJoins = 0;
+            // Number of nested loop joins enumerated across all levels.
+            int numNestedLoopJoins = 0;
+            // Number of hash joins in the best (winning) plan.
+            int numFinalPlanHashJoins = 0;
+            // Number of indexed nested loop joins in the best (winning) plan.
+            int numFinalPlanIndexedNestedLoopJoins = 0;
+            // Number of nested loop joins in the best (winning) plan.
+            int numFinalPlanNestedLoopJoins = 0;
+            // Number of join nodes considered but rejected due to cost.
+            int numJoinNodesRejectedByCost = 0;
+            // Number of nodes memoized during plan enumeration.
+            int numMemoizedNodes = 0;
+            // Cost of the best (winning) plan.
+            double winningPlanCost = 0.0;
+        };
+        boost::optional<PlanEnumerationMetrics> planEnumerationMetrics = boost::none;
+    };
+    boost::optional<JoinOptimizationMetrics> joinOptimizationMetrics = boost::none;
+
     /**
      * Tracks the number of documents seen and returned by the $_internalSearchIdLookup
      * stage. Used for batch size tuning.
