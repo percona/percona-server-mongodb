@@ -3,13 +3,13 @@
 
 #include "mongo/otel/traces/span/span_telemetry_context_impl.h"
 
+#include "mongo/platform/atomic_word.h"
 #include "mongo/platform/random.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/unittest/unittest.h"
 
 #include <memory>
 #include <span>
-#include <thread>
 
 #include <opentelemetry/trace/noop.h>
 #include <opentelemetry/trace/span_context.h>
@@ -72,17 +72,10 @@ TEST_F(SpanTelemetryContextImplTest, HasActiveTraceReturnsTrueWhenSpanIsSet) {
 
 // TSAN regression for concurrent setSpan writes vs getSpan/hasActiveTrace reads of _ctx.
 // No ASSERT/EXPECT by design: correctness is enforced by ThreadSanitizer detecting a data race.
-//
-// The writer is bounded to a fixed iteration count rather than looping until a stop flag. Each
-// setSpan prepends a node to the underlying OpenTelemetry Context's persistent list (it is never
-// pruned), so an unbounded writer accumulates a chain whose recursive destruction at teardown
-// overflows the stack -- a non-deterministic crash whose likelihood scales with how many
-// iterations the writer wins. A fixed, modest count keeps the chain small enough to tear down
-// safely while still exercising concurrent access; both loops yield each iteration so the writes
-// and reads interleave rather than one loop draining before the other starts.
 TEST_F(SpanTelemetryContextImplTest, ConcurrentSetSpanAndGetSpan) {
-    constexpr int kIterations = 10000;
+    constexpr int kReadIterations = 10000;
     SpanTelemetryContextImpl impl(getSpanContext());
+    AtomicWord<bool> stop{false};
 
     stdx::thread writer([&] {
         // Internally, our span's DataList maintains a shared ptr to the next node.
@@ -90,16 +83,15 @@ TEST_F(SpanTelemetryContextImplTest, ConcurrentSetSpanAndGetSpan) {
         constexpr int kWriteIterations = 50;
         for (int i = 0; i < kWriteIterations; ++i) {
             impl.setSpan(makeValidSpan());
-            std::this_thread::yield();
         }
     });
 
-    for (int i = 0; i < kIterations; ++i) {
+    for (int i = 0; i < kReadIterations; ++i) {
         (void)impl.getSpan();
         (void)impl.hasActiveTrace();
-        std::this_thread::yield();
     }
 
+    stop.store(true);
     writer.join();
 }
 
