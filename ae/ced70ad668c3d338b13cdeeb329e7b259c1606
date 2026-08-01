@@ -1,0 +1,184 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1fe57b4fc701c963cc60946dfa505d964d4688cb",
+    "merge_commit": "1fea357a0b23298efec1ececdae0913503ee4215"
+  },
+  "mergai_version": "0.1.dev1+g77f8a98e2",
+  "merge_context": {
+    "merge_commit": "1fea357a0b23298efec1ececdae0913503ee4215",
+    "merged_commits": [
+      "1fea357a0b23298efec1ececdae0913503ee4215",
+      "0c82c914f82682ec50b22d6a3844e7087c9de610",
+      "aaac93fda6a551a40e49b56c5dd6533847ac2f46",
+      "8a475b63d0ef4d18df001d60366ae3cae7768b51",
+      "84dd55c0b8790ab3e39ff9239db8a36a7fe9e595",
+      "3f328caced77e7ec77e53c6d56f2a5e8695a7cc8",
+      "419a91743bcb030d7f710842d043371b573f0b7e",
+      "188e1a818916dcc2e86ff0785683560e370eea0b",
+      "965b02d2c90a3a60ae208ff92acc112fea8a28b1",
+      "e6b58b1f50dd23f0843d851d5087775e774ea313",
+      "577eb391d20e5cb984f17dcb45af4a3a4cd5c823",
+      "ed23b5d335276659f71858321f7d7fac889937ee",
+      "421345ccf0243d8ad922ae6af61be75a796dbc4c",
+      "85219e8660694009c90b0e268ba280b2dd44d626",
+      "9f0af6ab909a24cc4d0c9363a52427be494a5816",
+      "a94e3fd1c182d9bfddb209b245cae7aad778496d",
+      "b72a0eeba1b1d4cc890354b9ec5bebd00b7c0e84",
+      "55aa5a077003f2bb06c925d624f078d1a7ba512b",
+      "06c58bf488d3be58bbbe8544a61762d755ed2e6b",
+      "9573cef4102a1809f46c1c97d0daa6acd83b6861",
+      "590c7169aaa5df0e45a3fd2493ee714cd4092237",
+      "6b71b76c3182bc01a115dec7f56f6b157b9ed369",
+      "07a75e34900e0f7566b45cee7e3077a760a9e4bf",
+      "afc482de3e88b08c238c96b065280298e57f593a",
+      "cf8ce207f5fb0c86a981e84b803caced63d99e2b",
+      "0c04591b03c287d6c1b19f805c94c56ccef4c41c",
+      "c05fb71826092826fcd7c4afc88bfc3e320d25c1",
+      "09d046e88aa2040996b9a1a72ad1c0a7185e1219",
+      "02c3d776712270caa8359d05f531e5d3c37c5caf",
+      "f243d0409196c27bbd522085133bd4c391f43216",
+      "75cd01b463b6437ed5c54cd3560a14a320af8a1c",
+      "51bfeec327a936cd8da9e596fa4d489f6f678651",
+      "2858cce5e4fb385a56e24ee02c882880ae17d6f2",
+      "14384c4220c3177e55e1caa0a0927a3cd161adbc",
+      "022cb0baaafe9c5fc22488cf5f91351b1469ab37",
+      "cb8274dc933177c3e498d2737bb3958644261344",
+      "711433fecb296525aa3dbff4f3f4f2975910356f",
+      "0ff4d08eb2ff278b124bc8ffb566ca1dbb7e1503",
+      "225cef61468b32537ed1543ca0f4b2184af6095d",
+      "ed96970b766e7ded71e0da57b23782a9783fdaf3",
+      "93597e45dbcbd763cca771eb40e7986b15556ac4",
+      "18f98e8709c8c6fe96e7cf0797353a2319cbda55",
+      "05f38efe81ed1e38e429e0d585bc8bd77579b6c3"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "eslint.config.mjs",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 36247,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2112705,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2479,
+        "cacheReadInputTokens": 40075,
+        "cacheCreationInputTokens": 20568,
+        "webSearchRequests": 0,
+        "costUSD": 0.21059250000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2479,
+            "cache_read": 40075,
+            "cache_creation": 20568
+          },
+          "cost_usd": 0.21059250000000002
+        }
+      }
+    },
+    "text_result": "I've analyzed the four auto-merged files by reading their actual `diff base \u2192 merge commit` diffs and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **eslint.config.mjs** \u2014 New ESLint block forbidding `import`/`export` syntax in server-side JS setup scripts (MozJS and WASM scopes have no module loader).\n- **error_codes.yml** \u2014 Adds error code 523 `InvalidBSONFromJavaScript` (ValidationError category).\n- **replication_coordinator_impl.cpp** \u2014 Refactors the write-concern waiter fulfillment logic: `setValueIf` now takes a single resolver callback returning a `WriteConcernFulfillment` variant (max OpTime / boolean / error Status), `_wakeReadyWaiters` drops its opTime argument, and new `_resolveWriteConcernFulfillment` / `resolveWriteConcernFulfillment_forTest` methods are added.\n- **wiredtiger.h.in** \u2014 Vendored header update: new `WT_STEP_DOWN` (-32015) sub-level error, revised `step_down_timestamp` docs, two new eviction stats, and mechanical renumbering of subsequent stat constants.\n\nAll four files merged cleanly (no conflict markers). The response was written to the specified path.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commits into the fork's master branch. The incoming changes add a new server error code (InvalidBSONFromJavaScript), add an ESLint rule forbidding module syntax in server-side JS setup scripts, refactor the replication coordinator's write-concern waiter fulfillment logic, and pull in WiredTiger header updates (a new WT_STEP_DOWN sub-level error, revised step_down_timestamp documentation, and renumbered eviction statistics). All four listed files auto-merged cleanly with the ort strategy.",
+      "auto_merged": {
+        "eslint.config.mjs": "Adds a new ESLint config block that applies a 'no-restricted-syntax' rule to server-side JS setup scripts under src/mongo/scripting/mozjs/common/jsfiles/**/*.js, src/mongo/scripting/mozjs/server/**/*.js, and src/mongo/scripting/mozjs/wasm/jsfiles/**/*.js. The rule reports an error on ImportDeclaration/ImportExpression and on ExportNamedDeclaration/ExportDefaultDeclaration/ExportAllDeclaration, forcing these files to remain classic scripts because the server (MozJS and WASM scopes) has no module loader.",
+        "src/mongo/base/error_codes.yml": "Adds a single new error code entry: code 523, name InvalidBSONFromJavaScript, in the ValidationError category. It is inserted after code 522 (RetryBackoff), before the 'Add new codes' sentinel comment.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Refactors WriteConcernWaiterList::setValueIf: its old signature (a std::function predicate plus an optional OpTime) is replaced by a single WriteConcernFulfillmentResolver callback. The new body iterates each write-concern bucket, skips empty buckets, calls the resolver, and uses an OverloadedVisitor over the returned fulfillment variant to either wake the opTime-ordered prefix up to a max OpTime, wake all waiters on a boolean (asserted true) result, or fail all waiters with a Status error. _wakeReadyWaiters no longer takes an opTime argument (call sites in _setMyLastDurableOpTimeAndWallTime and _updateStateAfterRemoteOpTimeUpdates updated accordingly). Adds new methods resolveWriteConcernFulfillment_forTest and _resolveWriteConcernFulfillment, the latter computing a WriteConcernFulfillment from a WriteConcernOptions (handling numeric w, WTags, and string wMode including majority/committed-snapshot handling and Config vs OpTime check conditions). The _setCurrentRSConfig callback is updated to return WriteConcernFulfillment (a Status when a write concern is no longer satisfiable, otherwise a null OpTime).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated WiredTiger header update. Rewrites the step_down_timestamp config documentation for disaggregated storage step-down semantics (local retention of writes started after it is set, commit-timestamp ordering, rollback of in-flight writes, required stable-timestamp advance and checkpoint). Adds a new sub-level error WT_STEP_DOWN (-32015) for transactions rolled back because they were in flight when the step-down timestamp was set. Adds two new connection statistics (WT_STAT_CONN_EVICTION_SERVER_WALK_DOMINATING_CACHE=1178 and ..._UNPRODUCTIVE=1179) and renumbers the subsequent eviction WT_STAT_CONN_* constants accordingly."
+      },
+      "review_notes": "All four files auto-merged with no conflict markers. The replication_coordinator_impl.cpp change is the most substantive: it is an upstream refactor of the write-concern waiter fulfillment path (setValueIf and _wakeReadyWaiters signatures changed). Reviewers should confirm no fork-specific customizations in this file were affected and that call sites match the new signatures. The wiredtiger.h.in change is a large but mechanical stat-constant renumbering plus two additions and one new error code; verify it stays consistent with the rest of the vendored WiredTiger sources in this merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have a clear picture of all four files. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the four auto-merged files by reading their actual `diff base \u2192 merge commit` diffs and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **eslint.config.mjs** \u2014 New ESLint block forbidding `import`/`export` syntax in server-side JS setup scripts (MozJS and WASM scopes have no module loader).\n- **error_codes.yml** \u2014 Adds error code 523 `InvalidBSONFromJavaScript` (ValidationError category).\n- **replication_coordinator_impl.cpp** \u2014 Refactors the write-concern waiter fulfillment logic: `setValueIf` now takes a single resolver callback returning a `WriteConcernFulfillment` variant (max OpTime / boolean / error Status), `_wakeReadyWaiters` drops its opTime argument, and new `_resolveWriteConcernFulfillment` / `resolveWriteConcernFulfillment_forTest` methods are added.\n- **wiredtiger.h.in** \u2014 Vendored header update: new `WT_STEP_DOWN` (-32015) sub-level error, revised `step_down_timestamp` docs, two new eviction stats, and mechanical renumbering of subsequent stat constants.\n\nAll four files merged cleanly (no conflict markers). The response was written to the specified path."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260801_060628_738520.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "1fea357a0b23298efec1ececdae0913503ee4215",
+    "short_sha": "1fea357a0b2",
+    "strategy": "huge_commit",
+    "summary": "This is the WiredTiger vendored third-party import at position 43 of 81 in the window, landing squarely in the ~50-commit target band (30-65). A large vendored import is an ideal merge boundary: it touches a well-isolated set of files (57 files under wiredtiger dirs), does not depend on the SERVER-* commits that follow it, and is easy to validate post-merge. Cutting here batches the 42 preceding self-contained SERVER fixes plus the atomic WT import as a clean, coherent unit. Stopping here also leaves the freshest ~38 commits (including the very newest SBOM 'conflict' commit that triggered the gate, and the SERVER-132664 revert) for the next batch, letting that recent churn settle upstream. The next commit after this one (1afa35ec, a regenerated profiling-data artifact) begins a fresh stream, so this is a natural stopping point rather than mid-work.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/30686986045"
+  }
+}
