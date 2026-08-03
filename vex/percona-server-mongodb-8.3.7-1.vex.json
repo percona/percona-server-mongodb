@@ -3,7 +3,7 @@
   "@id": "https://percona.github.io/percona-server-mongodb/vex/percona-server-mongodb-8.3.7-1.vex.json",
   "author": "Percona Security <security@percona.com>",
   "timestamp": "2026-07-31T15:00:00Z",
-  "version": 1,
+  "version": 2,
   "statements": [
     {
       "vulnerability": { "name": "CVE-2016-7415" },
