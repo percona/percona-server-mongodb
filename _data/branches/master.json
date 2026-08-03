@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 40,
+    "commits_behind": 54,
     "days_behind": 3,
-    "unmerged_oldest_age_days": 2.9325358086689817,
-    "files_affected": 199,
-    "total_additions": 7009,
-    "total_deletions": 1498,
+    "unmerged_oldest_age_days": 3.302028032662037,
+    "files_affected": 228,
+    "total_additions": 8063,
+    "total_deletions": 1719,
     "date_range": {
       "first": "2026-07-31T08:44:46+00:00",
-      "last": "2026-08-03T01:21:07+00:00"
+      "last": "2026-08-03T14:49:28+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,146 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "61bb70eff92d2eb076f9179c8433302a63990c26",
+      "short_sha": "61bb70eff92",
+      "date": "2026-08-03T10:49:28-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-132654 Make BeginOperationRollsBackOnPersistFailure more robust (#60094)"
+    },
+    {
+      "sha": "074a1ea56ea742758514df12b6705285819f55b4",
+      "short_sha": "074a1ea56ea",
+      "date": "2026-08-03T16:41:54+02:00",
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com"
+      },
+      "summary": "SERVER-132604 Fix HistoricalCatalogIdTracker not seeding oldest timestamp maintained at startup/FCBIS (#60088)"
+    },
+    {
+      "sha": "b83ca871197cabc79ae25a0b164327e0f8d0d7b9",
+      "short_sha": "b83ca871197",
+      "date": "2026-08-03T16:30:52+02:00",
+      "author": {
+        "name": "Silvia Surroca",
+        "email": "silvia.surroca@mongodb.com"
+      },
+      "summary": "SERVER-132726 moveChunk should not return InterruptedDueToReplStateChange from a healthy primary (#60170)"
+    },
+    {
+      "sha": "c40133efbce679f0a5a090fd7da2872f8569cade",
+      "short_sha": "c40133efbce",
+      "date": "2026-08-03T10:27:40-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-132686 Ignore QueryPlanKilled errors during updates in write_without_shard_key_with_resharding.js (#60133)"
+    },
+    {
+      "sha": "37b882fbc216869f0dced09eee072faa39f9f50d",
+      "short_sha": "37b882fbc21",
+      "date": "2026-08-03T16:12:59+02:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-132556. Remove leftover TODO (#60180)"
+    },
+    {
+      "sha": "ac20455ffdc41dfe83682b98512db8eb8a00388c",
+      "short_sha": "ac20455ffdc",
+      "date": "2026-08-03T10:07:39-04:00",
+      "author": {
+        "name": "Kruti Shah",
+        "email": "70412403+krutishah139@users.noreply.github.com"
+      },
+      "summary": "SERVER-132690 Update timeseries_reshard_with_inserts.js to record node-specific parameter values (#60142)"
+    },
+    {
+      "sha": "4567dd2496bf2e388ca420dbe8656358e500771a",
+      "short_sha": "4567dd2496b",
+      "date": "2026-08-03T09:45:08-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-132584 Remove replicated_fast_count_server_status.js exclude (#60057)"
+    },
+    {
+      "sha": "b9809bbafa50eafe5199d0eae7b24ddccf02b9ce",
+      "short_sha": "b9809bbafa5",
+      "date": "2026-08-03T15:13:29+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-132655 Retry $out which fails due to concurrent FCV upgrade (#60080)"
+    },
+    {
+      "sha": "ea7bccc9e607db3051dd745e4fef74af260f9c02",
+      "short_sha": "ea7bccc9e60",
+      "date": "2026-08-03T15:08:40+02:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-132727 agg_lookup_and_move_primary.js should be resilient to conflictingOperationInProgress (#60174)"
+    },
+    {
+      "sha": "eb31d1e0094d22fb5cc6e4ddf165fef2da4bcc1c",
+      "short_sha": "eb31d1e0094",
+      "date": "2026-08-03T11:47:27+01:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-132569 Tolerates additional error for DSC (#60105)"
+    },
+    {
+      "sha": "d453bfd37d31e28655f0e8dab521e6a4d0958978",
+      "short_sha": "d453bfd37d3",
+      "date": "2026-08-03T11:55:02+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-132477 Invalidate untracked/unowned collection metadata during database metadata drop (#60018)"
+    },
+    {
+      "sha": "30c97728eb6dab0d59e66fe5d365998ddd4074bb",
+      "short_sha": "30c97728eb6",
+      "date": "2026-08-03T09:47:42+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-132175 checkMetadataConsistency retries snapshot reads that fail with SnapshotUnavailable (#59993)"
+    },
+    {
+      "sha": "e2fbe5041c5e4114452d556a3a8277261e2c9892",
+      "short_sha": "e2fbe5041c5",
+      "date": "2026-08-03T09:53:46+02:00",
+      "author": {
+        "name": "Sulabh Mahajan",
+        "email": "sulabh.mahajan@mongodb.com"
+      },
+      "summary": "SERVER-130703 Add a server parameter to control clearing of CSRs on rollback. Clear CSR and DSR if oplog c entry rolls back. (#59437)"
+    },
+    {
+      "sha": "15e94fe08a302fba644c5ae1b5a443941ef7000e",
+      "short_sha": "15e94fe08a3",
+      "date": "2026-08-03T08:58:02+02:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#60156)"
+    },
     {
       "sha": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
       "short_sha": "ca5f367f1e3",
@@ -486,7 +626,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-03 07:07:34",
+  "generated_at": "2026-08-03 15:59:38",
   "branch_name": "master",
   "display_name": "master"
 }
