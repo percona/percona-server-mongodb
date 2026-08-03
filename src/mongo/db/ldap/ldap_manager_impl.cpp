@@ -707,10 +707,15 @@ Status LDAPManagerImpl::execQuery(const std::string& ldapurl,
     bool destroyOnReturn = false;
     int res = ldap_url_parse(ldapurl.c_str(), &ludp);
     // 'ldap' and 'destroyOnReturn' are captured by reference because their values
-    // can be changed as part of retry logic below
+    // can be changed as part of retry logic below. 'ldap' can end up null if the
+    // retry logic fails to borrow a replacement connection; in that case there is
+    // no connection left to return (the original was already destroyed by the
+    // retry logic, and borrow_or_create() destroys its own failed connection).
     ON_BLOCK_EXIT([&, ludp] {
         ldap_free_urldesc(ludp);
-        return_search_connection(ldap, destroyOnReturn);
+        if (ldap) {
+            return_search_connection(ldap, destroyOnReturn);
+        }
     });
     if (res != LDAP_SUCCESS) {
         return Status(ErrorCodes::LDAPLibraryError,
