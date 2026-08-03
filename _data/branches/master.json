@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 54,
+    "commits_behind": 57,
     "days_behind": 3,
-    "unmerged_oldest_age_days": 3.302028032662037,
-    "files_affected": 228,
-    "total_additions": 8063,
-    "total_deletions": 1719,
+    "unmerged_oldest_age_days": 3.4034144009722223,
+    "files_affected": 232,
+    "total_additions": 8084,
+    "total_deletions": 1723,
     "date_range": {
       "first": "2026-07-31T08:44:46+00:00",
-      "last": "2026-08-03T14:49:28+00:00"
+      "last": "2026-08-03T17:01:36+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,36 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "dff4e57f82d06f46f1baf902c3a7f6b7ec088666",
+      "short_sha": "dff4e57f82d",
+      "date": "2026-08-03T11:01:36-06:00",
+      "author": {
+        "name": "Saman Memaripour",
+        "email": "amirsaman.memaripour@mongodb.com"
+      },
+      "summary": "SERVER-132633 Retry replSetStepUp in remove_newly_added_field_after_finishing_initial_sync.js (#60064)"
+    },
+    {
+      "sha": "2847840a0a85c7c5de816481a6fb2fef117a2e41",
+      "short_sha": "2847840a0a8",
+      "date": "2026-08-03T09:18:25-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-132713: Ensure that we have a transaction when creating tables (#60132)"
+    },
+    {
+      "sha": "d74bc26fe2f1381f1a6acbf0216703fa6a5fc071",
+      "short_sha": "d74bc26fe2f",
+      "date": "2026-08-03T11:27:30-04:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-132583 Log persisted timestamp oplog truncation bound usage (#60093)"
+    },
     {
       "sha": "61bb70eff92d2eb076f9179c8433302a63990c26",
       "short_sha": "61bb70eff92",
@@ -626,7 +656,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-03 15:59:38",
+  "generated_at": "2026-08-03 18:25:37",
   "branch_name": "master",
   "display_name": "master"
 }
