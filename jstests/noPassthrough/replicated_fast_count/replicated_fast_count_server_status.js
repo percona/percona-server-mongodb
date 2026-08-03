@@ -141,16 +141,18 @@ describe("is running", function () {
     });
 
     it("before step up", function () {
-        // isRunning is not yet set (startup() has not been called), so the OTel gauge has not
-        // been written and the key may be absent. Either absent or 0 is correct here.
+        // The isRunning metrics are not yet set, so the OTel gauges have not been written and the
+        // keys may be absent. Either absent or 0 is correct here.
         const metrics = getMetrics(this.db);
-        assert.neq(metrics.isRunning, 1, metrics);
+        assert.neq(metrics.flusher.isRunning, 1, metrics);
+        assert.neq(metrics.tailer.isRunning, 1, metrics);
     });
 
     it("after step up", function () {
         this.rst.initiate();
         const metrics = getMetrics(this.db);
-        assert.eq(metrics.isRunning, 1, metrics);
+        assert.eq(metrics.tailer.isRunning, 1, metrics);
+        assert.eq(metrics.flusher.isRunning, 1, metrics);
     });
 
     it("after step down", function () {
@@ -160,9 +162,12 @@ describe("is running", function () {
         this.db.adminCommand({replSetStepDown: 60, force: true});
 
         assert.soon(
-            () => getMetrics(this.db).isRunning != 1,
+            () => {
+                const metrics = getMetrics(this.db);
+                return metrics.flusher.isRunning != 1 && metrics.tailer.isRunning != 1;
+            },
             () =>
-                `Expected isRunning to not be 1 after stepdown, got ${tojson(getMetrics(this.db))}`,
+                `Expected isRunning metrics to not be 1 after stepdown, got ${tojson(getMetrics(this.db))}`,
             kServerStatusAssertTimeoutMs,
         );
     });

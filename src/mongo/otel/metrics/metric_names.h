@@ -414,8 +414,6 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.indexBuilds.sideWrites.drainBytes");
     static constexpr MetricName kIndexBuildSideWritesDrainYields =
         MetricNameMaker::make("mongodb.serverStatus.indexBuilds.sideWrites.drainYields");
-    static constexpr MetricName kReplicatedFastCountIsRunning =
-        MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.isRunning");
     static constexpr MetricName kReplicatedFastCountFlushSuccessCount = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.replicatedFastCount.flush.successCount");
     static constexpr MetricName kReplicatedFastCountFlushFailureCount = MetricNameMaker::make(
@@ -448,6 +446,16 @@ public:
             "sizeCountEntriesProcessed");
     static constexpr MetricName kReplicatedFastCountOplogLagSecs =
         MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.oplogLagSecs");
+    static constexpr MetricName kReplicatedFastCountTailerIsRunning =
+        MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.tailer.isRunning");
+    static constexpr MetricName kReplicatedFastCountFlusherIsRunning =
+        MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.flusher.isRunning");
+    static constexpr MetricName kReplicatedFastCountTailerFailureCount = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.tailer.failureCount");
+    static constexpr MetricName kReplicatedFastCountFlushRetriedCount = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.flush.retriedCount");
+    static constexpr MetricName kReplicatedFastCountTailerRetriedScanCount = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.tailer.retriedScanCount");
 
     static constexpr MetricName kIndexBuildKeysInsertedFromScan =
         MetricNameMaker::make("mongodb.serverStatus.indexBuilds.keysInsertedFromScan");

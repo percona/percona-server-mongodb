@@ -37,8 +37,9 @@ TEST(ReplicatedFastCountMetricsTest, MetricsInitialization) {
     otel::metrics::OtelMetricsCapturer capturer;
 
     for (const auto& gaugeName : {
-             MetricNames::kReplicatedFastCountIsRunning,
              MetricNames::kReplicatedFastCountOplogLagSecs,
+             MetricNames::kReplicatedFastCountTailerIsRunning,
+             MetricNames::kReplicatedFastCountFlusherIsRunning,
          }) {
         EXPECT_EQ(capturer.readInt64Gauge(gaugeName), 0);
     }
@@ -50,20 +51,12 @@ TEST(ReplicatedFastCountMetricsTest, MetricsInitialization) {
              MetricNames::kReplicatedFastCountFlushedDocsTotal,
              MetricNames::kReplicatedFastCountInsertCount,
              MetricNames::kReplicatedFastCountUpdateCount,
+             MetricNames::kReplicatedFastCountTailerFailureCount,
+             MetricNames::kReplicatedFastCountFlushRetriedCount,
+             MetricNames::kReplicatedFastCountTailerRetriedScanCount,
          }) {
         EXPECT_EQ(capturer.readInt64Counter(counterName), 0);
     }
-}
-
-TEST(ReplicatedFastCountMetricsTest, IsRunningGaugeClearedBySetIsRunning) {
-    OtelMetricsCapturer capturer;
-    setIsRunning(false);
-
-    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountIsRunning), 0);
-
-    setIsRunning(true);
-
-    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountIsRunning), 1);
 }
 
 TEST(ReplicatedFastCountMetricsTest, FlushSuccessCounterIncrementsViaRecordFlush) {
@@ -94,6 +87,66 @@ TEST(ReplicatedFastCountMetricsTest, InsertAndUpdateCountersIncrement) {
 
     EXPECT_EQ(capturer.readInt64Counter(MetricNames::kReplicatedFastCountInsertCount), 2);
     EXPECT_EQ(capturer.readInt64Counter(MetricNames::kReplicatedFastCountUpdateCount), 2);
+}
+
+TEST(ReplicatedFastCountMetricsTest, TailerIsRunningGaugeClearedBySetTailerIsRunning) {
+    OtelMetricsCapturer capturer;
+    setTailerIsRunning(false);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountTailerIsRunning), 0);
+
+    setTailerIsRunning(true);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountTailerIsRunning), 1);
+
+    setTailerIsRunning(false);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountTailerIsRunning), 0);
+}
+
+TEST(ReplicatedFastCountMetricsTest, FlusherIsRunningGaugeClearedBySetFlusherIsRunning) {
+    OtelMetricsCapturer capturer;
+    setFlusherIsRunning(false);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountFlusherIsRunning), 0);
+
+    setFlusherIsRunning(true);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountFlusherIsRunning), 1);
+
+    setFlusherIsRunning(false);
+
+    EXPECT_EQ(capturer.readInt64Gauge(MetricNames::kReplicatedFastCountFlusherIsRunning), 0);
+}
+
+TEST(ReplicatedFastCountMetricsTest, TailerExceptionCounterIncrement) {
+    OtelMetricsCapturer capturer;
+
+    incrementTailerFailureCount();
+    incrementTailerFailureCount();
+    incrementTailerFailureCount();
+
+    EXPECT_EQ(capturer.readInt64Counter(MetricNames::kReplicatedFastCountTailerFailureCount), 3);
+}
+
+TEST(ReplicatedFastCountMetricsTest, RetriedFlushCounterIncrement) {
+    OtelMetricsCapturer capturer;
+
+    incrementRetriedFlushCount();
+    incrementRetriedFlushCount();
+    incrementRetriedFlushCount();
+
+    EXPECT_EQ(capturer.readInt64Counter(MetricNames::kReplicatedFastCountFlushRetriedCount), 3);
+}
+
+TEST(ReplicatedFastCountMetricsTest, RetriedTailerScanCounterIncrement) {
+    OtelMetricsCapturer capturer;
+
+    incrementRetriedTailerScanCount();
+    incrementRetriedTailerScanCount();
+
+    EXPECT_EQ(capturer.readInt64Counter(MetricNames::kReplicatedFastCountTailerRetriedScanCount),
+              2);
 }
 
 TEST(ReplicatedFastCountMetricsTest, FlushedDocsTotalUpdatedAfterFlushes) {
@@ -128,10 +181,6 @@ protected:
     ReplicatedFastCountManager* _fastCountManager;
     OtelMetricsCapturer _capturer;
 };
-
-TEST_F(ReplicatedFastCountManagerMetricsTest, IsRunningGaugeSetByStartup) {
-    EXPECT_EQ(_capturer.readInt64Gauge(MetricNames::kReplicatedFastCountIsRunning), 1);
-}
 
 // TODO SERVER-122992: Re-enable once the number of entries inserted versus updated are
 // communicated.

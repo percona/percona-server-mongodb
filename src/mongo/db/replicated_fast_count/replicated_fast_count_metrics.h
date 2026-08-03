@@ -15,9 +15,13 @@ class ServiceContext;
  * Free functions wrapping the ReplicatedFastCountManager OpenTelemetry metric instruments. All
  * metrics are reported via OTel and serverStatus.
  */
-void setIsRunning(bool running);
+void setTailerIsRunning(bool running);
+void setFlusherIsRunning(bool running);
 
 void incrementFlushFailureCount();
+void incrementTailerFailureCount();
+void incrementRetriedFlushCount();
+void incrementRetriedTailerScanCount();
 
 void incrementInsertCount();
 
