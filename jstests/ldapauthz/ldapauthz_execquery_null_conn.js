@@ -27,7 +27,7 @@ load("jstests/libs/python.js");
 (function() {
 "use strict";
 
-const kMockPath = "jstests/ldapauthz/lib/ldap_mock.py";
+const kMockPath = "jstests/ldapauthz/lib/ldap_mock_timeouts.py";
 const kMockReady = "LDAP mock server is running at ";
 
 const kLdapTimeoutMS = 1000;
