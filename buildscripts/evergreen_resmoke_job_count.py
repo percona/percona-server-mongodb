@@ -43,6 +43,10 @@ _AUBSAN_TASK_FACTOR_OVERRIDES = [
     {"task": r"fcv_upgrade_downgrade_sharding_jscore_passthrough", "factor": 0.25},
     {"task": r"noPassthrough", "factor": 0.25},
     {
+        "task": r"replica_sets_reconfig_kill_stepdown_terminate_jscore_passthrough.*",
+        "factor": 0.20,
+    },
+    {
         "task": r"replica_sets_reconfig_terminate_primary_jscore_passthrough_priority_ports",
         "factor": 0.20,
     },
@@ -149,6 +153,14 @@ VARIANT_TASK_FACTOR_OVERRIDES = {
         {
             "task": "unsplittable_collections_created_on_any_shard_jscore_passthrough",
             "factor": 0.25,
+        },
+    ],
+    "amazon-linux2023-aubsan-all-feature-flags-extra-system-deps-sharded-clusters": [
+        # Restrict this suite to a single resmoke job to avoid running out of memory under
+        # {A,UB}SAN on this variant.
+        {
+            "task": r"disagg_sharded_collections_jscore_passthrough_with_config_transitions_and_add_remove_shard.*",
+            "factor": 0.02,
         },
     ],
     "enterprise-windows-all-feature-flags-required": [{"task": "noPassthrough", "factor": 0.5}],
@@ -377,7 +389,7 @@ def main():
         type=float,
         default=1.0,
         help=(
-            "Job factor to use as a mulitplier with the number of CPUs. Defaults" " to %(default)s."
+            "Job factor to use as a mulitplier with the number of CPUs. Defaults to %(default)s."
         ),
     )
     parser.add_argument(
@@ -394,7 +406,7 @@ def main():
     parser.add_argument(
         "--outFile",
         dest="outfile",
-        help=("File to write configuration to. If" " unspecified no file is generated."),
+        help=("File to write configuration to. If unspecified no file is generated."),
     )
 
     options = parser.parse_args()

@@ -50,6 +50,7 @@
 #include "mongo/db/op_observer/op_observer.h"
 #include "mongo/db/profile_collection.h"
 #include "mongo/db/profile_settings.h"
+#include "mongo/db/query/client_cursor/collect_query_stats_mongod.h"
 #include "mongo/db/query/query_request_helper.h"
 #include "mongo/db/read_concern_mongod_gen.h"
 #include "mongo/db/read_concern_support_result.h"
@@ -2041,11 +2042,16 @@ void ExecCommandDatabase::_commandExec() {
 
             const bool waitedForInitialized = _awaitShardingInitializedIfNeeded(ex.toStatus());
 
+            // TODO (SERVER-98118): remove once 9.0 becomes last LTS. Note that the service entry
+            // point never retries operations that are run in a DBDirectClient, hence the exclusion
+            // here. Callers that may hit this error via dbDirectClient handle their own retries.
+            const bool shouldRetryDueToFCVTransition =
+                ex.code() == ErrorCodes::DDLCoordinatorMustRetryDueToFCVTransition &&
+                !opCtx->getClient()->isInDirectClient();
+
             const bool errorMayBeRetried =
                 staleExceptionIsRetryable == shard_role_loop::CanRetry::YES ||
-                waitedForInitialized ||
-                // TODO (SERVER-98118): remove once 9.0 becomes last LTS.
-                ex.code() == ErrorCodes::DDLCoordinatorMustRetryDueToFCVTransition;
+                waitedForInitialized || shouldRetryDueToFCVTransition;
 
             if (errorMayBeRetried && canRetryCommand(ex.toStatus())) {
                 _resetLockerStateAfterShardingUpdate(opCtx);
@@ -2502,6 +2508,18 @@ void HandleRequest::completeOperation(DbResponse& response) {
         auto ldapCumulativeOperationsStats = LDAPCumulativeOperationStats::get();
         if (ldapCumulativeOperationsStats) {
             ldapCumulativeOperationsStats->recordOpStats(ldapOperationStatsSnapshot);
+        }
+    }
+
+    const auto& errInfo = currentOp.debug().errInfo;
+    if (!errInfo.isOK()) {
+        try {
+            collectQueryStatsMongodReadErrored(opCtx, errInfo.code());
+        } catch (const DBException& ex) {
+            LOGV2_DEBUG(13192400,
+                        2,
+                        "Failed to collect query stats for an errored operation",
+                        "error"_attr = redact(ex));
         }
     }
 }
