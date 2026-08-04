@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 57,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.4034144009722223,
-    "files_affected": 232,
-    "total_additions": 8084,
-    "total_deletions": 1723,
+    "commits_behind": 79,
+    "days_behind": 4,
+    "unmerged_oldest_age_days": 3.9219680571527777,
+    "files_affected": 360,
+    "total_additions": 12516,
+    "total_deletions": 2751,
     "date_range": {
       "first": "2026-07-31T08:44:46+00:00",
-      "last": "2026-08-03T17:01:36+00:00"
+      "last": "2026-08-04T06:00:02+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,226 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "a769282816a17facad3a1c28adc267105b4fb613",
+      "short_sha": "a769282816a",
+      "date": "2026-08-04T08:00:02+02:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-132424 Make CMC aggregations resilient against lagged targets (#59876)"
+    },
+    {
+      "sha": "250d26cec961c8aa74e9aa8f34255bf93a9e111f",
+      "short_sha": "250d26cec96",
+      "date": "2026-08-04T09:50:00+10:00",
+      "author": {
+        "name": "shoufudu",
+        "email": "51816204+ShoufuDu@users.noreply.github.com"
+      },
+      "summary": "SERVER-132736 Fix transaction_aborted_under_cache_pressure.js session leak and unreachable stall detector (#60184)"
+    },
+    {
+      "sha": "40ea9d182644cb30b63c3260404354f31426cb9c",
+      "short_sha": "40ea9d18264",
+      "date": "2026-08-03T18:27:06-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-131293 Parallelize jstestfuzz test generation in bazel (#59444)"
+    },
+    {
+      "sha": "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+      "short_sha": "3001a9dff56",
+      "date": "2026-08-03T22:21:45+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: c3aaabf2df203567822fd6c26e8ed71f8511f062 from branch mongodb-master (#60187)"
+    },
+    {
+      "sha": "e7dde986ef73e8bfee12c0f5cf6bf0d8c0bce57a",
+      "short_sha": "e7dde986ef7",
+      "date": "2026-08-03T18:04:52-04:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-132729 Fix WCE fail point registration for WT-derived engines (#60181)"
+    },
+    {
+      "sha": "6be3cfa5f3191c594ee1b1f62464feaa6fda7640",
+      "short_sha": "6be3cfa5f31",
+      "date": "2026-08-03T17:58:06-04:00",
+      "author": {
+        "name": "Justin Seyster",
+        "email": "justin.seyster@mongodb.com"
+      },
+      "summary": "SERVER-132546 Schedule \"extra system deps\" {A,UB}SAN variants for regular execution (#59978)"
+    },
+    {
+      "sha": "5e84f30fdf0a09c841095036f61409a58e5b8d27",
+      "short_sha": "5e84f30fdf0",
+      "date": "2026-08-03T17:55:28-04:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-126990 Enable resmoke_suite_test targets that use PyKMIP (#59789)"
+    },
+    {
+      "sha": "a90e36bcde51af52390dad4d4027e0436c44ddb7",
+      "short_sha": "a90e36bcde5",
+      "date": "2026-08-03T18:11:00-04:00",
+      "author": {
+        "name": "Matt Broadstone",
+        "email": "mbroadst@mongodb.com"
+      },
+      "summary": "SERVER-132674: Add maxQueueDepth to EgressResponseRateLimiter (#60158)"
+    },
+    {
+      "sha": "479d592a32eb9d3cb7c5d92394c260ccba0fb19c",
+      "short_sha": "479d592a32e",
+      "date": "2026-08-03T17:05:05-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-132400: Strengthen testing for hash verification on secondaries on insert/delete (#59818)"
+    },
+    {
+      "sha": "67a05e6275c2546ba3ff6a6f0feec08018112ca8",
+      "short_sha": "67a05e6275c",
+      "date": "2026-08-03T16:51:03-04:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-128731 Extend checkValidation disambiguation further into validateBucketConsistency results (#55760)"
+    },
+    {
+      "sha": "02384d01c93d51132100b1557e9434e95450b97d",
+      "short_sha": "02384d01c93",
+      "date": "2026-08-03T16:24:05-04:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-132355 Use ident-based index lookup/uassert in ClassicStageBuilder::build() index cases (#60004)"
+    },
+    {
+      "sha": "652ee6b8c65f733d54b6fbc2f931ae3e4c400ff6",
+      "short_sha": "652ee6b8c65",
+      "date": "2026-08-03T16:23:53-04:00",
+      "author": {
+        "name": "erinzhu001",
+        "email": "erin.zhu@mongodb.com"
+      },
+      "summary": "SERVER-125400 Fix 2dsphere v4 FCV downgrade race (#56226)"
+    },
+    {
+      "sha": "a569008136d2f59dd61b0452a032392f7667ce7a",
+      "short_sha": "a569008136d",
+      "date": "2026-08-03T13:22:46-07:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-130954 Default initialize PoolForHost in header (#60209)"
+    },
+    {
+      "sha": "5e003e9a69d3b3e85b2798b6cde0b0c36fd6d02a",
+      "short_sha": "5e003e9a69d",
+      "date": "2026-08-03T16:22:39-04:00",
+      "author": {
+        "name": "Elise Zhu",
+        "email": "89541745+elise-yz@users.noreply.github.com"
+      },
+      "summary": "SERVER-132443: Create microbenchmarks for continuous internode validation (#59882)"
+    },
+    {
+      "sha": "34751357211322ad6b3ca6de18e87af843e0223a",
+      "short_sha": "34751357211",
+      "date": "2026-08-03T15:39:08-04:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-132670 Make range_deleter_does_not_block_stepdown_with_prepare_conflict.js less flaky (#60147)"
+    },
+    {
+      "sha": "8cabfa6188f9297231c694984754ddc392e9afdf",
+      "short_sha": "8cabfa6188f",
+      "date": "2026-08-03T15:28:38-04:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-132613 Resharding recipient, donor and coordinator services can destroy actively used cancellable opCtx factory preventing cancellation signal propagation (#60145)"
+    },
+    {
+      "sha": "5acdf099b62870ab49c72cdbf40aacfabc5ea4d8",
+      "short_sha": "5acdf099b62",
+      "date": "2026-08-03T12:21:43-07:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-118735 Pass schema epochs to WT when publishing tables and setting the stable timestamp (#59985)"
+    },
+    {
+      "sha": "c6fca20358999ae3163573852be6030ecf8b906e",
+      "short_sha": "c6fca203589",
+      "date": "2026-08-03T15:07:35-04:00",
+      "author": {
+        "name": "Kritika",
+        "email": "skritika@umich.edu"
+      },
+      "summary": "SERVER-131924 Capture non-cursor read failures on mongod in query stats (#59526)"
+    },
+    {
+      "sha": "48ec885799c988c5f4199308e085b21af9a163ad",
+      "short_sha": "48ec885799c",
+      "date": "2026-08-03T15:02:24-04:00",
+      "author": {
+        "name": "Evelyn Wu",
+        "email": "32441547+evelynwu88@users.noreply.github.com"
+      },
+      "summary": "SERVER-132706 Reduce concurrency on aubsan variants of replica_sets_reconfig_kill_stepdown_terminate_jscore_passthrough (#60137)"
+    },
+    {
+      "sha": "2b355140c48b152836b3bec97eb3cb0b01c1f9f3",
+      "short_sha": "2b355140c48",
+      "date": "2026-08-03T14:54:15-04:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-132516 Restore IFR context on getMore() requests. (#60040)"
+    },
+    {
+      "sha": "c6b09ffcd3eb0731712ffc4ce1b78e2b888a6605",
+      "short_sha": "c6b09ffcd3e",
+      "date": "2026-08-03T11:41:08-07:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-130955 Zero-initialize _numMonitorsCreated (#60205)"
+    },
+    {
+      "sha": "2ad3249b6809caab8b7886a3fd4da4fce2c363f7",
+      "short_sha": "2ad3249b680",
+      "date": "2026-08-03T14:30:15-04:00",
+      "author": {
+        "name": "Ryan Roelke",
+        "email": "rroelke@users.noreply.github.com"
+      },
+      "summary": "SERVER-118782 and SERVER-131074: `$meta` expression does not work in `$validate` or `$match` stages respectively (#58859)"
+    },
     {
       "sha": "dff4e57f82d06f46f1baf902c3a7f6b7ec088666",
       "short_sha": "dff4e57f82d",
@@ -653,10 +873,96 @@
           "sbom.json"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+        "short_sha": "ca5f367f1e3",
+        "date": "2026-08-03T01:21:07+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 086c8ca25fe6872383db86a1bf2c977fc31db19f from branch mongodb-master (#60159)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-ca5f367f1e3/conflict",
+          "mergai/master-ca5f367f1e3/main",
+          "mergai/master-ca5f367f1e3/solution",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "5acdf099b62870ab49c72cdbf40aacfabc5ea4d8",
+        "short_sha": "5acdf099b62",
+        "date": "2026-08-03T12:21:43-07:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-118735 Pass schema epochs to WT when publishing tables and setting the stable timestamp (#59985)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "652ee6b8c65f733d54b6fbc2f931ae3e4c400ff6",
+        "short_sha": "652ee6b8c65",
+        "date": "2026-08-03T16:23:53-04:00",
+        "author": {
+          "name": "erinzhu001",
+          "email": "erin.zhu@mongodb.com"
+        },
+        "summary": "SERVER-125400 Fix 2dsphere v4 FCV downgrade race (#56226)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 26,
+          "num_of_lines": 720,
+          "lines_added": 675,
+          "lines_deleted": 45,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+        "short_sha": "3001a9dff56",
+        "date": "2026-08-03T22:21:45+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: c3aaabf2df203567822fd6c26e8ed71f8511f062 from branch mongodb-master (#60187)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 20,
+          "num_of_lines": 949,
+          "lines_added": 856,
+          "lines_deleted": 93,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-03 18:25:37",
+  "generated_at": "2026-08-04 06:52:21",
   "branch_name": "master",
   "display_name": "master"
 }
