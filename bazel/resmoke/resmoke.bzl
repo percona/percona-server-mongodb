@@ -209,7 +209,6 @@ _DEFAULT_PYTHON_DATA = [
     "//jstests/ocsp/lib:ocsp_mock",
     "//jstests/sharding/libs:proxy_protocol_server",
     "//jstests/ssl:tls_enumerator",
-    "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
 ]
 
 def _dep_target_name(dep):
