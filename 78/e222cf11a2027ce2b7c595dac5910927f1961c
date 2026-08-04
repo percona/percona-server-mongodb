@@ -1,0 +1,201 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7d28db92bbe31105b51032d01801d28ec5285234",
+    "merge_commit": "3001a9dff564b0a9a5dafe60d167faabbffd220e"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "build-and-test",
+        "run_id": "30940595513",
+        "pr_number": 2094,
+        "attempt_number": 1,
+        "context_summary": "build-and-test failed: 28 aborted, 0 action errors, 0 test failures (from jstest-failure-logs)",
+        "timestamp": "2026-08-04T20:01:24.972542+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 86766,
+      "num_turns": 11,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.55013275,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 21,
+          "outputTokens": 6081,
+          "cacheReadInputTokens": 338462,
+          "cacheCreationInputTokens": 36495,
+          "webSearchRequests": 0,
+          "costUSD": 0.5494547499999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 21,
+              "output": 6081,
+              "cache_read": 338462,
+              "cache_creation": 36495
+            },
+            "cost_usd": 0.5494547499999999
+          }
+        }
+      },
+      "text_result": "Fixed the CI failure.\n\n**Root cause (bucket c \u2014 conflict-resolution miss):** Upstream commit `5e84f30` (SERVER-128740, \"Over-include data dependencies for all resmoke_suite_test\") introduced a new `_DEFAULT_PYTHON_DATA` list that is merged into *every* resmoke suite's data, and moved the enterprise `ldapmockserver` dependency into it \u2014 while deleting it from the old `resmoke_suite_test` data list that carried the conflict markers.\n\nThe prior conflict resolution correctly dropped all `//src/mongo/db/modules/enterprise/jstests/...` entries from the marked-conflict list (PSMDB ships no enterprise module), but the new `_DEFAULT_PYTHON_DATA` list was **auto-merged** (not part of the marked conflict) and still referenced `//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver`. Because that list feeds every suite, Bazel failed analysis with `no such package '.../external_auth/lib'` for all Percona jstest suites \u2014 the 28 `ANALYSIS_FAILURE` aborts.\n\n**Fix:** Removed the single dangling enterprise entry from `_DEFAULT_PYTHON_DATA` in `bazel/resmoke/resmoke.bzl`, consistent with how Percona already strips enterprise dependencies elsewhere.",
+      "response": {
+        "status": "fixed",
+        "summary": "Bucket (c): the prior conflict resolution missed a subtle interaction from upstream commit 5e84f30 (SERVER-128740). Upstream introduced a new _DEFAULT_PYTHON_DATA list \u2014 merged into every resmoke suite's data \u2014 and moved the enterprise ldapmockserver dependency into it while deleting it from the old resmoke_suite_test data list that carried the conflict markers. The conflict resolver correctly dropped all enterprise entries from the marked list, but the new auto-merged _DEFAULT_PYTHON_DATA list still referenced //src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver, a package PSMDB does not ship, causing 'no such package' analysis failures for every Percona jstest suite (telemetry, audit, oidc, ldapauthz, redaction, knobs, etc.).",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "Removed the '//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver' entry from the new _DEFAULT_PYTHON_DATA list (line 212). This list is added to every suite via default_data / cquery_safe_data, so the dangling reference to the absent enterprise module broke analysis of all Percona jstest suites. This is consistent with the prior conflict resolution that removed every enterprise/jstests dependency from the resmoke_suite_test data list because PSMDB does not ship the closed-source enterprise module."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Root cause confirmed via `git show 5e84f30 -- bazel/resmoke/resmoke.bzl`: the upstream commit both added the entry to the new _DEFAULT_PYTHON_DATA list and removed it (`-` line) from the old resmoke_suite_test data list. The conflict markers only surfaced in the old list, so the new list's enterprise reference slipped through the auto-merge. Verified the enterprise module directory (src/mongo/db/modules/enterprise) does not exist in PSMDB. Searched with `grep -n \"external_auth|enterprise/jstests|ldapmockserver\"` in resmoke.bzl \u2014 line 212 was the only remaining enterprise reference in this file. Other enterprise/jstests references exist in jstests/suites/*/BUILD.bazel, but those pre-date this merge and were not implicated in the failure log (the failing suites all go through the _DEFAULT_PYTHON_DATA path), so I left them untouched."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Confirmed root cause. Upstream commit `5e84f30` created a new `_DEFAULT_PYTHON_DATA` list (applied to *every* resmoke suite) and moved the enterprise `ldapmockserver` entry into it \u2014 while removing it from the old `resmoke_suite_test` data list. The prior conflict resolution correctly dropped all enterprise entries from the marked-conflict list, but this new auto-merged list still carries the enterprise reference, which PSMDB does not ship. Removing it:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Fixed the CI failure.\n\n**Root cause (bucket c \u2014 conflict-resolution miss):** Upstream commit `5e84f30` (SERVER-128740, \"Over-include data dependencies for all resmoke_suite_test\") introduced a new `_DEFAULT_PYTHON_DATA` list that is merged into *every* resmoke suite's data, and moved the enterprise `ldapmockserver` dependency into it \u2014 while deleting it from the old `resmoke_suite_test` data list that carried the conflict markers.\n\nThe prior conflict resolution correctly dropped all `//src/mongo/db/modules/enterprise/jstests/...` entries from the marked-conflict list (PSMDB ships no enterprise module), but the new `_DEFAULT_PYTHON_DATA` list was **auto-merged** (not part of the marked conflict) and still referenced `//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver`. Because that list feeds every suite, Bazel failed analysis with `no such package '.../external_auth/lib'` for all Percona jstest suites \u2014 the 28 `ANALYSIS_FAILURE` aborts.\n\n**Fix:** Removed the single dangling enterprise entry from `_DEFAULT_PYTHON_DATA` in `bazel/resmoke/resmoke.bzl`, consistent with how Percona already strips enterprise dependencies elsewhere."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260804_195956_757838.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.221 (Claude Code)"
+      }
+    }
+  ]
+}
