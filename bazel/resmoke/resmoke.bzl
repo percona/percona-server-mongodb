@@ -209,7 +209,6 @@ _DEFAULT_PYTHON_DATA = [
     "//jstests/ocsp/lib:ocsp_mock",
     "//jstests/sharding/libs:proxy_protocol_server",
     "//jstests/ssl:tls_enumerator",
-    "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
 ]
 
 def _dep_target_name(dep):
@@ -415,31 +414,6 @@ def resmoke_suite_test(
         "//jstests/with_mongot/search_mocked/ssl/lib:all_javascript_files",
         "//jstests/write_path/timeseries/pbt/geodata:all_javascript_files",
         "//jstests/write_path/timeseries/pbt/lib:all_javascript_files",
-<<<<<<< HEAD
-||||||| ca5f367
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth_aws/lib:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
-=======
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf",
-        "//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/external_auth_aws/lib:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files",
-        "//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files",
->>>>>>> 3001a9dff564b0a9a5dafe60d167faabbffd220e
         "//src/third_party/schemastore.org:schemas",
         "//x509:generate_main_certificates",
     ]
