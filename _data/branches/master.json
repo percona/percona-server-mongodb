@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 82,
+    "commits_behind": 85,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 1.9969207959143518,
-    "files_affected": 462,
-    "total_additions": 22311,
-    "total_deletions": 3162,
+    "unmerged_oldest_age_days": 2.1137106633333334,
+    "files_affected": 471,
+    "total_additions": 22686,
+    "total_deletions": 3184,
     "date_range": {
       "first": "2026-08-03T06:58:02+00:00",
-      "last": "2026-08-05T04:05:50+00:00"
+      "last": "2026-08-05T07:50:03+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,36 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "2c6dcaacf5b5e049990d571a2807130321626077",
+      "short_sha": "2c6dcaacf5b",
+      "date": "2026-08-05T09:50:03+02:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-132806 checkMetadataConsistency reports spurious CollectionOptionsMismatch during a collMod on a sharded timeseries collection (#60269)"
+    },
+    {
+      "sha": "1f7380c8cbf3180260a98f2bc06e204dcf295438",
+      "short_sha": "1f7380c8cbf",
+      "date": "2026-08-05T09:16:18+02:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-131739: Remove outdated TODO referencing SERVER-129204 (#59542)"
+    },
+    {
+      "sha": "aebee5fa0826109cf70236128b296dde806a78e0",
+      "short_sha": "aebee5fa082",
+      "date": "2026-08-05T10:04:36+03:00",
+      "author": {
+        "name": "Daniel Tabacaru",
+        "email": "96778637+danieltabacaru@users.noreply.github.com"
+      },
+      "summary": "SERVER-132380 Fix comment-scoped failpoints matching comment-less operations in waitWhileFailPointEnabled (#59769)"
+    },
     {
       "sha": "0c75409707b21b546aed4f621f45b784ccb72805",
       "short_sha": "0c75409707b",
@@ -1062,7 +1092,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-05 06:53:33",
+  "generated_at": "2026-08-05 09:41:43",
   "branch_name": "master",
   "display_name": "master"
 }
