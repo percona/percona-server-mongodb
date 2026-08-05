@@ -1,0 +1,212 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7d28db92bbe31105b51032d01801d28ec5285234",
+    "merge_commit": "3001a9dff564b0a9a5dafe60d167faabbffd220e"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "conflict_context": {
+    "ours_commit": "7d28db92bbe31105b51032d01801d28ec5285234",
+    "theirs_commit": "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+    "base_commit": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+    "files": [
+      "bazel/resmoke/resmoke.bzl"
+    ],
+    "conflict_types": {
+      "bazel/resmoke/resmoke.bzl": "both modified"
+    },
+    "diffs": {
+      "bazel/resmoke/resmoke.bzl": "diff --cc bazel/resmoke/resmoke.bzl\nindex d3048428092,c66acb24d48..00000000000\n--- a/bazel/resmoke/resmoke.bzl\n+++ b/bazel/resmoke/resmoke.bzl\n@@@ -408,0 -418,10 +418,25 @@@ def resmoke_suite_test\n++<<<<<<< HEAD\n++||||||| ca5f367\n+         \"//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n+         \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver\",\n+         \"//src/mongo/db/modules/enterprise/jstests/external_auth_aws/lib:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files\",\n+         \"//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files\",\n++=======\n++        \"//src/mongo/db/modules/enterprise/jstests/audit/lib:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/audit/lib:localKey\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf\",\n++        \"//src/mongo/db/modules/enterprise/jstests/encryptdb/libs:ekf2\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth/lib:all_subpackage_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/external_auth_aws/lib:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/hot_backups/libs:all_javascript_files\",\n++        \"//src/mongo/db/modules/enterprise/jstests/live_restore/libs:all_javascript_files\",\n++>>>>>>> 3001a9dff564b0a9a5dafe60d167faabbffd220e"
+    },
+    "their_commits": {
+      "bazel/resmoke/resmoke.bzl": [
+        "5e84f30fdf0a09c841095036f61409a58e5b8d27"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+    "merged_commits": [
+      "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+      "e7dde986ef73e8bfee12c0f5cf6bf0d8c0bce57a",
+      "6be3cfa5f3191c594ee1b1f62464feaa6fda7640",
+      "5e84f30fdf0a09c841095036f61409a58e5b8d27",
+      "a90e36bcde51af52390dad4d4027e0436c44ddb7",
+      "479d592a32eb9d3cb7c5d92394c260ccba0fb19c",
+      "67a05e6275c2546ba3ff6a6f0feec08018112ca8",
+      "02384d01c93d51132100b1557e9434e95450b97d",
+      "652ee6b8c65f733d54b6fbc2f931ae3e4c400ff6",
+      "a569008136d2f59dd61b0452a032392f7667ce7a",
+      "5e003e9a69d3b3e85b2798b6cde0b0c36fd6d02a",
+      "34751357211322ad6b3ca6de18e87af843e0223a",
+      "8cabfa6188f9297231c694984754ddc392e9afdf",
+      "5acdf099b62870ab49c72cdbf40aacfabc5ea4d8",
+      "c6fca20358999ae3163573852be6030ecf8b906e",
+      "48ec885799c988c5f4199308e085b21af9a163ad",
+      "2b355140c48b152836b3bec97eb3cb0b01c1f9f3",
+      "c6b09ffcd3eb0731712ffc4ce1b78e2b888a6605",
+      "2ad3249b6809caab8b7886a3fd4da4fce2c363f7",
+      "dff4e57f82d06f46f1baf902c3a7f6b7ec088666",
+      "2847840a0a85c7c5de816481a6fb2fef117a2e41",
+      "d74bc26fe2f1381f1a6acbf0216703fa6a5fc071",
+      "61bb70eff92d2eb076f9179c8433302a63990c26",
+      "074a1ea56ea742758514df12b6705285819f55b4",
+      "b83ca871197cabc79ae25a0b164327e0f8d0d7b9",
+      "c40133efbce679f0a5a090fd7da2872f8569cade",
+      "37b882fbc216869f0dced09eee072faa39f9f50d",
+      "ac20455ffdc41dfe83682b98512db8eb8a00388c",
+      "4567dd2496bf2e388ca420dbe8656358e500771a",
+      "b9809bbafa50eafe5199d0eae7b24ddccf02b9ce",
+      "ea7bccc9e607db3051dd745e4fef74af260f9c02",
+      "eb31d1e0094d22fb5cc6e4ddf165fef2da4bcc1c",
+      "d453bfd37d31e28655f0e8dab521e6a4d0958978",
+      "30c97728eb6dab0d59e66fe5d365998ddd4074bb",
+      "e2fbe5041c5e4114452d556a3a8277261e2c9892",
+      "15e94fe08a302fba644c5ae1b5a443941ef7000e"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/resmoke/resmoke.bzl",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 46652,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2167155,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000683,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3141,
+        "cacheReadInputTokens": 39430,
+        "cacheCreationInputTokens": 18842,
+        "webSearchRequests": 0,
+        "costUSD": 0.21603250000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000683
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3141,
+            "cache_read": 39430,
+            "cache_creation": 18842
+          },
+          "cost_usd": 0.21603250000000002
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diffs for all seven auto-merged files and written the JSON response describing only what this merge introduces.\n\nSummary of what the merge pulls in:\n\n- **`bazel/resmoke/resmoke.bzl`** (the one conflicted file) \u2014 a new `_DEFAULT_PYTHON_DATA` list groups four Python helper programs (ocsp_mock, proxy_protocol_server, tls_enumerator, ldapmockserver) and routes them through `_collect_python_imports` so their PyInfo imports reach PYTHONPATH. The conflict was just the enterprise `ldapmockserver` label + indentation, resolved by keeping it in the new shared list.\n- **`replicaset.py`** \u2014 retry loop around `setFeatureCompatibilityVersion`, handling both `BackgroundOperationInProgressForNamespace` (12587) and incomplete-transition codes (7428200 / 10778001).\n- **`all_commands_downgrading_to_upgraded.js`** \u2014 uses a new `setFCVWithRetryOnBackgroundOpInProgress` helper.\n- **`BUILD.bazel`** \u2014 two dependency additions.\n- **WiredTiger `.cpp`/`.h`/`util.cpp`** \u2014 schema-epoch work: `publishIdent` signature change (`string_view ident` \u2192 `const std::string& uri`) now calls the real `session->publish` API, stable-timestamp schema-epoch config + backward-movement invariant, and `createTable` switching to `getSession()`.\n\nI kept every claim tied to lines I actually saw in the diffs and flagged the `publishIdent` interface change and the new stable-timestamp invariant as review points.",
+    "response": {
+      "summary": "Upstream merge bringing in test-fixture robustness improvements around setFeatureCompatibilityVersion retries, a resmoke Bazel refactor that routes a set of Python helper programs through PYTHONPATH, BUILD.bazel dependency additions, and WiredTiger schema-epoch storage-engine work (publishIdent now calls the real WT publish API, stable-timestamp handling gained schema-epoch support, and createTable uses a transactional session).",
+      "auto_merged": {
+        "bazel/resmoke/resmoke.bzl": "Introduces a new _DEFAULT_PYTHON_DATA list of four Python helper programs (jstests/ocsp/lib:ocsp_mock, jstests/sharding/libs:proxy_protocol_server, jstests/ssl:tls_enumerator, and enterprise external_auth/lib:ldapmockserver). These targets are removed from the inline default_data label list and instead prepended via _DEFAULT_PYTHON_DATA, and _collect_python_imports now feeds _DEFAULT_PYTHON_DATA into both the skip_deps_for_cquery_enabled and default select branches so the helpers' PyInfo imports reach PYTHONPATH (a comment explains that default_data alone only puts sources in runfiles, not their dependencies' import paths). The conflict here was the enterprise ldapmockserver line and surrounding whitespace/indentation; resolution keeps upstream's structure with the helper moved into the shared list.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Wraps the ReplicaSetFixture's setFeatureCompatibilityVersion(fromConfigServer) call in a retry loop. It retries on BackgroundOperationInProgressForNamespace (12587) when an in-flight index build has pinned a stale Operation FCV, and on incomplete-transition codes 7428200 (stopped downgrade) and 10778001 (stopped upgrade) by reading the featureCompatibilityVersion document's targetVersion and driving that interrupted transition to completion before retrying. Adds constants for the codes, a 5-minute timeout, and a 0.2s poll interval, with logging on each retry.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Replaces the direct assert.commandWorked(setFeatureCompatibilityVersion: latestFCV, confirm: true) upgrade call with a new helper setFCVWithRetryOnBackgroundOpInProgress(conn, latestFCV), imported from jstests/libs/set_fcv_helpers.js, to tolerate a two-phase index build whose async coordinator thread still holds a stale operation FCV and would otherwise fail setFCV with BackgroundOperationInProgressForNamespace.",
+        "src/mongo/db/BUILD.bazel": "Adds two Bazel dependency entries: //src/mongo/db/query/client_cursor to one mongo_cc_library, and //src/mongo/db/s:forwardable_operation_metadata to a mongo_cc_unit_test.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Schema-epoch changes in the WiredTiger KV engine. setStableTimestamp now invariants that a forced stable timestamp does not move backwards when _usesSchemaEpochs is set, and appends a ',stable_disaggregated_schema_epoch=<hex>' clause (from _provider.getSchemaEpochForTimestamp) to the stable_timestamp config string when _usesSchemaEpochs and gFeatureFlagEnableSchemaEpochs are enabled. publishIdent's signature changes from std::string_view ident to const std::string& uri, and it now (when the schema-epochs feature flag is enabled) obtains the recovery unit's no-txn session and calls session->publish(uri, \"disaggregated=(schema_epoch=<hex>)\"), replacing the prior TODO/log-only stub.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Updates the publishIdent declarations (the pure-virtual interface method and the WiredTigerKVEngine override) to change the second parameter from std::string_view ident to const std::string& uri, matching the .cpp change.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::createTable, changes the session acquisition from ru.getSessionNoTxn() to ru.getSession()."
+      },
+      "review_notes": "The only textual conflict was in bazel/resmoke/resmoke.bzl and was confined to the enterprise ldapmockserver label and indentation within the default_data list; the diff base -> merge commit diff shows that label was relocated into the new _DEFAULT_PYTHON_DATA list, so verify the ldapmockserver target appears exactly once (in _DEFAULT_PYTHON_DATA, not also inline) and that no conflict markers remain. The WiredTiger publishIdent signature change (std::string_view ident -> const std::string& uri) is an interface change; confirm all implementers/callers match. The schema-epoch code paths are guarded by gFeatureFlagEnableSchemaEpochs and _usesSchemaEpochs, and the new backward-movement invariant in setStableTimestamp could assert if a forced stable timestamp regresses under schema epochs."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each auto-merged file to describe the incoming changes accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read successfully. Now I'll write the response file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for all seven auto-merged files and written the JSON response describing only what this merge introduces.\n\nSummary of what the merge pulls in:\n\n- **`bazel/resmoke/resmoke.bzl`** (the one conflicted file) \u2014 a new `_DEFAULT_PYTHON_DATA` list groups four Python helper programs (ocsp_mock, proxy_protocol_server, tls_enumerator, ldapmockserver) and routes them through `_collect_python_imports` so their PyInfo imports reach PYTHONPATH. The conflict was just the enterprise `ldapmockserver` label + indentation, resolved by keeping it in the new shared list.\n- **`replicaset.py`** \u2014 retry loop around `setFeatureCompatibilityVersion`, handling both `BackgroundOperationInProgressForNamespace` (12587) and incomplete-transition codes (7428200 / 10778001).\n- **`all_commands_downgrading_to_upgraded.js`** \u2014 uses a new `setFCVWithRetryOnBackgroundOpInProgress` helper.\n- **`BUILD.bazel`** \u2014 two dependency additions.\n- **WiredTiger `.cpp`/`.h`/`util.cpp`** \u2014 schema-epoch work: `publishIdent` signature change (`string_view ident` \u2192 `const std::string& uri`) now calls the real `session->publish` API, stable-timestamp schema-epoch config + backward-movement invariant, and `createTable` switching to `getSession()`.\n\nI kept every claim tied to lines I actually saw in the diffs and flagged the `publishIdent` interface change and the new stable-timestamp invariant as review points."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260804_185004_357124.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.221 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "3001a9dff564b0a9a5dafe60d167faabbffd220e",
+    "short_sha": "3001a9dff56",
+    "strategy": "huge_commit",
+    "summary": "This is the WiredTiger vendored third-party import ('Import wiredtiger ... from branch mongodb-master'), a textbook ideal merge boundary: a large, atomic commit isolated under third_party/wiredtiger that later commits do not depend on and that is easy to validate post-merge. It lands at 36 commits, comfortably within the ~30-65 band. Cutting here avoids landing on the very newest candidate (the xxHash vendoring at the window edge), leaving the freshest, most churn-prone commits to settle upstream; that xxHash vendoring will itself make a clean boundary for the next batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/30940068115"
+  }
+}

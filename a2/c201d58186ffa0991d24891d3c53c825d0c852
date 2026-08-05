@@ -1,0 +1,204 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7dcd50d5564be3d0aff60db02be11748cf20d4f4",
+    "merge_commit": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d"
+  },
+  "mergai_version": "0.1.dev1+g77f8a98e2",
+  "conflict_context": {
+    "ours_commit": "7dcd50d5564be3d0aff60db02be11748cf20d4f4",
+    "theirs_commit": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+    "base_commit": "1fea357a0b23298efec1ececdae0913503ee4215",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex 1c752abc592,331cdb8a2f1..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 1fea357a0b2\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 12,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 13,\n++>>>>>>> ca5f367f1e39ce10064f1c87a69a2a8f14dda89d\n@@@ -58,6 -75,0 +80,24 @@@\n++<<<<<<< HEAD\n +    },\n +    \"supplier\": {\n +      \"name\": \"Percona LLC\",\n +      \"url\": [\n +        \"https://percona.com\"\n +      ]\n++||||||| 1fea357a0b2\n++    },\n++    \"supplier\": {\n++      \"name\": \"MongoDB, Inc.\",\n++      \"url\": [\n++        \"https://mongodb.com\"\n++      ]\n++    },\n++    \"tools\": {\n++      \"services\": [\n++        {\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.1060\"\n++        }\n++      ]\n++=======\n++>>>>>>> ca5f367f1e39ce10064f1c87a69a2a8f14dda89d"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "f1c86e81d5251c67dea6dc8230708a7bfedb1261"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+    "merged_commits": [
+      "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+      "ce1a392944a56532d38fd7207e1d26c8430fb502",
+      "f1c86e81d5251c67dea6dc8230708a7bfedb1261",
+      "ab97bbab7cc62e709b15455ed1c15c01625feaff",
+      "f9cfa2cc84a6f882cd840ba3c4375c5c6e28b373",
+      "1282b7f161f37f92a0a5881a762e46dda960d2c8",
+      "d627ceb512041175f13ec24c80c01a9ee891256c",
+      "28e4f2aa75416f2bb4f5d684e4c55468c711b464",
+      "040cb42541e74deb9e453b853a63fe350c1afe0f",
+      "95a9a9436b7cce568119d1e18505899890a5e02c",
+      "c3cdee0c242f3e10784133da8fd7745a4e94a41b",
+      "a83d799b75727298ea69741b254bef96c5cfaa0d",
+      "cb5d7f3bb6789e2c498ad01b8aff09aaca77254a",
+      "52bcdba9687c4ca0237c3711f6e2aa3ce5955384",
+      "df96a67a67b86d7d4d50535f65caf93ae801d9b6",
+      "a6b955b0298d8485f9f30f7c841e5dd919baff4e",
+      "b9f03d35db6508105798b8eedfec8b67d8760281",
+      "4d971eb71cc6cc8a2485b9d06406ca93ba159d5e",
+      "82f0fbe53a0c4922981587ba2c2eb29f12773c76",
+      "446da9a558c52ff6ca50a18286bb8def40284ef6",
+      "2b0301c1fab53bd01e7506e26aa15f6697e6a250",
+      "39a61c9e0708b3df6ea0bbf547385d86b656f48a",
+      "b8d2708884a38ee168be395cd56c69512ec242ef",
+      "a85a99441493646ff1f2d7e18ad96baa732395a8",
+      "dc48b5b06601d05e56bf8ea96511af529971990a",
+      "215f4dc68b5bcab07e9d839fa33d9b4e0f5f26bd",
+      "270dfe789a58e746e9f129a38cf8ab7ba7b6b058",
+      "a88fc559680473dd63bfa4634dc8e3a4b6097e11",
+      "cc50aa18ba381f76be4abb219a45c4ce6ac366e1",
+      "e918354748ff33193532c630e0234231cc0d3f97",
+      "9b5036cd99e5697bff09d5f2df02afd2afec5305",
+      "f322c3864170ceb68dd51a003c76649e990b9076",
+      "05e872681b716f0edf5c8cc690edca83dcfd38d5",
+      "28f82374a912132c9d2a2e5398880ab749a0e2d0",
+      "9c9788488c4d131059d6a714f4e5109348aa3115",
+      "87658ca2aefc433a3a87b43d2ff20fef9d417dc6",
+      "e5ac2e40618853752cbb7d8cbf2aa0fba48d89b2",
+      "89524ff9b737f62a426d4bbb9401f7f447efb73d",
+      "b2509b2e37e39f4ab9f20a6ed6fa3cb26045d740",
+      "1afa35ecf07b11c93f80b6df6a178c19d479d525"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/util/stacktrace_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 45885,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.22721075000000002,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3402,
+        "cacheReadInputTokens": 39313,
+        "cacheCreationInputTokens": 19485,
+        "webSearchRequests": 0,
+        "costUSD": 0.22651775000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3402,
+            "cache_read": 39313,
+            "cache_creation": 19485
+          },
+          "cost_usd": 0.22651775000000002
+        }
+      }
+    },
+    "text_result": "I read the incoming diff for every file listed under `auto_merged.files` using the authoritative diff base, then wrote the JSON response.\n\nSummary of what the merge introduces:\n\n- **Landlock refactor** \u2014 `db/BUILD.bazel` drops the `landlock` library (landlock.cpp/.h) in favor of a new `landlock_init` target built from `landlock_init.cpp` and depending on `//src/mongo/util/landlock`; `s/BUILD.bazel` follows the rename.\n- **New `record_store_write_conflict_fail_points` library** \u2014 added in `storage/BUILD.bazel` as a storage-engine-agnostic way for unit tests to enable write-conflict fail points, and wired into the commands, index_builds, storage, wiredtiger and dbtests build files. The index_builds test also loses its WiredTiger-only compatibility restriction.\n- **Third-party bookkeeping** \u2014 `README.third_party.md` and `sbom.json` re-scope the Node.js GetStringWidth function (ISC\u2192MIT) and the Prometheus C++ client, fix the googletest ref (`@1.17.0`\u2192`@v1.17.0`), and add a prometheus-cpp dependency edge.\n- **stacktrace_test.cpp** \u2014 swaps IWYU pragmas for a direct `<sys/syscall.h>` include.\n\nI flagged in the review notes that `sbom.json` was the only true conflict and its resolution must keep Percona's supplier and drop the `metadata.tools` section per the project rules, so the incoming MongoDB supplier/tools content should not be adopted verbatim.",
+    "response": {
+      "summary": "Upstream merge that reworks the landlock library into a separate landlock_init target and introduces a storage-engine-agnostic record_store_write_conflict_fail_points library, updating the Bazel dependency graph across db, commands, index_builds, storage, wiredtiger, dbtests and s. It also refreshes the third-party bookkeeping (README.third_party.md and sbom.json) \u2014 most notably re-scoping the Node.js GetStringWidth function and the Prometheus C++ client library, adjusting the googletest package reference, and adding a prometheus-cpp dependency edge \u2014 and switches stacktrace_test.cpp to a direct <sys/syscall.h> include.",
+      "auto_merged": {
+        "README.third_party.md": "Renames the 'node' third-party entry to 'node GetStringWidth function' (in both the table row and the link reference), changes its license from ISC to MIT, and marks the 'distributed' column with '\u2717'. Also marks the 'Prometheus Client Library for Modern C++' entry as distributed with '\u2717'.",
+        "sbom.json": "Upstream side bumps 'version' from 12 to 13, updates the metadata timestamp, bumps the Endor Labs tool version to v1.7.1076, and moves the 'supplier' and 'tools' keys ahead of the 'component' key in metadata. It changes the googletest bom-ref/purl and dependency ref from '@1.17.0' to '@v1.17.0', re-scopes the Prometheus C++ client and the Node GetStringWidth component from 'excluded' to 'required' (Node license ISC\u2192MIT, plus an 'emits_persisted_data=false' property), adds a 'pkg:github/jupp0r/prometheus-cpp@v1.2.2' dependency edge under the mongo component, and reorders the mongo-c-driver dependency block. NOTE: this file was a merge conflict; per the project's sbom.json conflict rules the resolution keeps Percona's supplier (Percona LLC / https://percona.com) and omits the metadata.tools section, so the incoming MongoDB supplier/tools changes shown in this diff are not adopted verbatim in the fork.",
+        "src/mongo/db/BUILD.bazel": "Removes the 'landlock' mongo_cc_library (built from landlock.cpp/landlock.h) and adds a new 'landlock_init' library built from landlock_init.cpp that depends on '//src/mongo/util/landlock'. The mongod initializer dependency is updated from ':landlock' to ':landlock_init'.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds a dependency on '//src/mongo/db/storage:record_store_write_conflict_fail_points' to a mongo_cc_unit_test target.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Removes the 'target_compatible_with' select that restricted a unit test to WiredTiger-enabled builds, and replaces its ':record_store_test_harness' and wiredtiger record store test harness deps with '//src/mongo/db/storage:record_store_write_conflict_fail_points'.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds a new 'record_store_write_conflict_fail_points' mongo_cc_library (record_store_write_conflict_fail_points.cpp, depending on storage_options and //src/mongo/util:fail_point) described as a storage-engine-agnostic way for unit tests to enable write conflict fail points. Drops the fail_point dep from record_store_test_harness and adds the new library as a dependency to several storage targets, also removing a wiredtiger_record_store_test_harness dep from one unit test.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds a dependency on '//src/mongo/db/storage:record_store_write_conflict_fail_points' to a mongo_cc_library.",
+        "src/mongo/dbtests/BUILD.bazel": "Adds a dependency on '//src/mongo/db/storage:record_store_write_conflict_fail_points' to a mongo_cc_binary target.",
+        "src/mongo/s/BUILD.bazel": "Updates a dependency from '//src/mongo/db:landlock' to '//src/mongo/db:landlock_init'.",
+        "src/mongo/util/stacktrace_test.cpp": "Replaces the two IWYU 'no_include' pragmas (for syscall.h and cxxabi.h) with a direct '#include <sys/syscall.h>'."
+      },
+      "review_notes": "Only sbom.json had a real conflict (both modified). Its resolution must follow the project's sbom.json rules: keep Percona's supplier (Percona LLC / https://percona.com) and remove the metadata.tools section \u2014 the incoming MongoDB supplier/tools content in the diff should not be kept. The remaining files auto-merged cleanly. The functional core of this merge is the landlock \u2192 landlock_init split and the new record_store_write_conflict_fail_points library; verify that landlock_init.cpp, record_store_write_conflict_fail_points.cpp and the //src/mongo/util/landlock target exist and that the wiredtiger target-compatibility relaxation on the index_builds test is intended."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the incoming diff for every file listed under `auto_merged.files` using the authoritative diff base, then wrote the JSON response.\n\nSummary of what the merge introduces:\n\n- **Landlock refactor** \u2014 `db/BUILD.bazel` drops the `landlock` library (landlock.cpp/.h) in favor of a new `landlock_init` target built from `landlock_init.cpp` and depending on `//src/mongo/util/landlock`; `s/BUILD.bazel` follows the rename.\n- **New `record_store_write_conflict_fail_points` library** \u2014 added in `storage/BUILD.bazel` as a storage-engine-agnostic way for unit tests to enable write-conflict fail points, and wired into the commands, index_builds, storage, wiredtiger and dbtests build files. The index_builds test also loses its WiredTiger-only compatibility restriction.\n- **Third-party bookkeeping** \u2014 `README.third_party.md` and `sbom.json` re-scope the Node.js GetStringWidth function (ISC\u2192MIT) and the Prometheus C++ client, fix the googletest ref (`@1.17.0`\u2192`@v1.17.0`), and add a prometheus-cpp dependency edge.\n- **stacktrace_test.cpp** \u2014 swaps IWYU pragmas for a direct `<sys/syscall.h>` include.\n\nI flagged in the review notes that `sbom.json` was the only true conflict and its resolution must keep Percona's supplier and drop the `metadata.tools` section per the project rules, so the incoming MongoDB supplier/tools content should not be adopted verbatim."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260803_184610_328929.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.220 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "ca5f367f1e39ce10064f1c87a69a2a8f14dda89d",
+    "short_sha": "ca5f367f1e3",
+    "strategy": null,
+    "summary": "This is the 40th commit in the window, landing the batch squarely in the target band (~30-65, aiming ~50). The commit is a vendored WiredTiger third-party import (14 files, all under the isolated wiredtiger vendor tree, +2508/-1 lines) - the textbook clean merge boundary: atomic, well-isolated, and unlikely to depend on the commits that follow it, so it validates cleanly post-merge. Cutting here also pulls in past the two boundary-worthy artifact commits that triggered the gate: the SBOM auto-generated 'conflict' commit (f1c86e81) and the SERVER-110427 profiling-data update, resolving the force:conflict that opened the gate. It keeps the revert of SERVER-128996 (82f0fbe5) inside the batch, and stops well short of the freshest ~17 commits (mostly small, unsettled test-flakiness fixes) so that churn can settle upstream before the next batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/30842479406"
+  }
+}

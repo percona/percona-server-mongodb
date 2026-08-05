@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "34ae8a7fbf1ff7c2bce23e9045bd214802b6a0bc",
+    "merge_commit": "bb7a39b05fe3be59b6dbe0b2f65e7da2f4c8c42b"
+  },
+  "mergai_version": "0.1.dev1+g77f8a98e2",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'bb7a39b05fe' into master",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the three conflicts in wiredtiger_kv_engine.cpp. All were\ndriven by upstream removing now-unused includes/helpers while Percona\nadded its own encryption/hot-backup code. Kept all Percona-specific\nadditions (encryption headers, curop.h/progress_meter.h needed by the\nhot-backup progress meter, and the key.db/backup helper functions), and\nfollowed upstream by dropping the symbols upstream deliberately deleted\nand that are unused in the file (server_status_metric.h, quick_exit.h,\nand the setKeyOnCursor helper).\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "86dac87268ac7a4dae427a93b91cb5eb3a275bfb"
+    }
+  ]
+}

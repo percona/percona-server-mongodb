@@ -1,0 +1,128 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7d28db92bbe31105b51032d01801d28ec5285234",
+    "merge_commit": "3001a9dff564b0a9a5dafe60d167faabbffd220e"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 33040,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.16515725,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000673,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 2402,
+          "cacheReadInputTokens": 49451,
+          "cacheCreationInputTokens": 12747,
+          "webSearchRequests": 0,
+          "costUSD": 0.16448425,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 14,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000673
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 2402,
+              "cache_read": 49451,
+              "cache_creation": 12747
+            },
+            "cost_usd": 0.16448425
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\n**What happened:** The conflict was in the data dependency list of `resmoke_suite_test`:\n- **HEAD (Percona)** had removed *all* the `//src/mongo/db/modules/enterprise/jstests/...` entries \u2014 PSMDB doesn't ship the closed-source enterprise module.\n- **Theirs (upstream)** only removed the single `external_auth/lib:ldapmockserver` entry, keeping the rest of the enterprise list.\n\n**Resolution:** Kept Percona's version (all enterprise entries removed), since upstream's single-line removal is moot when the entire enterprise list is already gone in PSMDB. All conflict markers removed, and the following `schemastore.org:schemas` line stays intact.\n\nThe JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved the conflict in bazel/resmoke/resmoke.bzl by preserving Percona's removal of all enterprise jstests data dependencies.",
+        "resolved": {
+          "bazel/resmoke/resmoke.bzl": "HEAD (Percona) had deleted all of the //src/mongo/db/modules/enterprise/jstests/... entries because PSMDB does not ship the closed-source enterprise module. Upstream's change (theirs) only dropped the external_auth/lib:ldapmockserver line while keeping the rest of the enterprise entries. Since these entries reference the enterprise module that is absent in PSMDB, I kept Percona's version (all enterprise entries removed), removing all conflict markers and leaving the following line ('//src/third_party/schemastore.org:schemas') intact."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The upstream change was a superset removal (only removing the ldapmockserver entry from an otherwise-kept enterprise list). Percona removes the entire enterprise jstests list because the enterprise module is not present in PSMDB, so the upstream-side removal of a single line is moot. Kept Percona's full removal."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "HEAD (Percona) removed all the enterprise jstests entries entirely \u2014 this is a Percona-specific removal since PSMDB doesn't ship the enterprise module. Upstream only removed the `ldapmockserver` line. I'll keep Percona's removal."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `bazel/resmoke/resmoke.bzl`.\n\n**What happened:** The conflict was in the data dependency list of `resmoke_suite_test`:\n- **HEAD (Percona)** had removed *all* the `//src/mongo/db/modules/enterprise/jstests/...` entries \u2014 PSMDB doesn't ship the closed-source enterprise module.\n- **Theirs (upstream)** only removed the single `external_auth/lib:ldapmockserver` entry, keeping the rest of the enterprise list.\n\n**Resolution:** Kept Percona's version (all enterprise entries removed), since upstream's single-line removal is moot when the entire enterprise list is already gone in PSMDB. All conflict markers removed, and the following `schemastore.org:schemas` line stays intact.\n\nThe JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260804_185054_177205.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.221 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
