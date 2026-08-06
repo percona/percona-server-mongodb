@@ -412,6 +412,11 @@ public:
         int numNamespaces = 0;
         // Number of $lookup stages that remained in the non-join-reorderable query suffix.
         int numLookupsInSuffix = 0;
+        // Number of suffix document sources we were able to lower into SBE after the
+        // join-optimizable prefix.
+        int numSuffixSourcesPushedToSbe = 0;
+        // Number of "residual" document sources that had to execute in classic DocumentSource land.
+        int numResidualClassicSources = 0;
         // Number of nodes in the join graph. Note: this is the same as the number of $lookup stages
         // that were pushed down into the join-reorderable query prefix.
         int numJoinGraphNodes = 0;
@@ -457,6 +462,15 @@ public:
             int numMemoizedNodes = 0;
             // Cost of the best (winning) plan.
             double winningPlanCost = 0.0;
+            // Number of times we generated a sample during join optimization (one per distinct
+            // namespace in the join graph).
+            int numSamplingCalls = 0;
+            // Number of those samples that were served from a persistent sample rather than freshly
+            // scanned.
+            int numPersistentSamplesUsed = 0;
+            // Number of join edges whose NDV came from index uniqueness metadata instead of
+            // sampling.
+            int numUniqueIndexesUsedForNDV = 0;
 
             // Time spent acquiring samples for CE.
             int64_t samplingTimeMicros = 0;

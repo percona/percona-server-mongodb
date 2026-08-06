@@ -185,14 +185,14 @@ void appendTimeseriesInfoToResult(const std::map<std::string, long long>& cluste
  * metrics in the "shards" field and cluster metrics using the provided matcher.
  */
 void appendFilteredResults(BSONObjBuilder& inputResultBuilder,
-                           const BSONObj& completeResult,
+                           const BSONObj& unfilteredResult,
                            const PathMatcherNode& matcher) {
     // Filter and append cluster metrics.
     BSONObjBuilder filtered;
-    metrics_filtering_util::appendPaths(filtered, completeResult, matcher);
+    metrics_filtering_util::appendPaths(filtered, unfilteredResult, matcher);
 
     // Filter and append per-shard metrics.
-    const auto& shardsObj = completeResult.getField("shards").Obj();
+    const auto& shardsObj = unfilteredResult.getField("shards").Obj();
     BSONObjBuilder filteredShards;
     for (const auto& shardElement : shardsObj) {
         BSONObjBuilder filteredShardResponse;
@@ -255,7 +255,8 @@ public:
         // result builder and filter them at the end. Otherwise, append directly to the input
         // result builder to avoid additional costs in the non-filtering case.
         auto& metricsPolicyManager = MetricsPolicyManager::get(opCtx);
-        bool requireFiltering = metricsPolicyManager.requiresCollStatsFiltering(opCtx);
+        bool requireFiltering = metricsPolicyManager.requiresFiltering(
+            MetricsCategoryEnum::kCollStats, opCtx, /*forceFiltered=*/false);
 
         boost::optional<BSONObjBuilder> tmpResultBuilder;
         if (requireFiltering) {
@@ -498,8 +499,9 @@ public:
         // If filtering is required, we appended the metrics in a temporary result builder.
         // Now extract and append only the ones matching the allowlist to the input result builder.
         if (success && requireFiltering) {
-            const auto& matcher = metricsPolicyManager.getCollStatsAllowlistMatcher();
-            appendFilteredResults(inputResultBuilder, tmpResultBuilder->asTempObj(), matcher);
+            const auto& matcher =
+                metricsPolicyManager.getAllowlistMatcher(MetricsCategoryEnum::kCollStats);
+            appendFilteredResults(inputResultBuilder, tmpResultBuilder->obj(), matcher);
         }
 
         return success;

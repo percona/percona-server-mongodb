@@ -329,6 +329,7 @@ resmoke_suite_test(
 
 resmoke_suite_test(
     name = "aggregation_ese",
+    size = "large",
     config = "//buildscripts/resmokeconfig:suites/aggregation_ese.yml",
     shard_count = 50,
     tags = [
@@ -350,6 +351,7 @@ resmoke_suite_test(
 
 resmoke_suite_test(
     name = "aggregation_ese_gcm",
+    size = "large",
     config = "//buildscripts/resmokeconfig:suites/aggregation_ese_gcm.yml",
     shard_count = 50,
     tags = [
@@ -454,6 +456,7 @@ resmoke_suite_test(
 
 resmoke_suite_test(
     name = "auth_audit",
+    size = "large",
     config = "//buildscripts/resmokeconfig:suites/auth_audit.yml",
     data = [
         "//jstests/sharding/libs:proxy_protocol_server",
@@ -466,7 +469,6 @@ resmoke_suite_test(
         "incompatible_with_bazel_remote_test",  # commands_builtin_roles_sharded.js timeout after 16 minutes.
         "patch_build",
         "requires_replicated_fast_count_recovery",
-        "resources:cpu:2",
     ],
     target_compatible_with = select({
         "//bazel/config:build_enterprise_disabled": ["@platforms//:incompatible"],
@@ -513,7 +515,13 @@ resmoke_suite_test(
 resmoke_suite_test(
     name = "external_auth",
     config = "//buildscripts/resmokeconfig:suites/external_auth.yml",
+    data = [
+        "//jstests/ocsp/lib:ocsp_mock",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:sts_http_server",
+    ],
     resmoke_args = ["--excludeWithAnyTags=requires_domain_controller"],
+    shard_count = 4,
     tags = [
         "ci-release-critical",
         "incompatible_debian",
@@ -536,6 +544,12 @@ resmoke_suite_test(
 resmoke_suite_test(
     name = "external_auth_aws",
     config = "//buildscripts/resmokeconfig:suites/external_auth_aws.yml",
+    data = [
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:ldapmockserver",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth/lib:sts_http_server",
+        "//src/mongo/db/modules/enterprise/jstests/external_auth_aws/lib:aws_assume_role",
+        "@external_auth_aws_setup//:aws_e2e_setup.json",
+    ],
     shard_count = 2,
     tags = [
         "ci-release-critical",

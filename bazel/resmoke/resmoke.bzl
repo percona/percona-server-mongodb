@@ -130,7 +130,7 @@ def _resmoke_config_impl(ctx):
             ]
         ctx.actions.write(test_list_file, "\n".join(test_list))
 
-        deps = depset([test_list_file, base_config_file] + ctx.files.srcs, transitive = [python.files] + generator_deps)
+        deps = depset([test_list_file, base_config_file], transitive = [python.files] + generator_deps)
 
         args = [
             "bazel/resmoke/resmoke_config_generator.py",
@@ -223,7 +223,6 @@ def resmoke_suite_test(
         data = [],
         deps = [],
         resmoke_args = [],
-        size = "small",
         srcs = [],
         tags = [],
         target_compatible_with = [],
@@ -246,7 +245,6 @@ def resmoke_suite_test(
         data: Additional data dependencies (JS libraries, certs, etc.).
         deps: Binary dependencies (mongod, mongos, etc.).
         resmoke_args: Additional command-line arguments for resmoke.
-        size: Bazel test size.
         srcs: Override for test source files. If empty, auto-derived from config.
         test_root_granularity: Granularity of a test case: "file" (default, one
             root per src file) or "directory" (one root per src's parent
@@ -510,8 +508,7 @@ def resmoke_suite_test(
         tags = tags + ["no-cache", "resources:port_block:1", "resmoke_suite_test"],
         target_compatible_with = target_compatible_with,
         timeout = timeout,
-        size = size,
-        exec_properties = exec_properties | test_exec_properties(tags),
+        exec_properties = exec_properties | test_exec_properties(kwargs.get("size", "medium")),  # medium is the bazel default size for all tests
         toolchains = [
             "//bazel/resmoke:test_timeout",
         ],
