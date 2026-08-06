@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 83,
+    "commits_behind": 84,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 2.309488179699074,
-    "files_affected": 526,
-    "total_additions": 26085,
-    "total_deletions": 5540,
+    "unmerged_oldest_age_days": 2.3525993994212966,
+    "files_affected": 535,
+    "total_additions": 26537,
+    "total_deletions": 5566,
     "date_range": {
       "first": "2026-08-03T22:27:06+00:00",
-      "last": "2026-08-06T04:11:12+00:00"
+      "last": "2026-08-06T06:13:14+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,16 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "ce24ab0d27cc4566d109476d9216bf07e606d06f",
+      "short_sha": "ce24ab0d27c",
+      "date": "2026-08-06T09:13:14+03:00",
+      "author": {
+        "name": "Daniel Tabacaru",
+        "email": "96778637+danieltabacaru@users.noreply.github.com"
+      },
+      "summary": "SERVER-130922 Overwrite shard-forwarded maxTimeMS with resolved query-settings value to avoid a spurious readConcern-wait timeout (#58507)"
+    },
     {
       "sha": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5",
       "short_sha": "8a8d37d86d0",
@@ -1054,7 +1064,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-06 05:52:43",
+  "generated_at": "2026-08-06 06:54:47",
   "branch_name": "master",
   "display_name": "master"
 }
