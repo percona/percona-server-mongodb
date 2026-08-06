@@ -162,7 +162,6 @@ here.
 
 Percona Server for MongoDB directly links the following dynamic libraries:
 
-<<<<<<< HEAD
 | Name                  | Typical Linked Library Filename(s)               |
 | --------------------- | ------------------------------------------------ |
 | GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |
@@ -175,23 +174,6 @@ Percona Server for MongoDB directly links the following dynamic libraries:
 
 Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just
 examples and can differ from platform to platform.
-||||||| 3001a9dff56
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">3</a>]</sup> |
-| libcurl    |       No        |                           No                            |
-=======
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">2</a>]</sup> |
-| libcurl    |       No        |                           No                            |
->>>>>>> eee604db779d8db402b9637622306023e7b65c20
 
 ## Notes:
 
@@ -200,20 +182,6 @@ examples and can differ from platform to platform.
    header file which is licensed under a BSD license. This BSD licensed header is the only
    file from Valgrind which is vendored and consumed by MongoDB.
 
-<<<<<<< HEAD
 2. <a id="note_wt" href="#ref_wt">^</a>
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
-||||||| 3001a9dff56
-2. <a id="note_wt" href="#ref_wt">^</a>
-   WiredTiger is maintained by MongoDB in a separate repository. As a part of our
-   development process, we periodically ingest the latest snapshot of that repository.
-
-3. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
-=======
-2. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
->>>>>>> eee604db779d8db402b9637622306023e7b65c20

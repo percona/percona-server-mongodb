@@ -104,22 +104,13 @@ std::pair<std::string, std::string> doDeviceAuthorizationGrantFlow(
     const OAuthAuthorizationServerMetadata& discoveryReply,
     const auth::OIDCMechanismServerStep1& serverReply,
     std::string_view principalName) {
-<<<<<<< HEAD
     boost::optional<std::string_view> deviceAuthorizationEndpoint =
         discoveryReply.getDeviceAuthorizationEndpoint().get();
-    // If exists, the device authorization endpoint has been already validated during parsing of
-    // `OAuthAuthorizationServerMetadata` class.
-    // (@see `src/mongo/db/auth/oauth_authorization_server_metadata.idl`).
     uassert(ErrorCodes::BadValue,
             "Missing or invalid device authorization endpoint in server reply",
             deviceAuthorizationEndpoint && !deviceAuthorizationEndpoint->empty());
-||||||| 3001a9dff56
-    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
-=======
-    auto deviceAuthorizationEndpoint = discoveryReply.getDeviceAuthorizationEndpoint().get();
-    uassertStatusOK(HttpClient::endpointIsSecure(deviceAuthorizationEndpoint)
+    uassertStatusOK(HttpClient::endpointIsSecure(*deviceAuthorizationEndpoint)
                         .withContext("device authorization endpoint in discovery document"));
->>>>>>> eee604db779d8db402b9637622306023e7b65c20
 
     auto clientId = serverReply.getClientId();
     uassert(ErrorCodes::BadValue,
