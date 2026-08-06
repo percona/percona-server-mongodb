@@ -53,3 +53,42 @@ merge the conflicting content.
 manually assembled SBOM. `serialNumber` (a release identifier) and `version` (distinguishes an old
 vs. corrected SBOM after a release) are release-time concerns and are reset before release
 regardless of the merge. **Do NOT:** Keep the `tools` section, or adopt MongoDB's supplier URL.
+
+### bazel/mongo_src_rules.bzl (`mongo_cc_integration_test`)
+
+**Context:** PSMDB-1924 runs C++ integration tests on RBE by having each test start its own mongod
+fixture in-sandbox. To keep this high-churn upstream file minimal, all the logic lives in the
+Percona-owned `bazel/psmdb_integration_test.bzl`; the upstream macro keeps only a small seam, with
+every Percona line tagged by a `# PSMDB (PSMDB-1924)` comment.
+
+**Action:** Keep exactly these four `# PSMDB (PSMDB-1924)`-marked edits in
+`mongo_cc_integration_test` when merging: (1) the
+`load("//bazel:psmdb_integration_test.bzl", "psmdb_integration_test_data")` near the other loads;
+(2) the `fixture = "standalone"` and `env = {}` parameters in the signature; (3) in the
+`mongo_cc_test(...)` call, `data = psmdb_integration_test_data(name, fixture, data)` in place of
+upstream's `data = data`; and (4) the added `env = env | {"PSMDB_IT_FIXTURE": fixture}`. If upstream
+restructures the macro or the `mongo_cc_test(...)` call, re-apply these same four edits on top of
+the new upstream code — do not drop them. The fixture map, validation and runfiles logic are NOT in
+this file: leave `bazel/psmdb_integration_test.bzl` (Percona-owned, conflict-free) as the source of
+truth and touch it only if upstream renames the mongod / x509 / mongo-shell targets it references.
+
+**Reason:** These four edits are the entire "integration tests on RBE" wiring. Silently losing any
+of them drops RBE integration-test coverage — the test builds without its fixture runfiles and then
+fails or is skipped on the remote executor, with no compile error to flag the regression.
+
+**Do NOT:** revert `data = psmdb_integration_test_data(...)` back to `data = data`; remove the
+`fixture` / `env` parameters or the `PSMDB_IT_FIXTURE` env entry; or inline the fixture logic back
+into this macro.
+
+### src/mongo/{util/net,transport/grpc,client}/BUILD.bazel (integration-test `fixture` attribute)
+
+**Action:** Preserve the single `fixture = "tls" | "grpc" | "replset"` attribute on, respectively,
+`network_interface_ssl_test`, `grpc_transport_layer_integration_test` and
+`replica_set_monitor_integration_test`. It selects the RBE fixture topology (default is
+`standalone`, so untagged integration tests need nothing). If upstream removes or renames one of
+these targets, carry the `fixture` line onto its replacement; do not add `fixture` to unrelated
+targets.
+
+**Reason:** Without the attribute the test would run against a plain standalone mongod on RBE and
+fail (it needs TLS / gRPC / a replica set). This is the only Percona edit in these upstream files,
+so a conflict here is a one-line re-add.
