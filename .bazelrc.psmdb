@@ -293,20 +293,37 @@ common:psmdb_buildfarm --//bazel/config:build_enterprise=False
 # `bazel test --config=psmdb_buildfarm --config=psmdb_remote_unittest //src/...`
 # reproduces the CI filter exactly.
 #
-# The -cpu:2 exclusion drops tests routed by bazel/test_exec_properties.bzl
-# to Pool=large_mem_2core_x86_64. The bb-psmdb scheduler has no registered
-# workers for that platform pool, so those tests fail at dispatch with
-# "FAILED_PRECONDITION: No workers exist for instance name prefix
-# 'hardlinking' platform ... Pool=large_mem_2core_x86_64". Once the pool
-# is provisioned, drop this exclusion and rely on --config=remote_unittest
-# directly.
+# The --test_size_filters=small,medium restriction drops tests that
+# bazel/test_exec_properties.bzl routes to Pool=large_mem_2core_x86_64. That
+# rule maps a test's Bazel `size` to a pool by memory tier (SIZE_TO_MEMORY_MB):
+# size="large" is the 7 GB tier, served only by large_mem_2core_x86_64. The
+# bb-psmdb scheduler has no registered workers for that platform pool, so those
+# tests fail at dispatch with "FAILED_PRECONDITION: No workers exist for
+# instance name prefix 'hardlinking' platform ... Pool=large_mem_2core_x86_64".
+# Once the pool is provisioned, drop this restriction and rely on
+# --config=remote_unittest directly.
+#
+# For this to work, mongo_cc_test forwards `size` to the final (final_target)
+# test that Bazel actually runs; without that forwarding the final target
+# defaults to medium and this filter can't see it (the pool routing would still
+# send it to large_mem_2core_x86_64). See the size= comment in
+# bazel/mongo_src_rules.bzl.
+#
+# Use the inclusive form (small,medium), NOT the exclusion form (-large):
+# Bazel's enum-size filter treats a negative-only value as an empty include
+# set, which it then ignores entirely, so -large silently runs every size.
+# small,medium yields a non-empty include set that excludes large (and
+# enormous; there are currently no enormous unittests). Keep it in sync with
+# SIZE_TO_MEMORY_MB / the pools that bb-psmdb actually provisions.
 #
 # --test_tag_filters is last-wins (not merged) so the full filter from
-# upstream's test:remote_unittest line in .bazelrc must be re-stated here,
-# with -cpu:2 appended.
+# upstream's test:remote_unittest line in .bazelrc must be re-stated here.
+# --test_size_filters is a separate flag, ANDed with the tag filter; nothing
+# upstream sets it, so the single setting below is authoritative.
 --config=psmdb_remote_unittest
 common:psmdb_remote_unittest --config=remote_unittest
-test:psmdb_remote_unittest --test_tag_filters=mongo_unittest,-intermediate_debug,-incompatible_with_bazel_remote_test,-cpu:2
+test:psmdb_remote_unittest --test_tag_filters=mongo_unittest,-intermediate_debug,-incompatible_with_bazel_remote_test
+test:psmdb_remote_unittest --test_size_filters=small,medium
 
 ################################################################################
 # PSMDB remote jstest profile (psmdb_remote_jstest)

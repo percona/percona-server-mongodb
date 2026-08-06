@@ -761,6 +761,14 @@ def _mongo_cc_binary_and_test(
             name = name,
             binary_with_debug = ":" + name + WITH_DEBUG_SUFFIX,
             type = "program",
+            # This final_target is the test Bazel actually runs (the cc_test above
+            # is tagged intermediate_debug and filtered out). It must carry the
+            # declared `size`: test_exec_properties(size) above routes it to an RBE
+            # pool by size, so its `size` attribute has to agree for --test_size_filters
+            # to be able to exclude it (e.g. to skip a pool bb-psmdb hasn't provisioned;
+            # see .bazelrc.psmdb) and for its default test timeout to match. Without
+            # this it silently defaults to medium.
+            size = kwargs.get("size", "medium"),
             tags = original_tags + ["final_target"],
             enabled = SEPARATE_DEBUG_ENABLED,
             enable_pdb = PDB_GENERATION_ENABLED,
