@@ -1,0 +1,265 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "590f21740c2f83cfb55cd792a859a5d0b2908761",
+    "merge_commit": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "conflict_context": {
+    "ours_commit": "590f21740c2f83cfb55cd792a859a5d0b2908761",
+    "theirs_commit": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5",
+    "base_commit": "eee604db779d8db402b9637622306023e7b65c20",
+    "files": [
+      "src/mongo/db/curop_test.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/curop_test.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/curop_test.cpp": "diff --cc src/mongo/db/curop_test.cpp\nindex 270c45dcccb,ee45e181b18..00000000000\n--- a/src/mongo/db/curop_test.cpp\n+++ b/src/mongo/db/curop_test.cpp\n@@@ -714,2 -714,2 +714,9 @@@ TEST(CurOpTest, OptionalAdditiveMetrics\n++<<<<<<< HEAD\n +                                         \"rateLimit\",\n +                                         \"planRanker\"};\n++||||||| eee604db779\n++                                         \"planRanker\"};\n++=======\n+                                          \"planRanker\",\n+                                          \"queues\"};\n++>>>>>>> 8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5"
+    },
+    "their_commits": {
+      "src/mongo/db/curop_test.cpp": [
+        "b21e657d1a35702c81dab7fd4f201c864298201c"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5",
+    "merged_commits": [
+      "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5",
+      "7f3f0fd0aa64cb4da448ec61488cc268410990bb",
+      "d46ac5233fcd6bc7d325d60a05970b9d9802cf99",
+      "3fb884631f3a39d256dcf77afb1a87e7bba827d9",
+      "44756ea2018bfba0bee307afcb2dcd0a517d2bb4",
+      "d13ab9c2c11e73b665f2db045ac8e755452da680",
+      "835de428dca6546cb2acf1ef7fa6b30d14a00edc",
+      "5f6ebe9f0a95ab997ece64d788c46042134ea3b1",
+      "ca0cad090bc68342deb9b3cd623054039f17c063",
+      "cf140d18fca45ac058009a1436751f8bc7fd25d2",
+      "e454cd4849745ac232b128c851df30eb8bc3521d",
+      "fd8188b7c5793479ac3a4f67edd08a3776b8c64e",
+      "9f08f5926b5ff69b207445e2e0344c925dda9d66",
+      "f1513ea86d242db665a8ecaab83912fa41e74e7b",
+      "f6fb241b12bb2a1322d276bba2acc4e53a7edfd2",
+      "a588cb0259ecb62585b16e8f2b7cad08d8abe968",
+      "bd85c567c0ee3c840e9a4d738ef72bbf5c87ffe4",
+      "f0e72d0c433b6af940c403fa51d877bd3d1ca956",
+      "e366632e40e890dfa261e7a6ddad5c0376e084de",
+      "56ad2ba5144ae174a4159c891f543194ba1eb082",
+      "89e1f0282d634e4e9d5208f53c1bca961ddd135e",
+      "b5b36b5fb0c4125a79ec7511b16dbfac3110941d",
+      "dcdff10adb899c04017c5a3ed7aad93e961f73cc",
+      "ab51d3f2b6a6775a9131a5d95b73f3c4c59f7530",
+      "4b24f669bb63f179017e6175f19cb5925a2ac275",
+      "c6a168c8f2a91cd1c1ecd25b7c9b7bfaa2ff760c",
+      "ddaccff9162bbf01207e946b0b953e6da6349bd6",
+      "3c2fcdff3d9597b9e59f429779897a106377dd53",
+      "7a86db5253b896c6251e16e5920370cdd02682f1",
+      "c3d993eb5699940af460d98d230a7bf53b238d7b",
+      "0561c098b99ac5e929005e70a2e37d7a97a82423",
+      "6ea193c05ab918fa63fe73303ac40bee6680db42",
+      "0de0d0e0c97da107725463dfbb48f4d244c94a6e",
+      "d56ca4ed1f0eed7708705fb7cfe82fd4f9973b8f",
+      "2c6dcaacf5b5e049990d571a2807130321626077",
+      "1f7380c8cbf3180260a98f2bc06e204dcf295438",
+      "aebee5fa0826109cf70236128b296dde806a78e0",
+      "0c75409707b21b546aed4f621f45b784ccb72805",
+      "3417cb5286a7032c7ca78973ce0b765124556fdc",
+      "b21e657d1a35702c81dab7fd4f201c864298201c"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/noPassthrough/query/profile/profile_filter.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 81500,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.47708549999999994,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 14,
+        "outputTokens": 5963,
+        "cacheReadInputTokens": 184350,
+        "cacheCreationInputTokens": 37614,
+        "webSearchRequests": 0,
+        "costUSD": 0.4764075,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 14,
+            "output": 5963,
+            "cache_read": 184350,
+            "cache_creation": 37614
+          },
+          "cost_usd": 0.4764075
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's what I found:\n\n## Summary\n\nThis merge pulls upstream mongodb-master into PSMDB's `master`. The central change is a **generalization of admission/execution-control queue-time accounting**:\n\n- `CurOp::AdditiveResourceStats::timeQueuedForTickets` \u2192 renamed `timeQueuedForAdmission`\n- `getAdditiveResourceStats()` drops its `ExecutionAdmissionContext` parameter and now **sums queue time across every queue** in `TicketHolderQueueStats::getQueueMetricsRegistry()` (curop.cpp/curop.h)\n- A new **`\"queues\"` field** (`TicketHolderQueueStats(opCtx).toBson()`) is emitted in profiler and log output (op_debug.cpp)\n\nSupporting changes: offline parallel validation now dispatches **largest collections first** (startup_recovery.cpp), a new `curop_failpoint_helpers_test` bazel target, a `requires_profiling` test tag, a `cluster_cursor` build dep, and a mechanical WiredTiger header stat-constant renumbering.\n\n## \u26a0\ufe0f Key review finding\n\nThe only conflict was in `src/mongo/db/curop_test.cpp`. Upstream added `\"queues\"` to the expected field-name list; the fork had a Percona-specific `\"rateLimit\"` entry in that same list. **The resolution in the merge commit dropped `\"rateLimit\"`** \u2014 the final list ends with `\"planRanker\", \"queues\"` and contains no `\"rateLimit\"`, whereas the fork tip has it at line 714.\n\nI flagged this prominently in `review_notes`: if Percona's OpDebug still emits a `rateLimit` field, the correct resolution should keep **both** `\"rateLimit\"` (ours) and `\"queues\"` (upstream), and this needs to be re-added.",
+    "response": {
+      "summary": "Merges upstream mongodb-master into the PSMDB master branch. The main functional change is that operation resource-accounting for admission/execution-control queueing is generalized: instead of reading queue time only from the ExecutionAdmissionContext, CurOp now sums queueing time across every admission queue registered in TicketHolderQueueStats::getQueueMetricsRegistry(), the AdditiveResourceStats field is renamed timeQueuedForTickets -> timeQueuedForAdmission, and a new \"queues\" sub-document (TicketHolderQueueStats(opCtx).toBson()) is emitted in the profiler and log/profile-filter output. Supporting changes: offline parallel validation now dispatches collections largest-first, a new curop_failpoint_helpers_test bazel target is added, the profile_filter.js test gains the requires_profiling tag, a cluster_cursor build dependency is added under src/mongo/s, and the vendored WiredTiger header has its statistics constants renumbered with several new disagg/layered stats added. The only conflict was in src/mongo/db/curop_test.cpp (both modified).",
+      "auto_merged": {
+        "jstests/noPassthrough/query/profile/profile_filter.js": "Adds the 'requires_profiling' tag to the test's @tags list (now [requires_sharding, requires_replication, requires_profiling]). No other changes.",
+        "src/mongo/db/BUILD.bazel": "Adds a new mongo_cc_unit_test target 'curop_failpoint_helpers_test' (srcs curop_failpoint_helpers_test.cpp, tag mongo_unittest_sixth_group, deps :curop_failpoint_helpers and :service_context_test_fixture). Also removes '//src/mongo/db/matcher:matchable.cpp' from the srcs list of a mongo_cc_library.",
+        "src/mongo/db/curop.cpp": "Reworks admission queue-time accounting. getAdditiveResourceStats() loses its 'const boost::optional<ExecutionAdmissionContext>& admCtx' parameter; queue wait time is now summed across all queues returned by TicketHolderQueueStats::getQueueMetricsRegistry() (calling lookup(opCtx())->totalTimeQueuedMicros() for each) rather than read from a single ExecutionAdmissionContext. Callers (_initializeResourceStatsBaseIfNecessary path, updateStatsOnTransactionUnstash, updateStatsOnTransactionStash) are updated to call getAdditiveResourceStats() with no argument. In _sumBlockedTimeTotal the local timeQueuedForTickets is replaced by timeQueuedForAdmission, computed the same way (summed across the queue registry), and comments in addForUnstash/subtractForStash are updated from timeQueuedForTickets to timeQueuedForAdmission.",
+        "src/mongo/db/curop.h": "Mirrors the curop.cpp change: the AdditiveResourceStats member Microseconds timeQueuedForTickets is renamed to timeQueuedForAdmission (comment updated to 'summed across every admission gate'), the getAdditiveResourceStats declaration drops the boost::optional<ExecutionAdmissionContext>& admCtx parameter, and the addForUnstash/subtractForStash doc comments are updated to reference timeQueuedForAdmission.",
+        "src/mongo/db/op_debug.cpp": "Emits a new 'queues' field containing TicketHolderQueueStats(opCtx).toBson() in two places: unconditionally in OpDebug::append (after cpuNanos, before millis), and as an addIfNeeded(\"queues\", ...) entry in OpDebug::appendStaged so the profile filter can reference it.",
+        "src/mongo/db/startup_recovery.cpp": "Changes offlineValidateParallel dispatch order. Instead of an enqueueDb lambda that immediately pushes each namespace onto the queue, it now builds a std::vector<std::pair<long long, NamespaceString>> collectionsBySize via a collectDb lambda (recording coll->dataSize(opCtx)), sorts it descending with std::greater<> (ties broken by namespace), then pushes namespaces onto the queue in that sorted order so the largest collections are validated first (longest-processing-time-first scheduling).",
+        "src/mongo/s/BUILD.bazel": "Adds the dependency '//src/mongo/s/query/exec:cluster_cursor' to the deps list of a mongo_cc_library.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Vendored WiredTiger header update: WT_STAT_CONN_* statistic index constants are renumbered (shifted upward), and several new statistics defines are added, including disagg checkpoint metadata version/compatible-version stats (WT_STAT_CONN_DISAGG_CHECKPOINT_STORAGE_COMPATIBLE_VERSION, ..._BINARY_COMPATIBLE_VERSION, ..._STORAGE_VERSION, ..._BINARY_VERSION), WT_STAT_CONN_DISAGG_INGEST_STABLE_TOMBSTONE_STRIPPED, and WT_STAT_CONN_DISAGG_STABLE_TOMBSTONE_ENCODING. This is a mechanical import of upstream WiredTiger changes."
+      },
+      "review_notes": "Conflict was in src/mongo/db/curop_test.cpp (both modified). Upstream added \"queues\" to the fixed-field-name list in TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized); the fork (ours) had previously added the Percona-specific \"rateLimit\" entry to that same list. VERIFY THIS RESOLUTION: the merge commit's list ends with \"planRanker\", \"queues\" and NO LONGER contains \"rateLimit\" -- the fork's Percona-specific \"rateLimit\" entry was dropped during conflict resolution (fork tip 590f2172 has \"rateLimit\" at line 714; merge commit 8a8d37d8 has no \"rateLimit\" in curop_test.cpp). If \"rateLimit\" is still a field emitted by Percona's OpDebug output, it should be re-added to this expected list (the correct resolution keeps both \"rateLimit\" from ours and \"queues\" from upstream). Otherwise the test may not reflect Percona's rate-limiter field. All other files auto-merged cleanly; the renaming of timeQueuedForTickets to timeQueuedForAdmission and the queue-registry summation in curop.cpp/curop.h are consistent and should be checked against any Percona code that references timeQueuedForTickets."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each file in the changeset."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough understanding of the wiredtiger diff (mechanical stat-constant renumbering plus a few new disagg/layered stat defines). Let me verify the conflict resolution in curop_test.cpp."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The resolved version kept upstream's `\"queues\"` and `\"planRanker\"` but appears to have dropped `\"rateLimit\"`. Let me verify whether `rateLimit` is a Percona addition present in the fork tip."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Confirmed. Now I have everything I need. The key finding: the conflict resolution in `curop_test.cpp` dropped the fork's Percona-specific `\"rateLimit\"` entry. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's what I found:\n\n## Summary\n\nThis merge pulls upstream mongodb-master into PSMDB's `master`. The central change is a **generalization of admission/execution-control queue-time accounting**:\n\n- `CurOp::AdditiveResourceStats::timeQueuedForTickets` \u2192 renamed `timeQueuedForAdmission`\n- `getAdditiveResourceStats()` drops its `ExecutionAdmissionContext` parameter and now **sums queue time across every queue** in `TicketHolderQueueStats::getQueueMetricsRegistry()` (curop.cpp/curop.h)\n- A new **`\"queues\"` field** (`TicketHolderQueueStats(opCtx).toBson()`) is emitted in profiler and log output (op_debug.cpp)\n\nSupporting changes: offline parallel validation now dispatches **largest collections first** (startup_recovery.cpp), a new `curop_failpoint_helpers_test` bazel target, a `requires_profiling` test tag, a `cluster_cursor` build dep, and a mechanical WiredTiger header stat-constant renumbering.\n\n## \u26a0\ufe0f Key review finding\n\nThe only conflict was in `src/mongo/db/curop_test.cpp`. Upstream added `\"queues\"` to the expected field-name list; the fork had a Percona-specific `\"rateLimit\"` entry in that same list. **The resolution in the merge commit dropped `\"rateLimit\"`** \u2014 the final list ends with `\"planRanker\", \"queues\"` and contains no `\"rateLimit\"`, whereas the fork tip has it at line 714.\n\nI flagged this prominently in `review_notes`: if Percona's OpDebug still emits a `rateLimit` field, the correct resolution should keep **both** `\"rateLimit\"` (ours) and `\"queues\"` (upstream), and this needs to be re-added."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260807_213117_973912.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.224 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5",
+    "short_sha": "8a8d37d86d0",
+    "strategy": "huge_commit",
+    "summary": "This is a large, isolated, auto-vendored WiredTiger import (31 files, ~4176 additions) - the textbook ideal merge boundary: atomic, self-contained, and easy to validate post-merge. It is the second of two consecutive WT import commits (positions 39 and 40), so cutting here ends on both back-to-back imports rather than splitting them. The resulting batch is 40 commits, comfortably within the ~30-65 target band. Critically, every revert/reland cluster in the window (SERVER-132852, SERVER-132850, SERVER-102490, SERVER-132629, SERVER-132752, SERVER-126254) lives past position ~55, so this cut splits no coherent revert pairs or stacked work. Extending toward exactly ~50 would land on a trivial mid-stream test-tag commit (a worse boundary) and start pulling into the dense revert/reland churn near the tail; the WT import is the cleaner stopping point.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31220105669"
+  }
+}
