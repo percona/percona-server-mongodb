@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ce4a1a9d64205d34482fe7fabf96a167dde6f5b6",
+    "merge_commit": "eee604db779d8db402b9637622306023e7b65c20"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "PSMDB-2113: Exclude size=large unit tests from the unprovisioned RBE pool",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          ".bazelrc.psmdb": "Modified by human",
+          "bazel/mongo_src_rules.bzl": "Modified by human"
+        },
+        "review_notes": "The eee604db779 merge brought in upstream's size-based RBE pool routing\n(bazel/test_exec_properties.bzl): a test's Bazel size picks its pool by memory\ntier (SIZE_TO_MEMORY_MB), and size=\"large\" (7 GB) maps to\nPool=large_mem_2core_x86_64. bb-psmdb has no workers for that pool, so those\ntests fail at dispatch with FAILED_PRECONDITION: No workers exist. The prior\n-cpu:2 tag filter no longer matches them (upstream dropped cpu:n tags in favor\nof size), so it excluded nothing.\n\nFiltering by size alone did not work either: mongo_cc_test splits each test into\nan intermediate cc_test (name_with_debug, filtered out via -intermediate_debug)\nand the final_target extract_debuginfo_test that Bazel actually runs. Only the\nintermediate carried size=large; the final target inherited the pool via\nexec_properties but defaulted to size=medium, so --test_size_filters couldn't\nsee it.\n\nFix both halves:\n- mongo_src_rules.bzl: forward  to the final_target extract_debuginfo_test\n  so its size attribute matches the size that routed it to a pool (also fixes\n  its default test timeout).\n- .bazelrc.psmdb: restrict the remote unittest run to\n  --test_size_filters=small,medium. Use the inclusive form, not -large: Bazel\n  treats a negative-only size filter as an empty (ignored) set, so -large runs\n  every size. small,medium excludes large (and enormous; none exist today)."
+      },
+      "author": {
+        "name": "Pawel Lebioda",
+        "email": "pawel.lebioda@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "fbe7c653fe689ec6983d87b56d163ff969aa71aa"
+    }
+  ]
+}
