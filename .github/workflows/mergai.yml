@@ -881,6 +881,7 @@ jobs:
         && startsWith(github.event.pull_request.head.ref, 'mergai/'))
       || (github.event_name == 'issue_comment'
         && github.event.issue.pull_request != null
+        && github.event.comment.user.type != 'Bot'
         && contains(github.event.comment.body, '/mergai review fix'))
     runs-on: ubuntu-latest
     permissions:
@@ -1179,9 +1180,14 @@ jobs:
   # validates the request (same-repo mergai PR); rebase-handle runs only when this
   # gate sets proceed=true and resolves the pending check to success/failure.
   rebase-gate:
+    # Ignore bot / GitHub App comments: rebase-handle's "could not rebase ...
+    # re-run `/mergai rebase`" comment quotes the trigger and is posted with the
+    # App token (which dispatches workflows), so without this guard it would
+    # re-trigger the gate in the same infinite loop as fast-forward-gate.
     if: >-
       github.event_name == 'issue_comment'
       && github.event.issue.pull_request != null
+      && github.event.comment.user.type != 'Bot'
       && contains(github.event.comment.body, '/mergai rebase')
     runs-on: ubuntu-latest
     permissions:
@@ -1427,9 +1433,17 @@ jobs:
   # request never creates an approval prompt: fast-forward-handle only runs when this
   # gate sets proceed=true, and it resolves the pending check to success/failure.
   fast-forward-gate:
+    # Ignore comments authored by a bot / GitHub App. The gate's own rejection
+    # ("requires write access") and fast-forward-handle's failure comment both
+    # quote the `/mergai fast-forward` trigger verbatim, and are posted with the
+    # App token -- which, unlike the default GITHUB_TOKEN, *does* dispatch new
+    # workflow runs. Without this guard each such comment re-triggers the gate,
+    # whose commenter is now the bot (no write access), so it posts the same
+    # rejection again -> an infinite loop (see PR #2095).
     if: >-
       github.event_name == 'issue_comment'
       && github.event.issue.pull_request != null
+      && github.event.comment.user.type != 'Bot'
       && contains(github.event.comment.body, '/mergai fast-forward')
     runs-on: ubuntu-latest
     # The status is published with the default GITHUB_TOKEN (see the status step)

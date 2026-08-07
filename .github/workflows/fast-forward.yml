@@ -48,8 +48,14 @@ jobs:
   # here and leaves proceed unset, so the merge job is skipped.
   fast-forward-check:
     name: Fast-Forward Merge (gate)
+    # Ignore comments authored by a bot / GitHub App. This gate posts rejection /
+    # result comments with the App token (which, unlike the default GITHUB_TOKEN,
+    # dispatches new workflow runs); guarding on the author type keeps a bot
+    # comment that happens to quote '/fast-forward' from re-triggering the gate
+    # in a loop (defense-in-depth, matching mergai.yml's comment gates).
     if: |
       github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
       contains(github.event.comment.body, '/fast-forward')
     runs-on: ubuntu-latest
     permissions:
