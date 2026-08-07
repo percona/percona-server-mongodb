@@ -1,0 +1,120 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "590f21740c2f83cfb55cd792a859a5d0b2908761",
+    "merge_commit": "8a8d37d86d02f01e12cd9e8cb0029979ce44a9c5"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 18168,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.11672575000000002,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000683,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 1207,
+          "cacheReadInputTokens": 45993,
+          "cacheCreationInputTokens": 10053,
+          "webSearchRequests": 0,
+          "costUSD": 0.11604275000000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 16,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000683
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 1207,
+              "cache_read": 45993,
+              "cache_creation": 10053
+            },
+            "cost_usd": 0.11604275000000001
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/curop_test.cpp`.\n\nThe conflict was in the `basicFields` vector. I merged both sides' independent additions:\n- Kept Percona's `\"rateLimit\"` field (HEAD)\n- Kept the shared `\"planRanker\"` field\n- Adopted upstream's new `\"queues\"` field (theirs)\n\nBoth were non-overlapping additions on top of the base's `\"planRanker\"`, so merging preserves the Percona feature while adopting the upstream change. Response written to the specified JSON file.",
+      "response": {
+        "summary": "Resolved a both-modified conflict in the basicFields vector of the OptionalAdditiveMetricsNotDisplayedIfUninitialized test by merging both sides: kept Percona's 'rateLimit' field and upstream's new 'queues' field alongside the shared 'planRanker'.",
+        "resolved": {
+          "src/mongo/db/curop_test.cpp": "The conflict was in the 'basicFields' string vector. HEAD (Percona) added the 'rateLimit' entry plus 'planRanker'; upstream (theirs) added 'planRanker' and a new 'queues' entry. Base only had 'planRanker'. Merged both non-overlapping additions so the vector now contains 'rateLimit', 'planRanker', and 'queues', preserving Percona's rate-limit feature field while adopting upstream's new queues field."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Straightforward merge of two independent list additions. 'rateLimit' is the Percona-specific field and was preserved; 'queues' is upstream's new field and was added. No symbol was removed."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/curop_test.cpp`.\n\nThe conflict was in the `basicFields` vector. I merged both sides' independent additions:\n- Kept Percona's `\"rateLimit\"` field (HEAD)\n- Kept the shared `\"planRanker\"` field\n- Adopted upstream's new `\"queues\"` field (theirs)\n\nBoth were non-overlapping additions on top of the base's `\"planRanker\"`, so merging preserves the Percona feature while adopting the upstream change. Response written to the specified JSON file."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260807_213242_711504.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.224 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
