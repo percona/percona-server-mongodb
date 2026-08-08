@@ -712,7 +712,8 @@ TEST(CurOpTest, OptionalAdditiveMetricsNotDisplayedIfUninitialized) {
                                          "micros",
                                          "flowControl",
                                          "rateLimit",
-                                         "planRanker"};
+                                         "planRanker",
+                                         "queues"};
 
     QueryTestServiceContext serviceContext;
     auto opCtx = serviceContext.makeOperationContext();

@@ -209,6 +209,7 @@ The following metrics were introduced to `serverStatus`:
     "successfulAdmissions": 1000,
     "attemptedAdmissions": 1100,
     "averageTimeQueuedMicros": 10,
+    "totalTimeQueuedMicros": 10000,
     "totalAvailableTokens": 0,
 }
 
@@ -333,6 +334,10 @@ The following `serverStatus` metrics are emitted by the `IngressRequestRateLimit
 - `interruptedInQueue`: the number of queued requests interrupted before admission.
 - `averageTimeQueuedMicros`: moving average queue wait time for successfully admitted queued
   requests.
+- `totalTimeQueuedMicros`: cumulative wait measured by the callers themselves, which for gates with
+  an admission context is exactly the per-operation queueing time reported in curOp, the slow query
+  log and the profiler. The average above is derived instead from the nap the token bucket planned,
+  so the two do not have to agree.
 - `totalAvailableTokens`: the current capacity of the underlying token bucket.
 
 # Egress Response Rate Limiting
@@ -341,14 +346,14 @@ The `EgressResponseRateLimiter` paces the egress (response-send) path. It is a t
 [`admission::RateLimiter`](rate_limiter.h), stored as a `ServiceContext` decoration, mirroring the
 [`IngressRequestRateLimiter`](ingress_request_rate_limiter.h) pattern.
 
-It engages for every `SystemOverloaded` rejection reply produced by the `IngressRequestRateLimiter`
-(the engagement gate lives in the `SessionWorkflow` egress hook). IRRL is the single authority on
-which ops get rejected. It already exempts unauthenticated, priority-port, and IP/app-list traffic,
-so anything that reaches the egress limiter has been deemed rejectable by IRRL and is throttled
-uniformly. A caller is never denied, when the queue is at capacity the call bypasses the queue and
-returns immediately (fail-open), so `throttle()` always returns and the returned `Status` is purely
-informational. This preserves the invariant that a rejection reply is never dropped; dropping it
-would corrupt the connection and hang the client.
+When enabled, it engages for every `SystemOverloaded` rejection reply produced by the
+`IngressRequestRateLimiter` (the engagement gate lives in the `SessionWorkflow` egress hook). IRRL
+is the single authority on which ops get rejected. It already exempts unauthenticated,
+priority-port, and IP/app-list traffic, so anything that reaches the egress limiter has been deemed
+rejectable by IRRL and is throttled uniformly. A caller is never denied, when the queue is at
+capacity the call bypasses the queue and returns immediately (fail-open), so `throttle()` always
+returns and the returned `Status` is purely informational. This preserves the invariant that a
+rejection reply is never dropped; dropping it would corrupt the connection and hang the client.
 
 The wait is driven by a lightweight, per-session `Interruptible`
 (`DisconnectShutdownAwareInterruptible`, declared in `src/mongo/transport/session_workflow_p.h`)
@@ -360,24 +365,32 @@ per response. The interruptible composes two cancellation conditions in a single
   the `SessionManager`'s `shutdown()` path. The token is a lock-free atomic poll, not a kernel wait,
   so it is checked at each slice boundary. A parked egress waiter is released within one slice of
   shutdown, so the egress path never blocks shutdown for longer than that slice.
-- **Client disconnect**: each slice is a single blocking `poll(2)` for `POLLRDHUP|POLLHUP` on the
-  session's socket, via `Session::waitForPeerDisconnectUntil()`. Since the rejection path has no
-  `OperationContext`, it cannot rely on `OperationContext::markKillOnClientDisconnect()` to be woken
-  when the client gives up. Without this wait a tarpitted reply would park its worker thread and FD
-  for the full nap time even after the client closed the socket. Because the slice is a kernel
-  `poll()`, the worker is woken within one scheduler tick of the client's FIN/RST arriving rather
-  than only noticing at the next poll-slice boundary.
+- **Client disconnect**: each slice is a blocking `Session::waitForPeerDisconnectUntil()`. Since the
+  rejection path has no `OperationContext`, it cannot rely on
+  `OperationContext::markKillOnClientDisconnect()` to be woken when the client gives up. Without
+  this wait a tarpitted reply would retain its worker thread and the session's transport resources
+  for the full nap time even after the client went away. On Asio sessions the slice is a single
+  kernel `poll(2)` for `POLLRDHUP|POLLHUP` on the session's socket, so the worker becomes runnable
+  as soon as the client's FIN/RST arrives rather than only noticing at the next slice boundary.
+  Sessions without an optimized override (gRPC, handoff) use `Session`'s default, which samples
+  `isConnected()` once per slice.
 
 On shutdown the wait returns `ErrorCodes::InterruptedAtShutdown`; on peer disconnect it returns
 `ErrorCodes::ClientDisconnect`, which the rate limiter surfaces as `InterruptedInQueue` and uses to
 return the borrowed token.
 
 Policy is driven externally via `setParameter` (e.g. mongotune):
-`egressResponseRateLimiterRatePerSec`, `egressResponseRateLimiterBurstCapacitySecs`, and
-`egressResponseRateLimiterMaxQueueDepth`. The limiter is always engaged for IRRL rejection replies,
-it has no on/off toggle and defaults to the maximum int32 rate until a lower rate is set. The max
-queue depth defaults to the maximum int64 value until a lower value is set. A value of 0 disables
-queueing, so responses that exceed rate+burst are sent immediately without throttling.
+
+- `egressResponseRateLimiterEnabled` (bool, default: false): determines whether the limiter is
+  consulted at all. While it is false the egress hook returns before touching the limiter, so a
+  rejection reply is sent with no pacing and no admission is recorded. This is independent of
+  `ingressRequestRateLimiterEnabled`, so IRRL may reject requests without its replies being paced.
+- `egressResponseRateLimiterRatePerSec`: defaults to the maximum int32 value, so enabling the
+  limiter without also lowering this rate leaves it an effective no-op.
+- `egressResponseRateLimiterBurstCapacitySecs`: defaults to the maximum double value.
+- `egressResponseRateLimiterMaxQueueDepth`: defaults to the maximum int64 value until a lower value
+  is set. A value of 0 disables queueing, so responses that exceed rate+burst are sent immediately
+  without throttling.
 
 # Data-Node Ingress Admission Control
 
