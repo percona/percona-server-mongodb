@@ -16,12 +16,8 @@ py_library(
         "install_modules.py",
         "lint.py",
         "plus_interface.py",
-<<<<<<< HEAD
-        "rbe_auth.py",
-||||||| 7d6975decec
-=======
         "query_failure_diagnostic.py",
->>>>>>> a311a19dc33e6e428e10d6192c945e1a797fa894
+        "rbe_auth.py",
         "wrapper_debug.py",
         "wrapper_hook.py",
         "wrapper_util.py",
