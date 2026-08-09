@@ -1,0 +1,120 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "753c6c64421cef62e2e2fbd0e1bd7f79ac8ebf23",
+    "merge_commit": "a311a19dc33e6e428e10d6192c945e1a797fa894"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 20698,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.1230825,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000688,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 1274,
+          "cacheReadInputTokens": 47234,
+          "cacheCreationInputTokens": 10702,
+          "webSearchRequests": 0,
+          "costUSD": 0.12239449999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 17,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000688
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 1274,
+              "cache_read": 47234,
+              "cache_creation": 10702
+            },
+            "cost_usd": 0.12239449999999999
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `bazel/wrapper_hook/BUILD.bazel`.\n\nBoth sides added a different source file to the `wrapper_hook` py_library's `srcs` list:\n- **ours (HEAD):** `rbe_auth.py`\n- **theirs (upstream):** `query_failure_diagnostic.py`\n\nThese are independent additions, so I kept both, placing them in alphabetical order to match the list's existing sorting. The upstream file is corroborated by the existing `query_failure_diagnostic_test` target further down in the same file. All conflict markers were removed, and the JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved a conflict in the py_library srcs list of bazel/wrapper_hook/BUILD.bazel where each side added a different source file. Kept both additions.",
+        "resolved": {
+          "bazel/wrapper_hook/BUILD.bazel": "Both sides added a new entry to the 'wrapper_hook' py_library srcs list: ours (HEAD) added 'rbe_auth.py' and upstream/theirs added 'query_failure_diagnostic.py'. These are independent, non-overlapping additions, so both were kept. Placed them in alphabetical order ('query_failure_diagnostic.py' before 'rbe_auth.py') to match the list's existing sorting."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The two changes were orthogonal additions to a sorted source list; no upstream symbol was removed or renamed, so both entries were preserved. 'query_failure_diagnostic_test' already references query_failure_diagnostic.py elsewhere in the file, confirming the upstream file belongs; 'rbe_auth.py' is the Percona/ours addition and is retained."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `bazel/wrapper_hook/BUILD.bazel`.\n\nBoth sides added a different source file to the `wrapper_hook` py_library's `srcs` list:\n- **ours (HEAD):** `rbe_auth.py`\n- **theirs (upstream):** `query_failure_diagnostic.py`\n\nThese are independent additions, so I kept both, placing them in alphabetical order to match the list's existing sorting. The upstream file is corroborated by the existing `query_failure_diagnostic_test` target further down in the same file. All conflict markers were removed, and the JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260809_153840_780309.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.226 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
