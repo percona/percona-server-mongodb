@@ -30,9 +30,8 @@ mongo_cc_library(
     ],
     deps = [
         "//src/mongo:base",
-        "//src/mongo/crypto:sha256_block",
-        "//src/mongo/crypto:sha_block",
         "//src/mongo/db:server_feature_flags",
+        "//src/third_party/xxhash",
     ],
 )
 
@@ -2267,7 +2266,6 @@ mongo_cc_unit_test(
         ":replication_recovery",
         ":storage_interface",
         "//src/mongo/db/session:session_catalog_mongod",
-        "//src/mongo/db/storage:journal_flusher",
     ],
 )
 

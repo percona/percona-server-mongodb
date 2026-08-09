@@ -197,7 +197,7 @@ bool isSolutionBoundedCollscan(const QuerySolution* querySoln) {
                               << numCollscanNodes,
                 count == 1);
         auto collscan = static_cast<const CollectionScanNode*>(node);
-        return collscan->minRecord || collscan->maxRecord;
+        return !collscan->rangeList.isUnbounded();
     }
     return false;
 }
@@ -240,10 +240,6 @@ StatusWith<std::unique_ptr<QuerySolution>> tryToBuildSearchQuerySolution(
         tassert(7816300,
                 "Pushing down $search into SBE but forceClassicEngine is on"sv,
                 !query.getExpCtx()->getQueryKnobConfiguration().isForceClassicEngineEnabled());
-
-        tassert(7816301,
-                "Pushing down $search into SBE but featureFlagSearchInSbe is disabled."sv,
-                feature_flags::gFeatureFlagSearchInSbe.isEnabled());
 
         // Build a SearchNode in order to retrieve the search info.
         auto searchNode =

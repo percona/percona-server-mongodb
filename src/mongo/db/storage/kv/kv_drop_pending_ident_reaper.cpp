@@ -326,9 +326,26 @@ void KVDropPendingIdentReaper::dropIdentsOlderThan(
                   "ident"_attr = identInfo->identName,
                   "dropTimestamp"_attr = identInfo->dropTime,
                   "error"_attr = status);
+        } else if (status == ErrorCodes::WriteConflict) {
+            LOGV2(13285200,
+                  "WriteConflict while dropping ident, will retry later",
+                  "ident"_attr = identInfo->identName,
+                  "dropTimestamp"_attr = identInfo->dropTime,
+                  "error"_attr = status);
         } else if (status.isA<ErrorCategory::Interruption>()) {
             LOGV2(11873702,
                   "Interruption while dropping ident",
+                  "ident"_attr = identInfo->identName,
+                  "dropTimestamp"_attr = identInfo->dropTime,
+                  "error"_attr = status);
+        } else if (status == ErrorCodes::WriteConflict ||
+                   status == ErrorCodes::TemporarilyUnavailable ||
+                   status == ErrorCodes::TransactionTooLargeForCache) {
+            // When replicating a drop as primary, the oplog write can transiently conflict.
+            // The ident stays drop-pending and the whole drop is redone on a later pass.
+            LOGV2(12716400,
+                  "Storage was transiently unavailable while completing a replicated ident drop; "
+                  "will retry on a later pass",
                   "ident"_attr = identInfo->identName,
                   "dropTimestamp"_attr = identInfo->dropTime,
                   "error"_attr = status);
@@ -527,6 +544,16 @@ Status KVDropPendingIdentReaper::_tryToDrop(WithLock,
                         wuow.commit();
                     }
                     return s;
+                } catch (const StorageUnavailableException& ex) {
+                    // Replicating the ident drop writes an oplog entry, which can hit a transient
+                    // WriteConflict or TemporarilyUnavailable. Leave the ident drop-pending and let
+                    // the next reaper pass redo the whole drop from scratch.
+                    // dropIdent() is not transactional, so an in-place retry would either
+                    // repeat its side effects or pair a stale schema epoch with a newer oplog
+                    // entry.
+                    // Whereas if the storage-level drop already happened, redoing it is harmless -
+                    // WiredTigerKVEngine::_drop() treats ENOENT as success.
+                    return ex.toStatus();
                 } catch (const DBException& ex) {
                     return ex.toStatus();
                 }

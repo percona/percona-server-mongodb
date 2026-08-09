@@ -96,6 +96,7 @@ include:
 
   - filename: src/mongo/db/modules/atlas/atlas_dev.yml
   - filename: src/mongo/db/modules/atlas/atlas_sls_pin_bump.yml
+  - filename: src/mongo/db/modules/atlas/atlas_commit_queue.yml
   - filename: etc/evergreen_yml_components/copybara/copybara.yml
   - filename: etc/evergreen_yml_components/copybara/copybara_gen.yml
 
@@ -175,7 +176,7 @@ patch_aliases:
     variant: "^(.*query-quick-patch-only|linux-x86-dynamic-compile)$"
     task: ".*"
   - alias: query-joo
-    variant: "^(.*join-optimization-query-patch-only|amazon-linux2023-arm64-static-compile)"
+    variant: "^(.*join-optimization-query-patch-only|amazon-linux2023-arm64-static-compile|run-all-affected-jstests)"
     task: ".*"
   - alias: security
     variant: "^(.*security-patch-only|linux-x86-dynamic-compile|windows-compile-required)$"

@@ -7,6 +7,7 @@
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/pipeline/pipeline_d.h"
 #include "mongo/db/query/canonical_query.h"
+#include "mongo/db/query/compiler/ce/sampling/sampling_test_utils.h"
 #include "mongo/db/query/compiler/physical_model/query_solution/query_solution.h"
 #include "mongo/db/query/explain.h"
 #include "mongo/db/query/explain_common.h"
@@ -20,6 +21,10 @@
 #include "mongo/db/query/query_settings/query_knob_overrides.h"
 #include "mongo/db/query/query_settings/query_settings_context_test_util.h"
 #include "mongo/db/query/query_settings/query_settings_gen.h"
+#include "mongo/db/query/record_id_bound.h"
+#include "mongo/db/query/record_id_range.h"
+#include "mongo/db/query/record_id_range_list.h"
+#include "mongo/db/record_id.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_test_fixture.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/shard_role/shard_catalog/index_descriptor.h"
@@ -561,6 +566,11 @@ TEST_F(PlanExplainerTest, V3ExecStatsSectionMatchesLegacyExecStatsSection) {
     // Only the wall-clock totals, which generateExecutionInfo() reads from the operation timer at
     // serialization time, are excluded from the comparison. The jstest explain_exec_stats_parity.js
     // carries the system-level form of the guarantee.
+    //
+    // Plan under explain, as the explain command does before serializing at any V3 verbosity: the
+    // ranking strategies record rankerChoice.reason only for explain-planned queries, and V3
+    // emission tasserts (13237700) if a strategy decided the winner but no reason was carried.
+    expCtx->setExplain(ExplainOptions::Verbosity::kExecStatsV3);
     auto exec = buildFindExecAndIter(fromjson("{a: {$gte: 0}, b: {$gte: 0}}"));
     while (exec->getNext(nullptr, nullptr) != PlanExecutor::IS_EOF) {
     }
@@ -778,6 +788,21 @@ auto makeCollScanNode(const std::string& collName) {
     node->nss = NamespaceString::createNamespaceString_forTest(collName);
     return node;
 }
+
+namespace {
+RecordIdRange makeIntRange(int min, bool minInclusive, int max, bool maxInclusive) {
+    RecordIdRange r;
+    r.maybeNarrowMin(RecordIdBound(RecordId(min)), minInclusive);
+    r.maybeNarrowMax(RecordIdBound(RecordId(max)), maxInclusive);
+    return r;
+}
+
+BSONObj callStatsToBSON(const QuerySolutionNode* node) {
+    BSONObjBuilder bob;
+    statsToBSON(node, &bob, &bob);
+    return bob.obj();
+}
+}  // namespace
 
 TEST_F(PlanExplainerTest, HashJoinEmbeddingTest) {
     auto outerScanNode = makeCollScanNode("testdb.explain");
@@ -1040,6 +1065,83 @@ TEST_F(PlanExplainerTest, CBRSamplingMetadataSerializedInExplain) {
     ASSERT(nsMeta.hasField("sampleDocCount")) << nsMeta;
     ASSERT(nsMeta.hasField("sampleRequestedDocCount")) << nsMeta;
     ASSERT(nsMeta.hasField("sampleMemorySizeBytes")) << nsMeta;
+    ASSERT(!nsMeta.hasField("sampleNumPages")) << nsMeta;
+}
+
+TEST_F(PlanExplainerTest, CBRSamplingMetadataReportsPagesForPersistedSample) {
+    // Verifies that the page count shows up in 'ceSamplingMetadata' when read back
+    // from persisted samples collection.
+    // TODO SERVER-112627: Remove once featureFlagPersistentStats is enabled by default.
+    unittest::ServerParameterGuard persistentStatsFlag("featureFlagPersistentStats", true);
+    unittest::ServerParameterGuard planRankerController("internalQueryPlanRanker", "costBased");
+    unittest::ServerParameterGuard samplingController("internalQueryCBRCEMode", "samplingCE");
+    // Requested sample size is part of a persisted sample's key, so pin it to avoid full coll scan.
+    constexpr int kPersistedSampleSize = 10;
+    unittest::ServerParameterGuard sampleSizeOverride("internalSamplingSizeOverride",
+                                                      kPersistedSampleSize);
+
+    const UUID collUuid = [&] {
+        auto coll = acquireCollection(
+            operationContext(),
+            CollectionAcquisitionRequest::fromOpCtx(
+                operationContext(), kNss, AcquisitionPrerequisites::OperationType::kRead),
+            MODE_IS);
+        return coll.getCollectionPtr()->uuid();
+    }();
+
+    std::vector<BSONObj> sample;
+    for (int i = 0; i < kPersistedSampleSize; ++i) {
+        sample.push_back(BSON("_id" << i << "a" << i << "b" << i));
+    }
+
+    const std::vector<BSONObj> pages =
+        ce::makePersistentSamplePageDocs(collUuid,
+                                         ce::SamplingTechniqueEnum::kRandom,
+                                         kPersistedSampleSize,
+                                         boost::none /* numChunks */,
+                                         sample,
+                                         Date_t::now());
+    ASSERT_EQ(pages.size(), 1u);
+
+    ce::createCollAndInsertDocuments(
+        operationContext(),
+        NamespaceString::createNamespaceString_forTest(kNss.dbName(), ce::kSamplesCollectionName),
+        pages,
+        /*clustered=*/true);
+
+    const auto verbosity = ExplainOptions::Verbosity::kQueryPlanner;
+    expCtx->setExplain(verbosity);
+    auto exec = buildFindExecAndIter(fromjson("{a: {$gte: 0}, b: {$gte: 0}}"));
+
+    auto coll = acquireCollection(operationContext(),
+                                  CollectionAcquisitionRequest::fromOpCtx(
+                                      operationContext(), kNss, AcquisitionPrerequisites::kRead),
+                                  MODE_IS);
+    MultipleCollectionAccessor colls{coll};
+
+    BSONObjBuilder bob;
+    Explain::explainStages(exec.get(),
+                           colls,
+                           verbosity,
+                           Status::OK(),
+                           boost::none,
+                           BSONObj(),
+                           SerializationContext::stateCommandReply(),
+                           BSONObj(),
+                           &bob);
+    const BSONObj explained = bob.obj();
+
+    auto queryPlanner = explained["queryPlanner"];
+    ASSERT(queryPlanner.isABSONObj()) << "Missing queryPlanner in: " << explained;
+    auto ceSamplingMeta = queryPlanner["ceSamplingMetadata"];
+    ASSERT(ceSamplingMeta.isABSONObj())
+        << "Missing ceSamplingMetadata in queryPlanner: " << queryPlanner;
+    ASSERT_EQ(ceSamplingMeta.Obj().nFields(), 1) << ceSamplingMeta;
+    const BSONObj nsMeta = ceSamplingMeta.Obj().firstElement().Obj();
+
+    // Reading the persisted sample makes the page count available.
+    ASSERT_EQ(nsMeta["sampleSource"].String(), "persisted") << nsMeta;
+    ASSERT_EQ(nsMeta["sampleNumPages"].numberLong(), 1) << nsMeta;
 }
 
 TEST_F(PlanExplainerTest, GenerateQueryKnobsEmitsNothingWhenFeatureFlagOff) {
@@ -1099,6 +1201,36 @@ TEST_F(PlanExplainerTest, GenerateQueryKnobsOmitsKnobsWhenOutputNearlyFull) {
     auto result = out.obj();
     ASSERT_FALSE(result.hasField("queryKnobs"));
     ASSERT_TRUE(result.hasField("warning"));
+}
+
+// A CollectionScanNode with two ranges must emit recordIdRanges with both entries.
+TEST_F(PlanExplainerTest, CollScanMultiRangeIncludesRecordIdRanges) {
+    auto csn = makeCollScanNode("testdb.col");
+    csn->rangeList = RecordIdRangeList::makeUnion(
+        {makeIntRange(1, true, 5, true), makeIntRange(10, false, 20, true)});
+
+    auto result = callStatsToBSON(csn.get());
+    ASSERT(result.hasField("recordIdRanges")) << result;
+    ASSERT_BSONOBJ_EQ_AUTO(
+        R"([{"min":1, "minInclusive": true, "max":5, "maxInclusive": true}, {"min":10, "minInclusive": false, "max": 20, "maxInclusive": true}])",
+        BSONArray(result["recordIdRanges"].Obj()))
+        << result;
+    // Outer bounds are also emitted for backward compatibility.
+    ASSERT_EQ(result["minRecord"].Long(), 1) << result;
+    ASSERT_EQ(result["maxRecord"].Long(), 20) << result;
+}
+
+// An empty rangeList (∅, no ranges) also emits recordIdRanges (as an empty array).
+// In this case, both minRecord and maxRecord are set to null.
+TEST_F(PlanExplainerTest, CollScanEmptyRangeListIncludesRecordIdRanges) {
+    auto csn = makeCollScanNode("testdb.col");
+    csn->rangeList = RecordIdRangeList::makeUnion({});  // explicit empty list
+
+    auto result = callStatsToBSON(csn.get());
+    ASSERT(result.hasField("recordIdRanges")) << result;
+    ASSERT_EQ(result["recordIdRanges"].Array().size(), 0u) << result;
+    ASSERT(result["minRecord"].isNull()) << result;
+    ASSERT(result["maxRecord"].isNull()) << result;
 }
 
 }  // namespace
