@@ -1,0 +1,240 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "133de6a34824ab92a1cb645b4f31c462ef6b2471",
+    "merge_commit": "7d6975dececbeb4d21cfef97cc508bb423da49a6"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "merge_context": {
+    "merge_commit": "7d6975dececbeb4d21cfef97cc508bb423da49a6",
+    "merged_commits": [
+      "7d6975dececbeb4d21cfef97cc508bb423da49a6",
+      "155605665402507752f489cf47d86ad68b33eb96",
+      "ab0d4405baded49b6a24df508fc08ca3b529f9b4",
+      "f0536146991a27bf71741a68e36352ab767e68c6",
+      "9fda3dc7a35231d375bcdde13169ae05da22a180",
+      "d1082514a6664e250747cfdd30a98bb06ec4527b",
+      "f34d4dd3620da2fb029cc68a0c7b3eb3db7e8bc8",
+      "c8b440af9207d0d649e4e1fde411aa9951dc9aa3",
+      "743e0703685f05051f41e4bfe3bd9dd4655ae538",
+      "2acf4f2eafa2a039c9eea749c96d22a46cd7994c",
+      "881450b12b665625b51e60434692770af7273bfd",
+      "f552a7a32f39d5ad237dda68b3770f9fd65fdfd8",
+      "8783f2e0f53c3aedf45d1271020bee6fb1a2ffec",
+      "659e86e447a09392c617b665370e776ce4f0bbc3",
+      "51ffb859c7c328e8944319223e2e477fd5d7787b",
+      "e68644a4cc6430b51e9a42c27bf5be70bb16c7eb",
+      "d4844c3584eb980889eba13be605d096f6bb4113",
+      "f622151e348f35e9f254420673b95104a3be7934",
+      "86adfc2337d7f2925baf2895f0a7103cf8e2ec1e",
+      "7a69f8d9a4ebd3f8d7c92b3dc257bd315cdaec8b",
+      "9cd1759f6d9a9a76398f5db0654f6b78700ace86",
+      "e062291c86174278fd58135d224185c2e8c92c2c",
+      "aaec60044eccb64d8cf975b0aa56992338d706cb",
+      "41744e0de4550febb2bbe61d889046950001dd13",
+      "25a404308a23fd048f5082d4dbe21efedb2dfc08",
+      "6ab450fc9bffa3a4e55ff0c088f0c344194a97a0",
+      "a14a34c78fdb5f9027a8ee62a9911e1f12573808",
+      "4ec00b982be9d368e68c566795a541e5d7c74285",
+      "0619481111b64cbcd0b9772494b04472bb85dd11",
+      "7d52652ee7ab4d8724e995805b8b05e55c6811cb",
+      "e1c0fa49820ec88455ec7ec11eedb8ba45165dff",
+      "f31919df440946e6df8ad0a11e9ebd65911d5c6a",
+      "d4eaf8d9df1a64d52fabb9809f7ab3cb67fce361",
+      "b14539b430ee8e260f62f9ae70125cec4634e52d",
+      "125e9aa916b2bbe27f50e358163971c0f38f6397",
+      "9cac863a2acff8b181c837b44ec618fa45a86739",
+      "4d78584ea89047dd1b97a4b0db1fde08df29a755",
+      "d3e0ada74c2ffcb5ca3b7168b65ccce4b5f345e6",
+      "a5fbbfb21b4c268f4584c677539d5b1bef5b699b",
+      "a763abcdac3135d98ddfcd73d7c56c2c42e3a9dc",
+      "39872f89eaa6d008f73545cdc741fbfa3f1739e1",
+      "86c73ed0f94a553c3c30536dd28c13cdbd212424",
+      "6c30c8b2f22ff2c77387176d25c8cb6a5aea6f2a",
+      "619bb79b83547b5fb211472c6db9b90168fad180",
+      "d2b636dc9d55a36f65071ed20daef9d806e66b9b",
+      "da2d710c07b61181dc8291024cd2281f4946cce3",
+      "7b60d37bf89c7c787d174b6491cf925a465b8bed",
+      "24972e02f14d0bc90873ae95cfb07819ff9d0944",
+      "c4dc530d332d4847e78dc7a52ec793f14efa91bc",
+      "9f8f55fd62821d5a456e29d2f55b81b2009f43a1",
+      "29e9f7e99a8dd72ee51cc51cd6e91d7291746ee7",
+      "822d017a6f03bc70c7005d974ccf3be1d08339ec",
+      "bff9f1e927af64de3d83c2ee9af1bd0c06a31b68",
+      "208a34ff3efcb689e457b0a963304c19b4e5e450",
+      "405ac7db6e8fc03dbbbac156f548c5bc0afd86ab",
+      "8d5b160d2004c59e01556e19ab3c3406a6bb3c7f",
+      "60bbe3aaa154321b752ad59c1ecf2dc32958ebd6",
+      "0ecc9fea87128f4d072be4d8c33cf396e2c5e1c6",
+      "ce24ab0d27cc4566d109476d9216bf07e606d06f"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "buildscripts/idl/idl/parser.py",
+        "buildscripts/idl/idl_schema.yml",
+        "buildscripts/resmokelib/config.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50837,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.315922,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 3766,
+        "cacheReadInputTokens": 66103,
+        "cacheCreationInputTokens": 30078,
+        "webSearchRequests": 0,
+        "costUSD": 0.315229,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 3766,
+            "cache_read": 66103,
+            "cache_creation": 30078
+          },
+          "cost_usd": 0.315229
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge diff (base `8a8d37d8` \u2192 merge commit `7d6975de`) for each of the 12 auto-merged files and written the JSON description to the response file.\n\nSummary of what this merge pulls in from upstream:\n\n- **BUILD.bazel** \u2014 exports two `monguard/.evergreen` configs and adds an `install-local-toolchain` `sh_binary` target.\n- **IDL (parser.py + idl_schema.yml)** \u2014 makes the type `is_view` field a required schema property (with a TODO placeholder in the parser).\n- **resmoke (config.py + configure_resmoke.py)** \u2014 flips the `enable_evergreen_api_test_selection` default from `None` to `False` and removes the Evergreen TSS project-config auto-detection helper.\n- **error_codes.yml** \u2014 drops `ValidationError` from `ExceededMemoryLimit` (146) and adds `CommitPendingNamespaceOrUUID` (524, InternalOnly).\n- **action_type.idl** \u2014 adds `getUnfilteredMetrics` privilege.\n- **curop.cpp** \u2014 refactors admission-wait-time summing into `AdmissionContext::getTotalTimeQueuedForAdmission`.\n- **BUILD.bazel (db + pipeline)** \u2014 dependency graph updates, plus new NDV sketch accumulator sources/deps.\n- **common_mongod_process_interface.cpp** \u2014 rewrites `_getTimeseriesOptions` to fetch options via `getCollectionInfoFromPrimary` and parse with `TimeseriesOptions::parseOwned`.\n- **wiredtiger.h.in** \u2014 new checkpoint-scrub eviction config options and stats, with mechanical renumbering of stat IDs.\n\nAll files auto-merged cleanly (ort strategy); no conflict markers and none of the special-cased Conflict Hint files were involved.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master into the PSMDB master fork. The incoming changes are auto-merged with no conflicts. They include: an IDL update making the type field `is_view` a required schema property; a new WiredTiger checkpoint scrub eviction feature (new `checkpoint_scrub_eviction` and `checkpoint_scrub_image_max` connection config options plus new statistics and renumbered stat IDs); a new `getUnfilteredMetrics` privilege action type and a new `CommitPendingNamespaceOrUUID` (524) error code, along with the removal of the ValidationError category from `ExceededMemoryLimit` (146); refactoring of CurOp admission-wait-time accounting to a helper; a rewrite of how the mongod process interface fetches timeseries options; removal of the resmoke Evergreen test-selection project-config auto-detection; and Bazel build-graph updates.",
+      "auto_merged": {
+        "BUILD.bazel": "Adds two `monguard/.evergreen` YAML config files to the top-level `exports_files` list, and adds a new `sh_binary` target named `install-local-toolchain` that runs `//bazel/install_rules:install_mongodbtoolchain.sh` (data: gdb_toolchain_files, toolchain_files, @py_host//:files; constrained to linux).",
+        "buildscripts/idl/idl/parser.py": "Adds a TODO(SERVER-133051) comment above the `is_view` rule descriptor in `_parse_type`, noting the intent to make `is_view` required. The rule itself remains `_RuleDesc(\"bool_scalar\")`.",
+        "buildscripts/idl/idl_schema.yml": "Adds `is_view` to the required properties list for type definitions (alongside description, cpp_type, and bson_serialization_type).",
+        "buildscripts/resmokelib/config.py": "Changes the default of `enable_evergreen_api_test_selection` from `None` to `False` in the DEFAULTS map, and correspondingly changes the module-level `ENABLE_EVERGREEN_API_TEST_SELECTION` default from `None` to `False`.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Removes the `_apply_evergreen_tss_project_config()` helper and its call from `validate_and_update_config`. This helper previously queried the Evergreen API to override test-selection (TSS) enablement from the project config on patch builds. Also removes the now-unused `logging` import and the `evergreen_conn` import.",
+        "src/mongo/base/error_codes.yml": "Removes the `ValidationError` category from error code 146 (`ExceededMemoryLimit`), and adds a new error code 524, `CommitPendingNamespaceOrUUID`, with category `InternalOnly`.",
+        "src/mongo/db/BUILD.bazel": "Removes the `//src/mongo/db/timeseries:timeseries_options` dependency from one mongo_cc_library target, and adds `//src/mongo/db/query/compiler/optimizer/join:index_fingerprint` as a dependency to another mongo_cc_library target.",
+        "src/mongo/db/auth/action_type.idl": "Adds a new `getUnfilteredMetrics` action type value to the ActionType enum.",
+        "src/mongo/db/curop.cpp": "Replaces the inline loop over `TicketHolderQueueStats::getQueueMetricsRegistry()` that summed admission wait time across queues with a single call to the new `AdmissionContext::getTotalTimeQueuedForAdmission(opCtx())` helper, in both `_sumBlockedTimeTotal()` and `getAdditiveResourceStats()`.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds `accumulator_internal_construct_ndv_sketch.cpp` to the `pipeline` library srcs and its test `accumulator_internal_construct_ndv_sketch_test.cpp` to the `db_pipeline_expression_test` srcs, and adds NDV-related dependencies (`//src/mongo/db/query/compiler/ce/ndv:hyperloglog`, `:ndv_hashing`, `:ndv_sketch_gen_lib`) to the respective targets.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Rewrites `CommonMongodProcessInterface::_getTimeseriesOptions`. Instead of looking up a view via `CollectionCatalog::lookupView` and calling `timeseries::getTimeseriesOptions`, it now fetches collection info via `getCollectionInfoFromPrimary` (catching NamespaceNotFound), extracts the `timeseries` sub-object from the options BSON, and parses it with `TimeseriesOptions::parseOwned`. A TODO(SERVER-123282) documents that this is a stopgap until `getCollectionOptions` uses listCollections.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Imported WiredTiger header update. Adds documentation for two new eviction/checkpoint connection config options, `checkpoint_scrub_eviction` (auto/off/on, default auto) and `checkpoint_scrub_image_max` (0-100, default 10), controlling whether checkpoint replaces a reconciled leaf page in cache with a clean on-disk-image copy and how much cache the retained clean images may consume. Adds new connection statistics (e.g. `WT_STAT_CONN_EVICTION_APP_BOUNDED_WAIT_EXCEEDED`, `WT_STAT_CONN_CACHE_SCRUB_IMAGE_BYTES`, `WT_STAT_CONN_CACHE_WRITE_RESTORE_SCRUB_SKIPPED_DIRTY`) and renumbers the subsequent WT_STAT_CONN_* stat ID constants accordingly."
+      },
+      "review_notes": "All listed files auto-merged cleanly with the ort strategy; no conflict markers to resolve and none of the Conflict Hints files (MODULE.bazel.lock, sbom.json) are part of this changeset. The wiredtiger.h.in changes are predominantly a large, mechanical renumbering of WT_STAT_CONN_* constants driven by newly inserted statistics; reviewers should confirm the generated WiredTiger sources stay consistent with these new stat IDs. Note that error code 146 (ExceededMemoryLimit) loses its ValidationError categorization \u2014 verify no PSMDB-specific code relied on that categorization. The removal of Evergreen TSS project-config auto-detection in configure_resmoke.py combined with the config default flipping from None to False effectively disables that path by default."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe the incoming changes accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me read the full output."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge diff (base `8a8d37d8` \u2192 merge commit `7d6975de`) for each of the 12 auto-merged files and written the JSON description to the response file.\n\nSummary of what this merge pulls in from upstream:\n\n- **BUILD.bazel** \u2014 exports two `monguard/.evergreen` configs and adds an `install-local-toolchain` `sh_binary` target.\n- **IDL (parser.py + idl_schema.yml)** \u2014 makes the type `is_view` field a required schema property (with a TODO placeholder in the parser).\n- **resmoke (config.py + configure_resmoke.py)** \u2014 flips the `enable_evergreen_api_test_selection` default from `None` to `False` and removes the Evergreen TSS project-config auto-detection helper.\n- **error_codes.yml** \u2014 drops `ValidationError` from `ExceededMemoryLimit` (146) and adds `CommitPendingNamespaceOrUUID` (524, InternalOnly).\n- **action_type.idl** \u2014 adds `getUnfilteredMetrics` privilege.\n- **curop.cpp** \u2014 refactors admission-wait-time summing into `AdmissionContext::getTotalTimeQueuedForAdmission`.\n- **BUILD.bazel (db + pipeline)** \u2014 dependency graph updates, plus new NDV sketch accumulator sources/deps.\n- **common_mongod_process_interface.cpp** \u2014 rewrites `_getTimeseriesOptions` to fetch options via `getCollectionInfoFromPrimary` and parse with `TimeseriesOptions::parseOwned`.\n- **wiredtiger.h.in** \u2014 new checkpoint-scrub eviction config options and stats, with mechanical renumbering of stat IDs.\n\nAll files auto-merged cleanly (ort strategy); no conflict markers and none of the special-cased Conflict Hint files were involved."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260809_092436_194108.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.226 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "7d6975dececbeb4d21cfef97cc508bb423da49a6",
+    "short_sha": "7d6975decec",
+    "strategy": "huge_commit",
+    "summary": "This is the 'Import wiredtiger' commit at position 59 in the window - a large, self-contained vendored third-party import, which the project rules identify as an ideal merge boundary (well-isolated files, easy to validate post-merge). The resulting batch of 59 commits sits within the comfortable band (30-65). Crucially, this cut keeps every revert pair balanced: the introduce+revert pairs for SERVER-132852 (pos 34/47), SERVER-132850 (pos 38/48), and SERVER-102490 (pos 42/56) all land entirely inside the batch so they cancel out cleanly, while the still-unsettled pairs SERVER-132629 (introduced pos 60, reverted 67, re-landed 98) and SERVER-132752 (introduced 61, reverted 87) begin only after this boundary and are left intact for the next batch. Cutting on the wiredtiger import avoids splitting any coherent unit of work and lands on a stable, validatable point rather than mid-stream churn.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31305669839"
+  }
+}
