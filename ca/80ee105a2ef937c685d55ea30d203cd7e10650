@@ -1,0 +1,292 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "753c6c64421cef62e2e2fbd0e1bd7f79ac8ebf23",
+    "merge_commit": "a311a19dc33e6e428e10d6192c945e1a797fa894"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "conflict_context": {
+    "ours_commit": "753c6c64421cef62e2e2fbd0e1bd7f79ac8ebf23",
+    "theirs_commit": "a311a19dc33e6e428e10d6192c945e1a797fa894",
+    "base_commit": "7d6975dececbeb4d21cfef97cc508bb423da49a6",
+    "files": [
+      "bazel/wrapper_hook/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "bazel/wrapper_hook/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "bazel/wrapper_hook/BUILD.bazel": "diff --cc bazel/wrapper_hook/BUILD.bazel\nindex ed577e66d9e,425633e49f6..00000000000\n--- a/bazel/wrapper_hook/BUILD.bazel\n+++ b/bazel/wrapper_hook/BUILD.bazel\n@@@ -19,1 -18,1 +19,6 @@@ py_library\n++<<<<<<< HEAD\n +        \"rbe_auth.py\",\n++||||||| 7d6975decec\n++=======\n+         \"query_failure_diagnostic.py\",\n++>>>>>>> a311a19dc33e6e428e10d6192c945e1a797fa894"
+    },
+    "their_commits": {
+      "bazel/wrapper_hook/BUILD.bazel": [
+        "739bdc27e912b0d59a038f39d49885c68b101c45"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "a311a19dc33e6e428e10d6192c945e1a797fa894",
+    "merged_commits": [
+      "a311a19dc33e6e428e10d6192c945e1a797fa894",
+      "b9ac32f2e7e070446e40a4719b9a64988b797078",
+      "e57e5356e4739f8d5a8c84ca2044eeda146b42da",
+      "920c0985e6c74202175c7feda5d2979dfbb6060c",
+      "7f2ef070dd78e65aab7a4a8e15ea1399b4b1ffad",
+      "1644cb3a77dc7dd7135471ec7bd93334813498f8",
+      "739bdc27e912b0d59a038f39d49885c68b101c45",
+      "7d3eef2dfe353af4604b6cc3efdf61cd888816f9",
+      "dbd42e793bd4841b6479474fb20a5c34ac196613",
+      "7eed97c83574702a1256ed77767830e3707643f7",
+      "a5307ebdcb16535e2a02670789c2902088645ca5",
+      "9f14a37039c8c50b82268125825f2cf9320bc69f",
+      "52366dcc11d3a2ba174b16d6c525c6f99e7ec82f",
+      "6d129dad4e10bb01ff579af3e7c463bcb9462f23",
+      "932add93e28c11b785ad9580449d795eec9c41d5",
+      "2ad806224e4ed22b0ea8f008fdfa80aea388e591",
+      "1e5ac75fa53fcc50cefdf1958e26f960b09b66d5",
+      "b4502ee88c2d9b1facc3a1bac6cfa41ee49cd31c",
+      "3399e4b9a3a1754dc6d8fb7b83e9024a0a2ee98b",
+      "3b6f1417ec7f9680f9bd2f89d3ac5422b6652790",
+      "e2e51e41f6e7bc86eb1ae81d41f1f1060a7d70a5",
+      "678f1532bcc0ac6add43f44f641baf130d14c8bd",
+      "8b30493b6d29bb696310f80696b40b37077a0c0b",
+      "a712433a010ea96d24504e9347c66ffeca7d3812",
+      "dd9b4fdec538f92959db406effb840a74ee9b8ce",
+      "7970eb72f724164b0cf155b3abf7d69e05360ca2",
+      "8993abf4f6db15f637e8a098369b22e43c118d25",
+      "d2baca50a6063ca76bc67cb2b48b0c1542567f08",
+      "639953dff87d640ff58d63536ca7f6edd985debf",
+      "aeaf2ab2588a8faf37029759877356838b231e81",
+      "a358b4ff4c11266adca04e3b4d5a84999b18d4bd",
+      "2d1007a522e7c1a7e6f80a015c890f5f958fd192",
+      "b4d118859f6987f0bc80d6824f9479d71cf40bb1",
+      "8a106ccaafe05402203f1cd67fb2dce027e5f696",
+      "c72743d18ee87c647e30b576f85371c7edd56572",
+      "d02dd8a5316d72cc3eeed2e50942be30bc23721f",
+      "c2763a002b0e13c71077aa33646995f44c6b499d",
+      "f5e1b8eb8e50d43382f68edeb9309fff09a2b613",
+      "eff8cff0a62a78ab3d02643e8ec6b7f7ba5f7611",
+      "2897a2631b7839b9a9982a11c7a8e19a50591d74",
+      "6e53837cf43459f3e3d28490d725859bc8074a24",
+      "14ca8495daba5c7fe25c0157608655a911bd72a5",
+      "647536c003fc1a09cd980dd6b98e44463a0e51a7",
+      "cabf332257e67048a1d9b7ee3d5699396c2335c6",
+      "f0a9bfa329fcedff2aa324db6e69f008bacb793e",
+      "fd0d5b3c4fc5c9bf363483c0b2896ea685389140"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/wrapper_hook/BUILD.bazel",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_general.idl",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/shell/shell_options.cpp",
+        "src/mongo/shell/shell_options.idl"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 87339,
+    "num_turns": 9,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.344397,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 18,
+        "outputTokens": 5660,
+        "cacheReadInputTokens": 150753,
+        "cacheCreationInputTokens": 20278,
+        "webSearchRequests": 0,
+        "costUSD": 0.343704,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 18,
+            "output": 5660,
+            "cache_read": 150753,
+            "cache_creation": 20278
+          },
+          "cost_usd": 0.343704
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's a summary of what this merge (`7d6975decec` \u2192 `a311a19dc33`) pulls in:\n\n**Three independent upstream changes:**\n\n1. **Deprecation of the `objcheck` family of options** \u2014 spans `server_options.h`/`.idl`, `server_options_server_helpers.cpp`, and `shell_options.cpp`/`.idl`. Client data validation is now always performed. The `serverGlobalParams.objcheck` field is removed; `objcheck`/`noobjcheck`/`net.wireObjectCheck` now only emit deprecation warnings (LOGV2 ids 13047401\u201313047403), and the shell's `objcheck`/`noobjcheck` options are removed outright.\n\n2. **WiredTiger JournalListener simplification** (`wiredtiger_kv_engine.cpp`/`.h`) \u2014 the `UseJournalListener::kUpdateUnderReadLock` mode is replaced with `kSkip`. When the caller holds a read lock, the journal listener update is skipped entirely (avoiding write/read-lock conflict) rather than using a read-lock-held token path.\n\n3. **Build changes** \u2014 a new `query_failure_diagnostic.py` wrapper-hook script + `py_test`, an enterprise Landlock policy dep for enterprise-Linux builds in `db/BUILD.bazel` and `s/BUILD.bazel`, and a `landlock_init.h` header.\n\n**Conflict resolution note:** The only real conflict is in `bazel/wrapper_hook/BUILD.bazel` \u2014 the fork adds `rbe_auth.py` to the `srcs` list while upstream adds `query_failure_diagnostic.py` at the same spot. Both entries should be kept.",
+    "response": {
+      "summary": "This merge pulls in three independent upstream changes. (1) The objcheck/noobjcheck/net.wireObjectCheck options are deprecated across the server and shell: client data validation is now always performed, so the serverGlobalParams.objcheck field is removed and setting these options only logs a deprecation warning. (2) The WiredTiger JournalListener update path is simplified: the kUpdateUnderReadLock mode is replaced by a kSkip mode, so when the caller holds a read lock the journal listener update is skipped entirely rather than taking a read-lock-held token path. (3) Build files gain a new wrapper-hook diagnostic script plus its test, an enterprise Landlock policy dependency for enterprise Linux builds, and a header for landlock_init.",
+      "auto_merged": {
+        "bazel/wrapper_hook/BUILD.bazel": "Adds \"query_failure_diagnostic.py\" to the wrapper_hook py_library srcs and adds a new py_test target \"query_failure_diagnostic_test\" (srcs query_failure_diagnostic_test.py, deps :wrapper_hook, public visibility). Conflict note: the fork also adds \"rbe_auth.py\" to the same srcs list; the resolution should keep both the fork's rbe_auth.py entry and the incoming query_failure_diagnostic.py entry and test target.",
+        "src/mongo/db/BUILD.bazel": "Adds a select() adding //src/mongo/db/modules/enterprise/src/landlock:landlock_enterprise as a dependency when //bazel/config:build_enterprise_linux_enabled is set (default: none), with a comment noting it is not gated on any single enterprise feature. Also adds hdrs = [\"landlock_init.h\"] to the landlock_init mongo_cc_library.",
+        "src/mongo/db/server_options.h": "Removes the `bool objcheck = true;  // --objcheck` field from ServerGlobalParams and removes the stale comment line referring to pairing --objcheck with crashOnInvalidBSONError; the crashOnInvalidBSONError field is kept.",
+        "src/mongo/db/server_options_general.idl": "Rewrites the descriptions of objcheck, noobjcheck and net.wireObjectCheck to say the option is deprecated and no longer supported since data validation is always performed. Also shortens the crashOnInvalidBSONError description, removing the mention that it must be paired with objcheck.",
+        "src/mongo/db/server_options_server_helpers.cpp": "In canonicalizeServerOptions, objcheck and noobjcheck no longer set net.wireObjectCheck; instead each just logs a deprecation warning (LOGV2_WARNING ids 13047401 and 13047402) and removes the option. In storeServerOptions, net.wireObjectCheck no longer assigns serverGlobalParams.objcheck and instead logs a deprecation warning (id 13047403).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "In flushAllFiles, when callerHoldsReadLock is true the UseJournalListener is now kSkip (was kUpdateUnderReadLock), with a comment explaining the journal listener update is skipped because it may do writes that would conflict with held read locks. In _getJournalListenerWithToken, the token is now only obtained when useListener == UseJournalListener::kUpdate, and getToken is called without the TokenMode argument (the kReadLockHeld/kDefault TokenMode selection is removed).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Replaces the UseJournalListener enum: the previous kUpdate and kUpdateUnderReadLock enumerators (with their explanatory comments) become just { kUpdate, kSkip }.",
+        "src/mongo/s/BUILD.bazel": "Adds a select() adding //src/mongo/db/modules/enterprise/src/landlock:landlock_enterprise as a dependency when //bazel/config:build_enterprise_linux_enabled is set (default: none), with the same comment as the db BUILD.bazel change.",
+        "src/mongo/shell/shell_options.cpp": "In storeMongoShellOptions, removes the block that set serverGlobalParams.objcheck based on the objcheck/noobjcheck params; only the crashOnInvalidBSONError handling remains, with an updated comment.",
+        "src/mongo/shell/shell_options.idl": "Removes the shell objcheck and noobjcheck config options entirely and shortens the crashOnInvalidBSONError description, dropping the mention that it must be paired with objcheck."
+      },
+      "review_notes": "The dominant theme is deprecation/removal of the objcheck family of options (server_options.h/.idl, server_options_server_helpers.cpp, shell_options.cpp/.idl) \u2014 data validation is now unconditional and these options are no-ops that only warn. Confirm no remaining fork code references serverGlobalParams.objcheck, since that field is removed. The only file flagged as an actual conflict is bazel/wrapper_hook/BUILD.bazel: the fork adds rbe_auth.py while upstream adds query_failure_diagnostic.py and its py_test at the same srcs location \u2014 keep both. Note the associated query_failure_diagnostic.py / query_failure_diagnostic_test.py source files are staged additions (not shown in these diffs) that the new py_test target depends on. The WiredTiger change (kUpdateUnderReadLock -> kSkip) alters durability behavior under read locks and touches the flagged wiredtiger_kv_engine.cpp; verify the fork has no other callers relying on the removed kUpdateUnderReadLock enumerator or the getToken(TokenMode) overload."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each file in the changeset before describing anything."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me read each diff in detail."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me verify how the BUILD.bazel conflict was resolved in the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's a summary of what this merge (`7d6975decec` \u2192 `a311a19dc33`) pulls in:\n\n**Three independent upstream changes:**\n\n1. **Deprecation of the `objcheck` family of options** \u2014 spans `server_options.h`/`.idl`, `server_options_server_helpers.cpp`, and `shell_options.cpp`/`.idl`. Client data validation is now always performed. The `serverGlobalParams.objcheck` field is removed; `objcheck`/`noobjcheck`/`net.wireObjectCheck` now only emit deprecation warnings (LOGV2 ids 13047401\u201313047403), and the shell's `objcheck`/`noobjcheck` options are removed outright.\n\n2. **WiredTiger JournalListener simplification** (`wiredtiger_kv_engine.cpp`/`.h`) \u2014 the `UseJournalListener::kUpdateUnderReadLock` mode is replaced with `kSkip`. When the caller holds a read lock, the journal listener update is skipped entirely (avoiding write/read-lock conflict) rather than using a read-lock-held token path.\n\n3. **Build changes** \u2014 a new `query_failure_diagnostic.py` wrapper-hook script + `py_test`, an enterprise Landlock policy dep for enterprise-Linux builds in `db/BUILD.bazel` and `s/BUILD.bazel`, and a `landlock_init.h` header.\n\n**Conflict resolution note:** The only real conflict is in `bazel/wrapper_hook/BUILD.bazel` \u2014 the fork adds `rbe_auth.py` to the `srcs` list while upstream adds `query_failure_diagnostic.py` at the same spot. Both entries should be kept."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260809_153709_484224.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.226 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "a311a19dc33e6e428e10d6192c945e1a797fa894",
+    "short_sha": "a311a19dc33",
+    "strategy": null,
+    "summary": "Stopping at a311a19 (SERVER-132260 Create annotated release tags in Copybara) yields a batch of 45 commits, comfortably in the ~30-65 target band, and lands on a small, self-contained tooling commit rather than a mid-stream change. Critically, this boundary keeps every revert saga whole: the xxH3 document-hash trio (original fd0d5b3, revert eff8cff, reland 7d3eef2) all fall inside the batch so the fork imports the settled re-landed result; the SERVER-132752 index-recreation change (f0a9bfa) and its auto-revert (3399e4b) both fall inside and cancel out; and the SERVER-126254 fsyncLock revert (678f1532) plus its follow-up test deletion (9f14a37) are both included. Cutting here also stops short of the unsettled freshest commits left for the next batch - notably fae1ddf, an explicitly temporary tassert->invariant debug hack that is likely to be reverted soon - and leaves the conflict-flagged 739bdc2 for the existing resolve flow only where it must be crossed (it is inside this batch and self-contained). The included important_files revert (678f1532) is fine to cross since its pairing commit is also inside the batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31321421792"
+  }
+}
