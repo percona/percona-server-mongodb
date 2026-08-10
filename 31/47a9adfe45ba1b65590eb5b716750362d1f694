@@ -1,0 +1,166 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "0337ce0b94149d48f3265b2803c88cc25611c97f",
+    "merge_commit": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a"
+  },
+  "mergai_version": "0.1.dev1+ge57c595b2",
+  "conflict_context": {
+    "ours_commit": "0337ce0b94149d48f3265b2803c88cc25611c97f",
+    "theirs_commit": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+    "base_commit": "a311a19dc33e6e428e10d6192c945e1a797fa894",
+    "files": [
+      "README.third_party.md",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "README.third_party.md": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "README.third_party.md": "diff --cc README.third_party.md\nindex 4940a075a6c,fd098d3afb4..00000000000\n--- a/README.third_party.md\n+++ b/README.third_party.md\n@@@ -165,12 -149,7 +151,30 @@@ Percona Server for MongoDB directly lin\n++<<<<<<< HEAD\n +| Name                  | Typical Linked Library Filename(s)               |\n +| --------------------- | ------------------------------------------------ |\n +| GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |\n +| GCC support library   | `libgcc_s.so.1`                                  |\n +| libcurl               | `libcurl.so.4`                                   |\n +| Cyrus SASL            | `libsasl2.so.2`                                  |\n +| Kerberos 5 GSS-API    | `libgssapi_krb5.so.2`                            |\n +| OpenLDAP              | `liblber.so.2`, `libldap.so.2`                   |\n +| OpenSSL               | `libcrypto.so.3`, `libssl.so.3`                  |\n +\n +Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just\n +examples and can differ from platform to platform.\n++||||||| a311a19dc33\n++| Name       | Enterprise Only |                    Has Windows DLLs                     |\n++| :--------- | :-------------: | :-----------------------------------------------------: |\n++| Cyrus SASL |       Yes       |                           Yes                           |\n++| libldap    |       Yes       |                           No                            |\n++| net-snmp   |       Yes       |                           Yes                           |\n++| OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">2</a>]</sup> |\n++| libcurl    |       No        |                           No                            |\n++=======\n+ | Name       | Enterprise Only |                    Has Windows DLLs                     |\n+ | :--------- | :-------------: | :-----------------------------------------------------: |\n+ | Cyrus SASL |       Yes       |                           Yes                           |\n+ | libldap    |       Yes       |                           No                            |\n+ | net-snmp   |       Yes       |                           Yes                           |\n+ | OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">3</a>]</sup> |\n+ | libcurl    |       No        |                           No                            |\n++>>>>>>> f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+      "sbom.json": "diff --cc sbom.json\nindex 5af6c5c1ce0,783a670d7d4..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| a311a19dc33\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 13,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 14,\n++>>>>>>> f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a\n@@@ -14,0 -14,14 +22,32 @@@\n++<<<<<<< HEAD\n++||||||| a311a19dc33\n++    \"tools\": {\n++      \"services\": [\n++        {\n+ (... 22 more added lines...)\n+       \"url\": [\n+         \"https://mongodb.com\"\n+       ]\n+     },\n++>>>>>>> f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a"
+    },
+    "their_commits": {
+      "README.third_party.md": [
+        "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a"
+      ],
+      "sbom.json": [
+        "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+    "merged_commits": [
+      "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+      "a4aede23f74385fbce982896d8e19c9081e1dab2",
+      "fae1ddfb3965226feb43a068c948671a6b3d8f3b",
+      "2f67495492126b6dde576ee240968fb07253436d"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "sbom.json"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32869,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.1608355,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 18,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000693,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2457,
+        "cacheReadInputTokens": 33800,
+        "cacheCreationInputTokens": 13086,
+        "webSearchRequests": 0,
+        "costUSD": 0.1601425,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 18,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000693
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2457,
+            "cache_read": 33800,
+            "cache_creation": 13086
+          },
+          "cost_usd": 0.1601425
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge changes by reading the actual `diff base \u2192 merge commit` diffs for both files and written the JSON response.\n\nSummary of what this merge introduces:\n\n**README.third_party.md**\n- Adds an **xxHash** entry (BSD-2-Clause, 0.8.3) plus its link definition\n- Fixes the **snappy** link (was pointing at `google/tcmalloc.git` \u2192 now `google/snappy.git`)\n- Removes the \"WiredTiger Vendored Test Libraries\" section\n- Bumps the OpenSSL footnote reference 2 \u2192 3\n\n**sbom.json**\n- Adds the **xxHash** component and its dependency-graph/aggregate-list entries\n- Fixes the **snappy** distribution URL (`tcmalloc.git` \u2192 `snappy.git`)\n- Typo fixes (`A a software` \u2192 `A software`, `gpertools` \u2192 `gperftools`)\n- Metadata bumps: version 13\u219214, timestamp, and the Endor Labs tool version\n\nThe `review_notes` flags the applicable conflict hints \u2014 notably that the `metadata.tools`/Endor Labs section must be dropped from Percona's SBOM, Percona's supplier URL kept, and serialNumber/version treated as release-time values \u2014 while preserving the genuinely useful upstream additions (xxHash entries and the snappy URL fix).",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes that add the xxHash third-party library (BSD-2-Clause, v0.8.3, vendored at src/third_party/xxhash) to both the third-party README and the CycloneDX SBOM, fix an incorrect snappy distribution URL that pointed at the tcmalloc repository, and apply several minor cleanups (typo fixes, removal of the WiredTiger vendored test-libraries section, and SBOM metadata/version bumps).",
+      "auto_merged": {
+        "README.third_party.md": "Incoming (diff base -> merge commit): adds an xxHash row (BSD-2-Clause, version 0.8.3) to the directly-linked libraries table and its corresponding link definition ([xxHash]: https://github.com/Cyan4973/xxHash.git). Corrects the snappy link target from https://github.com/google/tcmalloc.git to https://github.com/google/snappy.git. Removes the entire 'WiredTiger Vendored Test Libraries' section (the table listing concurrencytest, discover, extras, iso8601, python-subunit, testscenarios, testtools). Bumps the OpenSSL note footnote reference in the Dynamically Linked Libraries table from 2 to 3.",
+        "sbom.json": "Incoming (diff base -> merge commit): bumps top-level version 13 -> 14 and updates metadata.timestamp; updates the Endor Labs tool service version v1.7.1076 -> v1.7.1098; fixes the typo 'A a software' -> 'A software' in the Intel Decimal Floating-Point Math Library description; adds a new xxHash component (bom-ref/purl pkg:github/cyan4973/xxhash@v0.8.3, supplier Yann Collet, BSD-2-Clause, evidence location src/third_party/xxhash, emits_persisted_data=true) plus its entries in the aggregate dependency list and the dependency graph (dependsOn: []); fixes the snappy externalReferences distribution URL from https://github.com/google/tcmalloc.git to https://github.com/google/snappy.git; fixes the typo 'gpertools Project' -> 'gperftools Project'."
+      },
+      "review_notes": "Both files came in as 'both modified' conflicts. Per the Conflict Hints: for sbom.json remove the metadata.tools section entirely (the Endor Labs services entry that upstream bumped to v1.7.1098 must not appear in Percona's manually assembled SBOM), keep Percona's supplier url https://percona.com, and treat serialNumber/version as release-time values (Percona's own values are fine). The substantive upstream additions worth keeping are the xxHash component/dependency entries and the snappy URL correction. For README.third_party.md, the conflict is only over the OpenSSL footnote number (upstream 3 vs base 2); the non-conflicting upstream additions (xxHash entry, snappy URL fix, removal of the WiredTiger test-libraries section) apply cleanly. Verify no conflict markers remain in either file."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge changes by reading the actual `diff base \u2192 merge commit` diffs for both files and written the JSON response.\n\nSummary of what this merge introduces:\n\n**README.third_party.md**\n- Adds an **xxHash** entry (BSD-2-Clause, 0.8.3) plus its link definition\n- Fixes the **snappy** link (was pointing at `google/tcmalloc.git` \u2192 now `google/snappy.git`)\n- Removes the \"WiredTiger Vendored Test Libraries\" section\n- Bumps the OpenSSL footnote reference 2 \u2192 3\n\n**sbom.json**\n- Adds the **xxHash** component and its dependency-graph/aggregate-list entries\n- Fixes the **snappy** distribution URL (`tcmalloc.git` \u2192 `snappy.git`)\n- Typo fixes (`A a software` \u2192 `A software`, `gpertools` \u2192 `gperftools`)\n- Metadata bumps: version 13\u219214, timestamp, and the Endor Labs tool version\n\nThe `review_notes` flags the applicable conflict hints \u2014 notably that the `metadata.tools`/Endor Labs section must be dropped from Percona's SBOM, Percona's supplier URL kept, and serialNumber/version treated as release-time values \u2014 while preserving the genuinely useful upstream additions (xxHash entries and the snappy URL fix)."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260810_053615_823846.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.226 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+    "short_sha": "f0e6adc9a87",
+    "strategy": "conflict",
+    "summary": "The window is only 4 commits deep and the gate opened on a conflict at the newest candidate. That newest commit is an auto-generated SBOM regeneration - a well-isolated, self-contained artifact commit, which the project rules explicitly call an ideal merge boundary. The three preceding commits (a cursor-churn optimization, a temporary tassert->invariant change, and an unused-template-parameter cleanup) are independent, self-contained changes with no revert/fixup relationships to split, so pulling everything up to and including the SBOM commit yields a clean, coherent batch and lets the existing resolve flow handle the flagged SBOM conflict.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31358958157"
+  }
+}
