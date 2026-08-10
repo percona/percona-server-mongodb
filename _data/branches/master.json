@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 3,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.8362062476273149,
-    "files_affected": 15,
-    "total_additions": 416,
-    "total_deletions": 50,
+    "commits_behind": 4,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 2.3512807231712967,
+    "files_affected": 17,
+    "total_additions": 479,
+    "total_deletions": 74,
     "date_range": {
       "first": "2026-08-07T22:02:41+00:00",
-      "last": "2026-08-07T22:55:11+00:00"
+      "last": "2026-08-10T00:44:49+00:00"
     }
   },
   "last_merged_commit": {
@@ -37,10 +37,20 @@
     "summary": "SERVER-132745 Minimize cursor churn for bulk load phase (#60279)"
   },
   "gate": {
-    "open": false,
-    "reason": "wait (3 < 50 commits; oldest 1.8d < 2d)"
+    "open": true,
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+      "short_sha": "f0e6adc9a87",
+      "date": "2026-08-09T20:44:49-04:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-111072 Auto-generated SBOM files [master] (#60649)"
+    },
     {
       "sha": "a4aede23f74385fbce982896d8e19c9081e1dab2",
       "short_sha": "a4aede23f74",
@@ -75,23 +85,26 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "a4aede23f74385fbce982896d8e19c9081e1dab2",
-        "short_sha": "a4aede23f74",
-        "date": "2026-08-07T18:55:11-04:00",
+        "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+        "short_sha": "f0e6adc9a87",
+        "date": "2026-08-09T20:44:49-04:00",
         "author": {
-          "name": "Evan Bergeron",
-          "email": "evanbergeron@users.noreply.github.com"
+          "name": "mongo-pr-bot[bot]",
+          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
         },
-        "summary": "SERVER-133076 Rm unused documentToBsonWithPaths template parameters (#60528)"
+        "summary": "SERVER-111072 Auto-generated SBOM files [master] (#60649)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "conflict",
       "result": {
-        "fallback": true
+        "conflicting_files": [
+          "README.third_party.md",
+          "sbom.json"
+        ]
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-09 18:06:48",
+  "generated_at": "2026-08-10 06:28:30",
   "branch_name": "master",
   "display_name": "master"
 }
