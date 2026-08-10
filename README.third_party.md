@@ -148,7 +148,6 @@ here.
 
 Percona Server for MongoDB directly links the following dynamic libraries:
 
-<<<<<<< HEAD
 | Name                  | Typical Linked Library Filename(s)               |
 | --------------------- | ------------------------------------------------ |
 | GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |
@@ -161,23 +160,6 @@ Percona Server for MongoDB directly links the following dynamic libraries:
 
 Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just
 examples and can differ from platform to platform.
-||||||| a311a19dc33
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">2</a>]</sup> |
-| libcurl    |       No        |                           No                            |
-=======
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">3</a>]</sup> |
-| libcurl    |       No        |                           No                            |
->>>>>>> f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a
 
 ## Notes:
 
