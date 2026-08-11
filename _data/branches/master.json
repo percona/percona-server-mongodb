@@ -5,42 +5,92 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 36,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.344532624212963,
-    "files_affected": 200,
-    "total_additions": 9734,
-    "total_deletions": 2222,
+    "commits_behind": 37,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.084062219074074,
+    "files_affected": 192,
+    "total_additions": 9781,
+    "total_deletions": 2239,
     "date_range": {
-      "first": "2026-08-07T22:02:41+00:00",
-      "last": "2026-08-11T03:07:07+00:00"
+      "first": "2026-08-10T08:48:55+00:00",
+      "last": "2026-08-11T10:06:07+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "a311a19dc33e6e428e10d6192c945e1a797fa894",
-    "short_sha": "a311a19dc33",
-    "date": "2026-08-07T15:52:51-05:00",
+    "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+    "short_sha": "f0e6adc9a87",
+    "date": "2026-08-09T20:44:49-04:00",
     "author": {
-      "name": "Daniel Moody",
-      "email": "dmoody256@gmail.com"
+      "name": "mongo-pr-bot[bot]",
+      "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-132260 Create annotated release tags in Copybara (#60608)"
+    "summary": "SERVER-111072 Auto-generated SBOM files [master] (#60649)"
   },
   "first_unmerged_commit": {
-    "sha": "2f67495492126b6dde576ee240968fb07253436d",
-    "short_sha": "2f674954921",
-    "date": "2026-08-07T18:02:41-04:00",
+    "sha": "83d6e97a07077764f9ff6e2d97ecfab28d00ab4d",
+    "short_sha": "83d6e97a070",
+    "date": "2026-08-10T10:48:55+02:00",
     "author": {
-      "name": "Benjamin Pearce",
-      "email": "benjamin.pearce@mongodb.com"
+      "name": "Alberto Massari",
+      "email": "alberto.massari@mongodb.com"
     },
-    "summary": "SERVER-132745 Minimize cursor churn for bulk load phase (#60279)"
+    "summary": "SERVER-130392 Support projections in INLJ joined streams (#59764)"
   },
   "gate": {
     "open": true,
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "7b8f37e191beab7263962681b2ef10051a853c82",
+      "short_sha": "7b8f37e191b",
+      "date": "2026-08-11T06:06:07-04:00",
+      "author": {
+        "name": "Ruby Chen",
+        "email": "ruby.chen@mongodb.com"
+      },
+      "summary": "SERVER-132907 Move analyze histograms coverage into its own tagged test file (#60462)"
+    },
+    {
+      "sha": "5822efa4865eda9d4faf3ec3a51ca218a01ca6ae",
+      "short_sha": "5822efa4865",
+      "date": "2026-08-11T11:55:33+03:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-132942: change_stream_operation_response_max_ms.js is flaky, PBRT does not advance after an interrupted partial oplog scan (#60414)"
+    },
+    {
+      "sha": "f077dfaff31573b988a8f419606bb10b064fd554",
+      "short_sha": "f077dfaff31",
+      "date": "2026-08-11T10:33:45+02:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-132243 Add CBR JOO coexistence test (#60675)"
+    },
+    {
+      "sha": "fb98292e4058fb4521376fca07dce38ad43dc5d8",
+      "short_sha": "fb98292e405",
+      "date": "2026-08-11T10:08:16+02:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-132379 Update query stats README with new metrics (#60288)"
+    },
+    {
+      "sha": "f99b8b5da00bcf23a1240d65e9c0f32ea4817229",
+      "short_sha": "f99b8b5da00",
+      "date": "2026-08-11T09:34:06+02:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-132277 Avoid unnecessary array copies (#59652)"
+    },
     {
       "sha": "891ac7f0444a6fcd969f32f9623d45f32b060b19",
       "short_sha": "891ac7f0444",
@@ -360,68 +410,9 @@
         "email": "alberto.massari@mongodb.com"
       },
       "summary": "SERVER-130392 Support projections in INLJ joined streams (#59764)"
-    },
-    {
-      "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
-      "short_sha": "f0e6adc9a87",
-      "date": "2026-08-09T20:44:49-04:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-111072 Auto-generated SBOM files [master] (#60649)"
-    },
-    {
-      "sha": "a4aede23f74385fbce982896d8e19c9081e1dab2",
-      "short_sha": "a4aede23f74",
-      "date": "2026-08-07T18:55:11-04:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-133076 Rm unused documentToBsonWithPaths template parameters (#60528)"
-    },
-    {
-      "sha": "fae1ddfb3965226feb43a068c948671a6b3d8f3b",
-      "short_sha": "fae1ddfb396",
-      "date": "2026-08-07T18:28:11-04:00",
-      "author": {
-        "name": "Mickey J Winters",
-        "email": "314083+mjrb@users.noreply.github.com"
-      },
-      "summary": "SERVER-133147 Temporarily convert tassert(13002310) to invariant for BF-45368 core dump capture (#60622)"
-    },
-    {
-      "sha": "2f67495492126b6dde576ee240968fb07253436d",
-      "short_sha": "2f674954921",
-      "date": "2026-08-07T18:02:41-04:00",
-      "author": {
-        "name": "Benjamin Pearce",
-        "email": "benjamin.pearce@mongodb.com"
-      },
-      "summary": "SERVER-132745 Minimize cursor churn for bulk load phase (#60279)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
-        "short_sha": "f0e6adc9a87",
-        "date": "2026-08-09T20:44:49-04:00",
-        "author": {
-          "name": "mongo-pr-bot[bot]",
-          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "SERVER-111072 Auto-generated SBOM files [master] (#60649)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "README.third_party.md",
-          "sbom.json"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "efdc3796e002061867d7bb8257e3e8fcaba77bc6",
@@ -443,6 +434,24 @@
           "lines_deleted": 97,
           "num_of_dirs": 14
         }
+      }
+    },
+    {
+      "commit": {
+        "sha": "51a84c164482df85574a8fffb1d445c81e856d9a",
+        "short_sha": "51a84c16448",
+        "date": "2026-08-10T12:02:03-07:00",
+        "author": {
+          "name": "Andrew Bradshaw",
+          "email": "andrew.bradshaw@mongodb.com"
+        },
+        "summary": "SERVER-132847 Move low dependency workspace targets over to bzlmod (#60321)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "MODULE.bazel.lock"
+        ]
       }
     },
     {
@@ -493,7 +502,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-11 06:18:47",
+  "generated_at": "2026-08-11 10:49:56",
   "branch_name": "master",
   "display_name": "master"
 }
