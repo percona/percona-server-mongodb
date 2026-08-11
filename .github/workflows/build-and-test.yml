@@ -1,12 +1,27 @@
 name: build-and-test
 
-# pull_request_target runs the workflow file from the BASE branch (master) and
-# exposes secrets, while pull_request would withhold secrets for fork PRs and
-# break RBE. Because we still need to build the PR's source, the checkout step
-# below overrides the default base ref to the PR head SHA. That re-introduces
-# the "pwn-request" risk (running untrusted code with a secret), which is
-# mitigated by routing untrusted authors through the rbe-approve environment
-# whose required reviewers must approve every push.
+# This workflow runs on three triggers with different trust models:
+#
+# * pull_request_target -- runs the workflow file from the BASE branch (master)
+#   and exposes secrets, while pull_request would withhold secrets for fork PRs
+#   and break RBE. Because we still need to build the PR's source, the checkout
+#   step below overrides the default base ref to the PR head SHA (TARGET_REF).
+#   That re-introduces the "pwn-request" risk (running untrusted code with a
+#   secret), which is mitigated by routing untrusted authors through the
+#   rbe-approve environment whose required reviewers must approve every push.
+# * schedule (weekly cron) -- a full weekly regression run on `master`.
+# * workflow_dispatch (manual) -- run on demand, optionally against a specific
+#   commit hash / tag / branch via the `ref` input (empty => the branch the
+#   dispatch was started on).
+#
+# schedule and workflow_dispatch run ALREADY-MERGED, TRUSTED code (and
+# workflow_dispatch is restricted by GitHub to actors with write access), so
+# there is no untrusted-author pwn-request to mitigate: both bypass the
+# rbe-approve approval gate and route straight to the ungated `rbe` environment
+# (see the gate job's `environment:` and the event-aware guards below). All of
+# the PR-only context (`github.event.pull_request.*`, `github.base_ref`) is
+# absent on these events, so ref resolution and gating are generalized via the
+# TARGET_REF / TRUSTED_REF env vars and the `github.event_name` checks below.
 on:
   pull_request_target:
     # Deliberately NOT triggered on labeled/unlabeled. The workflow is a single
@@ -27,11 +42,33 @@ on:
     branches:
       - master
       - "mergai/**"
+  # Weekly full regression, Friday 22:00 UTC (late evening, clear of the daily
+  # 05:00 periodic-merge and the weekday 06:00 update-fork-status runs). Always
+  # runs on `master` (see TARGET_REF); GitHub only schedules cron from the
+  # default branch. cron cadence must be a literal here -- it cannot come from a
+  # repo variable.
+  schedule:
+    - cron: "0 22 * * 5"
+  # Manual entry point. `ref` optionally targets a specific commit hash, tag, or
+  # branch; when left empty it defaults to the branch the dispatch runs on
+  # (github.ref) via TARGET_REF. Restricted by GitHub to actors with write
+  # access, so it is trusted and skips the rbe-approve gate.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit hash, tag, or branch to build and test. Empty => the branch this run was started on."
+        required: false
+        type: string
+        default: ""
 
 # One concurrency group per PR: a newer code event (push, reopen, ready) for the
-# same PR supersedes an older in-flight run (cancel-in-progress).
+# same PR supersedes an older in-flight run (cancel-in-progress). Non-PR events
+# have no pull_request.number, so they fall back to github.run_id -- a value
+# unique per run, giving each scheduled/manual run its own group so they never
+# cancel one another (a weekly run must not kill an in-flight manual
+# investigation, and vice versa).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -64,6 +101,31 @@ permissions:
 # variable never reaches a running bazel invocation. If you set
 # PSMDB_RBE_ENABLED=true you MUST also set the PSMDB_RBE_* variables below.
 env:
+  # Single source of truth for what to build/test, resolved once from the
+  # trigger and consumed by every "Checkout target ref" step. The OR chain is
+  # ordered so each event hits its own clause before reaching `inputs.ref`
+  # (which only exists for workflow_dispatch):
+  #   pull_request_target -> PR head SHA (untrusted code; gated by rbe-approve)
+  #   schedule            -> master (weekly regression)
+  #   workflow_dispatch   -> the `ref` input, or github.ref when it is empty
+  # GHA `&&`/`||` short-circuits: a false left side falls through to the next
+  # clause, and `inputs.ref != '' && inputs.ref` yields the input only when set.
+  TARGET_REF: >-
+    ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha
+    || github.event_name == 'schedule' && 'master'
+    || inputs.ref != '' && inputs.ref
+    || github.ref }}
+  # The trusted, branch-protected ref that composite actions are loaded from
+  # (the `_trusted/` checkout). For a PR this is the base branch (master or
+  # mergai/*), NEVER the untrusted PR head -- see the per-job checkout comments.
+  # For schedule/workflow_dispatch the entire checkout is already trusted
+  # (merged code, or a ref a write-access operator explicitly chose), so the
+  # trusted copy is just the target ref itself and this mirrors TARGET_REF.
+  TRUSTED_REF: >-
+    ${{ github.event_name == 'pull_request_target' && github.base_ref
+    || github.event_name == 'schedule' && 'master'
+    || inputs.ref != '' && inputs.ref
+    || github.ref }}
   RBE_REMOTE_EXECUTOR: ${{ vars.PSMDB_RBE_REMOTE_EXECUTOR }}
   RBE_REMOTE_CACHE: ${{ vars.PSMDB_RBE_REMOTE_CACHE }}
   RBE_BES_BACKEND: ${{ vars.PSMDB_RBE_BES_BACKEND }}
@@ -130,7 +192,10 @@ env:
 # access pushed it, so same-repo is the trust signal -- mergai bot PRs
 # (mergai/** on this repo) and maintainers' own branches skip the approval,
 # forks do not. author_association is intentionally NOT used (spoofable in some
-# contexts); same-repo is the reliable signal.
+# contexts); same-repo is the reliable signal. Non-PR events
+# (schedule/workflow_dispatch) also route to the ungated `rbe`: they run
+# already-merged code, and workflow_dispatch is restricted by GitHub to
+# write-access actors, so there is no untrusted author to gate.
 #
 # SECURITY PREREQUISITES for the production repo (defense in depth; less
 # critical on a personal test fork): (1) audit how a malicious
@@ -142,8 +207,9 @@ jobs:
   # `rbe-approve` environment authorizes the entire workflow run's downstream
   # RBE access, including the `unittests` job that doesn't run until ~30
   # minutes later -- the maintainer reviewing the PR is implicitly approving
-  # every job that transitively depends on `gate`. Same-repo PRs resolve to the
-  # ungated `rbe` environment and proceed with no click. Runs on every trigger.
+  # every job that transitively depends on `gate`. Same-repo PRs and non-PR
+  # events (schedule/workflow_dispatch) resolve to the ungated `rbe` environment
+  # and proceed with no click. Runs on every trigger.
   gate:
     name: gate
     # Master switch for the entire RBE pipeline: `vars.PSMDB_RBE_ENABLED` must
@@ -153,7 +219,13 @@ jobs:
     # dark on a repo/fork that has not opted into remote Bazel.
     if: ${{ vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
-    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'rbe' || 'rbe-approve' }}
+    # Route to the ungated `rbe` environment (no approval) for any non-PR event
+    # (schedule/workflow_dispatch run trusted, already-merged code; dispatch is
+    # write-access only) and for same-repo PRs; fork/external PRs get the gated
+    # `rbe-approve`. On non-PR events `github.event.pull_request.*` is empty, so
+    # the head-repo comparison would spuriously resolve to `rbe-approve` -- the
+    # explicit event_name check short-circuits that.
+    environment: ${{ (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name == github.repository) && 'rbe' || 'rbe-approve' }}
     steps:
       # Fail fast on RBE misconfiguration. This job runs only when
       # PSMDB_RBE_ENABLED == 'true', and in that case every RBE endpoint variable
@@ -186,9 +258,11 @@ jobs:
 
       # Block scalar (|) so the literal '#' in "PR #N" is not interpreted
       # as a YAML comment marker — that's what truncated the string and
-      # produced the "unexpected EOF" bash error on the first run.
+      # produced the "unexpected EOF" bash error on the first run. The PR
+      # number is empty on schedule/workflow_dispatch, so the message reports
+      # the event and resolved ref instead of a "PR #".
       - run: |
-          echo "RBE access approved for PR #${{ github.event.pull_request.number }} by ${{ github.actor }}"
+          echo "RBE access approved for ${{ github.event_name }} (ref=${TARGET_REF}) by ${{ github.actor }}"
 
   # Format gate. `build` waits for it, so build never starts until the `format`
   # workflow has passed (format is ~6 min, so the happy-path delay is small). The
@@ -223,12 +297,16 @@ jobs:
   format_gate:
     name: format-gate
     needs: gate
-    # Skipped on a draft, exactly like build. build additionally requires
+    # Skipped on a draft PR, exactly like build. build additionally requires
     # passed == 'true', which is empty (falsey) when this job is skipped, so a
-    # draft stays fully skipped and consistent.
+    # draft stays fully skipped and consistent. The draft check is guarded by
+    # the event name: on schedule/workflow_dispatch there is no PR (draft is
+    # empty, not `false`), so the job must still run -- it then short-circuits
+    # to passed=true in the step below (there is no format run to wait for).
     if: >-
       ${{ vars.PSMDB_RBE_ENABLED == 'true'
-      && github.event.pull_request.draft == false }}
+      && (github.event_name != 'pull_request_target'
+      || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-24.04
     outputs:
       passed: ${{ steps.wait.outputs.passed }}
@@ -242,6 +320,16 @@ jobs:
           WORKFLOW: format.yml
         run: |
           set -euo pipefail
+          # No format gate for non-PR events: the `format` workflow only runs on
+          # `pull_request`, so a scheduled/manual ref has no format run to poll
+          # (an unbounded poll would just hang until the job timeout). Treat the
+          # gate as passed and let build proceed -- the ref is trusted, merged
+          # code (or an operator-chosen ref) that was format-checked when merged.
+          if [ "${{ github.event_name }}" != "pull_request_target" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+            echo "Non-PR event (${{ github.event_name }}) -> skipping format gate."
+            exit 0
+          fi
           # Poll the workflow's latest run for this PR head SHA until it
           # completes, then read its conclusion. status/conclusion stay empty
           # while the run hasn't appeared or is still running. Unbounded; the
@@ -277,7 +365,8 @@ jobs:
     # draft guard.
     if: >-
       ${{ vars.PSMDB_RBE_ENABLED == 'true'
-      && github.event.pull_request.draft == false
+      && (github.event_name != 'pull_request_target'
+      || github.event.pull_request.draft == false)
       && needs.format_gate.outputs.passed == 'true' }}
     # Pinned to ubuntu-24.04 (not ubuntu-latest) because this workflow
     # depends on runner specifics that change silently when GH rolls the
@@ -298,29 +387,35 @@ jobs:
       PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
       PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
     steps:
-      # PR head is the source we're going to build/test. Loaded into the
-      # default workspace ($GITHUB_WORKSPACE) so bazel sees it as the
-      # checkout root. Done FIRST so the subsequent base checkout into
-      # `_trusted/` lands alongside without `git clean` ever traversing it.
-      - name: Checkout PR head
+      # TARGET_REF is the source we're going to build/test (PR head SHA on a PR;
+      # master on the weekly run; the input/branch on a manual run -- see the
+      # workflow env block). Loaded into the default workspace
+      # ($GITHUB_WORKSPACE) so bazel sees it as the checkout root. Done FIRST so
+      # the subsequent trusted checkout into `_trusted/` lands alongside without
+      # `git clean` ever traversing it.
+      - name: Checkout target ref
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.TARGET_REF }}
           fetch-depth: 0
 
-      # Trusted base-branch copy of the repo, used ONLY to resolve composite
+      # Trusted copy of the repo (TRUSTED_REF), used ONLY to resolve composite
       # actions referenced below via `./_trusted/.github/actions/<name>`.
       # Without this, `uses: ./.github/actions/<name>` would resolve against
-      # the PR head checkout above, letting a malicious PR replace the
+      # the TARGET_REF checkout above, letting a malicious PR replace the
       # action's contents and run arbitrary code with the `rbe` environment
       # secrets and `id-token: write` capability that this job carries.
-      # `github.base_ref` is a branch name (master or mergai/*), both of
-      # which are protected against force-push, so the resolved tip is
-      # trusted by the same branch-protection rules that gate normal merges.
+      # On a PR, TRUSTED_REF is `github.base_ref` -- a branch name (master or
+      # mergai/*), both protected against force-push, so the resolved tip is
+      # trusted by the same branch-protection rules that gate normal merges. On
+      # schedule/workflow_dispatch there is no untrusted PR head: TRUSTED_REF
+      # equals TARGET_REF (trusted merged code / an operator-chosen ref), so
+      # this simply re-checks out the same trusted tree for the composite
+      # actions.
       - name: Checkout base (trusted) for composite actions
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ env.TRUSTED_REF }}
           path: _trusted
           fetch-depth: 1
 
@@ -422,10 +517,10 @@ jobs:
       PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
       PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout target ref
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.TARGET_REF }}
           fetch-depth: 0
 
       # See the matching step in `build` for the rationale behind loading
@@ -433,7 +528,7 @@ jobs:
       - name: Checkout base (trusted) for composite actions
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ env.TRUSTED_REF }}
           path: _trusted
           fetch-depth: 1
 
@@ -572,10 +667,10 @@ jobs:
       PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
       PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout target ref
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.TARGET_REF }}
           fetch-depth: 0
 
       # See the matching step in `build` for the rationale behind loading
@@ -583,7 +678,7 @@ jobs:
       - name: Checkout base (trusted) for composite actions
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ env.TRUSTED_REF }}
           path: _trusted
           fetch-depth: 1
 
@@ -783,6 +878,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RUN_JSTESTS: ${{ vars.RUN_JSTESTS }}
         run: |
+          # No PR labels to consult on schedule/workflow_dispatch: run the full
+          # jstests suite unconditionally (the weekly/manual regression is the
+          # whole point). This also overrides a repo-level vars.RUN_JSTESTS=false
+          # default, which is only meant to trim PR runs.
+          if [ "${{ github.event_name }}" != "pull_request_target" ]; then
+            echo "Non-PR event (${{ github.event_name }}) -> running full jstests suite"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # Fetch the PR's current labels (fresh, not from the trigger payload).
           LABELS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} --jq '.labels[].name' 2>/dev/null || echo "")
           if echo "$LABELS" | grep -qx "ci-skip-jstests"; then
@@ -852,7 +956,8 @@ jobs:
       && needs.gate.result == 'success'
       && needs.jstests_gate.result == 'success'
       && needs.jstests_gate.outputs.should_run == 'true'
-      && github.event.pull_request.draft == false
+      && (github.event_name != 'pull_request_target'
+      || github.event.pull_request.draft == false)
       && needs.build.result == 'success' }}
     # See `build.runs-on` above for why this is pinned, not `ubuntu-latest`.
     runs-on: ubuntu-24.04
@@ -863,10 +968,10 @@ jobs:
       PSMDB_RBE_GHA_AUDIENCE: ${{ secrets.PSMDB_RBE_GHA_AUDIENCE }}
       PSMDB_RBE_OIDC_ISSUER: ${{ secrets.PSMDB_RBE_OIDC_ISSUER }}
     steps:
-      - name: Checkout PR head
+      - name: Checkout target ref
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ env.TARGET_REF }}
           fetch-depth: 0
 
       # See the matching step in `build` for the rationale behind loading
@@ -874,7 +979,7 @@ jobs:
       - name: Checkout base (trusted) for composite actions
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ env.TRUSTED_REF }}
           path: _trusted
           fetch-depth: 1
 
