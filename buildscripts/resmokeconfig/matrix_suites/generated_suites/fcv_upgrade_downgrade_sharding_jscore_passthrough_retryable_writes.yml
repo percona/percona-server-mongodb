@@ -86,6 +86,7 @@ selector:
     - jstests/core/shell/bench_test1.js
     - jstests/core_sharding/resharding/*.js
     - jstests/core/query/query_settings/query_settings_size_limits.js
+    - jstests/core/txns/bulk_write_getMore.js
     - jstests/core/txns/**/*.js
     - jstests/core/**/operation_latency_histogram.js
     - jstests/core/**/profile2.js
@@ -124,6 +125,7 @@ selector:
     - requires_fcv_82
     - requires_fcv_83
     - requires_fcv_90
+    - requires_fcv_91
     - cannot_run_during_upgrade_downgrade
     - requires_2_or_more_shards
     - does_not_support_causal_consistency
