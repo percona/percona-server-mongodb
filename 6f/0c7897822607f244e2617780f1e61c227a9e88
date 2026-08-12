@@ -1,0 +1,420 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "87054fa0536c4dbdc554d93dd266bc00356d92b5",
+    "merge_commit": "21b0ab11511124809597fd5fb016f8ca5bfc20f6"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "87054fa0536c4dbdc554d93dd266bc00356d92b5",
+    "theirs_commit": "21b0ab11511124809597fd5fb016f8ca5bfc20f6",
+    "base_commit": "f0e6adc9a87d4edf1f86ca0f92f4ec82d5d0d78a",
+    "files": [
+      "MODULE.bazel.lock"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 61e9656f998,15978989ba4..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"EiCNnTc4LzcJqIiRxra+0/SNtstQV7K4jswqowu9JJw=\",\n++||||||| f0e6adc9a87\n++        \"bzlTransitiveDigest\": \"8doB89iUTfdFhlMKw8H0N70fA+GAaKmbbiwxG9ncTu4=\",\n++=======\n+         \"bzlTransitiveDigest\": \"I5PaojsBKW1HVmcYHwU0ZOQyD8u+fglp9ZhNyuH4pT4=\",\n++>>>>>>> 21b0ab11511124809597fd5fb016f8ca5bfc20f6"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "51a84c164482df85574a8fffb1d445c81e856d9a",
+        "e8a8a3eed92d3df478f1def28a8c5d0df51b60d0"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "21b0ab11511124809597fd5fb016f8ca5bfc20f6",
+    "merged_commits": [
+      "21b0ab11511124809597fd5fb016f8ca5bfc20f6",
+      "7b8f37e191beab7263962681b2ef10051a853c82",
+      "5822efa4865eda9d4faf3ec3a51ca218a01ca6ae",
+      "f077dfaff31573b988a8f419606bb10b064fd554",
+      "fb98292e4058fb4521376fca07dce38ad43dc5d8",
+      "f99b8b5da00bcf23a1240d65e9c0f32ea4817229",
+      "891ac7f0444a6fcd969f32f9623d45f32b060b19",
+      "f506de60d8fc2b8eb24019f007505709261448f5",
+      "33a7efa4d685738643add621c345ff07732b4230",
+      "ef28a4c70a49055dbcb2b3c85ca56d7a2256e345",
+      "27930347edc9b9829afb1a3db8bc84d0649896f2",
+      "e2da8964acc77b42628f4ea34dbc2e5bc2cff43a",
+      "2f926ea233d14a3dce49a5e6056b04914614b7f9",
+      "ad5cd651e1d2cd89db4dc696d1cce318dec70f66",
+      "0c8a2a1eb0b847667f3863ce1f27280a17d4d5ee",
+      "5a6354988e68f7037f9e332397bb4b97b576c067",
+      "f243b748c7b00f2691ffaa65ccf0f1572865c954",
+      "51a84c164482df85574a8fffb1d445c81e856d9a",
+      "451fa9e0edc76f8f2f30170f23a608f12b51e4db",
+      "4e7ef630a9d1b9d7870390034a4168757df67902",
+      "d863a1157480967de8d7afa2279088da5e1b4d77",
+      "0c43b83ddb0dcca5232717c7307403f2f53031c2",
+      "4665ca2e3ae40ff0d50f6df2fedf7ea0b510a0ac",
+      "efdc3796e002061867d7bb8257e3e8fcaba77bc6",
+      "550c2fc29039e77e434fcf7839d2054fcc574ed7",
+      "0623ee4fc17ed3c36f841db2beb4e3cd63735e9e",
+      "ea05ac3d23940ad71d2e12f3fa698b65f0a1ab0b",
+      "f36f65fe08b33f0152e019cf5378cd62abc63be3",
+      "af56408cbae3a348ae4d8daf0eedf0a8d4aef311",
+      "df222ebcee16a2d57adbd137d0ddb6ef1cee459a",
+      "93cd8d059e801f06d35f8fc588218239fd430b81",
+      "e8a8a3eed92d3df478f1def28a8c5d0df51b60d0",
+      "5c0318d52b0fe96b92620dae8d979cc29045b819",
+      "2646302967a4f1f7b651c39adcf253dc9d572a2f",
+      "a6f09228a2266de290f11b756eb299dde85a7399",
+      "c7cab76df2e90f0785b7bf058bc1498ab00ac22b",
+      "8a7911c47b10ec1fbbb55b13ee87927352f01da1",
+      "83d6e97a07077764f9ff6e2d97ecfab28d00ab4d"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "bazel/resmoke/resmoke.bzl",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 289312,
+      "num_turns": 7,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.1588535,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 14,
+          "outputTokens": 1860,
+          "cacheReadInputTokens": 89261,
+          "cacheCreationInputTokens": 10716,
+          "webSearchRequests": 0,
+          "costUSD": 0.1581755,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 14,
+              "output": 1860,
+              "cache_read": 89261,
+              "cache_creation": 10716
+            },
+            "cost_usd": 0.1581755
+          }
+        }
+      },
+      "text_result": "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this generated lock file must not be hand-merged), I removed the conflict markers around the `bzlTransitiveDigest` entry, then ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly.\n- Verified no conflict markers remain.\n\nThe JSON response has been written to the specified response file.",
+      "response": {
+        "summary": "Resolved the single merge conflict in MODULE.bazel.lock. This lock file cannot be manually merged, so per the conflict hints I first removed all conflict markers by accepting one side of the conflicting bzlTransitiveDigest value, then executed 'bazel query //... >/dev/null' to regenerate the file correctly.",
+        "resolved": {
+          "MODULE.bazel.lock": "Removed the conflict markers around the 'bzlTransitiveDigest' entry under '//bazel:bzlmod.bzl%setup_mongo_python_toolchains' by accepting the theirs value, then ran 'bazel query //... >/dev/null' to regenerate the lock file. Verified no conflict markers remain and bazel exited successfully (exit 0)."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "MODULE.bazel.lock is a generated lock file that must not be hand-merged. Conflict markers were stripped first so bazel could run, then the file was regenerated via 'bazel query //... >/dev/null' (exit code 0). The resulting diff is minimal (1 insertion, 7 deletions) reflecting the regenerated digest."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now regenerate the lock file with bazel:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All conflict markers are gone and bazel regenerated the lock file cleanly. Now writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this generated lock file must not be hand-merged), I removed the conflict markers around the `bzlTransitiveDigest` entry, then ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly.\n- Verified no conflict markers remain.\n\nThe JSON response has been written to the specified response file."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260812_053941_737424.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.228 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 70171,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.3876365,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 10,
+        "outputTokens": 4399,
+        "cacheReadInputTokens": 107042,
+        "cacheCreationInputTokens": 35746,
+        "webSearchRequests": 0,
+        "costUSD": 0.38695850000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10,
+            "output": 4399,
+            "cache_read": 107042,
+            "cache_creation": 35746
+          },
+          "cost_usd": 0.38695850000000004
+        }
+      }
+    },
+    "text_result": "I read the incoming diff (`f0e6adc9a87 \u2192 21b0ab1`) for each auto-merged file and wrote the JSON response. Summary of what the merge pulls in:\n\n- **BUILD.bazel** \u2014 `mongot-localdev`'s `include_external_repositories` changed `\"mongot_localdev\"` \u2192 `\"*mongot_localdev\"`.\n- **bazel/resmoke/resmoke.bzl** \u2014 new `roots`/`config_roots` support so a suite's selector roots can be given as explicit path/glob strings, letting `*_config` build without the full test corpus.\n- **replication_coordinator_impl.cpp** \u2014 largest change: removes the standalone `WriteConcernWaiterList` implementation, folds it into the `_replicationWaiterList` API (lock-free `add`/`remove`/`setErrorAll`, new `getWriteConcerns`/`numWaiters`/`setValueIf`), and swaps `std::lock_guard`/`std::unique_lock`/`WithLock` for a `LockGuard` type throughout.\n- **servers.js** \u2014 `\"last-patch\"` bin-version sub changed from `shellVersion()` to `fcvConstants.latest`.\n- **conn_api.c** \u2014 adds `__wti_disagg_deferred_pickup_server_destroy()` in the connection-close path.\n- **wiredtiger.h.in** \u2014 new disagg/layered stat defines plus renumbering of existing `WT_STAT_CONN_*` constants.\n- **MODULE.bazel.lock** \u2014 the only real conflict (`bzlTransitiveDigest`); per policy it's regenerated, not hand-merged.\n\nResponse written to `.cache/mergai/response_20260812_053828_127679.json`.",
+    "response": {
+      "summary": "Auto-merge of an upstream MongoDB batch into the PSMDB master fork branch. The incoming changes refactor the replication coordinator's waiter/write-concern locking machinery, extend the Bazel resmoke rule to accept explicit selector root strings, adjust the mongot-localdev external-repository glob in BUILD.bazel, change the shell 'last-patch' bin-version substitution, and pull in WiredTiger changes around disaggregated-storage deferred checkpoint pick-up (a new server-destroy call plus new/renumbered statistics). The only textual conflict was in MODULE.bazel.lock (bzlTransitiveDigest), which is regenerated rather than hand-merged.",
+      "auto_merged": {
+        "BUILD.bazel": "In the copy_to_directory rule that produces 'mongot-localdev', the include_external_repositories entry is changed from \"mongot_localdev\" to \"*mongot_localdev\" (adds a leading glob wildcard).",
+        "MODULE.bazel.lock": "Both sides modified the 'bzlTransitiveDigest' value, producing a one-line conflict. Per project policy this lock file is not hand-merged: the conflict markers are removed by taking one side and the file is regenerated with `bazel query //... >/dev/null`.",
+        "bazel/resmoke/resmoke.bzl": "Adds support for supplying explicit selector 'roots' to a resmoke config instead of deriving them from srcs. The resmoke_config rule gains a new 'roots' string_list attribute; _resmoke_config_impl writes those root strings verbatim (taking no dependency on srcs) when 'roots' is set, otherwise falls back to the existing srcs-derived behavior. resmoke_suite_test gains a 'config_roots' parameter with a new _resolve_config_root helper that strips a leading '//' from workspace-relative path/glob strings; when config_roots is set the generated *_config target is built with empty srcs so the (potentially very large) test corpus need not be built, and resmoke expands glob patterns at run time. The passthrough / auto-derive-srcs logic is updated to account for config_roots.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Upstream refactor of the replication waiter and write-concern locking machinery. The standalone WriteConcernWaiterList class implementation (constructor, add/remove overloads, setValueIf, setErrorAll) is removed, and its responsibilities are folded into the _replicationWaiterList API: waiter add/remove/setErrorAll calls no longer take a lock argument, and write-concern fulfillment now goes through new-style calls (getWriteConcerns(), numWaiters(writeConcern), setValueIf(...) taking a fulfillment map). Throughout the file the lock types std::lock_guard/std::unique_lock and WithLock parameters are replaced with a LockGuard type (by value for RAII acquisition and LockGuard& for helpers such as _resetMyLastOpTimes, _setMyLast*OpTimeAndWallTime, _reportUpstream, _setCurrentRSConfig, _wakeReadyWaiters, _updateLastCommittedOpTimeAndWallTime, _setStableTimestampForStorage). No conflict markers; auto-merged cleanly.",
+        "src/mongo/shell/servers.js": "In MongoRunner.binVersionSubs, the \"last-patch\" VersionSub replacement value is changed from shellVersion() to fcvConstants.latest.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In the connection-close path, adds a WT_TRET(__wti_disagg_deferred_pickup_server_destroy(session)) call (with an explanatory comment) to stop the deferred checkpoint pick-up server before transactional activity shuts down and before the session-closing walk, so an in-flight adoption completes while snapshot visibility still works and does not race session closing.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated statistics header update. Adds several new disagg/layered stat definitions (e.g. WT_STAT_CONN_DISAGG_CHECKPOINT_DEFER, WT_STAT_CONN_DISAGG_CHECKPOINT_META_LSN, WT_STAT_CONN_DISAGG_CHECKPOINT_DELIVERED_LSN, WT_STAT_CONN_DISAGG_SNAPSHOT_REBUILD, WT_STAT_CONN_DISAGG_STEP_DOWN_WINDOW_CREATES, WT_STAT_CONN_LAYERED_CURS_OPEN_STABLE_REFUSED) and renumbers the numeric values of the following existing WT_STAT_CONN_* constants accordingly."
+      },
+      "review_notes": "Direction verified as diff base (f0e6adc9a87) -> merge commit (21b0ab1). The replication_coordinator_impl.cpp change is the largest and most sensitive: confirm the fork's Percona-specific replication customizations still compile against the new lock-free waiter APIs (setValueIf/add/remove no longer take a WithLock, WriteConcernWaiterList class removed). Verify the corresponding header declarations (LockGuard typedef, WaiterList/getWriteConcerns/numWaiters) came in with the same batch so the .cpp builds. MODULE.bazel.lock must be regenerated via `bazel query //... >/dev/null` after all other files are resolved. The wiredtiger.h.in change is a generated file; ensure it stays consistent with the accompanying WiredTiger source (conn_api.c and the stat table) so stat IDs are not duplicated."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the incoming diff for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me read the full output to see all diffs."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me see the rest of the replication_coordinator_impl.cpp diff to gauge its full scope."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files accurately. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the incoming diff (`f0e6adc9a87 \u2192 21b0ab1`) for each auto-merged file and wrote the JSON response. Summary of what the merge pulls in:\n\n- **BUILD.bazel** \u2014 `mongot-localdev`'s `include_external_repositories` changed `\"mongot_localdev\"` \u2192 `\"*mongot_localdev\"`.\n- **bazel/resmoke/resmoke.bzl** \u2014 new `roots`/`config_roots` support so a suite's selector roots can be given as explicit path/glob strings, letting `*_config` build without the full test corpus.\n- **replication_coordinator_impl.cpp** \u2014 largest change: removes the standalone `WriteConcernWaiterList` implementation, folds it into the `_replicationWaiterList` API (lock-free `add`/`remove`/`setErrorAll`, new `getWriteConcerns`/`numWaiters`/`setValueIf`), and swaps `std::lock_guard`/`std::unique_lock`/`WithLock` for a `LockGuard` type throughout.\n- **servers.js** \u2014 `\"last-patch\"` bin-version sub changed from `shellVersion()` to `fcvConstants.latest`.\n- **conn_api.c** \u2014 adds `__wti_disagg_deferred_pickup_server_destroy()` in the connection-close path.\n- **wiredtiger.h.in** \u2014 new disagg/layered stat defines plus renumbering of existing `WT_STAT_CONN_*` constants.\n- **MODULE.bazel.lock** \u2014 the only real conflict (`bzlTransitiveDigest`); per policy it's regenerated, not hand-merged.\n\nResponse written to `.cache/mergai/response_20260812_053828_127679.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260812_053828_127533.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.228 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "21b0ab11511124809597fd5fb016f8ca5bfc20f6",
+    "short_sha": "21b0ab11511",
+    "strategy": null,
+    "summary": "Cutting here yields a 38-commit batch (within the 30-65 band) that ends on a clean, self-contained milestone: SERVER-129707 'Upgrade FCV Constants and Tag the first new commit in master with 9.1.0-alpha0' - a version-tag/branching-point commit that regenerates FCV constants across a well-isolated set of files and is easy to validate post-merge. This boundary keeps every revert pair intact: it includes SERVER-133035 (efdc3796) together with its revert (891ac7f0) and the wiredtiger import (f506de60) that sits between them, so nothing lands half-applied. Critically, it stops SHORT of the cluster of still-unsettled commits later in the window that upstream reverts: SERVER-133105 (e78de88a, reverted by 3c2c12cb), SERVER-126129 (2ad98be2, reverted by d8f29539), and SERVER-133205/SERVER-132920 back-and-forth. Pushing further toward ~50 would import those features without their reverts (which live near position ~80), wasting conflict-resolution effort; going all the way to include the reverts would blow past the window's freshest, churniest commits. Ending on the FCV milestone lets that churn settle upstream and the next batch import the resolved result.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31566986626"
+  },
+  "note_index": [
+    {
+      "sha": "6f0c7897822607f244e2617780f1e61c227a9e88",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "757f87b6151cb39ac08a9159f4ac472769f48454",
+      "message": "Merge commit '21b0ab11511' into master"
+    },
+    {
+      "sha": "46641145cf4eeb5ef45d64ea86850ed8a0d553ed",
+      "message": "Resolve conflicts for merge commit '21b0ab11511' into master"
+    }
+  ]
+}
