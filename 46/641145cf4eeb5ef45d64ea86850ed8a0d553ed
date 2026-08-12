@@ -1,0 +1,160 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "87054fa0536c4dbdc554d93dd266bc00356d92b5",
+    "merge_commit": "21b0ab11511124809597fd5fb016f8ca5bfc20f6"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 289312,
+      "num_turns": 7,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.1588535,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000678,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 14,
+          "outputTokens": 1860,
+          "cacheReadInputTokens": 89261,
+          "cacheCreationInputTokens": 10716,
+          "webSearchRequests": 0,
+          "costUSD": 0.1581755,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000678
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 14,
+              "output": 1860,
+              "cache_read": 89261,
+              "cache_creation": 10716
+            },
+            "cost_usd": 0.1581755
+          }
+        }
+      },
+      "text_result": "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this generated lock file must not be hand-merged), I removed the conflict markers around the `bzlTransitiveDigest` entry, then ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly.\n- Verified no conflict markers remain.\n\nThe JSON response has been written to the specified response file.",
+      "response": {
+        "summary": "Resolved the single merge conflict in MODULE.bazel.lock. This lock file cannot be manually merged, so per the conflict hints I first removed all conflict markers by accepting one side of the conflicting bzlTransitiveDigest value, then executed 'bazel query //... >/dev/null' to regenerate the file correctly.",
+        "resolved": {
+          "MODULE.bazel.lock": "Removed the conflict markers around the 'bzlTransitiveDigest' entry under '//bazel:bzlmod.bzl%setup_mongo_python_toolchains' by accepting the theirs value, then ran 'bazel query //... >/dev/null' to regenerate the lock file. Verified no conflict markers remain and bazel exited successfully (exit 0)."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "MODULE.bazel.lock is a generated lock file that must not be hand-merged. Conflict markers were stripped first so bazel could run, then the file was regenerated via 'bazel query //... >/dev/null' (exit code 0). The resulting diff is minimal (1 insertion, 7 deletions) reflecting the regenerated digest."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now regenerate the lock file with bazel:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All conflict markers are gone and bazel regenerated the lock file cleanly. Now writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this generated lock file must not be hand-merged), I removed the conflict markers around the `bzlTransitiveDigest` entry, then ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly.\n- Verified no conflict markers remain.\n\nThe JSON response has been written to the specified response file."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260812_053941_737424.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.228 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
