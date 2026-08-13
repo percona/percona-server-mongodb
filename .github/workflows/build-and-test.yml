@@ -14,9 +14,11 @@ name: build-and-test
 #   commit hash / tag / branch via the `ref` input (empty => the branch the
 #   dispatch was started on).
 #
-# schedule and workflow_dispatch run ALREADY-MERGED, TRUSTED code (and
-# workflow_dispatch is restricted by GitHub to actors with write access), so
-# there is no untrusted-author pwn-request to mitigate: both bypass the
+# schedule and workflow_dispatch run TRUSTED code, so there is no
+# untrusted-author pwn-request to mitigate: schedule always builds
+# already-merged `master`, and workflow_dispatch -- though it may target an
+# arbitrary, possibly-unmerged ref -- is restricted by GitHub to actors with
+# write access, so the ref was chosen by a trusted operator. Both bypass the
 # rbe-approve approval gate and route straight to the ungated `rbe` environment
 # (see the gate job's `environment:` and the event-aware guards below). All of
 # the PR-only context (`github.event.pull_request.*`, `github.base_ref`) is
@@ -193,9 +195,10 @@ env:
 # (mergai/** on this repo) and maintainers' own branches skip the approval,
 # forks do not. author_association is intentionally NOT used (spoofable in some
 # contexts); same-repo is the reliable signal. Non-PR events
-# (schedule/workflow_dispatch) also route to the ungated `rbe`: they run
-# already-merged code, and workflow_dispatch is restricted by GitHub to
-# write-access actors, so there is no untrusted author to gate.
+# (schedule/workflow_dispatch) also route to the ungated `rbe`: schedule runs
+# already-merged `master`, and workflow_dispatch (which may target an unmerged
+# ref) is restricted by GitHub to write-access actors, so there is no untrusted
+# author to gate.
 #
 # SECURITY PREREQUISITES for the production repo (defense in depth; less
 # critical on a personal test fork): (1) audit how a malicious
@@ -220,8 +223,9 @@ jobs:
     if: ${{ vars.PSMDB_RBE_ENABLED == 'true' }}
     runs-on: ubuntu-24.04
     # Route to the ungated `rbe` environment (no approval) for any non-PR event
-    # (schedule/workflow_dispatch run trusted, already-merged code; dispatch is
-    # write-access only) and for same-repo PRs; fork/external PRs get the gated
+    # (schedule runs already-merged `master`; workflow_dispatch may target an
+    # unmerged ref but is write-access only, so it is trusted) and for same-repo
+    # PRs; fork/external PRs get the gated
     # `rbe-approve`. On non-PR events `github.event.pull_request.*` is empty, so
     # the head-repo comparison would spuriously resolve to `rbe-approve` -- the
     # explicit event_name check short-circuits that.
