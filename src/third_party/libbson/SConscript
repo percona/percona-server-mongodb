@@ -3,6 +3,11 @@ Import("env")
 
 env = env.Clone()
 
+if env['TARGET_OS'] != 'linux':
+    env.FatalError(f"Unsupported OS: `{env['TARGET_OS']}`")
+if env['TARGET_ARCH'] not in ('x86_64', 'aarch64'):
+    env.FatalError(f"Unsupported CPU architecture: `{env['TARGET_ARCH']}`")
+
 env.Append(CPPDEFINES=[
     'BSON_COMPILATION',
 ])
