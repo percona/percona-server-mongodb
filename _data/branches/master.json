@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 78,
+    "commits_behind": 92,
     "days_behind": 1,
-    "unmerged_oldest_age_days": 1.3792029593402777,
-    "files_affected": 440,
-    "total_additions": 17604,
-    "total_deletions": 5264,
+    "unmerged_oldest_age_days": 1.789647212511574,
+    "files_affected": 472,
+    "total_additions": 19627,
+    "total_deletions": 6782,
     "date_range": {
       "first": "2026-08-11T11:33:54+00:00",
-      "last": "2026-08-12T19:29:50+00:00"
+      "last": "2026-08-13T05:04:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,146 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "23eb7a0e4ec588533d7bf1a702704706d7d7bfda",
+      "short_sha": "23eb7a0e4ec",
+      "date": "2026-08-13T05:04:07+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-132895 Disable Copybara unit tests on non-Linux platforms (#60870)"
+    },
+    {
+      "sha": "534f1b025e44066735fb3138262bd13370e0c8fb",
+      "short_sha": "534f1b025e4",
+      "date": "2026-08-13T03:47:06+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-133403: Support 9.0+ extension API error codes in upgrade/downgrade test (#60952)"
+    },
+    {
+      "sha": "2c06cc9e5eb94c2e286522f1fce4c3ae69927143",
+      "short_sha": "2c06cc9e5eb",
+      "date": "2026-08-13T03:29:34+00:00",
+      "author": {
+        "name": "Ayesha Islam",
+        "email": "ayeshhaislamm@gmail.com"
+      },
+      "summary": "SERVER-128372 make traverseRecordStore a pure function (#60588)"
+    },
+    {
+      "sha": "4cdb6c5568e51f7872d4f4b320f6f3e4ad17bfa0",
+      "short_sha": "4cdb6c5568e",
+      "date": "2026-08-13T01:51:52+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-128586 Require container writes in fast count persistence provider (#60803)"
+    },
+    {
+      "sha": "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+      "short_sha": "604fe77ba32",
+      "date": "2026-08-12T22:43:34+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 3e014f57d9d56c9e428b82db5c38e4dc8c4d2dc4 from branch mongodb-master (#60891)"
+    },
+    {
+      "sha": "b43cb82bc004170393d86e5d35f7dcdc0506e1ef",
+      "short_sha": "b43cb82bc00",
+      "date": "2026-08-12T22:43:19+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-133246 Handle replicated size and count in-memory initialization correctly when metadata stores are not created yet (#60790)"
+    },
+    {
+      "sha": "e8382d5b97c3d66828a63a1b1edfc607e7f600d1",
+      "short_sha": "e8382d5b97c",
+      "date": "2026-08-12T22:01:09+00:00",
+      "author": {
+        "name": "Matt Kneiser",
+        "email": "matt.kneiser@mongodb.com"
+      },
+      "summary": "SERVER-133257 Convert bad clustered index name validation warning to error (#60916)"
+    },
+    {
+      "sha": "41cba0009d46272dea1cbfe0c6e0587bc6628b77",
+      "short_sha": "41cba0009d4",
+      "date": "2026-08-12T21:37:47+00:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-133052 balancer_should_return_random_migrations_failpoint.js test runs with slow parameters in config shard (#60616)"
+    },
+    {
+      "sha": "f8f94b1b7ae993aa8bed2810c37cb73a8178f18f",
+      "short_sha": "f8f94b1b7ae",
+      "date": "2026-08-12T21:30:28+00:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-133040: Increase observability for Ingress Rate-Limiter Retry Exhaustion (#60500)"
+    },
+    {
+      "sha": "b8cdb413334bf7886b4c5640662f6d37d8920b83",
+      "short_sha": "b8cdb413334",
+      "date": "2026-08-12T21:24:45+00:00",
+      "author": {
+        "name": "Andrew Bui",
+        "email": "andrew.bui@mongodb.com"
+      },
+      "summary": "SERVER-129709 Remove all outdated entries from backports_required_for_multiversion_tests.yml (v9.0) (#60799)"
+    },
+    {
+      "sha": "e8e896644eb2a72f3e967c0a82ac070ad7536a42",
+      "short_sha": "e8e896644eb",
+      "date": "2026-08-12T21:04:04+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-133392: Retry transient git fetch failures in multiversion exclude tag generation (#60920)"
+    },
+    {
+      "sha": "ec4e89e539fa13670255c1c811a8caad5755fbe6",
+      "short_sha": "ec4e89e539f",
+      "date": "2026-08-12T21:01:10+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-132302 Add additional coverage of combinations of SBE QEMP features (#60740)"
+    },
+    {
+      "sha": "24a04dd712c6e037f3d089af2b3ee742e3ea330d",
+      "short_sha": "24a04dd712c",
+      "date": "2026-08-12T21:00:33+00:00",
+      "author": {
+        "name": "Xuerui Fa",
+        "email": "xuerui.fa@mongodb.com"
+      },
+      "summary": "SERVER-133198: Avoid stale member data in sync source selection (#60695)"
+    },
+    {
+      "sha": "06aa1d6273da53791cb6a88cae4d3ea479e1509c",
+      "short_sha": "06aa1d6273d",
+      "date": "2026-08-12T20:25:07+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-133399: Ignore hermetic-container generated paths (#60935)"
+    },
     {
       "sha": "6963c170f10dc0fa3076704cf63c4c7fbfe00172",
       "short_sha": "6963c170f10",
@@ -882,10 +1022,33 @@
           "jstests/suites/backup-restore/BUILD.bazel"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+        "short_sha": "604fe77ba32",
+        "date": "2026-08-12T22:43:34+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 3e014f57d9d56c9e428b82db5c38e4dc8c4d2dc4 from branch mongodb-master (#60891)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 21,
+          "num_of_lines": 631,
+          "lines_added": 570,
+          "lines_deleted": 61,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-12 20:39:51",
+  "generated_at": "2026-08-13 06:30:54",
   "branch_name": "master",
   "display_name": "master"
 }
