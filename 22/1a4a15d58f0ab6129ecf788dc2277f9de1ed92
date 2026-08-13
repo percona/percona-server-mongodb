@@ -1,0 +1,180 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6f0c7897822607f244e2617780f1e61c227a9e88",
+    "merge_commit": "98df20c9124289fdb957ee13c846feab5cf4e906"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "98df20c9124289fdb957ee13c846feab5cf4e906",
+    "merged_commits": [
+      "98df20c9124289fdb957ee13c846feab5cf4e906",
+      "3c2c12cba02d4c63411433cb4cb6bbb13eacfe59",
+      "d8f295396e6bd12c145e9473bc3a3198103074b4",
+      "f31d98003b59e43ff7ca3a403e046b047a9ed05e",
+      "be19a265b8a0c45717d00744a3d52852a14c3a31",
+      "a6149fe82feb44fab148bcdaf3e2c0348efc858b",
+      "acc459f0de81f238f7c7894ce4c4fd543ff61bc1",
+      "eca83f8823828c2ac572758bb1ba5c988b4e6a6d",
+      "67045b1dc9c5987307f5377386d331a1ba096d49",
+      "ffe37ee857000cbacc44f02cb40b5281468fe8eb",
+      "094e48e732e98a79d3b184f0649cf9315abf3517",
+      "1606df3555de62451bee31becf0a5bd5ebcc91e2",
+      "d1b16fc2702c42028bfe5ee94803dca8a2ba38c3",
+      "ae68c9896ef146d386670a0077f6d8906bb86064",
+      "1480a2a9bffd8dedeb6eb5b1f27d3a1e3815b621",
+      "2f5a88748ff326714363ecfea3d368dddb05ff87",
+      "5806f8661a523c908b650b6ca892225ccd507536",
+      "dbb7a3ba050ce12af76f02cb1711ad15b4280dcf",
+      "6645615b92e8c9eb3716fd482a65723f79f3a244",
+      "a907c14d1930cbac4161fcb93b3e0c7dd9073547",
+      "32b04b5c42b7ac3199dbc43dc262dafab93b2146",
+      "d5262decb0508e2d7e495c84e9d051d36e998cd3",
+      "47f7226d770e75d128de79bc77012ad250cdebba",
+      "5ca0a90c4519005062d89362d1f65ecb3fd1af95",
+      "468a02f3ffac5cc5bec8ae017077ca47674e5eb6",
+      "e1008e07abc27754cebc8b50410b002afca271f9",
+      "df77582debd46a1490d694b1d2cf2cb500e1f043",
+      "2e987ebf2af5137cf0bda0e0dbc08516b67302ea",
+      "225f5e7572b1e924c885bb30f84073a616db5a02",
+      "0457673325c089c1568e739fce6722de21e9c5d3",
+      "395c72eea22a27af8b5a03161182b91f113cd860",
+      "95969587e418574f755bf35774fa7e095aa909e1",
+      "bf022cce26cdde33c419f312d2bc5d4d2db17d33",
+      "45126c9400dbde3fd922699152f603b03f39f6f0",
+      "015e585b0139c41c0d812787acc1b33a69f21a9e",
+      "ebbe24bb7fea1b5e4c064bc617357b7a4ec8cd8d",
+      "80859fb5c88af8dfb8a1f774adb74cb6997d3c56",
+      "ed59951a88fa0f1dd17b1efba9d02cc484b43d3e",
+      "271481fb4d9350542e7fd028d749e39ab15e3fb0",
+      "23d1d4d2dd1291095c1502ca262d7b0f2ea4c55e",
+      "2ad98be20749b2c8d04a0f0a90e39b7081a5cb93",
+      "134fbfffae86890ff8182d59ca5f9d204d05becc",
+      "193d066300b0e595bd4935b80023a27bcd2bdbb5",
+      "039f3ec1ca4a9d55438c978120306f1fc6db2ea3",
+      "e78de88ae7504aee707fd083c579c3f54eab50ab",
+      "868b559db7d257b12d22e7a4908c554b8d8e9c00"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/repl/initial_sync/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32204,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.22926325000000003,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000678,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2251,
+        "cacheReadInputTokens": 45148,
+        "cacheCreationInputTokens": 23953,
+        "webSearchRequests": 0,
+        "costUSD": 0.22858525000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000678
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2251,
+            "cache_read": 45148,
+            "cache_creation": 23953
+          },
+          "cost_usd": 0.22858525000000002
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge diffs and written the JSON response. Summary of what this merge introduces (diff base `21b0ab1` \u2192 merge commit `98df20c`):\n\n**Two upstream feature areas:**\n\n1. **Replicated fast count in initial sync** (`initial_syncer.cpp/.h` + `BUILD.bazel`): A new `FastCountInitialSyncAggregator` harvests persisted fast-count metadata during cloning; `_seedFastCountFromInitialSync()` seeds the local backing stores; fast counts are re-derived from the oplog *before* `reconstructPreparedTransactions()` (to avoid a prepare-conflict deadlock); and internal fast-count containers are dropped during DB truncation. New Bazel deps back this.\n\n2. **WiredTiger new sub-level error** (`wiredtiger.h.in` + `wiredtiger_util_test.cpp`): Adds `WT_TXN_TOO_LARGE_FOR_CACHE` (-32016) plus a new eviction stat (renumbering subsequent stat constants), and updates the eviction test to accept either the old or new error.\n\nAll statements in the response are backed by the actual `diff base \u2192 merge commit` diff. No conflict files (MODULE.bazel.lock/sbom.json) were involved.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes centered on two areas. The main one wires the replicated fast count feature into initial sync: the InitialSyncer now harvests persisted fast-count metadata during cloning via a new FastCountInitialSyncAggregator, seeds the local fast-count backing stores from that data, re-derives in-memory fast counts from the oplog before reconstructing prepared transactions, and drops the internal fast-count containers when truncating databases. It also adds a new WiredTiger sub-level error code WT_TXN_TOO_LARGE_FOR_CACHE (-32016) and a new eviction statistic, with the WiredTiger util test updated to accept the new error, plus BUILD.bazel dependency additions.",
+      "auto_merged": {
+        "src/mongo/db/repl/initial_sync/BUILD.bazel": "Adds the fast_count_initial_sync_aggregator.h header to the cloner library's hdrs, and adds new deps to support the replicated fast count seeding logic: replicated_fast_count_manager and size_count_store to the cloner target, and replicated_fast_count_init, replicated_fast_count_manager, size_count_store, and storage/kv:kv_engine to the initial_syncer target.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Updates the CursorOldestForEviction test so that, when the new WT_TXN_TOO_LARGE_FOR_CACHE error code is defined, the assertion accepts either WT_OLDEST_FOR_EVICTION (\"Transaction has the oldest pinned transaction ID\") or WT_TXN_TOO_LARGE_FOR_CACHE (\"Transaction dirty content alone exceeds the eviction updates or dirty trigger\") as the sub-level error, since both stem from a single transaction too large for the cache. The original single-error assertion is retained under an #else branch.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new WiredTiger sub-level error code WT_TXN_TOO_LARGE_FOR_CACHE (-32016) with documentation describing a single transaction dirtying more cache than the eviction triggers allow. Also adds a new connection statistic WT_STAT_CONN_EVICTION_CKPT_SNAPSHOT_DECLINED (1220, evictions that found no snapshot published by the running checkpoint), which renumbers all subsequent WT_STAT_CONN_* constants by one."
+      },
+      "review_notes": "The important_files (initial_syncer.cpp/.h) are not conflict files but were modified by the incoming upstream changes. initial_syncer.cpp adds finalizeMetadataFromInitialSync() before reconstructPreparedTransactions() in _tearDown, drops internal fast-count containers in _truncateOplogAndDropReplicatedDatabases, constructs a FastCountInitialSyncAggregator passed into AllDatabaseCloner, and adds the new _seedFastCountFromInitialSync() method (creating/initializing container stores and calling populateFromInitialSync under a Global IX lock with LocalWrite intent). initial_syncer.h declares the new _seedFastCountFromInitialSync(WithLock) private method. All new logic is guarded by isReplicatedFastCountEnabled/shouldUseReplicatedFastCountContainers. The wiredtiger.h.in change is a large but mechanical renumbering of stat constants plus one new error code and one new stat; verify no Percona-specific WiredTiger stat customizations were disturbed. No conflict markers or MODULE.bazel.lock/sbom.json changes are involved in these files."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge diffs and written the JSON response. Summary of what this merge introduces (diff base `21b0ab1` \u2192 merge commit `98df20c`):\n\n**Two upstream feature areas:**\n\n1. **Replicated fast count in initial sync** (`initial_syncer.cpp/.h` + `BUILD.bazel`): A new `FastCountInitialSyncAggregator` harvests persisted fast-count metadata during cloning; `_seedFastCountFromInitialSync()` seeds the local backing stores; fast counts are re-derived from the oplog *before* `reconstructPreparedTransactions()` (to avoid a prepare-conflict deadlock); and internal fast-count containers are dropped during DB truncation. New Bazel deps back this.\n\n2. **WiredTiger new sub-level error** (`wiredtiger.h.in` + `wiredtiger_util_test.cpp`): Adds `WT_TXN_TOO_LARGE_FOR_CACHE` (-32016) plus a new eviction stat (renumbering subsequent stat constants), and updates the eviction test to accept either the old or new error.\n\nAll statements in the response are backed by the actual `diff base \u2192 merge commit` diff. No conflict files (MODULE.bazel.lock/sbom.json) were involved."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260813_053827_597001.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.229 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "98df20c9124289fdb957ee13c846feab5cf4e906",
+    "short_sha": "98df20c9124",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import (#60866) is an ideal merge boundary: it is a large, self-contained third-party import touching an isolated set of files that later commits do not depend on, and it lands at ~46 commits into the window, squarely inside the target 30-65 band. Crucially, cutting here keeps every in-range revert pair together so they cancel out within this batch: SERVER-133105 (idle draining) and its revert, SERVER-126129 ($min/$max/etc SBE) and its revert, SERVER-133205 (PerformanceReporter big endian) and its revert, and SERVER-132920 (WT_TXN_TOO_LARGE) plus its revert and re-add are all included. The freshest unsettled work (the SERVER-133205 re-add at #60829, second WiredTiger import, and later churn) is left for the next batch to import once settled. The next larger atomic boundary (the second WiredTiger import #60891) would push the batch to ~86 commits, beyond the target window, so this earlier import is the cleaner cut.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/31670795158"
+  }
+}
