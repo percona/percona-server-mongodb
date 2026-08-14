@@ -1,0 +1,160 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "221a4a15d58f0ab6129ecf788dc2277f9de1ed92",
+    "merge_commit": "604fe77ba324a7d513b6af8e4d2bbd0df090c840"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 51725,
+      "num_turns": 8,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.223444,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 603,
+          "outputTokens": 19,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000698,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 16,
+          "outputTokens": 3160,
+          "cacheReadInputTokens": 111407,
+          "cacheCreationInputTokens": 14074,
+          "webSearchRequests": 0,
+          "costUSD": 0.222746,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 603,
+              "output": 19,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.000698
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 16,
+              "output": 3160,
+              "cache_read": 111407,
+              "cache_creation": 14074
+            },
+            "cost_usd": 0.222746
+          }
+        }
+      },
+      "text_result": "Resolved the conflict.\n\n**Conflict:** `jstests/suites/backup-restore/BUILD.bazel` \u2014 \"deleted by us\".\n\n**Resolution:** Kept the Percona deletion. Percona intentionally removed the entire `backup-restore` test suite in commit f51fb686e28 (PSMDB-1965) because it tests Enterprise-only functionality and breaks `bazel query //...` in the Community Edition. Upstream's conflicting change (SERVER-133084) only adjusted the suite's `size`, `shard_count`, and `tags` \u2014 nothing that warrants resurrecting a suite Percona deliberately dropped. I deleted the file so it stays removed, and wrote the JSON response.",
+      "response": {
+        "summary": "Resolved a 'deleted by us' conflict for jstests/suites/backup-restore/BUILD.bazel by honoring the deliberate Percona removal of the backup-restore test suite (PSMDB-1965). Deleted the file so it stays removed, since upstream (SERVER-133084) only tweaked suite size/shard_count/tags on a suite Percona has intentionally dropped.",
+        "resolved": {
+          "jstests/suites/backup-restore/BUILD.bazel": "Percona removed the entire backup-restore test suite in commit f51fb686e28 (PSMDB-1965) because it tests Enterprise-Edition-only functionality and breaks `bazel query //...` in the Community Edition. Upstream commit a603f2c3c5e (SERVER-133084) only changed the suite's size (large->enormous), added shard_count=2, and added the requires_xlarge_host tag. None of these upstream tweaks require reintroducing the suite. Kept ours: the file is deleted."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "This is a Percona-specific removal (PSMDB-1965) of the backup-restore suite, not an upstream rename/removal. The upstream side only modified the file (size/shard/tags), so the deletion was preserved per Percona's intent. The directory jstests/suites/backup-restore/ now contains no files (OWNERS.yml was already removed by the same Percona commit)."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "This is clear: Percona deliberately removed the entire `backup-restore` test suite in PSMDB-1965 (it tests Enterprise-only functionality and breaks `bazel query //...` in Community Edition). Upstream only tweaked the suite's size/shard/tags. The correct resolution is to honor the Percona deletion."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict.\n\n**Conflict:** `jstests/suites/backup-restore/BUILD.bazel` \u2014 \"deleted by us\".\n\n**Resolution:** Kept the Percona deletion. Percona intentionally removed the entire `backup-restore` test suite in commit f51fb686e28 (PSMDB-1965) because it tests Enterprise-only functionality and breaks `bazel query //...` in the Community Edition. Upstream's conflicting change (SERVER-133084) only adjusted the suite's `size`, `shard_count`, and `tags` \u2014 nothing that warrants resurrecting a suite Percona deliberately dropped. I deleted the file so it stays removed, and wrote the JSON response."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260814_053839_766196.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.232 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
