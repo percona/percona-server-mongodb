@@ -264,22 +264,19 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
                     !_sizeCountStore || !_sizeCountStore->usesContainers());
             auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
             auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
-            if (!storageEngine->getEngine()->hasIdent(ru, ident::kFastCountMetadataStore)) {
-                // This should only be the case on cold boot.
-                LOGV2(12231703, "Internal fastcount container not present during initialization.");
-                return;
+            if (storageEngine->getEngine()->hasIdent(ru, ident::kFastCountMetadataStore)) {
+                // This RecordStore will be destroyed after hydrating the metadata since only one
+                // RecordStore object can exist per ident.
+                auto recordStore = storageEngine->getEngine()->getRecordStore(
+                    opCtx,
+                    NamespaceString::kAdminCommandNamespace,
+                    ident::kFastCountMetadataStore,
+                    RecordStore::Options{.keyFormat = KeyFormat::String},
+                    /*uuid=*/boost::none);
+                massert(12231700, "Storage engine returned a null RecordStore", recordStore);
+                numRecordsScanned =
+                    _hydrateMetadataFromContainer(opCtx, accumulator, recordStore->getContainer());
             }
-            // This RecordStore will be destroyed after hydrating the metadata since only one
-            // RecordStore object can exist per ident.
-            auto recordStore = storageEngine->getEngine()->getRecordStore(
-                opCtx,
-                NamespaceString::kAdminCommandNamespace,
-                ident::kFastCountMetadataStore,
-                RecordStore::Options{.keyFormat = KeyFormat::String},
-                /*uuid=*/boost::none);
-            massert(12231700, "Storage engine returned a null RecordStore", recordStore);
-            numRecordsScanned =
-                _hydrateMetadataFromContainer(opCtx, accumulator, recordStore->getContainer());
         } else {
             auto acquisition = replicated_fast_count::acquireFastCountCollectionForRead(opCtx);
             if (!acquisition.has_value()) {
@@ -308,7 +305,7 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
                                                       ident::kFastCountMetadataStoreTimestamps)) {
                 LOGV2_WARNING(12743500,
                               "Internal fastcount Timestamps container did not exist during "
-                              "initialization even though the Metadata container did");
+                              "initialization");
                 return boost::none;
             }
             auto timestampRS = storageEngine->getEngine()->getRecordStore(
@@ -327,6 +324,12 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
 
     const Date_t oplogScanStartTime = Date_t::now();
 
+    // The oplog collection itself may not exist yet at cold boot.
+    const bool oplogExists = [&] {
+        AutoGetOplogFastPath oplogRead(opCtx, OplogAccessMode::kRead);
+        return static_cast<bool>(oplogRead.getCollection());
+    }();
+
     // If we do not have a persisted valid-as-of timestamp, and if we have to scan a significant
     // amount of oplog to catch up, we skip the scan entirely and accept a potentially incorrect
     // size and count. Otherwise, scan from the persisted valid-as-of timestamp (or from the
@@ -336,6 +339,9 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
     // TODO SERVER-130675: Stop skipping the oplog scan once the fast count system can always catch
     // up in time.
     const boost::optional<Timestamp> seekAfterTimestamp = [&]() -> boost::optional<Timestamp> {
+        if (!oplogExists) {
+            return boost::none;
+        }
         if (persistedTimestamp) {
             return *persistedTimestamp;
         }
@@ -364,13 +370,13 @@ void ReplicatedFastCountManager::initializeMetadata(OperationContext* opCtx) {
                 opCtx, *shard_role_details::getRecoveryUnit(opCtx));
             // We pass the oplog UUID here to include the oplog's own size and count in the
             // aggregation.
-            return aggregateSizeCountDeltasInOplog(
+            return aggregateReplicatedMetadataDeltasInOplog(
                 *oplogCursor, *seekAfterTimestamp, oplogColl->uuid(), /*isCheckpoint=*/false);
         }();
 
         for (const auto& [uuid, delta] : scanResult.deltas) {
-            accumulator[uuid].count += delta.sizeCount.count;
-            accumulator[uuid].size += delta.sizeCount.size;
+            accumulator[uuid].count += delta.metadata.sizeCount.count;
+            accumulator[uuid].size += delta.metadata.sizeCount.size;
         }
 
         LOGV2(12554001,
@@ -447,12 +453,12 @@ void ReplicatedFastCountManager::finalizeMetadataFromInitialSync(OperationContex
                 opCtx, *shard_role_details::getRecoveryUnit(opCtx));
             // Pass the oplog UUID so the oplog's own size and count are included in the
             // aggregation.
-            return aggregateSizeCountDeltasInOplog(
+            return aggregateReplicatedMetadataDeltasInOplog(
                 *oplogCursor, seekAfterTimestamp, oplogColl->uuid(), /*isCheckpoint=*/false);
         }();
         for (const auto& [uuid, delta] : scanResult.deltas) {
-            deltasByUuid[uuid].count += delta.sizeCount.count;
-            deltasByUuid[uuid].size += delta.sizeCount.size;
+            deltasByUuid[uuid].count += delta.metadata.sizeCount.count;
+            deltasByUuid[uuid].size += delta.metadata.sizeCount.size;
         }
         LOGV2(12554005,
               "ReplicatedFastCountManager oplog scan during initial sync finalization complete",
@@ -517,12 +523,12 @@ void ReplicatedFastCountManager::commit(
         }
         collection->getRecordStore()->adjustAccurateSizeCount(delta.size, delta.count);
         // TODO SERVER-120203: Re-enable this invariant once outstanding bugs are fixed.
-        // invariant(stored.sizeCount.size >= 0 && stored.sizeCount.count >= 0,
+        // invariant(stored.metadata.sizeCount.size >= 0 && stored.metadata.sizeCount.count >= 0,
         //           fmt::format("Expected fast count size and count to be non-negative, but saw
         //           size "
         //                       "{} and count {}",
-        //                       stored.sizeCount.size,
-        //                       stored.sizeCount.count));
+        //                       stored.metadata.sizeCount.size,
+        //                       stored.metadata.sizeCount.count));
     }
 }
 
