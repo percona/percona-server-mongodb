@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 146,
+    "commits_behind": 152,
     "days_behind": 5,
-    "unmerged_oldest_age_days": 4.91298889375,
-    "files_affected": 858,
-    "total_additions": 51356,
-    "total_deletions": 11578,
+    "unmerged_oldest_age_days": 5.360756347627315,
+    "files_affected": 873,
+    "total_additions": 51762,
+    "total_deletions": 11747,
     "date_range": {
       "first": "2026-08-12T08:16:20+00:00",
-      "last": "2026-08-17T02:33:38+00:00"
+      "last": "2026-08-17T12:55:05+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,66 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "a13ca963d0d000206eb9619c9a5942bd224a6a4c",
+      "short_sha": "a13ca963d0d",
+      "date": "2026-08-17T12:55:05+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-133588 Fix SBE query knob in use_disk.js (#61164)"
+    },
+    {
+      "sha": "0a8a2e0d8c43d14495149c710b1a018a13824bdf",
+      "short_sha": "0a8a2e0d8c4",
+      "date": "2026-08-17T12:21:48+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-123835: Make sort.js robust to background activity (#51579)"
+    },
+    {
+      "sha": "d3118b610ebcff65c65d258786ccf7c7dd6126d1",
+      "short_sha": "d3118b610eb",
+      "date": "2026-08-17T11:27:05+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#61132)"
+    },
+    {
+      "sha": "16dfab1fb0f279768ff9ea2d08748bdf06002313",
+      "short_sha": "16dfab1fb0f",
+      "date": "2026-08-17T09:48:33+00:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-133429 Wait until a primary has been elected when restarting shards in test_sharding_startup_in_downgrading_state (#60986)"
+    },
+    {
+      "sha": "96a34946e7bbae8212da1f918541d3b867ad7cdb",
+      "short_sha": "96a34946e7b",
+      "date": "2026-08-17T08:52:23+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-131799 Ban join opt with exclusion projections on base collection (#60985)"
+    },
+    {
+      "sha": "5aef3137788942f1ed6dbd7e5d646bf769a36368",
+      "short_sha": "5aef3137788",
+      "date": "2026-08-17T06:46:24+00:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-133277 Make add_shard_block_setFCV.js a no passthrough test (#60877)"
+    },
     {
       "sha": "4075366cba940d954e86e24373815b1a1c0adbc2",
       "short_sha": "4075366cba9",
@@ -1790,7 +1850,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-17 06:10:59",
+  "generated_at": "2026-08-17 16:55:46",
   "branch_name": "master",
   "display_name": "master"
 }
