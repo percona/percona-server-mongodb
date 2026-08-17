@@ -1,0 +1,237 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "40153a14e224ee5f3e2bb53e520a9b0ccd990822",
+    "merge_commit": "604fe77ba324a7d513b6af8e4d2bbd0df090c840"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "40153a14e224ee5f3e2bb53e520a9b0ccd990822",
+    "theirs_commit": "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+    "base_commit": "98df20c9124289fdb957ee13c846feab5cf4e906",
+    "files": [
+      "jstests/suites/backup-restore/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "jstests/suites/backup-restore/BUILD.bazel": "deleted by us"
+    },
+    "their_commits": {
+      "jstests/suites/backup-restore/BUILD.bazel": [
+        "a603f2c3c5e58be1212d84990a5c8ec85688d3a4"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+    "merged_commits": [
+      "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+      "b43cb82bc004170393d86e5d35f7dcdc0506e1ef",
+      "e8382d5b97c3d66828a63a1b1edfc607e7f600d1",
+      "41cba0009d46272dea1cbfe0c6e0587bc6628b77",
+      "f8f94b1b7ae993aa8bed2810c37cb73a8178f18f",
+      "b8cdb413334bf7886b4c5640662f6d37d8920b83",
+      "e8e896644eb2a72f3e967c0a82ac070ad7536a42",
+      "ec4e89e539fa13670255c1c811a8caad5755fbe6",
+      "24a04dd712c6e037f3d089af2b3ee742e3ea330d",
+      "06aa1d6273da53791cb6a88cae4d3ea479e1509c",
+      "6963c170f10dc0fa3076704cf63c4c7fbfe00172",
+      "dc54e30aacb002fe58aa985720016236979cf157",
+      "a603f2c3c5e58be1212d84990a5c8ec85688d3a4",
+      "9d86224f5d8574861e6a56cc3d62aefd0842e0c5",
+      "842b5ef2abe2a44ab126e41277da96a469c8df18",
+      "5af13927527518fd75c92ce8fc7c91c1d9f3a9bf",
+      "eae98acfb8eb698f642652f80d0bd1d82d529432",
+      "958ba3ec31f7b68b80f55eb94f1a35bc5a269b1d",
+      "e478bd77f0585db3cc5ed207421c5d35ba5c8664",
+      "0a6ff40b8ce27426aa4bcb23b91367cadcaffe97",
+      "08e0cb80e79df36b11310dd4e2ba99f99d70cde2",
+      "d8d33cdc0c6ca621ec1dd456722ba2d8616b48c9",
+      "10127988d0f7a7bb1ce4db73d61de3004797387c",
+      "1c32643d203ce1f1bcd4458560e65dba14eb07d3",
+      "24d20b7b697922ace0b356fe688358e2a3b10fd5",
+      "e4fc4fa9206753cc85afcd027f7ee53db33748ff",
+      "f77f0086d616818e8b2bf5cedc32392a3c0c46bc",
+      "e127e1abfe150205511d28237d1ecc346cf86b2f",
+      "ffb926996c890d37396815fccb6f56fa428156ef",
+      "b9c2e8eae736beffaa816f269e72bdbde7a559fb",
+      "2763183cfbd1b5757ac5817ed40c23ed62aebcd4",
+      "96cb0bb0b03d1370255de69c386606cb47611fe9",
+      "12727867c6baa424bd50f64a70c7a64323e99b1a",
+      "f31a0bbaa32c6ba07eb671ee83aff7c9345f2466",
+      "fa7a0fdc14b9eea234a38b82ca6a8919f4aa5ed8",
+      "a0e40b089247d9e689f703189dde07e79bc39bf0",
+      "180a1b29aae04adf17a89eba8ac2c08eb48f8c22",
+      "99838f3e6e606b6f801e5cabc1e518bd1a9a30bb",
+      "f1043ca80f18e0e536c175a69e01d86cea955012",
+      "b94c8a2fe0f81590d95e3409ad442a061345b00c",
+      "22b3d94ddc87bdfa0e430fb44bc2502aec5ae33f",
+      "d17dbd0bef8448f476aaf7b6341ef5919c143166"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".gitignore",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/executor/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50945,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.26350875,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 603,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.000673,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 10,
+        "outputTokens": 3439,
+        "cacheReadInputTokens": 70934,
+        "cacheCreationInputTokens": 22615,
+        "webSearchRequests": 0,
+        "costUSD": 0.26283575,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 603,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.000673
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10,
+            "output": 3439,
+            "cache_read": 70934,
+            "cache_creation": 22615
+          },
+          "cost_usd": 0.26283575
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Summary of what this merge introduces (diff base `98df20c` \u2192 merge `604fe77`):\n\n**Functional change:** `profile_common.cpp` tightens authorization \u2014 setting the process-global `slowms`/`sampleRate` parameters now additionally requires `enableProfiler` on any-normal-resource, not just the target database. `commands_lib.js` was updated with matching auth test cases (new `profileSetSlowms`, `profileSetSlowms_mongos`, `profileSetSampleRate_mongos` tests, and `expectAuthzFailure` for db-scoped-only privileges).\n\n**Build/bookkeeping:** BUILD.bazel additions (`server_status_metrics.cpp`, NDV `field_stats`/`ndv_sketch_gen_lib` deps, `connection_pool_tl_test.cpp`), removal of the `pipeline_d_test` target and collator mock deps, and two new `.gitignore` entries.\n\n**Conflict flagged for review:** `jstests/suites/backup-restore/BUILD.bazel` was a \"deleted by us\" conflict \u2014 the fork had removed the file while upstream (commit `a603f2c3`) modified it (size `large`\u2192`enormous`, added `shard_count = 2` and `requires_xlarge_host`). The merge resolution **restored** the file with upstream's changes. I noted this in `review_notes` since it reverses the fork's deletion and should be confirmed intentional.",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the Percona fork. The most substantive functional change tightens authorization for the profile command: setting the process-global 'slowms' or 'sampleRate' parameters now additionally requires the enableProfiler action on any-normal-resource, not just on the target database. The rest of the merge is build-file (BUILD.bazel) bookkeeping, updated auth test cases matching the new profiler authorization, and .gitignore additions. A 'deleted by us' conflict on jstests/suites/backup-restore/BUILD.bazel was resolved by restoring the file with upstream's modifications.",
+      "auto_merged": {
+        ".gitignore": "Adds two ignore entries: '/bazel/hermetic_container/__pycache__/' and '/bazel/hermetic_container/dist/'.",
+        "jstests/auth/lib/commands_lib.js": "Updates the profiler auth test cases to match the new authorization rules in profile_common.cpp. The 'profile' testcase now requires roles_dbAdminAny with an any-resource enableProfiler privilege, and a db-scoped privilege is marked expectAuthzFailure. Adds a new 'profileSetSlowms' test (profile:-1, slowms:100). The 'profile_mongos' command is reduced to {profile:0}, and new sharded tests 'profileSetSlowms_mongos' (profile:0, slowms:10) and 'profileSetSampleRate_mongos' (profile:0, sampleRate:0.5) are added, each requiring the any-resource privilege and treating a db-scoped-only privilege as an authz failure.",
+        "src/mongo/db/BUILD.bazel": "Adds source '//src/mongo/db/query/compiler/optimizer/join:server_status_metrics.cpp' to a mongo_cc_library srcs list.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds two dependencies to a mongo_cc_library deps list: '//src/mongo/db/query/compiler/ce/ndv:field_stats' and '//src/mongo/db/query/compiler/ce/ndv:ndv_sketch_gen_lib'.",
+        "src/mongo/db/commands/profile_common.cpp": "Rewrites ProfileCmdBase::checkAuthForOperation. It still requires enableProfiler on the target database, but now, when the request sets 'slowms' or 'sampleRate' (which mutate process-global parameters affecting all databases), it additionally requires enableProfiler on forAnyNormalResource for the database's tenant; otherwise returns Unauthorized.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Removes the 'collator_factory_mock' and 'collator_interface_mock' deps from one mongo_cc_unit_test, and deletes the entire 'pipeline_d_test' mongo_cc_unit_test target (pipeline_d_test.cpp and its deps).",
+        "src/mongo/executor/BUILD.bazel": "Adds source 'connection_pool_tl_test.cpp' to a mongo_cc_unit_test srcs list."
+      },
+      "review_notes": "Conflict: jstests/suites/backup-restore/BUILD.bazel was 'deleted by us' \u2014 it exists in the diff base but not in the fork tip (the fork had removed it), while upstream commit a603f2c3 modified it. The merge restored the file with upstream's version: size changed from 'large' to 'enormous', shard_count=2 added, and the 'requires_xlarge_host' tag added. Confirm the fork intended to delete this file; if so, this resolution (re-adding it) may need to instead keep it deleted. The profiler authorization change (profile_common.cpp) is a behavior change worth verifying against any Percona-specific profiler behavior; the commands_lib.js test updates correspond to it."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each file involved in this merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me look at the conflict file (deleted by us):"
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Now I'll write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Summary of what this merge introduces (diff base `98df20c` \u2192 merge `604fe77`):\n\n**Functional change:** `profile_common.cpp` tightens authorization \u2014 setting the process-global `slowms`/`sampleRate` parameters now additionally requires `enableProfiler` on any-normal-resource, not just the target database. `commands_lib.js` was updated with matching auth test cases (new `profileSetSlowms`, `profileSetSlowms_mongos`, `profileSetSampleRate_mongos` tests, and `expectAuthzFailure` for db-scoped-only privileges).\n\n**Build/bookkeeping:** BUILD.bazel additions (`server_status_metrics.cpp`, NDV `field_stats`/`ndv_sketch_gen_lib` deps, `connection_pool_tl_test.cpp`), removal of the `pipeline_d_test` target and collator mock deps, and two new `.gitignore` entries.\n\n**Conflict flagged for review:** `jstests/suites/backup-restore/BUILD.bazel` was a \"deleted by us\" conflict \u2014 the fork had removed the file while upstream (commit `a603f2c3`) modified it (size `large`\u2192`enormous`, added `shard_count = 2` and `requires_xlarge_host`). The merge resolution **restored** the file with upstream's changes. I noted this in `review_notes` since it reverses the fork's deletion and should be confirmed intentional."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260817_165744_839705.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.233 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "manual",
+    "sha": "604fe77ba32",
+    "short_sha": "604fe77ba32",
+    "strategy": null,
+    "summary": "Manually specified by @plebioda via workflow_dispatch; gate bypassed.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/32047850317"
+  }
+}
