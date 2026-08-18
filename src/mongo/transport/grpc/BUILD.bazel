@@ -266,6 +266,10 @@ mongo_cc_integration_test(
     srcs = [
         "grpc_transport_layer_integration_test.cpp",
     ],
+    # Runs on RBE against a TLS + featureFlagGRPC mongod started by
+    # //bazel:integration_test_wrapper (fixture = "grpc"), which also passes the
+    # gRPC egress + TLS client options to the test binary.
+    fixture = "grpc",
     deps = [
         "//src/mongo:base",
         "//src/mongo/transport:transport_layer_egress_init",

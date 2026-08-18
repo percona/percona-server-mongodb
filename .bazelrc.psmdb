@@ -380,6 +380,40 @@ common:psmdb_remote_jstest --test_timeout=5400
 common:psmdb_remote_jstest --experimental_ui_max_stdouterr_bytes=16777216
 test:psmdb_remote_jstest --test_tag_filters=-incompatible_with_bazel_remote_test,-resources:cpu:2,-cpu:2,-mozjs_wasm_unsupported
 
+# PSMDB remote integration-test profile (psmdb_remote_integration_test)
+################################################################################
+# PSMDB-1924: run mongo_cc_integration_test targets ON the remote executors,
+# with NO change to the RBE worker image. Each integration-test binary is a
+# client that connects to a fixture (--connectionString, default
+# localhost:27017). In the resmoke flow that fixture is started out-of-band on
+# the CI host; on RBE there is no host, so //bazel:integration_test_wrapper
+# starts a private standalone mongod inside the test action's own sandbox
+# (mongod is pulled into the runfiles by the mongo_cc_integration_test macro,
+# gated on //bazel/config:remote_test_enabled which --config=remote_test sets).
+#
+# Usage:
+#   bazel test --config=psmdb_buildfarm --config=psmdb_remote_integration_test //src/...
+#
+# Built on --config=remote_test (NOT remote_unittest) so we supply our own
+# --run_under instead of upstream's //bazel:test_wrapper.
+#
+# Each test selects its fixture topology via the `fixture` attribute on
+# mongo_cc_integration_test (standalone by default, plus SSL, gRPC and
+# replica-set variants), which the wrapper spins up in-sandbox -- so no test
+# needs excluding here. A test can still be dropped by tagging it
+# incompatible_with_bazel_remote_test.
+#
+# --test_tag_filters is last-wins (not merged), so the -incompatible... term
+# from upstream's remote_test line is restated here alongside the
+# mongo_integration_test selector. -cpu:2 mirrors psmdb_remote_unittest: the
+# bb-psmdb scheduler has no workers for the 2-core pool yet.
+--config=psmdb_remote_integration_test
+common:psmdb_remote_integration_test --config=remote_test
+common:psmdb_remote_integration_test --run_under=//bazel:integration_test_wrapper
+common:psmdb_remote_integration_test --test_timeout=900
+common:psmdb_remote_integration_test --experimental_ui_max_stdouterr_bytes=16777216
+test:psmdb_remote_integration_test --test_tag_filters=mongo_integration_test,-incompatible_with_bazel_remote_test,-cpu:2
+
 ################################################################################
 # End of Percona-specific build profiles
 ################################################################################

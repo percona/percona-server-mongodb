@@ -48,5 +48,10 @@ filegroup(
     srcs = ["test_wrapper.sh"],
 )
 
+filegroup(
+    name = "integration_test_wrapper",
+    srcs = ["integration_test_wrapper.sh"],
+)
+
 # TODO(SERVER-129799): add these tests to CI.
 test_exec_properties_test_suite(name = "test_exec_properties_tests")

@@ -435,6 +435,9 @@ mongo_cc_integration_test(
     srcs = [
         "network_interface_ssl_test.cpp",
     ],
+    # Runs on RBE against a TLS + X.509 mongod started by
+    # //bazel:integration_test_wrapper (fixture = "tls").
+    fixture = "tls",
     target_compatible_with = select({
         "//bazel/config:ssl_enabled": [],
         "//conditions:default": ["@platforms//:incompatible"],

@@ -696,6 +696,10 @@ mongo_cc_integration_test(
     srcs = [
         "replica_set_monitor_integration_test.cpp",
     ],
+    # Runs on RBE against a 2-node replica set started by
+    # //bazel:integration_test_wrapper (fixture = "replset"); the test asserts
+    # uri.type() == kReplicaSet.
+    fixture = "replset",
     deps = [
         ":clientdriver_network",
         "//src/mongo/db:wire_version",

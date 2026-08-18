@@ -37,6 +37,7 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//bazel/config:generate_config_header.bzl", "generate_config_header")
 load("//bazel/auto_header:auto_header.bzl", "binary_srcs_with_all_headers", "build_selects_and_flat_files", "concat_selects", "dedupe_preserve_order", "maybe_all_headers", "maybe_compute_auto_headers", "strings_only")
 load("//bazel:test_exec_properties.bzl", "test_exec_properties")
+load("//bazel:psmdb_integration_test.bzl", "psmdb_integration_test_data")  # PSMDB (PSMDB-1924)
 
 COMPILEDB_TAG = "mongo_compiledb"
 
@@ -1397,6 +1398,8 @@ def mongo_cc_integration_test(
         features = [],
         exec_properties = {},
         provides_main = False,
+        fixture = "standalone",  # PSMDB (PSMDB-1924): RBE fixture topology; see bazel/psmdb_integration_test.bzl
+        env = {},  # PSMDB (PSMDB-1924)
         **kwargs):
     mongo_cc_test(
         name = name,
@@ -1404,7 +1407,11 @@ def mongo_cc_integration_test(
         deps = deps + ([] if provides_main else ["//src/mongo/unittest:integration_test_main"]),
         private_hdrs = private_hdrs,
         visibility = visibility,
-        data = data,
+        # PSMDB (PSMDB-1924): under --config=remote_test, ship the self-contained
+        # fixture (wrapper + mongod + fixture runfiles) and tell the wrapper which
+        # topology to start. All the logic lives in bazel/psmdb_integration_test.bzl.
+        data = psmdb_integration_test_data(name, fixture, data),
+        env = env | {"PSMDB_IT_FIXTURE": fixture},  # PSMDB (PSMDB-1924)
         tags = tags + ["mongo_integration_test"],
         copts = copts,
         linkopts = linkopts,
