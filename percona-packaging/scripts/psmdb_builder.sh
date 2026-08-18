@@ -377,7 +377,7 @@ install_golang() {
         abort "Unsupported architecture: $ARCH"
     fi
 
-    GO_VERSION="1.25.13"
+    GO_VERSION="1.26.6"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
