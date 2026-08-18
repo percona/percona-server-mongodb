@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 152,
-    "days_behind": 5,
-    "unmerged_oldest_age_days": 5.360756347627315,
-    "files_affected": 873,
-    "total_additions": 51762,
-    "total_deletions": 11747,
+    "commits_behind": 176,
+    "days_behind": 6,
+    "unmerged_oldest_age_days": 5.911781449490741,
+    "files_affected": 969,
+    "total_additions": 55795,
+    "total_deletions": 13378,
     "date_range": {
       "first": "2026-08-12T08:16:20+00:00",
-      "last": "2026-08-17T12:55:05+00:00"
+      "last": "2026-08-18T04:53:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,246 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "6c2a969f5d6a7a45013f838c475d35d7c941be70",
+      "short_sha": "6c2a969f5d6",
+      "date": "2026-08-18T04:53:07+00:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-133339 Verify proxy protocol v2 SSL TLVs are only parsed by the proxy UDS (#60873)"
+    },
+    {
+      "sha": "d043f5fabb849b488385f4d4916cb9e1902f7a32",
+      "short_sha": "d043f5fabb8",
+      "date": "2026-08-18T04:33:09+00:00",
+      "author": {
+        "name": "Cole Harbeck",
+        "email": "cole.harbeck@mongodb.com"
+      },
+      "summary": "SERVER-132411 Add response filtering to getCmdLineOpts command (#61126)"
+    },
+    {
+      "sha": "520fefb80bfbbb7af2302ff3f8214f23e6e4ed04",
+      "short_sha": "520fefb80bf",
+      "date": "2026-08-18T03:48:09+00:00",
+      "author": {
+        "name": "jchen",
+        "email": "29520270+jiechenbo@users.noreply.github.com"
+      },
+      "summary": "SERVER-133504 Supply the step-down schema epoch with the step-down timestamp (#61142)"
+    },
+    {
+      "sha": "9420dbbe822a300ceec2be6d1049caafea9f5916",
+      "short_sha": "9420dbbe822",
+      "date": "2026-08-18T03:42:39+00:00",
+      "author": {
+        "name": "Alex Pullen",
+        "email": "93811034+LX6T@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: f2c3345ecb060a575e24b29705679e2726d9a6ac from branch mongodb-master (#61215)"
+    },
+    {
+      "sha": "72f64a7167063f072fe0d5dd08e23f8772969389",
+      "short_sha": "72f64a71670",
+      "date": "2026-08-18T01:17:30+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-133641 Timestamp PDIB index build table creation (#61206)"
+    },
+    {
+      "sha": "22a906d0525126a6b00576a81c3190737f812b0b",
+      "short_sha": "22a906d0525",
+      "date": "2026-08-17T23:41:09+00:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-132982 Replace cell names with aliases in frontier-related serverStatus metrics (#60977)"
+    },
+    {
+      "sha": "fc06d647ba8c0a68d53875bd7aa1fb3c9aa5a491",
+      "short_sha": "fc06d647ba8",
+      "date": "2026-08-17T23:26:32+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-133418 Use Bazel GDB in VSCode launcher (#61177)"
+    },
+    {
+      "sha": "302402ffdae6948858e10d992d5a6af4b6c6aba1",
+      "short_sha": "302402ffdae",
+      "date": "2026-08-17T22:08:23+00:00",
+      "author": {
+        "name": "Ken Martin",
+        "email": "ken.martin@mongodb.com"
+      },
+      "summary": "SERVER-132542: Retry failed KMIP server network errors. (#60700)"
+    },
+    {
+      "sha": "1154486cc3e89081f74c27fa9023f1b4dfdf7a0e",
+      "short_sha": "1154486cc3e",
+      "date": "2026-08-17T22:02:08+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-133486: Stop mongod hanging in shutdown under TSAN (#61034)"
+    },
+    {
+      "sha": "ef3de3a1a15dbb80dcdfd5325f7aa073027787ba",
+      "short_sha": "ef3de3a1a15",
+      "date": "2026-08-17T21:59:48+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-133487 Remove featureFlagConvertBinDataVectors (#61043)"
+    },
+    {
+      "sha": "a6f78a8404c0b6f8d342859f26500c842d534b13",
+      "short_sha": "a6f78a8404c",
+      "date": "2026-08-17T21:30:07+00:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-133214 Surface the document hash in the general per-operation extraction path (#61047)"
+    },
+    {
+      "sha": "9b5a414ef31471c80c7139bf6cb912c5de399d29",
+      "short_sha": "9b5a414ef31",
+      "date": "2026-08-17T20:45:16+00:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-65800 Remove `featureFlagQueryStats` (#61042)"
+    },
+    {
+      "sha": "753d51046b65ed2e9500cef153df44fce1ba8f8e",
+      "short_sha": "753d51046b6",
+      "date": "2026-08-17T20:28:31+00:00",
+      "author": {
+        "name": "Xuerui Fa",
+        "email": "xuerui.fa@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-125965: Wait for stable timestamp to advance in initia… (#61087)"
+    },
+    {
+      "sha": "61c9b6783736bf99eb4e48f4a139f18ac33c2178",
+      "short_sha": "61c9b678373",
+      "date": "2026-08-17T19:50:36+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-133291 Flush collection hashes to fast count metadata store (#61105)"
+    },
+    {
+      "sha": "a97fc8679fc7140818fca098958b3ae688d82ceb",
+      "short_sha": "a97fc8679fc",
+      "date": "2026-08-17T19:14:43+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-133613 Guard extensionsSignaturePublicKeyPath option tests for extensions-signature secure builds (#61175)"
+    },
+    {
+      "sha": "84c424bb10d8593ced665e0567e60024f16577d4",
+      "short_sha": "84c424bb10d",
+      "date": "2026-08-17T19:09:06+00:00",
+      "author": {
+        "name": "neilveira-mdb",
+        "email": "neil.veira@mongodb.com"
+      },
+      "summary": "SERVER-110825: Rename isSerializingForQueryStats() to isShapifying() (#60953)"
+    },
+    {
+      "sha": "bb62749af9d30b5bb856b4d9ad20b9ca15dc5bc2",
+      "short_sha": "bb62749af9d",
+      "date": "2026-08-17T19:07:53+00:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-132858 AdditiveMetrics reports queuing metrics only for execution control (#60495)"
+    },
+    {
+      "sha": "fd1abdcfd89a186a2c759572b877cfc1ff54c06c",
+      "short_sha": "fd1abdcfd89",
+      "date": "2026-08-17T18:58:01+00:00",
+      "author": {
+        "name": "Erin Liang",
+        "email": "59406045+erl-ang@users.noreply.github.com"
+      },
+      "summary": "SERVER-133025 Update truncateCount and totalTimeTruncatingMicros once per individual marker truncate (#60842)"
+    },
+    {
+      "sha": "aceb73972057a7de4b54e64ad0eef38cd8a9232c",
+      "short_sha": "aceb7397205",
+      "date": "2026-08-17T18:34:08+00:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-80965 Remove `featureFlagAggOutTimeseries` (#61094)"
+    },
+    {
+      "sha": "71fe10dd4e4aed02849370869dd900e8e8fd5d00",
+      "short_sha": "71fe10dd4e4",
+      "date": "2026-08-17T18:20:59+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-130111 Prevent invalid type conversion during match expression serialization (#57212)"
+    },
+    {
+      "sha": "dc936dcbfed8863ba9c559cf1459ed9ec16b2562",
+      "short_sha": "dc936dcbfed",
+      "date": "2026-08-17T18:18:57+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-133415 convert cluster fsync from ErrmsgCommandDeprecated to TypedCommand (#60971)"
+    },
+    {
+      "sha": "f67ee2fa9f55036a716fc07983435f2a2f6fe85b",
+      "short_sha": "f67ee2fa9f5",
+      "date": "2026-08-17T17:26:27+00:00",
+      "author": {
+        "name": "Karen Zhao",
+        "email": "146024684+karzhao@users.noreply.github.com"
+      },
+      "summary": "SERVER-132142 Implement additional path rules config option for Landlock (#60355)"
+    },
+    {
+      "sha": "0a9c2e719aed54cdfeb26141fec75cd19a9727ef",
+      "short_sha": "0a9c2e719ae",
+      "date": "2026-08-17T16:33:59+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-132781 Complete low-hanging fruit optimizations for sort_limit codepath (#60230)"
+    },
+    {
+      "sha": "dd1e6740c1a17332312483402e442f88acbb8079",
+      "short_sha": "dd1e6740c1a",
+      "date": "2026-08-17T16:32:31+00:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-133431 Retry CheckReplDBHash on transient legacy timeseries buckets access failures (#61077)"
+    },
     {
       "sha": "a13ca963d0d000206eb9619c9a5942bd224a6a4c",
       "short_sha": "a13ca963d0d",
@@ -1847,10 +2087,70 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "753d51046b65ed2e9500cef153df44fce1ba8f8e",
+        "short_sha": "753d51046b6",
+        "date": "2026-08-17T20:28:31+00:00",
+        "author": {
+          "name": "Xuerui Fa",
+          "email": "xuerui.fa@mongodb.com"
+        },
+        "summary": "Revert \"SERVER-125965: Wait for stable timestamp to advance in initia… (#61087)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+          "src/mongo/db/repl/initial_sync/initial_syncer.h"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "9420dbbe822a300ceec2be6d1049caafea9f5916",
+        "short_sha": "9420dbbe822",
+        "date": "2026-08-18T03:42:39+00:00",
+        "author": {
+          "name": "Alex Pullen",
+          "email": "93811034+LX6T@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: f2c3345ecb060a575e24b29705679e2726d9a6ac from branch mongodb-master (#61215)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 22,
+          "num_of_lines": 1484,
+          "lines_added": 864,
+          "lines_deleted": 620,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "520fefb80bfbbb7af2302ff3f8214f23e6e4ed04",
+        "short_sha": "520fefb80bf",
+        "date": "2026-08-18T03:48:09+00:00",
+        "author": {
+          "name": "jchen",
+          "email": "29520270+jiechenbo@users.noreply.github.com"
+        },
+        "summary": "SERVER-133504 Supply the step-down schema epoch with the step-down timestamp (#61142)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-17 16:55:46",
+  "generated_at": "2026-08-18 06:09:14",
   "branch_name": "master",
   "display_name": "master"
 }
