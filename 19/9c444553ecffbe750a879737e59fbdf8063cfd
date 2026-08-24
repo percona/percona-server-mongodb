@@ -1,0 +1,352 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e3da810bf96b1b7d08ca2cee7e9f4ea1eb09146f",
+    "merge_commit": "995f048ef8eb6f7bb84e393fd033b7af1c9eb710"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "e3da810bf96b1b7d08ca2cee7e9f4ea1eb09146f",
+    "theirs_commit": "995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+    "base_commit": "604fe77ba324a7d513b6af8e4d2bbd0df090c840",
+    "files": [
+      "MODULE.bazel.lock",
+      "README.third_party.md",
+      "bazel/platforms/local_config_platform.bzl",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "README.third_party.md": "both modified",
+      "bazel/platforms/local_config_platform.bzl": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex dca667cf308,73556545d98..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"HfnfE2W7seEFQjNrOoyHdLN+S7gGa2taedv66+DtMSo=\",\n++||||||| 604fe77ba32\n++        \"bzlTransitiveDigest\": \"I5PaojsBKW1HVmcYHwU0ZOQyD8u+fglp9ZhNyuH4pT4=\",\n++=======\n+         \"bzlTransitiveDigest\": \"0Ls83w+99VX3FWHqU5lq38/OKk0eyea+/nKnrX+KqKU=\",\n++>>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+      "README.third_party.md": "diff --cc README.third_party.md\nindex 1d2523a04b7,ba07a0940e1..00000000000\n--- a/README.third_party.md\n+++ b/README.third_party.md\n@@@ -171,3 -178,7 +185,17 @@@ examples and can differ from platform t\n++<<<<<<< HEAD\n +2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n +   WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n +   development process, we periodically ingest the latest snapshot of that repository.\n++||||||| 604fe77ba32\n++2. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n++   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n++   shell and server binaries use Windows' cryptography APIs.\n++=======\n+ 2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n+    WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n+    development process, we periodically ingest the latest snapshot of that repository.\n+ \n+ 3. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n+    OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n+    shell and server binaries use Windows' cryptography APIs.\n++>>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+      "bazel/platforms/local_config_platform.bzl": "diff --cc bazel/platforms/local_config_platform.bzl\nindex b9c011c8a50,89c6aa2ed9e..00000000000\n--- a/bazel/platforms/local_config_platform.bzl\n+++ b/bazel/platforms/local_config_platform.bzl\n@@@ -66,15 -67,4 +74,24 @@@ def _setup_local_config_platform(ctx)\n++<<<<<<< HEAD\n +\n +        # PSMDB override: prefer PSMDB-specific image map for distros we serve\n +        # via the RBE cluster (see bazel/platforms/psmdb_rbe_containers.bzl\n +        # for the registry URL) so the auto-generated host platform's\n +        # container-image routes to an RBE worker queue. Distros not overridden in\n +        # PSMDB_REMOTE_EXECUTION_CONTAINERS fall through to upstream's\n +        # quay.io image unchanged. Mirrors the override done in\n +        # bazel/platforms/platform_util.bzl for the explicit\n +        # //bazel/platforms:<distro>_<arch> targets. See\n +        # bazel/platforms/psmdb_rbe_containers.bzl for rationale and\n +        # maintenance procedure.\n +        psmdb_entry = PSMDB_REMOTE_EXECUTION_CONTAINERS.get(distro)\n +        container_url = (\n +            psmdb_entry[\"container-url\"] if psmdb_entry else REMOTE_EXECUTION_CONTAINERS[distro][\"container-url\"]\n +        )\n++||||||| 604fe77ba32\n++        container_url = REMOTE_EXECUTION_CONTAINERS[distro][\"container-url\"]\n++=======\n+         container_url = (\n+             ctx.os.environ.get(\"MONGO_HERMETIC_CONTAINER_IMAGE\") or\n+             REMOTE_EXECUTION_CONTAINERS[distro][\"container-url\"]\n+         )\n++>>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+      "sbom.json": "diff --cc sbom.json\nindex 9a89d71c4af,acd603f35fe..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 604fe77ba32\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 14,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 15,\n++>>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710\n@@@ -58,6 -61,14 +66,24 @@@\n++<<<<<<< HEAD\n +    },\n +    \"supplier\": {\n +      \"name\": \"Percona LLC\",\n +      \"url\": [\n +        \"https://percona.com\"\n +      ]\n++||||||| 604fe77ba32\n++=======\n+     },\n+     \"supplier\": {\n+       \"name\": \"MongoDB, Inc.\",\n+       \"url\": [\n+         \"https://mongodb.com\"\n+       ]\n+     },\n+     \"tools\": {\n+       \"services\": [\n+         {\n+           \"name\": \"Endor Labs Inc\",\n+           \"version\": \"v1.7.1104\"\n+         }\n+       ]\n++>>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "2b413f583fca3a547ccf2c44f0148411ae68ca22"
+      ],
+      "README.third_party.md": [
+        "380811ccbcddb45decd724d63d26e7f0caa14710"
+      ],
+      "bazel/platforms/local_config_platform.bzl": [
+        "2b413f583fca3a547ccf2c44f0148411ae68ca22"
+      ],
+      "sbom.json": [
+        "380811ccbcddb45decd724d63d26e7f0caa14710"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+    "merged_commits": [
+      "995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+      "490476fea7ea27885e132bdccb33c367e8a6a4d4",
+      "c7603f3a8bc5c032ed8c45d6bc2b856fbbf18b74",
+      "4b69795c349d13d287256343d7eba50ecb8a2774",
+      "fdd48a9c39aadd839ffe38290255ae21598aeb51",
+      "e996829938cf388abe2418662033b54f7f1ea00b",
+      "9edd12e9a134e5bf599fdd1c6426f5e6fbf92b59",
+      "1f6d7eb9b4dbbfdcc90d9749eb5b6f8c11599731",
+      "e1c3472fa6303d75f605a26f50f2f6e2c232a5c3",
+      "1a14d0367204a52a134ad321b6dc21be8909c712",
+      "afe8a4cbd5b98c7ccdc62be4548169019f06e566",
+      "4b6f68f341052be1470e769942409a07f70e41b2",
+      "39c5fdd21857269e3762b73b4f255db931167b40",
+      "a5b6da3904e3ce051394d75efa706a297d54ecd3",
+      "8860082c13b820fbd5a4cb25e8ccd3f9f3b74cb2",
+      "ef3e22fa168bbef924bb77ca0d038a959e1f0fe6",
+      "2a0a9e2a7d483fc9ba47c5017c872d90f97e02ba",
+      "2e195aa585721d9443a48a9cd5c77048599a6332",
+      "d2e6b84ec7e6d916a1dc34e3965ff57cc5283a67",
+      "2b413f583fca3a547ccf2c44f0148411ae68ca22",
+      "e2ff2ec4a1912896a922728cb917606cc21ed4a4",
+      "0cfb24d629832aa1bf4de9801c7739113e9bb60a",
+      "3d175dbea4e0658003ed28b43a2f6c97f3165b63",
+      "5131c30c03b69fbbe683d386cf364e0351c545e0",
+      "4f04bbbe0eccad6e1e8680528998ecd935824354",
+      "8ee44edae7cb7f0d9c27a9a3c3ac5ac77eadd4bb",
+      "481421a51826d830d1f4a4d8f03bb1ce75f30980",
+      "cdbc7e6b75d9c8637d1c08a8fc7b4663f9ab8add",
+      "f36ce2d1c5a507031aca97b7a5a54ac26f1ad1d6",
+      "fcc95460a03016ef42ee915f37c86e7299231d81",
+      "643c6b161d0acc529713354a2c1c49baea7eea80",
+      "08b66788749035a404ed0b4d2c46233c3fe03f88",
+      "e209e827066ac52b2e41bb3c68ca13ed63c5e2e9",
+      "918566b550be18935ffe61a243208ce281f79b05",
+      "49e21b809621c8b8dd49619efd3532c243ee92af",
+      "6c2bce6e20c0b8945d62c6328e582dc095840451",
+      "8d1b4ba72b12fc977c434617f3c8dcf423188cd2",
+      "fd6e1faa5a9a7e601c5535dc0b62f6423a76356d",
+      "cfd1746ad2e42baaf81c7d7e1ca06b43cd1c57eb",
+      "551f95d6a48673c0d2a2fa65d1efb2b72980fee8",
+      "bd2137f1f11c091d6ea0bd405c5d4a09d9458127",
+      "51e64713da7b87c31b9346c576c05d5ac8f796d7",
+      "4c816782f46d208d329510aaa8ed701263e539f9",
+      "5db8083d30452b25b3ecac648265a6f1f32e1172",
+      "9e0f6747a4106bbd89d766fa6ebf703d213e1f9b",
+      "6cb30cf46abc6b6052adc31fbf6696eeba472727",
+      "380811ccbcddb45decd724d63d26e7f0caa14710",
+      "d239a495816b36f25f5e0450ffdbbcbe9b892a4e",
+      "23eb7a0e4ec588533d7bf1a702704706d7d7bfda",
+      "534f1b025e44066735fb3138262bd13370e0c8fb",
+      "2c06cc9e5eb94c2e286522f1fce4c3ae69927143",
+      "4cdb6c5568e51f7872d4f4b320f6f3e4ad17bfa0"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "README.third_party.md",
+        "bazel/config/BUILD.bazel",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/platforms/local_config_platform.bzl",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/utils.bzl",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/resmokelib/config.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/mongo_config_header.py",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 114603,
+    "num_turns": 8,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.65902675,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 16,
+        "outputTokens": 7256,
+        "cacheReadInputTokens": 284683,
+        "cacheCreationInputTokens": 53465,
+        "webSearchRequests": 0,
+        "costUSD": 0.6579777499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001049
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 16,
+            "output": 7256,
+            "cache_read": 284683,
+            "cache_creation": 53465
+          },
+          "cost_usd": 0.6579777499999999
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written a valid JSON description to the response file.\n\nThe merge pulls upstream MongoDB (`604fe77` \u2192 `995f048`) into the PSMDB `master` fork. I read the actual `diff base \u2192 merge commit` diff for every file in the changeset and described only what appears there:\n\n- **Build system (largest area):** new Bazel cross-compile configs (Windows/s390x/ppc64le from Linux RBE, macOS remote-download tuning) in `.bazelrc`; a `gdb_toolchain_folder` install target; `libvoidstar` + IDL-under-Linux-Python plumbing in `mongo_src_rules.bzl`/`config/BUILD.bazel`; resmoke Test Selection Service rules; toolchain-substitution refactor; new wrapper-hook tests.\n- **Server:** the `plan_ranker_method` \u2192 `plan_selection_strategy` rename (`op_debug.cpp`, `curop_test.cpp`, `db/BUILD.bazel`), index-builds `abort.cpp`/`abort_test.cpp`, a stable-timestamp update when leaving STARTUP2 in the replication coordinator, and removal of force-checkpoint helpers in the replica-set fixture.\n- **Third-party/bookkeeping:** WiredTiger snapshot (new checkpoint stat + renumbering), README and sbom updates.\n\nThe four conflicted files (`README.third_party.md`, `local_config_platform.bzl`, `sbom.json`, `MODULE.bazel.lock`) are flagged in `review_notes` with the resolution guidance from the conflict hints (keep Percona supplier URL, drop `metadata.tools`, preserve the PSMDB RBE container override and WiredTiger footnote wording, regenerate the lock file last). The JSON validates.",
+    "response": {
+      "summary": "Merges upstream MongoDB (604fe77 -> 995f048) into the PSMDB master fork. The incoming changes are dominated by build-system work: new Bazel cross-compilation configs (Windows/s390x/ppc64le from Linux RBE, macOS remote download tuning), an MFP_VERSION define, a libvoidstar (antithesis instrumentation) hook, IDL generation that can run under a hermetic-container/cross Linux Python, a gdb-toolchain install folder, and resmoke Test Selection Service (TSS) plumbing. On the server side it renames the query 'plan ranker method' concept to 'plan selection strategy' (curop/op_debug and tests), adds an index-builds abort.cpp/abort_test.cpp, updates stable-timestamp handling when leaving STARTUP2 in the replication coordinator, and reworks a replica-set fixture to drop the force-checkpoint-past-FCV logic. It also ingests a WiredTiger snapshot (new checkpoint statistic) and refreshes third-party bookkeeping (README.third_party.md, sbom.json).",
+      "auto_merged": {
+        ".bazelrc": "Adds MFP_VERSION define (common and remote_unittest, defaulting to \"nogitversion\", overridable by Evergreen). Adds remote_download_outputs/remote_download_regex to the macos-cross configs and introduces new cross-compile configs: windows-cross-x86_64 (msvc, static, fission off) and Linux s390x/ppc64le RHEL8/RHEL9 cross-RBE configs (with amd64/arm64 execution platforms and download regexes). Adds a comment noting the wrapper hook treats native_toolchain as a container opt-out.",
+        "BUILD.bazel": "Loads copy_files_to_directory and adds a gdb_toolchain_folder target that assembles gdb_v5 plus mongo_toolchain_v5 pretty-printers/llvm-objcopy/readelf/runtime into a gdb-toolchain output (tagged local/no-cache). Installs it into lib for the Linux dist-test root_files.",
+        "MODULE.bazel.lock": "Lock file update; only the bzlTransitiveDigest value changes (regenerated). No substantive dependency content is described here. Conflict per the hints: resolve last by regenerating with bazel query.",
+        "README.third_party.md": "Upstream drops the Cyrus SASL entry (row and link), renames 'node GetStringWidth function' (MIT) to 'node' (ISC), clears a couple of the distributed-in-source checkmarks (Prometheus, node), changes the snappy link target, and adds a new 'WiredTiger Vendored Test Libraries' section listing pypi test deps (concurrencytest, discover, extras, iso8601, python-subunit, testscenarios, testtools). Also reworks the footnote numbering around WiredTiger/OpenSSL notes. Conflicts with PSMDB's WiredTiger footnote customization; keep Percona's fork-specific wording.",
+        "bazel/config/BUILD.bazel": "Adds IDL-generation flags/config_settings (idl_use_linux_python, macos_cross_linux_python_arch + x86_64 setting, macos_cross_local_container_actions, windows_cross_local_container_actions with their *_enabled settings, windows_cross_host_path) and a use_libvoidstar bool_flag with a linux-constrained use_libvoidstar_enabled config_setting.",
+        "bazel/mongo_src_rules.bzl": "Adds LIBVOIDSTAR_INPUTS to MONGO_GLOBAL_ADDITIONAL_LINKER_INPUTS and to compile_data of mongo_rust_library/mongo_rust_shared_library. Reworks idl_generator_impl to optionally run IDL generation under a Linux Python interpreter (aarch64/x86_64) for macOS/Windows cross local-container actions, wiring new private attrs (_idl_use_linux_python, _macos/_windows_cross_local_container_actions, _macos_cross_linux_python_arch, _macos_cross_action_wrapper, and py_linux_arm64/x86_64 interpreter+files), adjusting PYTHONPATH separators and the action executable/wrapper accordingly. Adds a windows_cross rc-compiler select branch.",
+        "bazel/platforms/local_config_platform.bzl": "Upstream adds macOS use_mongo_native_apple_toolchain constraint and lets MONGO_HERMETIC_CONTAINER_DISTRO / MONGO_HERMETIC_CONTAINER_IMAGE env vars override the host distro and container-url, adding both to the repository rule's environ list. Conflicts with the PSMDB override that routes container-url through PSMDB_REMOTE_EXECUTION_CONTAINERS; preserve Percona's RBE image-map override while merging in the upstream env-var handling.",
+        "bazel/resmoke/resmoke.bzl": "Adds Test Selection Service plumbing: a tss_settings_file rule that materializes the enable/strategies build settings to a file, a _historic_runtime rule replacing the historic-runtimes genrule (routed off-RBE with no-cache/no-remote/requires-network), a _resmoke_deps_path rule writing configured dep executable paths, and a <name>_tss_test_list genrule that generates the TSS test list (tagged no-remote/external/no-cache/no-sandbox) added to cquery-safe data.",
+        "bazel/utils.bzl": "Refactors get_toolchain_subs to build substitutions via a shared _toolchain_substitutions helper across os/arch branches, adding new keys (exec/target_bazel_toolchain_cpu, mongo_toolchain_constraint, exec/target_distro_constraint, toolchain_repo_name) instead of the previously duplicated per-branch dicts.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds hermetic_container_integration.py to the wrapper_hook py_library (plus linux_container_action_wrapper.py data), adds :wrapper_hook to a deps list, and adds new py_test targets hermetic_container_integration_test and compiledb_test.",
+        "buildscripts/resmokelib/config.py": "Adds tss_test_list to DEFAULTS, a TSS_TEST_LIST module global, and a DEFAULT_EVERGREEN_TEST_SELECTION_STRATEGY default of [\"ExcludeManuallyQuarantined\"].",
+        "buildscripts/resmokelib/configure_resmoke.py": "Reads the new tss_test_list option into _config.TSS_TEST_LIST.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Moves the disagg_enabled computation into the non-auto-bootstrap branch and removes the force-checkpoint-past-FCV logic: deletes the post-FCV forced checkpoint call and the _await_stable_timestamp_advanced / _force_checkpoint_past_optime helper methods.",
+        "sbom.json": "Upstream bumps version to 15 and timestamp, reorders metadata so supplier/tools follow the component block, bumps the Endor Labs tools service version, removes the Cyrus SASL component, and includes a minor description typo edit. Conflicts with PSMDB's SBOM: per the hints, drop the metadata.tools section entirely and keep Percona's supplier url (https://percona.com); serialNumber/version are release-time and need not be reconciled.",
+        "src/mongo/db/BUILD.bazel": "Swaps the dependency //src/mongo/db/query/plan_ranking:plan_ranker_method for :plan_selection_strategy, matching the rename below.",
+        "src/mongo/db/curop_test.cpp": "Renames the plan-ranker tests to PlanSelectionStrategy*, replaces PlanRankerMethod with PlanSelectionStrategy and planRankerMethod with planSelectionStrategy, and extends assertions to the new kSinglePlan (\"singlePlan\") and kCachedPlan (\"cachedPlan\") values alongside multiPlanning/costBased/none.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds abort.cpp to the index_builds_coordinator library sources and abort_test.cpp to the index_builds_test unit-test sources.",
+        "src/mongo/db/op_debug.cpp": "Includes plan_selection_strategy.h instead of plan_ranker_method.h and reports/appends the planRanker field via getPlanSelectionStrategyName(planSelectionStrategy) in report(), append(), and appendStaged(). setPlanSummaryMetrics now copies planSelectionStrategy from PlanSummaryStats when set.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "In _setFollowerMode, records when the node is leaving STARTUP2 for RECOVERING and, after updating member state while still holding the lock, calls _setStableTimestampForStorage so the stable timestamp is updated on that transition (it is skipped during STARTUP2).",
+        "src/mongo/mongo_config_header.py": "Wraps the subprocess.run compiler invocations (both the temp-file and stdin paths) in try/except OSError, logging the failure, unlinking the temp file on the first path, and re-raising.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Ingested WiredTiger snapshot: adds the WT_STAT_CONN_CHECKPOINT_PAGES_RECONCILIATION_SKIPPED_EVICT_SNAPSHOT statistic (value 1447) and renumbers the subsequent WT_STAT_CONN_* checkpoint/connection statistic constants by one."
+      },
+      "review_notes": "Four files carried real conflicts (README.third_party.md, bazel/platforms/local_config_platform.bzl, sbom.json, MODULE.bazel.lock). Follow the conflict hints: for sbom.json remove metadata.tools and keep the Percona supplier url; for local_config_platform.bzl keep the PSMDB PSMDB_REMOTE_EXECUTION_CONTAINERS override while merging upstream's new MONGO_HERMETIC_CONTAINER_* env-var handling and the macos use_mongo_native_apple_toolchain constraint; for README.third_party.md preserve Percona's WiredTiger footnote wording; regenerate MODULE.bazel.lock last with bazel query. The plan_ranker_method -> plan_selection_strategy rename spans several files (db/BUILD.bazel, curop_test.cpp, op_debug.cpp) and depends on the renamed plan_selection_strategy target/header existing after the merge; verify those referenced symbols/paths are present. The replicaset.py fixture change removes force-checkpoint helpers and the wiredtiger.h.in stat renumbering is a generated artifact from the WiredTiger import."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each file in the changeset."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me view the full output."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me read the remaining files' diffs."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me check the diffs for the conflicted files (diff base \u2192 merge commit)."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me verify how the conflicts were resolved in the merge commit for the key files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have all the diffs I need. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. Let me verify it's valid JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written a valid JSON description to the response file.\n\nThe merge pulls upstream MongoDB (`604fe77` \u2192 `995f048`) into the PSMDB `master` fork. I read the actual `diff base \u2192 merge commit` diff for every file in the changeset and described only what appears there:\n\n- **Build system (largest area):** new Bazel cross-compile configs (Windows/s390x/ppc64le from Linux RBE, macOS remote-download tuning) in `.bazelrc`; a `gdb_toolchain_folder` install target; `libvoidstar` + IDL-under-Linux-Python plumbing in `mongo_src_rules.bzl`/`config/BUILD.bazel`; resmoke Test Selection Service rules; toolchain-substitution refactor; new wrapper-hook tests.\n- **Server:** the `plan_ranker_method` \u2192 `plan_selection_strategy` rename (`op_debug.cpp`, `curop_test.cpp`, `db/BUILD.bazel`), index-builds `abort.cpp`/`abort_test.cpp`, a stable-timestamp update when leaving STARTUP2 in the replication coordinator, and removal of force-checkpoint helpers in the replica-set fixture.\n- **Third-party/bookkeeping:** WiredTiger snapshot (new checkpoint stat + renumbering), README and sbom updates.\n\nThe four conflicted files (`README.third_party.md`, `local_config_platform.bzl`, `sbom.json`, `MODULE.bazel.lock`) are flagged in `review_notes` with the resolution guidance from the conflict hints (keep Percona supplier URL, drop `metadata.tools`, preserve the PSMDB RBE container override and WiredTiger footnote wording, regenerate the lock file last). The JSON validates."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260824_170551_521192.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.241 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "995f048ef8eb6f7bb84e393fd033b7af1c9eb710",
+    "short_sha": "995f048ef8e",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import (#61061) sits at ~52 commits into the window, right in the target band (~50, comfortable 30-65). Large third-party imports are ideal merge boundaries: they touch a well-isolated, auto-imported file set, rarely depend on the commits that follow, and are easy to validate post-merge. Cutting here also keeps the revert pair together and cancelled out within the batch: SERVER-132822 createIndexes (d239a495) and its auto-revert (9e0f6747) are both included, plus the follow-on hermetic-container opt-out tweak (490476fe) lands with the main hermetic-container commit (2b413f58) rather than being split. The commits immediately after the import are unrelated (code-lockdown personnel, packaging, profiling data), so this is a clean, self-contained stopping point that does not split any coherent unit of work and leaves the freshest, less-settled commits for the next batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/32754164597"
+  }
+}
