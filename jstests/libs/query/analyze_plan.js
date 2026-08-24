@@ -191,12 +191,14 @@ export function getWinningPlanFromExplain(explain, isSBEPlan = false) {
  *   kCostBased     - the cost-based ranker (CBR) ranked the plan (it carries a cost estimate).
  *   kMultiPlanning - the multi-planner (MP) ranked the plan (no cost estimate). This includes the
  *                    case where CBR was engaged but could not cost the plans and fell back to MP.
- *   kNone          - no ranking was needed (e.g. a single candidate plan).
+ *   kSinglePlan    - no ranking was needed because there was a single candidate plan.
+ *   kCachedPlan    - no ranking was needed because the plan came from the plan cache.
  */
 export const ChosenRanker = {
     kMultiPlanning: "multiPlanning",
     kCostBased: "costBased",
-    kNone: "none",
+    kSinglePlan: "singlePlan",
+    kCachedPlan: "cachedPlan",
 };
 
 /**
@@ -300,7 +302,8 @@ export function assertChosenRanker(explain, chosenRanker, reason = undefined) {
                 winningPlan,
             });
             break;
-        case ChosenRanker.kNone:
+        case ChosenRanker.kSinglePlan:
+        case ChosenRanker.kCachedPlan:
             assert(getRejectedPlans(explain).length === 0, "Expected no rejected plans", {explain});
             break;
     }
@@ -704,6 +707,33 @@ export function getPlanStages(root, stage) {
  */
 export function getAllPlanStages(root) {
     return getPlanStages(root);
+}
+
+/**
+ * Given a stage of explain's JSON representation of a query plan, returns its immediate child
+ * stages, in order.
+ *
+ * Use this instead of reading '.inputStage' directly: the legacy node shape nests a single child as
+ * the 'inputStage' subdocument and multiple children as the 'inputStages' array, while the V3 node
+ * shape always uses the array. Reading '.inputStage' therefore silently yields undefined on a V3
+ * plan (queryPlanner.plans[]), even though the V3 executionStats section keeps the legacy nesting.
+ */
+export function getChildStages(node) {
+    if (node.hasOwnProperty("inputStages")) {
+        return node.inputStages;
+    }
+    return node.hasOwnProperty("inputStage") ? [node.inputStage] : [];
+}
+
+/**
+ * Given a stage of explain's JSON representation of a query plan, returns its only child stage,
+ * asserting that it has exactly one. The node-shape-independent form of reading '.inputStage'; see
+ * getChildStages().
+ */
+export function getSingleChildStage(node) {
+    const children = getChildStages(node);
+    assert.eq(children.length, 1, "expected a stage with exactly one child", {node});
+    return children[0];
 }
 
 /**

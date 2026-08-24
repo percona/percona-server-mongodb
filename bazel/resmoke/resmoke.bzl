@@ -8,6 +8,33 @@ load("@rules_python//python:py_info.bzl", "PyInfo")
 load("//bazel:test_exec_properties.bzl", "test_exec_properties")
 load("//bazel/resmoke:.resmoke_suites_derived.bzl", "SUITE_SELECTORS")
 
+def _tss_settings_file_impl(ctx):
+    """Materializes the test selection build settings so a genrule can read them.
+
+    genrules cannot read build settings, so the values are written to a file the test-list genrule
+    takes as an input: first line whether selection is enabled, second line the strategies.
+    """
+    settings_file = ctx.actions.declare_file(ctx.label.name + ".txt")
+    enabled = ctx.attr._enable_flag[BuildSettingInfo].value
+    strategies = ctx.attr._strategies_flag[BuildSettingInfo].value
+    ctx.actions.write(settings_file, "{}\n{}\n".format("true" if enabled else "false", strategies))
+    return [DefaultInfo(files = depset([settings_file]))]
+
+tss_settings_file = rule(
+    implementation = _tss_settings_file_impl,
+    attrs = {
+        "_enable_flag": attr.label(
+            default = "//bazel/resmoke:enable_test_selection",
+            providers = [BuildSettingInfo],
+        ),
+        "_strategies_flag": attr.label(
+            default = "//bazel/resmoke:test_selection_strategies",
+            providers = [BuildSettingInfo],
+        ),
+    },
+    doc = "Writes the test selection build settings to a file for the test list genrule.",
+)
+
 def _config_fuzz_seed_file_impl(ctx):
     seed_file = ctx.actions.declare_file(ctx.label.name + ".txt")
     fixed_seed = ctx.attr._seed_flag[BuildSettingInfo].value
@@ -52,6 +79,43 @@ _config_fuzz_seed_file = rule(
     doc = "Generates a seed file for config fuzzer suites. When --//bazel/resmoke:config_fuzz_seed is empty (default), derives the seed from BUILD_TIMESTAMP and the suite name in volatile-status so all shards share the same seed. When set, writes that value verbatim.",
 )
 
+def _historic_runtime_impl(ctx):
+    output = ctx.outputs.out
+    args = ctx.actions.args()
+    args.add("--suite", ctx.attr.suite)
+    args.add("--volatile-status", ctx.version_file.path)
+    args.add("--output", output.path)
+
+    ctx.actions.run(
+        executable = ctx.executable._downloader,
+        arguments = [args],
+        inputs = [ctx.version_file],
+        tools = [ctx.attr._downloader[DefaultInfo].files_to_run],
+        outputs = [output],
+        mnemonic = "HistoricRuntime",
+        execution_requirements = {
+            "no-cache": "1",
+            "no-remote": "1",
+            "requires-network": "1",
+        },
+        use_default_shell_env = True,
+    )
+
+    return [DefaultInfo(files = depset([output]))]
+
+_historic_runtime = rule(
+    implementation = _historic_runtime_impl,
+    attrs = {
+        "out": attr.output(mandatory = True),
+        "suite": attr.string(mandatory = True),
+        "_downloader": attr.label(
+            default = Label("//bazel/resmoke:download_historic_runtimes"),
+            executable = True,
+            cfg = "exec",
+        ),
+    },
+)
+
 def _collect_python_imports_impl(ctx):
     """Collects Python imports from data dependencies to build PYTHONPATH."""
     python_imports = []
@@ -81,6 +145,40 @@ _collect_python_imports = rule(
         ),
     },
     doc = "Helper rule to collect Python imports from data dependencies",
+)
+
+def _resmoke_deps_path_impl(ctx):
+    paths = []
+    for dep in ctx.attr.deps:
+        files_to_run = dep[DefaultInfo].files_to_run
+        if files_to_run.executable:
+            paths.append(files_to_run.executable.path)
+            continue
+
+        files = dep[DefaultInfo].files.to_list()
+        if len(files) != 1:
+            fail(
+                "%s must produce exactly one file for resmoke DEPS_PATH, got %d" %
+                (dep.label, len(files)),
+            )
+        paths.append(files[0].path)
+
+    output = ctx.actions.declare_file(ctx.label.name + ".txt")
+    ctx.actions.write(
+        output = output,
+        content = "\n".join(paths) + "\n" if paths else "",
+    )
+    return [DefaultInfo(files = depset([output]))]
+
+_resmoke_deps_path = rule(
+    implementation = _resmoke_deps_path_impl,
+    attrs = {
+        "deps": attr.label_list(
+            allow_files = True,
+            doc = "Binary dependencies whose configured executable paths should be passed to resmoke.",
+        ),
+    },
+    doc = "Writes configured resmoke binary dependency paths for host-side cross-hermetic_container execution.",
 )
 
 def _resmoke_config_impl(ctx):
@@ -328,14 +426,14 @@ def resmoke_suite_test(
     )
 
     historic_runtimes = name + "_historic_runtimes"
-    native.genrule(
+
+    # Runtime data comes from S3, so it cannot run on RBE. It is still build
+    # work rather than test execution: route this distinct mnemonic to the
+    # local pinned container through Bazel's persistent-container strategy.
+    _historic_runtime(
         name = historic_runtimes,
-        srcs = [],
-        outs = [historic_runtimes + ".json"],
-        cmd = "$(location //bazel/resmoke:download_historic_runtimes) --suite=//{pkg}:{name} --volatile-status=bazel-out/volatile-status.txt --output=$@".format(pkg = native.package_name(), name = name),
-        tools = ["//bazel/resmoke:download_historic_runtimes"],
-        stamp = True,
-        tags = ["no-remote", "external", "no-cache"],
+        out = historic_runtimes + ".json",
+        suite = "//{pkg}:{name}".format(pkg = native.package_name(), name = name),
     )
 
     # Collect Python imports from data dependencies
@@ -387,6 +485,17 @@ def resmoke_suite_test(
         ],
         "//conditions:default": [],
     })
+
+    deps_path = ":".join(["$(location %s)" % dep for dep in deps])
+    deps_path_file = name + "_resmoke_deps_path"
+    _resmoke_deps_path(
+        name = deps_path_file,
+        deps = deps,
+        tags = [
+            "manual",
+            "resmoke_deps_path",
+        ],
+    )
 
     default_data = _DEFAULT_PYTHON_DATA + [
         generated_config,
@@ -468,9 +577,40 @@ def resmoke_suite_test(
         for dep in multiversion_deps
     ]
 
+    # The list of tests this suite will run, for Evergreen's Test Selection Services (TSS).
+    # Nothing consumes it yet. Discovery is given the same tag files as the test action below so
+    # the list matches what the suite would really run.
+    tss_test_list = name + "_tss_test_list"
+    native.genrule(
+        name = tss_test_list,
+        srcs = [generated_config, "//bazel/resmoke:tss_settings"] + srcs + multiversion_exclude_tags,
+        outs = [tss_test_list + ".yml"],
+        cmd = ("$(location //bazel/resmoke:generate_tss_test_list) --suite=$(location {config}) " +
+               "--label=//{pkg}:{name} --output=$@ --volatile-status=bazel-out/volatile-status.txt " +
+               "--selection-settings=$(location //bazel/resmoke:tss_settings)").format(
+            config = native.package_relative_label(generated_config),
+            pkg = native.package_name(),
+            name = name,
+        ) + "".join([
+            " --tagFile=$(location %s)" % native.package_relative_label(tag)
+            for tag in multiversion_exclude_tags
+        ]),
+        stamp = True,
+        tools = ["//bazel/resmoke:generate_tss_test_list"],
+        # Must run on the Evergreen host, not a remote worker: a later step will call the
+        # Test Selection Services API from here (required Mesh),
+        # which needs the host's credentials and network. no-sandbox
+        # because resmoke's selector resolves test files by globbing the working directory, so a
+        # sandbox with incomplete inputs would yield a silently short list rather than an error.
+        tags = ["no-remote", "external", "no-cache", "no-sandbox"],
+    )
+
     # Data that is always safe for cquery (no C++ toolchain needed): auto-derived srcs,
-    # default resmoke infrastructure, multiversion artifacts, and the config fuzz seed file.
-    cquery_safe_data = [d for d in srcs if d not in data] + [d for d in default_data if d not in data and d not in srcs] + multiversion_deps + multiversion_config + multiversion_exclude_tags + seed_target_data
+    # default resmoke infrastructure, multiversion artifacts, the config fuzz seed file, and the
+    # TSS test list. The test list is not read by the test yet, but it has to be reachable from
+    # the test target to get built at all: CI builds with --build_tests_only, which skips
+    # targets nothing depends on.
+    cquery_safe_data = [d for d in srcs if d not in data] + [d for d in default_data if d not in data and d not in srcs] + multiversion_deps + multiversion_config + multiversion_exclude_tags + seed_target_data + [":" + tss_test_list]
 
     # If this suite's only multiversion dep is last-continuous, it is a
     # dedicated last-continuous suite.  Mark it incompatible when
@@ -507,6 +647,7 @@ def resmoke_suite_test(
         "--archiveLimitMb=500",
         "--testTimeout=$(RESMOKE_TEST_TIMEOUT)",
         "--historicTestRuntimes=$(location :%s)" % historic_runtimes,
+        "--tssTestList=$(location :%s)" % tss_test_list,
         "--mongoVersionFile=$(location //bazel/resmoke:resmoke_mongo_version)",
     ] + [
         "--multiversionDir=$(location %s)" % native.package_relative_label(dep)
@@ -533,7 +674,11 @@ def resmoke_suite_test(
     py_binary(
         name = name + "_bin",
         srcs = [resmoke_shim],
-        data = data_attr,
+        data = data_attr + select({
+            "//bazel/resmoke:installed_dist_test_enabled": [],
+            "//bazel/resmoke:skip_deps_for_cquery_enabled": [],
+            "//conditions:default": [":%s" % deps_path_file],
+        }),
         deps = [
             resmoke,
             "//buildscripts:bazel_local_resources",

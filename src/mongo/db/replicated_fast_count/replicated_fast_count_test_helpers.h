@@ -35,9 +35,8 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
         return "";
     }
 
-    // TODO(SERVER-126250): consult provider here.
     bool mustUseContainerWrites() const override {
-        return false;
+        return true;
     }
 
     bool shouldUseReplicatedCatalogIdentifiers() const override {
@@ -99,6 +98,10 @@ class ReplicatedFastCountTestPersistenceProvider : public rss::StubPersistencePr
 
     bool supportsOplogSampling() const override {
         return false;
+    }
+
+    bool supportsOplogScanning() const override {
+        return true;
     }
 
     bool supportsWriteConcernOptions(const WriteConcernOptions&) const override {

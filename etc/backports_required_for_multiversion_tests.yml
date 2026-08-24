@@ -25,6 +25,8 @@ last-patch:
       ticket: SERVER-131544
     - test_file: jstests/aggregation/optimization/do_not_push_match_past_rename_onto_dotted_path.js
       ticket: SERVER-132414
+    - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
+      ticket: SERVER-130139
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_critical_section_with_replica_set_write_block.js
       ticket: SERVER-121079
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
@@ -45,6 +47,8 @@ last-patch:
       ticket: SERVER-118700
     - test_file: jstests/core/query/query_settings/query_settings_raw_data.js
       ticket: SERVER-112940
+    - test_file: jstests/core/query/sbe/sbe_prepare_for_decimal123_invalidation.js
+      ticket: SERVER-130247
     - test_file: jstests/core/query/where/where_system_js.js
       ticket: SERVER-130167
     - test_file: jstests/core/timeseries/ddl/reindex_timeseries.js
@@ -63,11 +67,15 @@ last-patch:
       ticket: SERVER-131540
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
+    - test_file: jstests/sharding/txn_prepared_participant_unauthorized_commit_abort.js
+      ticket: SERVER-130544
   suites: null
 last-continuous:
   all:
     - test_file: jstests/aggregation/expressions/comparison_missing_and_key_values.js
       ticket: SERVER-131544
+    - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
+      ticket: SERVER-130139
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_critical_section_with_replica_set_write_block.js
       ticket: SERVER-121079
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
@@ -82,6 +90,8 @@ last-continuous:
       ticket: SERVER-130677
     - test_file: jstests/core/query/query_settings/query_settings_raw_data.js
       ticket: SERVER-112940
+    - test_file: jstests/core/query/sbe/sbe_prepare_for_decimal123_invalidation.js
+      ticket: SERVER-130247
     - test_file: jstests/core/timeseries/query/timeseries_bucket_level_filter.js
       ticket: SERVER-131544
     - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
@@ -100,6 +110,8 @@ last-continuous:
       ticket: SERVER-131283
     - test_file: jstests/sharding/reshard_collection_hashed_prefix_with_zones.js
       ticket: SERVER-133282
+    - test_file: jstests/sharding/txn_prepared_participant_unauthorized_commit_abort.js
+      ticket: SERVER-130544
   suites: null
 last-lts:
   all:
@@ -107,6 +119,8 @@ last-lts:
       ticket: SERVER-131544
     - test_file: jstests/aggregation/optimization/do_not_push_match_past_rename_onto_dotted_path.js
       ticket: SERVER-132414
+    - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
+      ticket: SERVER-130139
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_critical_section_with_replica_set_write_block.js
       ticket: SERVER-121079
     - test_file: jstests/concurrency/fsm_workloads/ddl/random_ddl/random_ddl_replica_set_write_block.js
@@ -121,6 +135,8 @@ last-lts:
       ticket: SERVER-130677
     - test_file: jstests/core/query/query_settings/query_settings_raw_data.js
       ticket: SERVER-112940
+    - test_file: jstests/core/query/sbe/sbe_prepare_for_decimal123_invalidation.js
+      ticket: SERVER-130247
     - test_file: jstests/core/timeseries/query/timeseries_bucket_level_filter.js
       ticket: SERVER-131544
     - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
@@ -139,4 +155,6 @@ last-lts:
       ticket: SERVER-131283
     - test_file: jstests/sharding/reshard_collection_hashed_prefix_with_zones.js
       ticket: SERVER-133282
+    - test_file: jstests/sharding/txn_prepared_participant_unauthorized_commit_abort.js
+      ticket: SERVER-130544
   suites: null

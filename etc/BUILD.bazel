@@ -1,6 +1,13 @@
 load("//bazel:mongo_src_rules.bzl", "symlink")
+load("@rules_python//python:defs.bzl", "py_test")
 
 package(default_visibility = ["//visibility:public"])
+
+py_test(
+    name = "set_up_workstation_test",
+    srcs = ["set_up_workstation_test.py"],
+    data = ["set_up_workstation.sh"],
+)
 
 exports_files([
     "lsan.suppressions",
@@ -20,8 +27,7 @@ filegroup(
         "evergreen_nightly.yml",
         "//:monguard/.evergreen/config_mongodb_master.yml",
         "//:monguard/.evergreen/config_tasks.yml",
-        "//src/mongo/db/modules/atlas:atlas_dev.yml",
-        "//src/mongo/db/modules/atlas:atlas_sls_pin_bump.yml",
+        "//src/mongo/db/modules/atlas:evergreen_config",
     ] + glob(["evergreen_yml_components/**"]),
 )
 

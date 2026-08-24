@@ -48,6 +48,7 @@
 #include "mongo/db/query/plan_enumerator/plan_enumerator.h"
 #include "mongo/db/query/plan_enumerator/plan_enumerator_explain_info.h"
 #include "mongo/db/query/plan_ranking/plan_ranker.h"
+#include "mongo/db/query/plan_ranking/plan_selection_strategy.h"
 #include "mongo/db/query/planner_access.h"
 #include "mongo/db/query/planner_analysis.h"
 #include "mongo/db/query/planner_ixselect.h"
@@ -1501,8 +1502,9 @@ StatusWith<std::vector<std::unique_ptr<QuerySolution>>> QueryPlanner::plan(
                           "need exactly one text index for $text query");
         }
 
-        // Error if the text node is tagged with zero indices.
-        if (0 == tag->first.size() && 0 == tag->notFirst.size()) {
+        // Error if the text node is untagged (e.g. nested inside a kOther operator such as
+        // $_internalSchemaCond that rateIndices does not recurse into) or tagged with zero indices.
+        if (!tag || (0 == tag->first.size() && 0 == tag->notFirst.size())) {
             // Don't leave tags on query tree.
             query.getPrimaryMatchExpression()->resetTag();
             return Status(ErrorCodes::NoQueryExecutionPlans,
@@ -1901,6 +1903,8 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     // explain to show all rejected plans.
     std::vector<std::unique_ptr<QuerySolution>> rejectedSoln;
 
+    const size_t numCandidates = allSoln.size();
+
     CostEstimate bestCost = maxCost;
     std::unique_ptr<QuerySolution> bestSoln;
     for (auto&& soln : allSoln) {
@@ -1949,7 +1953,7 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     }
     tassert(9751901,
             "Some plan has fallen into the gray zone between accepted and rejected QSNs.",
-            acceptedSoln.size() + rejectedSoln.size() == allSoln.size());
+            acceptedSoln.size() + rejectedSoln.size() == numCandidates);
 
     // If only the best plan is in the accepted solutions, CBR successfully chose a winner.
     bool successfullyChoseWinner = acceptedSoln.size() == 1;
@@ -1957,10 +1961,16 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
         cbrChoseWinningPlan.increment();
     }
 
+    // With a sole candidate there is nothing to rank even if CBR was called to
+    // estimate it for explain purposes.
+    auto strategy = numCandidates == 1 ? PlanSelectionStrategy::kSinglePlan
+        : successfullyChoseWinner      ? PlanSelectionStrategy::kCostBasedRanker
+                                       : PlanSelectionStrategy::kMultiPlanner;
     auto planRankingResult =
         PlanRankingResult{.solutions = std::move(acceptedSoln),
                           .maybeExplainData = PlanExplainerData{.estimates = std::move(estimates)},
-                          .needsWorksMeasuredForPlanCache = successfullyChoseWinner};
+                          .needsWorksMeasuredForPlanCache = successfullyChoseWinner,
+                          .planSelectionStrategy = strategy};
     if (query.getExplain()) {
         std::vector<SolutionWithPlanStage> rejectedSolnWithStages;
         rejectedSolnWithStages.reserve(rejectedSoln.size());
