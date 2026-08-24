@@ -71,7 +71,6 @@ def _setup_local_config_platform(ctx):
     elif distro != None and distro in REMOTE_EXECUTION_CONTAINERS:
         constraints_str += ',\n        "@//bazel/platforms:use_mongo_toolchain"'
         constraints_str += ',\n        "@//bazel/platforms:%s"' % (distro)
-<<<<<<< HEAD
 
         # PSMDB override: prefer PSMDB-specific image map for distros we serve
         # via the RBE cluster (see bazel/platforms/psmdb_rbe_containers.bzl
@@ -82,19 +81,13 @@ def _setup_local_config_platform(ctx):
         # bazel/platforms/platform_util.bzl for the explicit
         # //bazel/platforms:<distro>_<arch> targets. See
         # bazel/platforms/psmdb_rbe_containers.bzl for rationale and
-        # maintenance procedure.
+        # maintenance procedure. An explicit MONGO_HERMETIC_CONTAINER_IMAGE
+        # env var (upstream) still wins over both maps when set.
         psmdb_entry = PSMDB_REMOTE_EXECUTION_CONTAINERS.get(distro)
         container_url = (
-            psmdb_entry["container-url"] if psmdb_entry else REMOTE_EXECUTION_CONTAINERS[distro]["container-url"]
-        )
-||||||| 604fe77ba32
-        container_url = REMOTE_EXECUTION_CONTAINERS[distro]["container-url"]
-=======
-        container_url = (
             ctx.os.environ.get("MONGO_HERMETIC_CONTAINER_IMAGE") or
-            REMOTE_EXECUTION_CONTAINERS[distro]["container-url"]
+            (psmdb_entry["container-url"] if psmdb_entry else REMOTE_EXECUTION_CONTAINERS[distro]["container-url"])
         )
->>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710
         web_url = REMOTE_EXECUTION_CONTAINERS[distro]["web-url"]
         dockerfile = REMOTE_EXECUTION_CONTAINERS[distro]["dockerfile"]
         print("Local host platform is configured to use this container if doing remote execution: {} built from {}".format(web_url, dockerfile))

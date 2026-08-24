@@ -182,20 +182,6 @@ examples and can differ from platform to platform.
    header file which is licensed under a BSD license. This BSD licensed header is the only
    file from Valgrind which is vendored and consumed by MongoDB.
 
-<<<<<<< HEAD
 2. <a id="note_wt" href="#ref_wt">^</a>
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
-||||||| 604fe77ba32
-2. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
-=======
-2. <a id="note_wt" href="#ref_wt">^</a>
-   WiredTiger is maintained by MongoDB in a separate repository. As a part of our
-   development process, we periodically ingest the latest snapshot of that repository.
-
-3. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
->>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710

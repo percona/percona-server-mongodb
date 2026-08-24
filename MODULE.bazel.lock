@@ -353,13 +353,7 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
-<<<<<<< HEAD
-        "bzlTransitiveDigest": "HfnfE2W7seEFQjNrOoyHdLN+S7gGa2taedv66+DtMSo=",
-||||||| 604fe77ba32
-        "bzlTransitiveDigest": "I5PaojsBKW1HVmcYHwU0ZOQyD8u+fglp9ZhNyuH4pT4=",
-=======
-        "bzlTransitiveDigest": "0Ls83w+99VX3FWHqU5lq38/OKk0eyea+/nKnrX+KqKU=",
->>>>>>> 995f048ef8eb6f7bb84e393fd033b7af1c9eb710
+        "bzlTransitiveDigest": "TBZfTb7MGU8ulDJ78dLr4O4kEutXbgYHiuEhHWMsf5Q=",
         "usagesDigest": "bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
