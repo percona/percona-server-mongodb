@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 313,
-    "days_behind": 11,
-    "unmerged_oldest_age_days": 11.630705571423611,
-    "files_affected": 1537,
-    "total_additions": 87876,
-    "total_deletions": 18265,
+    "commits_behind": 329,
+    "days_behind": 12,
+    "unmerged_oldest_age_days": 12.179361925601851,
+    "files_affected": 1588,
+    "total_additions": 93092,
+    "total_deletions": 19249,
     "date_range": {
       "first": "2026-08-13T01:51:52+00:00",
-      "last": "2026-08-24T15:09:29+00:00"
+      "last": "2026-08-25T04:58:29+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,166 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "9d76d3bd5fa9ed978e17c58325e15a30c98039ce",
+      "short_sha": "9d76d3bd5fa",
+      "date": "2026-08-25T04:58:29+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-133524: Speed up race-safe install publication (#61059)"
+    },
+    {
+      "sha": "5f66432c93456c084d0b774ebfcee61f2168623a",
+      "short_sha": "5f66432c934",
+      "date": "2026-08-25T03:13:48+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 3c0efc82dd661f745b7d47d41f7c04c95746275d from branch mongodb-master (#61594)"
+    },
+    {
+      "sha": "e1713b70f8075acafacea4094e27c01609f241c8",
+      "short_sha": "e1713b70f80",
+      "date": "2026-08-25T02:42:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-104907 Fix improper BSONElement creation in bson_validate.cpp (#61241)\" (#61644)"
+    },
+    {
+      "sha": "94c283bfdfc8cce0e6fc9608bd6bfe5cf8130c1f",
+      "short_sha": "94c283bfdfc",
+      "date": "2026-08-25T00:15:20+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-133553 Check that a document matches an index's filter expression before unindexing (#61561)"
+    },
+    {
+      "sha": "d2ccf27775a8778ebf494470f0fa51ed4da59e2e",
+      "short_sha": "d2ccf27775a",
+      "date": "2026-08-25T00:05:49+00:00",
+      "author": {
+        "name": "Luke Pearson",
+        "email": "luke.pearson@mongodb.com"
+      },
+      "summary": "SERVER-133822 Label size-stats histogram from WT-published ceiling (#61455)"
+    },
+    {
+      "sha": "161040e1703f688f98d968ffae05dfe6a322342e",
+      "short_sha": "161040e1703",
+      "date": "2026-08-24T23:09:25+00:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-133896: Add a PBT for reshardCollection to cover zones/shardDistribution combinations (#61535)"
+    },
+    {
+      "sha": "c62cfaf2ce0225482d3e4b1a86afda5ba353ce8d",
+      "short_sha": "c62cfaf2ce0",
+      "date": "2026-08-24T22:09:47+00:00",
+      "author": {
+        "name": "Brett Nawrocki",
+        "email": "90278537+brettnawrocki@users.noreply.github.com"
+      },
+      "summary": "SERVER-133858 Fix racy MBOCv2 test cases (#61603)"
+    },
+    {
+      "sha": "4a7c224ae2b4bff14df24b5b303c01155ae816f4",
+      "short_sha": "4a7c224ae2b",
+      "date": "2026-08-24T22:09:11+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-133605 Replace bazel_tools cpp rules with rules_cc cpp rules (#61403)"
+    },
+    {
+      "sha": "f58b20f2f65be3e18ed8910fc976129cda3b8a49",
+      "short_sha": "f58b20f2f65",
+      "date": "2026-08-24T20:40:58+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-133955: Automatically recover stale rootless Podman runtime state (#61598)"
+    },
+    {
+      "sha": "f36b49f49f9e25ec695c70dc0271c16615ccc06f",
+      "short_sha": "f36b49f49f9",
+      "date": "2026-08-24T20:35:09+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-133222 Use containers in all replicated fast count tests (#60804)"
+    },
+    {
+      "sha": "03eb2d97c2dfd9f551344462fa89f29ef56f387c",
+      "short_sha": "03eb2d97c2d",
+      "date": "2026-08-24T20:16:49+00:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-104907 Fix improper BSONElement creation in bson_validate.cpp (#61241)"
+    },
+    {
+      "sha": "4b1f525ea0dc2e0021d929956a87943c95a2f2f4",
+      "short_sha": "4b1f525ea0d",
+      "date": "2026-08-24T17:52:24+00:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-132462 Update guidance on OTel metric naming (#61209)"
+    },
+    {
+      "sha": "e32c8b13e47576db41130707fb8fe539dbd353be",
+      "short_sha": "e32c8b13e47",
+      "date": "2026-08-24T17:25:05+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-133509 Clean up stale TODOs (#61468)"
+    },
+    {
+      "sha": "a31b8c589881023c4d67f038b8a85de971b727f1",
+      "short_sha": "a31b8c58988",
+      "date": "2026-08-24T16:58:20+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-133941: Make GDB installation optional for dist-test archives (#61555)"
+    },
+    {
+      "sha": "d9a6c6616e353e444c4575028e38ed914c8eed0b",
+      "short_sha": "d9a6c6616e3",
+      "date": "2026-08-24T16:45:16+00:00",
+      "author": {
+        "name": "Rustam Gusein-zade",
+        "email": "rustam.guseinzade@mongodb.com"
+      },
+      "summary": "SERVER-133934 Synchronise client state counts update with client state change (#61591)"
+    },
+    {
+      "sha": "9a108e2a37f73be3701a86754784132e81bf72a8",
+      "short_sha": "9a108e2a37f",
+      "date": "2026-08-24T15:46:51+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-133942: Move macOS and Windows quality checks to non-required variants (#61565)"
+    },
     {
       "sha": "64fe6c9da28a34e80f6a77b8506a3a6b2441d179",
       "short_sha": "64fe6c9da28",
@@ -3739,10 +3899,56 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "4a7c224ae2b4bff14df24b5b303c01155ae816f4",
+        "short_sha": "4a7c224ae2b",
+        "date": "2026-08-24T22:09:11+00:00",
+        "author": {
+          "name": "Andrew Bradshaw",
+          "email": "andrew.bradshaw@mongodb.com"
+        },
+        "summary": "SERVER-133605 Replace bazel_tools cpp rules with rules_cc cpp rules (#61403)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 44,
+          "num_of_lines": 250,
+          "lines_added": 181,
+          "lines_deleted": 69,
+          "num_of_dirs": 28
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "5f66432c93456c084d0b774ebfcee61f2168623a",
+        "short_sha": "5f66432c934",
+        "date": "2026-08-25T03:13:48+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 3c0efc82dd661f745b7d47d41f7c04c95746275d from branch mongodb-master (#61594)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 32,
+          "num_of_lines": 868,
+          "lines_added": 715,
+          "lines_deleted": 153,
+          "num_of_dirs": 16
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-24 16:59:58",
+  "generated_at": "2026-08-25 06:09:52",
   "branch_name": "master",
   "display_name": "master"
 }
