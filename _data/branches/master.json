@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 280,
+    "commits_behind": 282,
     "days_behind": 11,
-    "unmerged_oldest_age_days": 11.394088198483797,
-    "files_affected": 1300,
-    "total_additions": 63348,
-    "total_deletions": 16015,
+    "unmerged_oldest_age_days": 11.550938730486111,
+    "files_affected": 1305,
+    "total_additions": 63415,
+    "total_deletions": 16107,
     "date_range": {
       "first": "2026-08-14T00:05:50+00:00",
-      "last": "2026-08-25T08:51:08+00:00"
+      "last": "2026-08-25T10:39:36+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "a0ebdea6deff81257b5c6ecab76f151a0c8d5e45",
+      "short_sha": "a0ebdea6def",
+      "date": "2026-08-25T10:39:36+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-128620 Retool SBE VM builtin functions not operate over raw tags/values (#55680)"
+    },
+    {
+      "sha": "85e40970359b01ec38327cf5d0090577e38d62ca",
+      "short_sha": "85e40970359",
+      "date": "2026-08-25T09:03:34+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-133919 Avoid repeated field name length calculation (#61570)"
+    },
     {
       "sha": "eb69320f55fc9c35690108d40e0f52803dca0ee7",
       "short_sha": "eb69320f55f",
@@ -3319,7 +3339,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-25 09:32:03",
+  "generated_at": "2026-08-25 13:17:52",
   "branch_name": "master",
   "display_name": "master"
 }
