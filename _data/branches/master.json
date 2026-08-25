@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 277,
+    "commits_behind": 280,
     "days_behind": 11,
-    "unmerged_oldest_age_days": 11.332177829328703,
-    "files_affected": 1290,
-    "total_additions": 63217,
-    "total_deletions": 15807,
+    "unmerged_oldest_age_days": 11.394088198483797,
+    "files_affected": 1300,
+    "total_additions": 63348,
+    "total_deletions": 16015,
     "date_range": {
       "first": "2026-08-14T00:05:50+00:00",
-      "last": "2026-08-25T04:58:29+00:00"
+      "last": "2026-08-25T08:51:08+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,36 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "eb69320f55fc9c35690108d40e0f52803dca0ee7",
+      "short_sha": "eb69320f55f",
+      "date": "2026-08-25T08:51:08+00:00",
+      "author": {
+        "name": "Tommaso Tocci",
+        "email": "58224719+toto-dev@users.noreply.github.com"
+      },
+      "summary": "SERVER-132952 Re-enable tests disabled due to FCV upgrade to 9.1 (#61588)"
+    },
+    {
+      "sha": "2b7dee61a19954bb968a181a89b0f0baf4b08fa8",
+      "short_sha": "2b7dee61a19",
+      "date": "2026-08-25T07:37:12+00:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-132752 Recreate indexes on shard.catalog.chunks during setFCV upgrade (#61589)"
+    },
+    {
+      "sha": "b2cced10fb9a817917533bcf60ed72b7294ff4cd",
+      "short_sha": "b2cced10fb9",
+      "date": "2026-08-25T07:30:49+00:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-133804 Revert \"SERVER-132110 DDL coordinators: create new collections with `allowChunkOperations: false` (#61437)"
+    },
     {
       "sha": "9d76d3bd5fa9ed978e17c58325e15a30c98039ce",
       "short_sha": "9d76d3bd5fa",
@@ -3289,7 +3319,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-25 08:03:09",
+  "generated_at": "2026-08-25 09:32:03",
   "branch_name": "master",
   "display_name": "master"
 }
