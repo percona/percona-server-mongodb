@@ -1,0 +1,236 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "109a363651db0ac85629e02afff4c90476d29a28",
+    "merge_commit": "ec471563e82d74377e391270a7782643dc27a2b4"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "ec471563e82d74377e391270a7782643dc27a2b4",
+    "merged_commits": [
+      "ec471563e82d74377e391270a7782643dc27a2b4",
+      "9aab93982515d622a1dd09ae5efdc5f55a8cbcc6",
+      "5b336c40d2e09f39247af77cfe6b0dceb3bc7e42",
+      "0d47ba52a389b9d07a3befc6b18eb7113ff30bd4",
+      "317656637aa5b03f682160e45d1128518702e230",
+      "90475c7a23447bab59b913341c83f7e0dc8df2a0",
+      "b6133f15dd1fc9857afa718dc8d79a3610ab95be",
+      "d99477405a0b0f58c681dc4def78120e1062dc75",
+      "e9dcb02a6a7fd4a17dc0a3e2e77d993f8e545f06",
+      "9914069dc48dda39e5da4887665579fa16d994be",
+      "2eada2e840468204246ddc215da47bd4a5c0d82e",
+      "ede2f1599c785190ea0556d986f51c885893fa3a",
+      "ad23445b0f07181ef5318019aff4447615eb741b",
+      "db692e6a8bd1e43571864327a9aacb20717e2577",
+      "1607dd44aa0d7327ea38b298606602ff31f1ddfb",
+      "b781d8f5c74b8dde3cafe2e72ca446cc204f751f",
+      "456cd8a131b2ba7f559b6d4577d5e97dbd2686c6",
+      "21dc611e208ce3d24a968a3559d2f1e371f535a0",
+      "8301f4f5ece25e5a804ab96df506fda451adb0df",
+      "a0b2387633c36baaf19021a30a771b93112d2705",
+      "b0a889ee8ce37a5fc7eab02739e13c240a788d60",
+      "c30fbe201980f6e5e5d41c87ab68714fa2bd8c07",
+      "ea97ee13a8c73c828645f319b9b59bd72b8fca79",
+      "dfa888978d61662e7c1075177ca6c15012a486f1",
+      "9e66b880ec266faf101533496a15e316e05a0c95",
+      "34f559aa91b58df3e327893a444a5ba45ab8db3a",
+      "3a03f290d10b7103cc3f0c1095644d5b42904d7e",
+      "bee1c1205e051685e9c30300ec9d5045677ee695",
+      "ae6d67df592a5af2a1a1216e1b3869bb07f0d65c",
+      "bc23d2d5a3792fccfaa8b2ba559ef4fa921981a7",
+      "cd3831e91c95ff53574a8768f2c145a77f1804f0",
+      "89ae678dd168cd405c1e97e009c987622c0bcca1",
+      "203f694baf0278c64b4540930c360dd119ec9e8c",
+      "47bc879c515cde1ad927a038954f43571b6aeb3c",
+      "d505b01194ebd24d91e295f274f90b28209715bb",
+      "cea057a66bed875714cac8ab552193e11f58e457",
+      "f2cf68fdf2bb1e9d157e0f8d2e211aa18189bef9",
+      "f1b2a4cee510baf06b59f818d5a07991e991f4be",
+      "cccff34f7f7470ffb7b198cde575c37d050f7c67",
+      "3e958ad5f991aaf66d03acf6ec4a482899544310",
+      "8fed64e0f1b3284e63d54c0efb0631dc638788ed",
+      "c7bd06254793e4a718df782c0cd87905314e2be4",
+      "46c2da4399a3375d6d720318a9932ebcdd765b47",
+      "80c8d52dc8bd0a0d5dd7fb446e4443b5195b61bd",
+      "593c884d8f4a10510462ec62d4a7182cd9f8895b",
+      "d81989c92e3334ec822048d48d979a3dc6a131d4",
+      "570ac6b7906e6be30f3517267e5e52342bbbb3dc",
+      "2bdfc1702ba3a6ea2a44f1c63f30459b9f9922ca",
+      "0b5d36701c20fa82994ef06af3a729ceb3668a7a",
+      "fc40339d4d1b61f830ccadda42d85aa1a0ef2134"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/resmoke/resmoke.bzl",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 63738,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.32512225000000006,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 4606,
+        "cacheReadInputTokens": 49524,
+        "cacheCreationInputTokens": 29461,
+        "webSearchRequests": 0,
+        "costUSD": 0.32407325000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001049
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 4606,
+            "cache_read": 49524,
+            "cache_creation": 29461
+          },
+          "cost_usd": 0.32407325000000003
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming diffs (`995f048 \u2192 ec47156`) for every file in the changeset and written the merge description to the response file.\n\nThe merge pulls in five independent upstream changes:\n\n1. **GDB `.gdb_index` feature** \u2014 a new opt-in Bazel `gdb_index` flag with config settings, new `GdbGenerateIndex`/`GdbApplyIndex` strategies, and index-generation attributes threaded into cc binary/test rules (`.bazelrc`, `bazel/config/BUILD.bazel`, `bazel/mongo_src_rules.bzl`).\n2. **`$joinPlanCacheStats` aggregation stage** \u2014 new build targets, dependency wiring, and an auth test (`src/mongo/db/pipeline/BUILD.bazel`, `src/mongo/db/commands/BUILD.bazel`, `jstests/auth/lib/commands_lib.js`), plus reworked SED compact/cleanup auth test cases.\n3. **Startup DB-open hardening** \u2014 `startup_recovery.cpp` gains `openDbDuringStartup()` that logs the raw name bytes and a corruption hint on `BadValue`.\n4. **`setRecoveryCheckpointMetadata` \u2192 `Status`** \u2014 signature change across the storage-engine interface and WiredTiger impl, with EBUSY becoming a retryable `ObjectIsBusy` and a new fatal log when the materialization frontier regresses.\n5. **WiredTiger third-party** \u2014 new `step_down_disaggregated_schema_epoch` config + stat, and checkpoint-lock protection around history-store verify.\n\nThe response file is valid JSON with a `summary`, per-file `auto_merged` explanations, and `review_notes` flagging the signature change ripple, the GDB-target existence check, and the lock-file regeneration. I made no changes to any source files.",
+    "response": {
+      "summary": "Upstream merge pulling in several independent changes: (1) a new opt-in GDB '.gdb_index' generation feature wired through Bazel (a 'gdb_index' flag/config settings, GDB index strategies, and index generation attributes on cc binaries/tests); (2) a new $joinPlanCacheStats aggregation stage (build targets, an auth test) gated behind join-optimization/join-plan-cache knobs; (3) more robust startup database opening in startup_recovery.cpp that attributes open failures to a specific database and logs the raw name bytes on BadValue; (4) storage-engine API change making setRecoveryCheckpointMetadata() return a Status, with WiredTiger reporting EBUSY as a retryable ObjectIsBusy error and logging a fatal message when the materialization frontier moves backwards; and (5) WiredTiger third-party updates adding a step_down_disaggregated_schema_epoch connection config plus a new statistic, and holding the checkpoint lock during history-store verify.",
+      "auto_merged": {
+        ".bazelrc": "Adds GDB index build strategies: registers GdbGenerateIndex and GdbApplyIndex as local strategies, adds GdbApplyIndex to the no-remote-cache modify_execution_info list, adds a 'gdb_index' flag alias mapped to //bazel/config:gdb_index defaulting to False, and registers GdbGenerateIndex=remote under the remote_link and remote_test configs.",
+        "MODULE.bazel.lock": "Lock file changes accompanying the merge; regenerated/accepted as a whole rather than manually merged (not functionally described).",
+        "bazel/config/BUILD.bazel": "Adds a new 'gdb_index' bool_flag (default False) and supporting config_settings/config_setting_groups: 'gdb_index_enabled', 'gdb_index_enabled_by_default' (running_in_evg + fission_disabled + separate_debug_enabled), 'gdb_index_enabled_or_default', and 'gdb_index_enabled_linux'.",
+        "bazel/mongo_src_rules.bzl": "Adds GDB_INDEX_ENABLED, GDB_GENERATE_INDEX, and GDB_INDEX_MESSAGE_DATA selects keyed on //bazel/config:gdb_index_enabled_linux. Appends GDB_INDEX_MESSAGE_DATA to binary/test 'data', and passes gdb_index_enabled and gdb_generate_index attributes into the separate-debug binary and test rule invocations.",
+        "bazel/resmoke/resmoke.bzl": "Narrows the runfiles transitive_files: the cc_toolchain.all_files are now only included when ctx.configuration.coverage_enabled is true (previously included whenever a cc_toolchain was present).",
+        "jstests/auth/lib/commands_lib.js": "Adds an 'aggregate_joinPlanCacheStats' auth test case for the $joinPlanCacheStats stage on admin (expecting QueryFeatureNotAllowed since the join knobs are off by default). Also reworks the compactStructuredEncryptionData and cleanupStructuredEncryptionData test cases: replaces skipSharded/skipUnlessReplicaSet with skipTest(isStandalone), changes required privilege resources from exact-namespace (collection: 'foo') to db scope (collection: ''), and adds expectAuthzFailure cases confirming exact-namespace privileges are insufficient.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds dependencies: //src/mongo/db:metrics_filtering_util and //src/mongo/db:metrics_policy_manager to one library, and //src/mongo/db/pipeline:document_source_join_plan_cache_stats to another (wiring in the new $joinPlanCacheStats stage).",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds a new 'document_source_join_plan_cache_stats' mongo_cc_library (kept separate from 'pipeline' to avoid a dependency cycle via join_plan_cache) depending on //src/mongo/db/pipeline and //src/mongo/db/query/plan_cache:join_plan_cache; registers its unit test source/dep; and adds //src/mongo/db/query/util:represent_as_util deps to two existing libraries.",
+        "src/mongo/db/startup_recovery.cpp": "Adds a helper openDbDuringStartup() that opens a database via DatabaseHolder and, on ExceptionFor<ErrorCodes::BadValue>, logs an error (id 13340100) with the database name and its hex-encoded bytes suggesting durable catalog corruption/restore-from-backup, then rethrows. Includes util/hex.h and routes existing databaseHolder->openDb() call sites (restoreMissingFeatureCompatibilityVersionDocument, openDatabases, hasReplSetConfigDoc, startupRepair, offlineValidateParallel, offlineValidate) through the helper; minor local reordering of DatabaseHolder::get() acquisitions.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Changes the virtual setRecoveryCheckpointMetadata(std::string_view) default implementation to return Status (returns Status::OK()) instead of void.",
+        "src/mongo/db/storage/storage_engine.h": "Changes the pure virtual setRecoveryCheckpointMetadata(std::string_view) signature to return Status instead of void.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Updates StorageEngineImpl::setRecoveryCheckpointMetadata to return the Status forwarded from _engine->setRecoveryCheckpointMetadata().",
+        "src/mongo/db/storage/storage_engine_impl.h": "Updates the setRecoveryCheckpointMetadata override signature to return Status.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "setLastMaterializedLsn now captures the set_context_uint return; if it is EINVAL it logs LOGV2_FATAL (id 13206604) 'Materialization frontier moved backwards' with the lsn before invariantWTOK. setRecoveryCheckpointMetadata now returns Status: on EBUSY from reconfigure it returns ErrorCodes::ObjectIsBusy (transient, retry the checkpoint pickup) instead of asserting; otherwise invariantWTOK and returns Status::OK().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Updates the setRecoveryCheckpointMetadata override signature to return Status.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In __conn_startup_cleanup_and_verify, wraps the history-store verify call so __wt_hs_verify(session) runs under WT_WITH_CHECKPOINT_LOCK (capturing ret then WT_ERR(ret)), matching WT_SESSION::verify, so a disaggregated follower's oldest-timestamp judgement is stable against concurrent checkpoint pickup.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Documents a new 'step_down_disaggregated_schema_epoch' connection reconfigure config option (a string, default empty, supplied together with step_down_timestamp when schema epochs are in use), updates the step_down_timestamp doc to reference it, and adds the WT_STAT_CONN_TXN_STEPDOWN_EPOCH_SET statistic (2037), renumbering the subsequent transaction stat constants (2038 onward)."
+      },
+      "review_notes": "Changes are auto-merged with no conflict markers to resolve here. The storage-engine setRecoveryCheckpointMetadata void->Status signature change spans storage_engine.h, kv_engine.h, storage_engine_impl.{h,cpp}, and wiredtiger_kv_engine.{h,cpp}; confirm any additional callers/overriders in the fork are updated to consume the returned Status (and to handle the new ObjectIsBusy retry path). The GDB index feature is off by default (gdb_index=False; enabled-by-default only in Evergreen CI with fission disabled and separate debug enabled) and relies on Bazel targets referenced by mongo_src_rules.bzl (//:gdb-generate-index, //bazel:gdb-generate-index-noop, //bazel:gdb-index-message) \u2014 verify those targets exist in the merged tree. MODULE.bazel.lock should be regenerated per project instructions rather than hand-merged. WiredTiger third-party changes are vendored upstream and generally taken as-is."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the incoming diffs for each auto-merged file to describe accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs I need. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming diffs (`995f048 \u2192 ec47156`) for every file in the changeset and written the merge description to the response file.\n\nThe merge pulls in five independent upstream changes:\n\n1. **GDB `.gdb_index` feature** \u2014 a new opt-in Bazel `gdb_index` flag with config settings, new `GdbGenerateIndex`/`GdbApplyIndex` strategies, and index-generation attributes threaded into cc binary/test rules (`.bazelrc`, `bazel/config/BUILD.bazel`, `bazel/mongo_src_rules.bzl`).\n2. **`$joinPlanCacheStats` aggregation stage** \u2014 new build targets, dependency wiring, and an auth test (`src/mongo/db/pipeline/BUILD.bazel`, `src/mongo/db/commands/BUILD.bazel`, `jstests/auth/lib/commands_lib.js`), plus reworked SED compact/cleanup auth test cases.\n3. **Startup DB-open hardening** \u2014 `startup_recovery.cpp` gains `openDbDuringStartup()` that logs the raw name bytes and a corruption hint on `BadValue`.\n4. **`setRecoveryCheckpointMetadata` \u2192 `Status`** \u2014 signature change across the storage-engine interface and WiredTiger impl, with EBUSY becoming a retryable `ObjectIsBusy` and a new fatal log when the materialization frontier regresses.\n5. **WiredTiger third-party** \u2014 new `step_down_disaggregated_schema_epoch` config + stat, and checkpoint-lock protection around history-store verify.\n\nThe response file is valid JSON with a `summary`, per-file `auto_merged` explanations, and `review_notes` flagging the signature change ripple, the GDB-target existence check, and the lock-file regeneration. I made no changes to any source files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260825_141415_593365.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.245 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "ec471563e82d74377e391270a7782643dc27a2b4",
+    "short_sha": "ec471563e82",
+    "strategy": "huge_commit",
+    "summary": "This is the 'Import wiredtiger: 61adc5c8... (#61137)' commit, a large but self-contained vendored third-party import - an ideal, easy-to-validate merge boundary that does not depend on the commits after it. Cutting here yields ~50 commits, squarely in the target band. Critically, this batch keeps both in-range revert pairs together so they cancel out instead of importing a feature now and removing it next merge: SERVER-37715 DISTINCT_SCAN (cccff34f) with its revert #61111 (a0b23876), and SERVER-133243 exponential backoff (e9dcb02a) with its revert #61136 (0d47ba52). Ending on the atomic wiredtiger import avoids splitting active churn (the PDIB series and internode-hash work come later) and leaves the freshest, less-settled commits for the next batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/32857420106"
+  }
+}
