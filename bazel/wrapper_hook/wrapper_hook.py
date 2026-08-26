@@ -140,13 +140,26 @@ def _prepare_bazel_configuration(
     enterprise_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "enterprise"
     if not enterprise_mod.exists():
         enterprise = False
-        added_options.extend(["--//bazel/config:build_enterprise=False", "--config=local"])
-        print(
-            f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to "
-            "local non-enterprise build (--config=local "
-            "--//bazel/config:build_enterprise=False). Add the directory to not "
-            "automatically add these options."
-        )
+        # PSMDB-2034: Skip the auto-injection of `--config=local`
+        # when the user has explicitly opted into RBE remote execution
+        # via `--config=psmdb_buildfarm`. Upstream's `--config=local`
+        # resets `--remote_executor` and `--remote_cache` to the empty
+        # string; appended after psmdb_buildfarm it silently turns the
+        # build into a fully local one (Bazel's "later --config wins on
+        # conflicting flags" rule), defeating the whole point of the RBE
+        # flag. `--//bazel/config:build_enterprise=False` is otherwise
+        # compensated for by the file-wide `build --build_enterprise=False`
+        # line in .bazelrc.psmdb plus the explicit
+        # `common:psmdb_buildfarm --//bazel/config:build_enterprise=False`
+        # added in the RBE stanza, so dropping it here is safe.
+        if not _has_config_value(args, "psmdb_buildfarm"):
+            added_options.extend(["--//bazel/config:build_enterprise=False", "--config=local"])
+            print(
+                f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to "
+                "local non-enterprise build (--config=local "
+                "--//bazel/config:build_enterprise=False). Add the directory to not "
+                "automatically add these options."
+            )
 
     atlas_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "atlas"
     if not atlas_mod.exists():
@@ -290,13 +303,7 @@ def main():
 
     # from bazel.wrapper_hook.git_age_check import check as git_age_check
     from bazel.wrapper_hook.plus_interface import check_bazel_command_type, test_runner_interface
-<<<<<<< HEAD
     from bazel.wrapper_hook.rbe_auth import RbeAuthError, RbeAuthRequired, get_id_token
-    from bazel.wrapper_hook.write_wrapper_hook_bazelrc import write_wrapper_hook_bazelrc
-||||||| a01b5951149
-    from bazel.wrapper_hook.write_wrapper_hook_bazelrc import write_wrapper_hook_bazelrc
-=======
->>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177
 
     th_all_header, hdr_state_all_header = spawn_all_headers_thread(REPO_ROOT)
 
@@ -346,80 +353,17 @@ def main():
     enterprise = True
     atlas = True
     if check_bazel_command_type(sys.argv[1:]) not in ["clean", "shutdown", "version", None]:
-<<<<<<< HEAD
-        args = sys.argv
-        enterprise_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "enterprise"
-        if not enterprise_mod.exists():
-            enterprise = False
-            # PSMDB-2034: Skip the auto-injection of `--config=local`
-            # when the user has explicitly opted into RBE remote execution
-            # via `--config=psmdb_buildfarm`. Upstream's `--config=local`
-            # resets `--remote_executor` and `--remote_cache` to the empty
-            # string; appended after psmdb_buildfarm it silently turns the
-            # build into a fully local one (Bazel's "later --config wins on
-            # conflicting flags" rule), defeating the whole point of the RBE
-            # flag. `--//bazel/config:build_enterprise=False` is otherwise
-            # compensated for by the file-wide `build --build_enterprise=False`
-            # line in .bazelrc.psmdb plus the explicit
-            # `common:psmdb_buildfarm --//bazel/config:build_enterprise=False`
-            # added in the RBE stanza, so dropping it here is safe.
-            if not _has_config_value(args, "psmdb_buildfarm"):
-                print(
-                    f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --//bazel/config:build_enterprise=False). Add the directory to not automatically add these options."
-                )
-                args = append_args(
-                    args, ["--config=local", "--//bazel/config:build_enterprise=False"]
-                )
-
-        atlas_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "atlas"
-        if not atlas_mod.exists():
-            atlas = False
-            args = append_args(args, ["--//bazel/config:build_atlas=False"])
-
-        if any(arg.startswith("--include_mongot") for arg in args):
-            os.makedirs("mongot-localdev", exist_ok=True)
-
-        write_workstation_bazelrc(args)
-        write_wrapper_hook_bazelrc(args)
-||||||| a01b5951149
-        args = sys.argv
-        enterprise_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "enterprise"
-        if not enterprise_mod.exists():
-            enterprise = False
-            print(
-                f"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --//bazel/config:build_enterprise=False). Add the directory to not automatically add these options."
-            )
-            args += ["--//bazel/config:build_enterprise=False", "--config=local"]
-
-        atlas_mod = REPO_ROOT / "src" / "mongo" / "db" / "modules" / "atlas"
-        if not atlas_mod.exists():
-            atlas = False
-            args += ["--//bazel/config:build_atlas=False"]
-
-        if any(arg.startswith("--include_mongot") for arg in args):
-            os.makedirs("mongot-localdev", exist_ok=True)
-
-        engflow_auth(args)
-        write_workstation_bazelrc(args)
-        write_wrapper_hook_bazelrc(args)
-=======
         args, enterprise, atlas, _added_options = _prepare_bazel_configuration(sys.argv)
->>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177
         # Disable git age check for now, to avoid issues wth merge commits
         # git_age_check()
 
-<<<<<<< HEAD
-        try:
-            args = run_with_terminal_output(
-                test_runner_interface,
-                args[1:],
-                autocomplete_query=os.environ.get("MONGO_AUTOCOMPLETE_QUERY") == "1",
-                enterprise=enterprise,
-                atlas=atlas,
-            )
-        except LinterFail:
-            # Linter fails preempt bazel run.
-            sys.exit(3)
+        args = run_with_terminal_output(
+            test_runner_interface,
+            args[1:],
+            autocomplete_query=os.environ.get("MONGO_AUTOCOMPLETE_QUERY") == "1",
+            enterprise=enterprise,
+            atlas=atlas,
+        )
 
         # PSMDB-2034: pre-flight the RBE buildfarm credential cache when
         # this build is going to talk to the on-demand cluster. Detection
@@ -501,27 +445,6 @@ def main():
                     f"fresh={post.get('fresh')} expires_at={post.get('expires_at', 0)} "
                     f"groups={post.get('groups')}"
                 )
-||||||| a01b5951149
-        try:
-            args = run_with_terminal_output(
-                test_runner_interface,
-                args[1:],
-                autocomplete_query=os.environ.get("MONGO_AUTOCOMPLETE_QUERY") == "1",
-                enterprise=enterprise,
-                atlas=atlas,
-            )
-        except LinterFail:
-            # Linter fails preempt bazel run.
-            sys.exit(3)
-=======
-        args = run_with_terminal_output(
-            test_runner_interface,
-            args[1:],
-            autocomplete_query=os.environ.get("MONGO_AUTOCOMPLETE_QUERY") == "1",
-            enterprise=enterprise,
-            atlas=atlas,
-        )
->>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177
     else:
         args = sys.argv[2:]
 
