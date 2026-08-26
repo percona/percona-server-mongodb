@@ -195,6 +195,11 @@ public:
             "StubPersistenceProvider::getWTMemoryPageMaxForOplogStrValue() method not implemented");
     }
 
+    double getMinOplogSizeMB() const override {
+        uasserted(mongo::ErrorCodes::NotImplemented,
+                  "StubPersistenceProvider::getMinOplogSizeMB() method not implemented");
+    }
+
     bool supportsCompaction() const override {
         uasserted(mongo::ErrorCodes::NotImplemented,
                   "StubPersistenceProvider::supportsCompaction() method not implemented");
@@ -265,12 +270,22 @@ public:
             "StubPersistenceProvider::supportsLegacyReplSetCommands() method not implemented");
     }
 
+    bool supportsDBHashExternalCall() const override {
+        uasserted(mongo::ErrorCodes::NotImplemented,
+                  "StubPersistenceProvider::supportsDBHashExternalCall() method not implemented");
+    }
+
     /**
      * Unlike the rest of this stub, this method returns a FixedIntervalPolicy rather than
      * uasserting, so that existing Stub-based test providers work without each needing an override.
      */
     std::unique_ptr<CheckpointSchedulePolicy> makeCheckpointSchedulePolicy() const override {
         return createFixedIntervalPolicy();
+    }
+
+    bool supportsApplyOpsCommand() const override {
+        uasserted(mongo::ErrorCodes::NotImplemented,
+                  "StubPersistenceProvider::supportsApplyOpsCommand() method not implemented");
     }
 };
 

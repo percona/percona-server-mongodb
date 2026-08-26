@@ -3463,7 +3463,6 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
     // in-progress transaction.
     WiredTigerSession session(_connection.get());
 
-    // TODO: SERVER-122163 pass drop schema epoch to WT.
     std::string config = "checkpoint_wait=false";
     if (!waitForLocks) {
         config += ",lock_wait=false";
@@ -3488,6 +3487,11 @@ Status WiredTigerKVEngine::dropIdent(RecoveryUnit& ru,
 
     if (onDrop) {
         onDrop();
+    }
+
+    // schemaEpoch may be none even if schema epochs are in use if this is an unreplicated drop
+    if (_usesSchemaEpochs && schemaEpoch) {
+        publishIdent(wtRu, uri, *schemaEpoch);
     }
 
     return status;

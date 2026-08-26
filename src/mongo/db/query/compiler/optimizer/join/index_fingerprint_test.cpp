@@ -14,6 +14,7 @@
 #include "mongo/unittest/unittest.h"
 
 #include <memory>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -120,7 +121,7 @@ public:
     }
 
     // All ready index entries on 'nss'. In production this list is the INLJ-eligible subset
-    // produced by 'extractINLJEligibleIndexesFromGraph'; computeRelevantIndexFingerprint itself
+    // produced by 'extractINLJEligibleIndexes'; computeRelevantIndexFingerprint itself
     // does no eligibility filtering, so these tests hand it the catalog contents directly and
     // exercise only the relevance filtering and hashing that it does own.
     std::vector<std::shared_ptr<const IndexCatalogEntry>> readyIndexes(
@@ -129,10 +130,17 @@ public:
             IndexCatalog::InclusionPolicy::kReady);
     }
 
-    // Fingerprints the current catalog state of 'kNss' against 'relevantFields'.
-    NodeFingerprint fingerprint(std::initializer_list<std::string> relevantFields) {
+    // Hashes the indexes of 'kNss' that are relevant to 'relevantFields'.
+    std::vector<IndexFingerprint> relevantHashes(
+        std::initializer_list<std::string> relevantFields) {
         auto mca = multipleCollectionAccessor(operationContext(), {kNss});
-        return computeRelevantIndexFingerprint(readyIndexes(mca, kNss), StringSet(relevantFields));
+        return computeRelevantIndexHashes(readyIndexes(mca, kNss), StringSet(relevantFields));
+    }
+
+    // Fingerprints the indexes of 'kNss' named in 'usedIndexNames'.
+    IndexFingerprint usedFingerprint(std::initializer_list<std::string> usedIndexNames) {
+        auto mca = multipleCollectionAccessor(operationContext(), {kNss});
+        return computeUsedIndexFingerprint(readyIndexes(mca, kNss), StringSet(usedIndexNames));
     }
 
     // Deliberately not the fixture's makeCanonicalQuery(), which cannot express a sort and which
@@ -177,16 +185,71 @@ public:
         ASSERT_EQ(expected, relevantFieldsPerNode(joinGraph, resolvedPaths)[nodeId]);
     }
 
+    // A cached INLJ node on 'nodeId' probing the index named 'indexName'.
+    static std::unique_ptr<CachedJoinPlan> inljPlanNode(NodeId nodeId, std::string indexName) {
+        return std::make_unique<CachedJoinPlan>(
+            CachedInljNode{.nodeId = nodeId, .inljForeignIndexName = std::move(indexName)});
+    }
+
+    struct CachedIndex {
+        std::string name;
+        BSONObj keyPattern;
+    };
+
+    // A cached access path on 'nodeId' reading from 'indexes': the first is the root of the index
+    // tree, any others are its children.
+    static std::unique_ptr<CachedJoinPlan> accessPathPlanNode(
+        NodeId nodeId, const std::vector<CachedIndex>& indexes) {
+        auto cacheData = std::make_unique<SolutionCacheData>();
+        for (const auto& index : indexes) {
+            auto node = std::make_unique<PlanCacheIndexTree>();
+            node->entry = std::make_unique<IndexEntry>(index.keyPattern,
+                                                       IndexType::INDEX_BTREE,
+                                                       IndexConfig::kLatestIndexVersion,
+                                                       false /* multikey */,
+                                                       MultikeyPaths{},
+                                                       std::set<FieldRef>{},
+                                                       false /* sparse */,
+                                                       false /* unique */,
+                                                       IndexEntry::Identifier{index.name},
+                                                       BSONObj() /* infoObj */,
+                                                       nullptr /* wildcardProjection */);
+            if (cacheData->tree) {
+                cacheData->tree->children.push_back(std::move(node));
+            } else {
+                cacheData->tree = std::move(node);
+            }
+        }
+        return std::make_unique<CachedJoinPlan>(
+            CachedAccessPath{.nodeId = nodeId, .solnCacheData = std::move(cacheData)});
+    }
+
+    // A cached plan over 'left' and 'right'.
+    static std::unique_ptr<CachedJoinPlan> joinPlanNode(std::unique_ptr<CachedJoinPlan> left,
+                                                        std::unique_ptr<CachedJoinPlan> right) {
+        return std::make_unique<CachedJoinPlan>(
+            CachedJoinNode{.left = std::move(left), .right = std::move(right)});
+    }
+
+    // A two-node cached plan that reads from no index at all, for the tests that only care about
+    // the relevant index set.
+    static std::unique_ptr<CachedJoinPlan> planUsingNoIndexes() {
+        return joinPlanNode(accessPathPlanNode(NodeId{0}, {}), accessPathPlanNode(NodeId{1}, {}));
+    }
+
     // Fingerprints every node of 'joinGraph' against the live index catalogs of 'nssList'. The
     // accessor is held for the whole call so that the catalog entries it hands out stay valid.
     std::vector<NodeFingerprint> fingerprintGraph(const JoinGraph& joinGraph,
-                                                  std::vector<NamespaceString> nssList) {
+                                                  std::vector<NamespaceString> nssList,
+                                                  const CachedJoinPlan* plan = nullptr) {
         auto mca = multipleCollectionAccessor(operationContext(), nssList);
         AvailableIndexes perCollIdxs;
         for (const auto& nss : nssList) {
             perCollIdxs.emplace(nss, readyIndexes(mca, nss));
         }
-        auto fingerprints = makeNodeFingerprints(joinGraph, resolvedPaths, perCollIdxs);
+        auto defaultPlan = plan ? nullptr : planUsingNoIndexes();
+        auto fingerprints = makeNodeFingerprints(
+            joinGraph, resolvedPaths, perCollIdxs, plan ? *plan : *defaultPlan);
         // Checked here rather than per test: every caller below indexes the result by NodeId, which
         // would be an out-of-range read rather than a clean failure if this ever regressed.
         ASSERT_EQ(joinGraph.numNodes(), fingerprints.size());
@@ -463,92 +526,92 @@ TEST_F(IndexFingerprintTest, RelevantFieldsIncludeNodePredicateAndJoinFields) {
 }
 
 //
-// computeRelevantIndexFingerprint: which indexes are relevant.
+// computeRelevantIndexHashes: which indexes are relevant.
 //
 // Only indexes reachable from the node's relevant field set may affect its fingerprint.
 //
 
 TEST_F(IndexFingerprintTest, IrrelevantIndexCreationDoesNotChangeFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     // 'b' is not a relevant field, so no plan over 'a' can be affected by this index.
     addIndex(fromjson("{b: 1}"), "b_1");
-    ASSERT_EQ(before, fingerprint({"a"}));
+    ASSERT_EQ(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, IrrelevantIndexDropDoesNotChangeFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
     addIndex(fromjson("{b: 1}"), "b_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     dropIndex("b_1");
-    ASSERT_EQ(before, fingerprint({"a"}));
+    ASSERT_EQ(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RelevantIndexCreationChangesFingerprint) {
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
     addIndex(fromjson("{a: 1}"), "a_1");
     // A newly created relevant index could yield a better plan, so the entry must be replanned.
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RelevantIndexDropChangesFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     dropIndex("a_1");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, CompoundIndexIsRelevantViaItsLeadingField) {
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
     addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, CompoundIndexIsRelevantViaANonLeadingField) {
     // Tests that a predicated field that is not the leading field in an index is still considered
     // relevant.
-    const auto before = fingerprint({"b"});
+    const auto before = relevantHashes({"b"});
     addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
-    ASSERT_NE(before, fingerprint({"b"}));
+    ASSERT_NE(before, relevantHashes({"b"}));
 }
 
 TEST_F(IndexFingerprintTest, IndexSharingNoFieldWithTheQueryIsIrrelevant) {
     // The overlap still has to be real: this is what keeps the fingerprint finer-grained than the
     // collection version check it backs up.
-    const auto before = fingerprint({"z"});
+    const auto before = relevantHashes({"z"});
     addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
-    ASSERT_EQ(before, fingerprint({"z"}));
+    ASSERT_EQ(before, relevantHashes({"z"}));
 }
 
 TEST_F(IndexFingerprintTest, IndexOnAPrefixOfARelevantFieldIsRelevant) {
     // An index on 'a' can generate bounds for a predicate on 'a.b', since satisfying that predicate
     // requires 'a' to be an object.
-    const auto before = fingerprint({"a.b"});
+    const auto before = relevantHashes({"a.b"});
     addIndex(fromjson("{a: 1}"), "a_1");
-    ASSERT_NE(before, fingerprint({"a.b"}));
+    ASSERT_NE(before, relevantHashes({"a.b"}));
 }
 
 TEST_F(IndexFingerprintTest, IndexOnAnExtensionOfARelevantFieldIsRelevant) {
     // The other direction. We do not try to predict which prefix relations the optimizer can
     // exploit, so both count.
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
     addIndex(fromjson("{'a.b': 1}"), "a.b_1");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, PrefixMatchingIsPerPathComponent) {
     // 'a' is a prefix of 'a.b' but not of 'ab' -- overlap is compared component-wise, so a merely
     // textual prefix does not make an unrelated index relevant.
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
     addIndex(fromjson("{ab: 1}"), "ab_1");
-    ASSERT_EQ(before, fingerprint({"a"}));
+    ASSERT_EQ(before, relevantHashes({"a"}));
 }
 
 //
-// computeRelevantIndexFingerprint: what makes two relevant index sets equivalent.
+// computeRelevantIndexHashes: what makes two relevant index sets equivalent.
 //
 // The fingerprint must be a function of the semantics of the index set and nothing else: sensitive
 // to every part of a definition the optimizer can see, and insensitive to catalog churn and
@@ -557,20 +620,29 @@ TEST_F(IndexFingerprintTest, PrefixMatchingIsPerPathComponent) {
 
 TEST_F(IndexFingerprintTest, FingerprintIsStableAcrossRepeatedComputation) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    ASSERT_EQ(fingerprint({"a"}), fingerprint({"a"}));
+    ASSERT_EQ(relevantHashes({"a"}), relevantHashes({"a"}));
 }
 
-TEST_F(IndexFingerprintTest, EmptyRelevantFieldSetIsDistinguishableFromNonEmpty) {
+TEST_F(IndexFingerprintTest, RelevantIndexHashesHoldsOneHashPerRelevantIndex) {
+    // The hashes are kept per index rather than folded together so that a later caller can tell an
+    // index that appeared from one that merely went away, which means the count has to track the
+    // relevant index set exactly.
     addIndex(fromjson("{a: 1}"), "a_1");
-    // Distinct from the default-constructed fingerprint value, so that a node whose relevant index
-    // set is genuinely empty is not conflated with an uninitialized one.
-    ASSERT_NE(NodeFingerprint{}, fingerprint({"b"}));
-    ASSERT_NE(fingerprint({"b"}), fingerprint({"a"}));
+    addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
+    addIndex(fromjson("{z: 1}"), "z_1");
+
+    auto hashes = relevantHashes({"a"});
+    ASSERT_EQ(2, hashes.size());
+    // Two different indexes, so two different hashes, in ascending order.
+    ASSERT_LT(hashes[0], hashes[1]);
+
+    // And the irrelevant one is counted for the field it does cover.
+    ASSERT_EQ(1, relevantHashes({"z"}).size());
 }
 
 TEST_F(IndexFingerprintTest, RecreatingIdenticalRelevantIndexDoesNotChangeFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     // A drop and identical recreate churns the catalog and gets a fresh durable ident, but is
     // semantically a no-op: the cached plan's index tags and INLJ index name still resolve to an
@@ -579,18 +651,18 @@ TEST_F(IndexFingerprintTest, RecreatingIdenticalRelevantIndexDoesNotChangeFinger
     // ident or a creation timestamp would fail here.
     dropIndex("a_1");
     addIndex(fromjson("{a: 1}"), "a_1");
-    ASSERT_EQ(before, fingerprint({"a"}));
+    ASSERT_EQ(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RecreatingRelevantIndexWithDifferentKeyPatternChangesFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     // Same index name, different definition. IndexEntry::operator== compares names only, so this
     // is precisely the case the fingerprint must not miss.
     dropIndex("a_1");
     addIndex(fromjson("{a: 1, b: 1}"), "a_1");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RedefiningRelevantIndexWithDifferentAttributesChangesFingerprint) {
@@ -600,18 +672,18 @@ TEST_F(IndexFingerprintTest, RedefiningRelevantIndexWithDifferentAttributesChang
                                              fromjson("{partialFilterExpression: {a: {$gt: 0}}}")};
 
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto plain = fingerprint({"a"});
+    const auto plain = relevantHashes({"a"});
 
     for (const auto& redefinition : redefinitions) {
         dropIndex("a_1");
         // Apply new property when creating index with same name and key pattern.
         addIndex(fromjson("{a: 1}"), "a_1", redefinition);
-        ASSERT_NE(plain, fingerprint({"a"})) << " for redefinition " << redefinition.toString();
+        ASSERT_NE(plain, relevantHashes({"a"})) << " for redefinition " << redefinition.toString();
 
         // And back, so each case is measured against the same baseline, not the previous one.
         dropIndex("a_1");
         addIndex(fromjson("{a: 1}"), "a_1");
-        ASSERT_EQ(plain, fingerprint({"a"})) << " after reverting " << redefinition.toString();
+        ASSERT_EQ(plain, relevantHashes({"a"})) << " after reverting " << redefinition.toString();
     }
 }
 
@@ -619,84 +691,178 @@ TEST_F(IndexFingerprintTest, RedefiningRelevantIndexWithADifferentPartialFilterC
     // Both definitions are partial, so 'isPartial()' is unchanged and only the partial filter
     // itself differs.
     addIndex(fromjson("{a: 1}"), "a_1", fromjson("{partialFilterExpression: {a: {$gt: 0}}}"));
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     dropIndex("a_1");
     addIndex(fromjson("{a: 1}"), "a_1", fromjson("{partialFilterExpression: {a: {$gt: 5}}}"));
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RedefiningRelevantIndexWithADifferentCollationChangesFingerprint) {
     // Both definitions are collated, so only the collation differs.
     addIndex(fromjson("{a: 1}"), "a_1", fromjson("{collation: {locale: 'en_US'}}"));
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     dropIndex("a_1");
     addIndex(fromjson("{a: 1}"), "a_1", fromjson("{collation: {locale: 'fr'}}"));
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, HidingARelevantIndexChangesFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto visible = fingerprint({"a"});
+    const auto visible = relevantHashes({"a"});
 
     setIndexHiddenOn(kNss, "a_1", true);
-    ASSERT_NE(visible, fingerprint({"a"}));
+    ASSERT_NE(visible, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, UnhidingARelevantIndexRestoresTheFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto visible = fingerprint({"a"});
+    const auto visible = relevantHashes({"a"});
 
     setIndexHiddenOn(kNss, "a_1", true);
     setIndexHiddenOn(kNss, "a_1", false);
     // Hidden state is the only thing that changed, so the fingerprint must land back where it was
     // rather than merely differing from the hidden one.
-    ASSERT_EQ(visible, fingerprint({"a"}));
+    ASSERT_EQ(visible, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, HidingAnIrrelevantIndexDoesNotChangeFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
     addIndex(fromjson("{b: 1}"), "b_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     // A collMod that hides an index no node references must not invalidate the entry, just as
     // creating or dropping one does not.
     setIndexHiddenOn(kNss, "b_1", true);
-    ASSERT_EQ(before, fingerprint({"a"}));
+    ASSERT_EQ(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, ReversingRelevantIndexDirectionChangesFingerprint) {
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     dropIndex("a_1");
     addIndex(fromjson("{a: -1}"), "a_1");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, RenamingRelevantIndexChangesFingerprint) {
     // TODO (SERVER-132446): Revisit when using index ident instead of name.
     addIndex(fromjson("{a: 1}"), "a_1");
-    const auto before = fingerprint({"a"});
+    const auto before = relevantHashes({"a"});
 
     // Cached INLJ nodes resolve their probe index by name, so the name is part of the fingerprint.
     dropIndex("a_1");
     addIndex(fromjson("{a: 1}"), "a_renamed");
-    ASSERT_NE(before, fingerprint({"a"}));
+    ASSERT_NE(before, relevantHashes({"a"}));
 }
 
 TEST_F(IndexFingerprintTest, FingerprintIsIndependentOfIndexCreationOrder) {
     addIndex(fromjson("{a: 1}"), "a_1");
     addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
-    const auto forwardOrder = fingerprint({"a"});
+    const auto forwardOrder = relevantHashes({"a"});
 
     dropIndex("a_1");
     dropIndex("a_1_b_1");
     addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
     addIndex(fromjson("{a: 1}"), "a_1");
 
-    ASSERT_EQ(forwardOrder, fingerprint({"a"}));
+    ASSERT_EQ(forwardOrder, relevantHashes({"a"}));
+}
+
+//
+// usedIndexNamesPerNode: which indexes a cached plan reads from.
+//
+
+TEST_F(IndexFingerprintTest, UsedIndexNamesFromAnAccessPath) {
+    auto plan = accessPathPlanNode(NodeId{0}, {{"a_1", BSON("a" << 1)}, {"b_1", BSON("b" << 1)}});
+    auto names = usedIndexNamesPerNode(*plan, 1);
+    ASSERT_EQ(StringSet({"a_1", "b_1"}), names[0]);
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexNamesFromAnUntaggedAccessPathAreEmpty) {
+    // A collection scan tags no index, so the node depends on no index at all.
+    auto plan = accessPathPlanNode(NodeId{0}, {});
+    ASSERT_TRUE(usedIndexNamesPerNode(*plan, 1)[0].empty());
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexNamesFromAnInljProbeIndex) {
+    auto plan = inljPlanNode(NodeId{0}, "a_1");
+    ASSERT_EQ(StringSet({"a_1"}), usedIndexNamesPerNode(*plan, 1)[0]);
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexNamesAreAttributedPerNodeAcrossNestedJoins) {
+    auto plan = joinPlanNode(
+        accessPathPlanNode(NodeId{0}, {{"a_1", BSON("a" << 1)}}),
+        joinPlanNode(
+            inljPlanNode(NodeId{1}, "b_1"),
+            accessPathPlanNode(NodeId{2}, {{"c_1", BSON("c" << 1)}, {"d_1", BSON("d" << 1)}})));
+
+    auto names = usedIndexNamesPerNode(*plan, 3);
+    ASSERT_EQ(StringSet({"a_1"}), names[0]);
+    ASSERT_EQ(StringSet({"b_1"}), names[1]);
+    ASSERT_EQ(StringSet({"c_1", "d_1"}), names[2]);
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexNamesCoverEveryNodeEvenWhenThePlanMentionsNone) {
+    auto plan = accessPathPlanNode(NodeId{0}, {{"a_1", BSON("a" << 1)}});
+    auto names = usedIndexNamesPerNode(*plan, 2);
+    ASSERT_EQ(2, names.size());
+    ASSERT_TRUE(names[1].empty());
+}
+
+//
+// computeUsedIndexFingerprint: detecting a change to an index the plan reads from.
+//
+
+TEST_F(IndexFingerprintTest, UsedIndexFingerprintIsStableAcrossRepeatedComputation) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    ASSERT_EQ(usedFingerprint({"a_1"}), usedFingerprint({"a_1"}));
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexFingerprintOfANodeReadingNoIndexIsNotZero) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    ASSERT_NE(IndexFingerprint{}, usedFingerprint({}));
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexFingerprintIgnoresIndexesThePlanDoesNotRead) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    const auto before = usedFingerprint({"a_1"});
+
+    addIndex(fromjson("{a: 1, b: 1}"), "a_1_b_1");
+    dropIndex("a_1_b_1");
+    ASSERT_EQ(before, usedFingerprint({"a_1"}));
+}
+
+TEST_F(IndexFingerprintTest, DroppingAUsedIndexChangesTheUsedIndexFingerprint) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    const auto before = usedFingerprint({"a_1"});
+
+    dropIndex("a_1");
+    ASSERT_NE(before, usedFingerprint({"a_1"}));
+}
+
+TEST_F(IndexFingerprintTest, RedefiningAUsedIndexChangesTheUsedIndexFingerprint) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    const auto before = usedFingerprint({"a_1"});
+
+    dropIndex("a_1");
+    addIndex(fromjson("{a: 1, b: 1}"), "a_1");
+    ASSERT_NE(before, usedFingerprint({"a_1"}));
+}
+
+TEST_F(IndexFingerprintTest, UsedIndexFingerprintIsIndependentOfIndexCreationOrder) {
+    addIndex(fromjson("{a: 1}"), "a_1");
+    addIndex(fromjson("{b: 1}"), "b_1");
+    const auto forwardOrder = usedFingerprint({"a_1", "b_1"});
+
+    dropIndex("a_1");
+    dropIndex("b_1");
+    addIndex(fromjson("{b: 1}"), "b_1");
+    addIndex(fromjson("{a: 1}"), "a_1");
+
+    ASSERT_EQ(forwardOrder, usedFingerprint({"a_1", "b_1"}));
 }
 
 //
@@ -881,7 +1047,8 @@ TEST_F(IndexFingerprintTest, MakeNodeFingerprintsProducesOneFingerprintPerNode) 
         perCollIdxs.emplace(nss, readyIndexes(mca, nss));
     }
 
-    auto fingerprints = makeNodeFingerprints(ctx.joinGraph, ctx.resolvedPaths, perCollIdxs);
+    auto plan = planUsingNoIndexes();
+    auto fingerprints = makeNodeFingerprints(ctx.joinGraph, ctx.resolvedPaths, perCollIdxs, *plan);
     ASSERT_EQ(2, fingerprints.size());
 }
 

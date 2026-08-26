@@ -213,6 +213,12 @@ public:
     virtual const char* getWTMemoryPageMaxForOplogStrValue() const = 0;
 
     /**
+     * The smallest oplog size, in MB, that the provider accepts when the oplog is resized via
+     * replSetResizeOplog.
+     */
+    virtual double getMinOplogSizeMB() const = 0;
+
+    /**
      * If true, the provider supports compaction.
      */
     virtual bool supportsCompaction() const = 0;
@@ -284,9 +290,19 @@ public:
     virtual bool supportsLegacyReplSetCommands() const = 0;
 
     /**
+     * If true, the provider supports external usage of dbHash.
+     */
+    virtual bool supportsDBHashExternalCall() const = 0;
+
+    /**
      * Creates and returns a new policy that governs checkpoint scheduling for this provider.
      */
     virtual std::unique_ptr<CheckpointSchedulePolicy> makeCheckpointSchedulePolicy() const = 0;
+
+    /**
+     * If true, the provider supports the apply ops user-facing command.
+     */
+    virtual bool supportsApplyOpsCommand() const = 0;
 
     /**
      * Reports the current number of active layered data handles to any provider-specific metrics

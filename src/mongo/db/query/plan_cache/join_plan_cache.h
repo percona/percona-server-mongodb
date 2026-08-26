@@ -115,10 +115,25 @@ struct CollectionTag {
     CollectionVersionTag versionTag;
 };
 
-// Hash of the set of indexes relevant to a single node of the join graph, including each index's
-// definition. Computed by 'join_ordering::makeNodeFingerprints' (index_fingerprint.h) from the
-// live catalog, both when an entry is stored and when a stored entry needs revalidating.
-using NodeFingerprint = std::size_t;
+// Hash of a single index, including its definition.
+using IndexFingerprint = std::size_t;
+
+// Per-join-graph-node index state, used to decide whether a catalog change forces a replan.
+// Computed by 'join_ordering::makeNodeFingerprints' (index_fingerprint.h) from the live catalog,
+// both when an entry is stored and when a stored entry needs revalidating.
+struct NodeFingerprint {
+    // Hash over the indexes the cached plan actually uses on this node, so that dropping, renaming,
+    // hiding or redefining one of them is detected.
+    IndexFingerprint usedFingerprint = 0;
+
+    // One hash per index relevant to this node, sorted so that the value does not depend on the
+    // order in which the index catalog enumerates its entries.
+    std::vector<IndexFingerprint> relevantIndexHashes;
+
+    bool operator==(const NodeFingerprint&) const = default;
+
+    size_t estimateObjectSizeInBytes() const;
+};
 
 // A full join plan cache entry: a reconstructable plan tree and its invalidation metadata.
 struct JoinPlanCacheEntry {

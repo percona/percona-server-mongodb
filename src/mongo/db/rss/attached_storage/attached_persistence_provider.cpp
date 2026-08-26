@@ -175,6 +175,10 @@ const char* AttachedPersistenceProvider::getWTMemoryPageMaxForOplogStrValue() co
     return "10m";  // 10MB
 }
 
+double AttachedPersistenceProvider::getMinOplogSizeMB() const {
+    return 990;
+}
+
 bool AttachedPersistenceProvider::supportsCompaction() const {
     return true;
 }
@@ -226,9 +230,17 @@ bool AttachedPersistenceProvider::supportsLegacyReplSetCommands() const {
     return true;
 }
 
+bool AttachedPersistenceProvider::supportsDBHashExternalCall() const {
+    return true;
+}
+
 std::unique_ptr<CheckpointSchedulePolicy>
 AttachedPersistenceProvider::makeCheckpointSchedulePolicy() const {
     return createFixedIntervalPolicy();
+}
+
+bool AttachedPersistenceProvider::supportsApplyOpsCommand() const {
+    return true;
 }
 
 }  // namespace mongo::rss

@@ -163,11 +163,15 @@ public:
      */
     multiversion::FeatureCompatibilityVersion getMinimumRequiredFCV() const override;
 
-
     /**
      * The default memory_page_max value to set on WT for the oplog in string format.
      */
     const char* getWTMemoryPageMaxForOplogStrValue() const override;
+
+    /**
+     * The lowest size the oplog collection can be resized to via replSetResizeOplog.
+     */
+    double getMinOplogSizeMB() const override;
 
     /**
      * We can support compaction.
@@ -234,10 +238,20 @@ public:
     bool supportsLegacyReplSetCommands() const override;
 
     /**
+     * Attached storage supports external usage of dbHash.
+     */
+    bool supportsDBHashExternalCall() const override;
+
+    /**
      * Returns a FixedIntervalPolicy that schedules checkpoints at a fixed interval controlled by
      * the syncdelay parameter.
      */
     std::unique_ptr<CheckpointSchedulePolicy> makeCheckpointSchedulePolicy() const override;
+
+    /**
+     * Attached storage supports the apply ops user-facing command.
+     */
+    bool supportsApplyOpsCommand() const override;
 };
 
 }  // namespace mongo::rss
