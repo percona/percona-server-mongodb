@@ -117,7 +117,7 @@
 /*
  * Define to 1 if you have strlcpy available on your platform.
  */
-#define BSON_HAVE_STRLCPY 1
+#define BSON_HAVE_STRLCPY 0
 #if BSON_HAVE_STRLCPY != 1
 # undef BSON_HAVE_STRLCPY
 #endif
