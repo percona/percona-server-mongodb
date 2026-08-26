@@ -99,6 +99,12 @@ public:
     virtual bool shouldUseReplicatedFastCount() const = 0;
 
     /**
+     * If true, per-document validation hashes are stored on oplog entries and verified against the
+     * applied document during oplog application.
+     */
+    virtual bool shouldUseContinuousInternodeValidation() const = 0;
+
+    /**
      * If true, applying replicated container operations (ci/cu/cd) tolerates state mismatches by
      * converting between insert/update and ignoring deletes of missing keys.
      */
@@ -156,6 +162,13 @@ public:
      * If true, the provider can support logging (i.e. journaling) on individual tables.
      */
     virtual bool supportsTableLogging() const = 0;
+
+    /**
+     * If true, the provider supports opening WiredTiger version cursors, which iterate the history
+     * of values for a given key. These are debug-only cursors, used to print record and index entry
+     * metadata when validation finds an inconsistency.
+     */
+    virtual bool supportsVersionCursor() const = 0;
 
     /**
      * If true, the provider supports cross-shard transactions.

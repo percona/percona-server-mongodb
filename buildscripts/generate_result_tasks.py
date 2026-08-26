@@ -48,7 +48,10 @@ NIGHTLY_PROJECT_CONFIG = "etc/evergreen_nightly.yml"
 # Result tasks in a task group share a host. Remove the test logs and outputs between tasks, as
 # leaving them can cause a task to report test logs from another bazel target, and remove the
 # relinked binaries staged by gather_failed_tests so one task never uploads another's.
-_RESULT_TASK_CLEANUP = "rm -rf build/ results/ report.json src/dist-tests/ mongo-tests.tgz"
+_RESULT_TASK_CLEANUP = (
+    "rm -rf build/ results/ report.json src/dist-tests/ mongo-tests.tgz "
+    "src/.failed_unittest_repro.txt src/.bazel_build_invocation src/.engflow_link"
+)
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -232,18 +235,6 @@ def _make_setup_group(resmoke_task: str, resmoke_disable_rbe: bool) -> list:
                 {
                     "aws_key": "${aws_key_new}",
                     "aws_secret": "${aws_secret}",
-                    "local_file": "src/build_events.json",
-                    "remote_file": "${project}/${version_id}/${build_variant}/"
-                    + f"{resmoke_task}/build_events.json",
-                    "bucket": "mciuploads",
-                    "optional": True,
-                },
-            ),
-            BuiltInCommand(
-                "s3.get",
-                {
-                    "aws_key": "${aws_key_new}",
-                    "aws_secret": "${aws_secret}",
                     "local_file": "resmoke-tests-bazel-invocation.txt",
                     "remote_file": "${project}/${build_variant}/${revision}/"
                     + f"bazel-invocation-{resmoke_task}-0.txt",
@@ -252,6 +243,31 @@ def _make_setup_group(resmoke_task: str, resmoke_disable_rbe: bool) -> list:
                 },
             ),
         ]
+
+
+def _make_build_events_fetch(resmoke_task: str) -> list:
+    """Per-task refresh of the runner's build_events.json.
+
+    The runner uploads a growing snapshot of the BEP as each target finishes and activates that
+    target's result task immediately after, so the snapshot at any point contains the events for
+    every task activated so far. Refetching per task is what guarantees a task sees its own
+    target's testResult events.
+    """
+    return [
+        BuiltInCommand("shell.exec", {"script": "rm -f src/build_events.json"}),
+        BuiltInCommand(
+            "s3.get",
+            {
+                "aws_key": "${aws_key_new}",
+                "aws_secret": "${aws_secret}",
+                "local_file": "src/build_events.json",
+                "remote_file": "${project}/${version_id}/${build_variant}/"
+                + f"{resmoke_task}/build_events.json",
+                "bucket": "mciuploads",
+                "optional": True,
+            },
+        ),
+    ]
 
 
 def make_task_group(
@@ -267,7 +283,8 @@ def make_task_group(
         max_hosts=len(targets),
         setup_group_can_fail_task=True,
         setup_group=_make_setup_group(resmoke_task, resmoke_disable_rbe),
-        setup_task=[BuiltInCommand("shell.exec", {"script": _RESULT_TASK_CLEANUP})],
+        setup_task=[BuiltInCommand("shell.exec", {"script": _RESULT_TASK_CLEANUP})]
+        + ([] if resmoke_disable_rbe else _make_build_events_fetch(resmoke_task)),
         teardown_task=[
             BuiltInCommand("attach.results", {"file_location": "report.json"}),
             BuiltInCommand(

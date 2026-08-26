@@ -1752,13 +1752,30 @@ TEST_P(MultiIndexBlockMetricsTest, BasicMetrics) {
     configureIndexerForProtocol(indexer);
 
     otel::metrics::OtelMetricsCapturer capturer;
+    const auto scanPhaseAttrs = std::tuple{idl::serialize(IndexBuildPhaseEnum::kCollectionScan)};
+    const auto bulkLoadPhaseAttrs = std::tuple{idl::serialize(IndexBuildPhaseEnum::kBulkLoad)};
     int64_t scannedBefore = 0;
+    int64_t keysGeneratedBefore = 0;
+    int64_t bytesGeneratedBefore = 0;
     int64_t keysInsertedBefore = 0;
+    int64_t bytesInsertedBefore = 0;
+    int64_t scanMicrosBefore = 0;
+    int64_t bulkLoadMicrosBefore = 0;
     if (capturer.canReadMetrics()) {
         scannedBefore =
             capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildDocsScanned);
-        keysInsertedBefore =
-            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysInsertedFromScan);
+        keysGeneratedBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildKeysProcessed, scanPhaseAttrs);
+        bytesGeneratedBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildBytesProcessed, scanPhaseAttrs);
+        keysInsertedBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildKeysProcessed, bulkLoadPhaseAttrs);
+        bytesInsertedBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildBytesProcessed, bulkLoadPhaseAttrs);
+        scanMicrosBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildPhasesDuration, scanPhaseAttrs);
+        bulkLoadMicrosBefore = capturer.readInt64Counter(
+            otel::metrics::MetricNames::kIndexBuildPhasesDuration, bulkLoadPhaseAttrs);
     }
 
     auto acq =
@@ -1812,9 +1829,24 @@ TEST_P(MultiIndexBlockMetricsTest, BasicMetrics) {
     if (capturer.canReadMetrics()) {
         EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildDocsScanned),
                   scannedBefore + numDocsInColl);
-        EXPECT_EQ(
-            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysInsertedFromScan),
-            keysInsertedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysProcessed,
+                                            scanPhaseAttrs),
+                  keysGeneratedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildBytesProcessed,
+                                            scanPhaseAttrs),
+                  bytesGeneratedBefore);
+        EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysProcessed,
+                                            bulkLoadPhaseAttrs),
+                  keysInsertedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildBytesProcessed,
+                                            bulkLoadPhaseAttrs),
+                  bytesInsertedBefore);
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildPhasesDuration,
+                                            scanPhaseAttrs),
+                  scanMicrosBefore);
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildPhasesDuration,
+                                            bulkLoadPhaseAttrs),
+                  bulkLoadMicrosBefore);
     }
 
     {
@@ -1830,9 +1862,18 @@ TEST_P(MultiIndexBlockMetricsTest, BasicMetrics) {
     if (capturer.canReadMetrics()) {
         EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildDocsScanned),
                   scannedBefore + numDocsInColl);
-        EXPECT_EQ(
-            capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysInsertedFromScan),
-            keysInsertedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysProcessed,
+                                            scanPhaseAttrs),
+                  keysGeneratedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_EQ(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildKeysProcessed,
+                                            bulkLoadPhaseAttrs),
+                  keysInsertedBefore + (numDocsInColl * numIndexSpecs));
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildPhasesDuration,
+                                            scanPhaseAttrs),
+                  scanMicrosBefore);
+        EXPECT_GT(capturer.readInt64Counter(otel::metrics::MetricNames::kIndexBuildPhasesDuration,
+                                            bulkLoadPhaseAttrs),
+                  bulkLoadMicrosBefore);
     }
 }
 

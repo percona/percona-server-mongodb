@@ -71,6 +71,12 @@ public:
     bool shouldUseReplicatedFastCount() const override;
 
     /**
+     * Attached storage nodes own their physical state, so per-document validation hashes are not
+     * replicated on the oplog.
+     */
+    bool shouldUseContinuousInternodeValidation() const override;
+
+    /**
      * Attached storage nodes own their physical container state, and initial sync cannot seed
      * container contents for unreplicated namespaces (e.g. the oplog's own fast count entry), so
      * container op application self-heals on state mismatches.
@@ -115,6 +121,11 @@ public:
      * We do not support preserving prepared transactions in the precise checkpoints.
      */
     bool supportsPreservingPreparedTxnInPreciseCheckpoints() const override;
+
+    /**
+     * We can support version cursors.
+     */
+    bool supportsVersionCursor() const override;
 
     /**
      * We can support table logging.

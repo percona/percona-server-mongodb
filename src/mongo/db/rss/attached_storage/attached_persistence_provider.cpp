@@ -85,6 +85,10 @@ bool AttachedPersistenceProvider::shouldUseReplicatedFastCount() const {
     return false;
 }
 
+bool AttachedPersistenceProvider::shouldUseContinuousInternodeValidation() const {
+    return false;
+}
+
 bool AttachedPersistenceProvider::relaxContainerOplogConstraints() const {
     return true;
 }
@@ -119,6 +123,10 @@ bool AttachedPersistenceProvider::supportsUnstableCheckpoints() const {
 
 bool AttachedPersistenceProvider::supportsPreservingPreparedTxnInPreciseCheckpoints() const {
     return false;
+}
+
+bool AttachedPersistenceProvider::supportsVersionCursor() const {
+    return true;
 }
 
 bool AttachedPersistenceProvider::supportsTableLogging() const {
