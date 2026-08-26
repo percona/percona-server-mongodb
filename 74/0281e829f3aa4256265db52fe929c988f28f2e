@@ -1,0 +1,548 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "70064d45f563380f44a9da11dca2c6a5a47c1992",
+    "merge_commit": "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "70064d45f563380f44a9da11dca2c6a5a47c1992",
+    "theirs_commit": "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177",
+    "base_commit": "a01b5951149aedb2aed4de9747138822c47c253a",
+    "files": [
+      "bazel/wrapper_hook/wrapper_hook.py"
+    ],
+    "conflict_types": {
+      "bazel/wrapper_hook/wrapper_hook.py": "both modified"
+    },
+    "diffs": {
+      "bazel/wrapper_hook/wrapper_hook.py": "diff --cc bazel/wrapper_hook/wrapper_hook.py\nindex 333cef689a3,44732bf4c3f..00000000000\n--- a/bazel/wrapper_hook/wrapper_hook.py\n+++ b/bazel/wrapper_hook/wrapper_hook.py\n@@@ -107,3 -262,0 +292,7 @@@ def main()\n-     from bazel.wrapper_hook.lint import LinterFail\n++<<<<<<< HEAD\n +    from bazel.wrapper_hook.rbe_auth import RbeAuthError, RbeAuthRequired, get_id_token\n +    from bazel.wrapper_hook.write_wrapper_hook_bazelrc import write_wrapper_hook_bazelrc\n++||||||| a01b5951149\n++    from bazel.wrapper_hook.write_wrapper_hook_bazelrc import write_wrapper_hook_bazelrc\n++=======\n++>>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177\n@@@ -160,34 -312,1 +349,59 @@@\n++<<<<<<< HEAD\n +        args = sys.argv\n +        enterprise_mod = REPO_ROOT / \"src\" / \"mongo\" / \"db\" / \"modules\" / \"enterprise\"\n +        if not enterprise_mod.exists():\n +            enterprise = False\n +            # PSMDB-2034: Skip the auto-injection of `--config=local`\n +            # when the user has explicitly opted into RBE remote execution\n +            # via `--config=psmdb_buildfarm`. Upstream's `--config=local`\n +            # resets `--remote_executor` and `--remote_cache` to the empty\n +            # string; appended after psmdb_buildfarm it silently turns the\n +            # build into a fully local one (Bazel's \"later --config wins on\n +            # conflicting flags\" rule), defeating the whole point of the RBE\n +            # flag. `--//bazel/config:build_enterprise=False` is otherwise\n +            # compensated for by the file-wide `build --build_enterprise=False`\n +            # line in .bazelrc.psmdb plus the explicit\n +            # `common:psmdb_buildfarm --//bazel/config:build_enterprise=False`\n +            # added in the RBE stanza, so dropping it here is safe.\n +            if not _has_config_value(args, \"psmdb_buildfarm\"):\n +                print(\n +                    f\"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --//bazel/config:build_enterprise=False). Add the directory to not automatically add these options.\"\n +                )\n +                args = append_args(\n +                    args, [\"--config=local\", \"--//bazel/config:build_enterprise=False\"]\n +                )\n +\n +        atlas_mod = REPO_ROOT / \"src\" / \"mongo\" / \"db\" / \"modules\" / \"atlas\"\n +        if not atlas_mod.exists():\n +            atlas = False\n +            args = append_args(args, [\"--//bazel/config:build_atlas=False\"])\n +\n +        if any(arg.startswith(\"--include_mongot\") for arg in args):\n +            os.makedirs(\"mongot-localdev\", exist_ok=True)\n +\n +        write_workstation_bazelrc(args)\n +        write_wrapper_hook_bazelrc(args)\n++||||||| a01b5951149\n++        args = sys.argv\n++        enterprise_mod = REPO_ROOT / \"src\" / \"mongo\" / \"db\" / \"modules\" / \"enterprise\"\n++        if not enterprise_mod.exists():\n++            enterprise = False\n++            print(\n++                f\"{enterprise_mod.relative_to(REPO_ROOT).as_posix()} missing, defaulting to local non-enterprise build (--config=local --//bazel/config:build_enterprise=False). Add the directory to not automatically add these options.\"\n++            )\n++            args += [\"--//bazel/config:build_enterprise=False\", \"--config=local\"]\n++\n++        atlas_mod = REPO_ROOT / \"src\" / \"mongo\" / \"db\" / \"modules\" / \"atlas\"\n++        if not atlas_mod.exists():\n++            atlas = False\n++            args += [\"--//bazel/config:build_atlas=False\"]\n++\n++        if any(arg.startswith(\"--include_mongot\") for arg in args):\n++            os.makedirs(\"mongot-localdev\", exist_ok=True)\n++\n++        engflow_auth(args)\n++        write_workstation_bazelrc(args)\n++        write_wrapper_hook_bazelrc(args)\n++=======\n+         args, enterprise, atlas, _added_options = _prepare_bazel_configuration(sys.argv)\n++>>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177\n@@@ -196,93 -315,7 +410,114 @@@\n-         check_resource()\n++<<<<<<< HEAD\n +        try:\n +            args = run_with_terminal_output(\n +                test_runner_interface,\n +                args[1:],\n +                autocomplete_query=os.environ.get(\"MONGO_AUTOCOMPLETE_QUERY\") == \"1\",\n +                enterprise=enterprise,\n +                atlas=atlas,\n +            )\n +        except LinterFail:\n +            # Linter fails preempt bazel run.\n +            sys.exit(3)\n +\n +        # PSMDB-2034: pre-flight the RBE buildfarm credential cache when\n +        # this build is going to talk to the on-demand cluster. Detection\n +        # keys off `--config=psmdb_buildfarm` (the only config that\n +        # populates --remote_executor / --remote_cache / --bes_backend at\n +        # the bazel build command line \u2014 see .bazelrc.psmdb). Local /\n +        # CI-side EngFlow / public-release builds keep travelling through\n +        # engflow_auth above and never hit Dex.\n +        #\n +        # We do NOT append --remote_header / --bes_header here anymore.\n +        # That lived in PSMDB-2043 as a static one-shot Bearer baked\n +        # into argv, and it could not survive token expiry mid-build.\n +        # Authentication is now driven by Bazel's CredentialHelper\n +        # protocol \u2014 see `--credential_helper=\u2026=bazel/wrapper_hook/credential_helper.py`\n +        # in .bazelrc.psmdb. Bazel re-invokes the helper whenever the\n +        # cached entry is about to expire, giving us mid-build rotation\n +        # for free.\n +        #\n +        # The pre-flight here only covers what the helper cannot do\n +        # itself: open a Device Code flow on a TTY. The helper runs as\n +        # a Bazel subprocess with no controlling terminal, so it can\n +        # only refresh, not log in fresh. Running `get_id_token()` here\n +        # makes sure the cache is seeded (or freshly refreshed) before\n +        # Bazel ever spawns the helper. CI runs that already have a\n +        # PSMDB_RBE_DEX_TOKEN / PSMDB_RBE_JENKINS_TOKEN exported skip\n +        # the pre-flight entirely \u2014 they don't need the local cache,\n +        # and forcing a Device Code flow on a non-TTY runner that\n +        # *does* have a valid CI token would just fail spuriously.\n +        if _has_config_value(args, \"psmdb_buildfarm\"):\n +            from bazel.wrapper_hook import rbe_auth\n +\n +            # PSMDB_RBE_JENKINS_TOKEN_FILE is the preferred CI subject-token\n +            # source (sidecar-rotated path, see credential_helper.py). Treat\n +            # it as a CI-token presence signal too, so pre-flight is skipped\n +            # whenever credential_helper can authenticate non-interactively.\n +            #\n +            # PSMDB-2099 \u2014 ACTIONS_ID_TOKEN_REQUEST_URL is the GitHub Actions\n +            # equivalent: the runtime injects this env var only when the\n +            # workflow declares `permissions: id-token: write`, which is also\n +            # exactly when credential_helper's GHA tier can mint a fresh\n +            # subject_token on demand. Skipping pre-flight on its presence\n +            # avoids the misleading \"RBE buildfarm needs a fresh login but\n +            # no TTY is attached\" message on GHA runners (which never have\n +            # a TTY and never need an interactive Device Code flow because\n +            # they authenticate via OIDC subject_token exchange).\n +            ci_token_present = bool(\n +                os.environ.get(\"PSMDB_RBE_DEX_TOKEN\", \"\").strip()\n +                or os.environ.get(\"PSMDB_RBE_JENKINS_TOKEN\", \"\").strip()\n +                or os.environ.get(\"PSMDB_RBE_JENKINS_TOKEN_FILE\", \"\").strip()\n +                or os.environ.get(\"ACTIONS_ID_TOKEN_REQUEST_URL\", \"\").strip()\n +            )\n +            if ci_token_present:\n +                wrapper_debug(\n +                    \"rbe_auth: CI-token signal env var set \"\n +                    \"(PSMDB_RBE_DEX_TOKEN / PSMDB_RBE_JENKINS_TOKEN / \"\n +                    \"PSMDB_RBE_JENKINS_TOKEN_FILE / \"\n +                    \"ACTIONS_ID_TOKEN_REQUEST_URL); skipping pre-flight \"\n +                    \"(credential_helper will handle CI auth)\"\n +                )\n +            else:\n +                wrapper_debug(\"rbe_auth: --config=psmdb_buildfarm detected, priming OIDC cache\")\n +                pre = rbe_auth.status()\n +                wrapper_debug(\n +                    f\"rbe_auth: cache before \u2014 present={pre.get('present')} \"\n +                    f\"fresh={pre.get('fresh')} expires_at={pre.get('expires_at', 0)} \"\n +                    f\"sub={pre.get('subject', '')!r}\"\n +                )\n +                try:\n +                    run_with_terminal_output(get_id_token)\n +                except RbeAuthRequired as e:\n +                    _info(f\"RBE auth: {e}\")\n +                    sys.exit(4)\n +                except RbeAuthError as e:\n +                    _info(f\"RBE auth failed: {e}\")\n +                    sys.exit(4)\n +                post = rbe_auth.status()\n +                wrapper_debug(\n +                    f\"rbe_auth: cache after  \u2014 present={post.get('present')} \"\n +                    f\"fresh={post.get('fresh')} expires_at={post.get('expires_at', 0)} \"\n +                    f\"groups={post.get('groups')}\"\n +                )\n++||||||| a01b5951149\n++        try:\n++            args = run_with_terminal_output(\n++                test_runner_interface,\n++                args[1:],\n++                autocomplete_query=os.environ.get(\"MONGO_AUTOCOMPLETE_QUERY\") == \"1\",\n++                enterprise=enterprise,\n++                atlas=atlas,\n++            )\n++        except LinterFail:\n++            # Linter fails preempt bazel run.\n++            sys.exit(3)\n++=======\n+         args = run_with_terminal_output(\n+             test_runner_interface,\n+             args[1:],\n+             autocomplete_query=os.environ.get(\"MONGO_AUTOCOMPLETE_QUERY\") == \"1\",\n+             enterprise=enterprise,\n+             atlas=atlas,\n+         )\n++>>>>>>> c0e9354c5397eaaf0675e9b8e43ceb2bcd373177"
+    },
+    "their_commits": {
+      "bazel/wrapper_hook/wrapper_hook.py": [
+        "37ca745b87f83ea5712e3ef77f151259c6ecfdc4"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177",
+    "merged_commits": [
+      "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177",
+      "ab46b79378ec99ac5771726bdb8427b9ad61d1c5",
+      "37ca745b87f83ea5712e3ef77f151259c6ecfdc4",
+      "ee8ce0740657c5dc4598a989cc342469011a1aa4",
+      "e1493797b9e265051229ffa8e74ef65e26dd1beb",
+      "40316c692601ecfb60494889bb6e91a5a63e5939",
+      "9c193d168794c19bc22e3fce1399a7fcdd389d5c",
+      "07d5109b56572ba9c98e02a05cd5859a5f078a45",
+      "223c6e078e6171bf17d01d297de3d8f70f478fa9",
+      "c6d894b086b648998b7334d043308bbbb76bbda2",
+      "0c26ebfd98a37aa66c380defbce806392f473bae",
+      "9b1f607c291c4b7cc6740e9f26a8e5fc21387f7e",
+      "2bc52ec1474164aca99c1088982ef87d05cc5c68",
+      "40359a83aa5a5e0f72621e799a7569580e294bc3",
+      "9a86cda09cc615131a32aa4a3743eae26b7c16d5",
+      "3e69f3993742083e4697107aa09f86b4ec60d71f",
+      "f4daf8e504c8cc92cd11d541d93b0b930e2dec59",
+      "784c56c299d63481200a2ffb9be6914ad1a619cc",
+      "39e0795a12e486e7f8d953c80d4adf72019ef173",
+      "3cb8a591e2e728fa2c6c95ce378fd781d2f1148f",
+      "4c5c2d1184470cd91e36f7c81b168f24d3e997fc",
+      "701142a35464354a2a5f343577d893571a84d1d5",
+      "3ab8fbdbff83be559e3aa2a84c6bb9c71ede0444",
+      "ba07880c5180c40ba952bfc779652d4d355a5799",
+      "302225810720e4ba8b29976941101346664d7722",
+      "12655026d2f5e6c3b938183518832ed972815ed8",
+      "0d3a4c4bb96d39f3bce9b7123d3e9781bf988fd3",
+      "759d668baf6e17731e3b3c864436b5eb7da1c012",
+      "d137842b080642243783a3773abe77b09b005e6e",
+      "5db77c78528c7e7278e9dd8cad9f912d51b8663a",
+      "6702514f5aa6c37a66ba0c0477197e02022b7e4a",
+      "4877f3d98468af3853decfb267377251e7947999",
+      "a7c21fdee824d53737217c4e8a236f3a50f3ba05",
+      "0fdb732df8437c6fcea8c62023faff430e393487",
+      "fd4850ec2db8f3350c614732072e623a784ee21d",
+      "e42cb049c7a628e3be58c89156ae60895e813099",
+      "6e638874d944ce9250f6c9fbcc0fc94e3aac22ab",
+      "74741f7e71467399ec35487a21435c4a4420271b",
+      "b36dd70c9f744957be21cff807095131d21d7438",
+      "192b5d8e67aba9da669c5fee4f569fecc8a8b76c",
+      "10956c716d170c0bf24bef1ecf2c146558c58230"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "bazel/wrapper_hook/wrapper_hook.py",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 206097,
+      "num_turns": 18,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.9801502499999999,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 979,
+          "outputTokens": 15,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001054,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 36,
+          "outputTokens": 16125,
+          "cacheReadInputTokens": 643745,
+          "cacheCreationInputTokens": 40627,
+          "webSearchRequests": 0,
+          "costUSD": 0.9790962499999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 979,
+              "output": 15,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.001054
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 36,
+              "output": 16125,
+              "cache_read": 643745,
+              "cache_creation": 40627
+            },
+            "cost_usd": 0.9790962499999999
+          }
+        }
+      },
+      "text_result": "I've resolved the merge conflict in `bazel/wrapper_hook/wrapper_hook.py`.\n\n## Summary\n\nThe conflict arose because upstream MongoDB (SERVER-128060) **refactored** the inline enterprise/atlas/bazelrc setup out of `main()` into a new `_prepare_bazel_configuration()` helper, while Percona had added RBE-buildfarm features (PSMDB-2034/2043/2099) to that same inline code.\n\nI resolved all three conflict regions by **adopting upstream's new structure and folding Percona's features into it**:\n\n1. **Imports** \u2014 Kept Percona's `rbe_auth` import (`RbeAuthError, RbeAuthRequired, get_id_token`); dropped the `write_wrapper_hook_bazelrc` import since upstream moved that call inside `_prepare_bazel_configuration()`.\n\n2. **Config block** \u2014 Replaced the Percona inline block with upstream's `args, enterprise, atlas, _added_options = _prepare_bazel_configuration(sys.argv)` call, and moved Percona's PSMDB-2034 logic (skip `--config=local` / `build_enterprise=False` injection when `--config=psmdb_buildfarm` is set) *into* that helper so it survives the restructuring.\n\n3. **Run + pre-flight** \u2014 Adopted upstream's plain `run_with_terminal_output(...)` call and preserved Percona's RBE credential-cache pre-flight block after it.\n\nKey judgment call: the `try/except LinterFail` on the HEAD side is **not** a Percona feature \u2014 `git log -S` shows `LinterFail` is upstream's own symbol (SERVER-109365), which upstream deliberately removed in the theirs commit (SERVER-128060) when moving lint to the quality-check framework. Its import was already gone, so keeping the `except` would have been a `NameError`. I followed the \"don't resurrect removed upstream symbols\" guideline and dropped it.\n\nVerified: no conflict markers remain and the file passes `ast.parse()`.",
+      "response": {
+        "summary": "Resolved the three conflict regions in bazel/wrapper_hook/wrapper_hook.py by adopting upstream's refactor (which moved the inline enterprise/atlas/bazelrc setup into the _prepare_bazel_configuration() helper) while preserving Percona's PSMDB-2034/PSMDB-2043/PSMDB-2099 RBE-buildfarm features. Percona's 'skip --config=local when --config=psmdb_buildfarm is set' logic was folded into the _prepare_bazel_configuration() helper so it survives the upstream restructuring, and Percona's RBE OIDC credential pre-flight block was kept after the run_with_terminal_output() call. Upstream's own removed 'try/except LinterFail' handling (moved to the new quality-check framework in SERVER-128060) was dropped rather than resurrected, since it is upstream code, not a Percona feature, and its LinterFail import was already removed.",
+        "resolved": {
+          "bazel/wrapper_hook/wrapper_hook.py": "Hunk 1 (imports): kept only Percona's 'from bazel.wrapper_hook.rbe_auth import RbeAuthError, RbeAuthRequired, get_id_token'; dropped the base 'write_wrapper_hook_bazelrc' import, which upstream removed because that call now happens inside _prepare_bazel_configuration(). Hunk 2 (config block): replaced the Percona inline enterprise/atlas/bazelrc block with upstream's 'args, enterprise, atlas, _added_options = _prepare_bazel_configuration(sys.argv)' call; the Percona PSMDB-2034 behavior (skip '--config=local' and '--//bazel/config:build_enterprise=False' auto-injection when '--config=psmdb_buildfarm' is present) was moved into the _prepare_bazel_configuration() helper. Hunk 3 (run + pre-flight): adopted upstream's plain 'args = run_with_terminal_output(...)' call (dropping the try/except LinterFail that upstream removed) and preserved Percona's RBE credential-cache pre-flight block (PSMDB-2034/2043/2099) that follows it."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The PSMDB-2034 guard was relocated from the (now-deleted) inline config block into the upstream _prepare_bazel_configuration() helper (the enterprise-module branch), so the psmdb_buildfarm exception now also applies to the quality-checks invocation path that calls the same helper \u2014 this is a consistent behavioral improvement, not a regression. The 'try/except LinterFail' present on the Percona/HEAD side was intentionally NOT preserved: LinterFail is an upstream symbol (added in SERVER-109365, refactored into the quality-check framework in SERVER-128060, the theirs commit) and its import had already been removed from main(), so keeping the except clause would have been a NameError. This follows the 'resolve toward upstream's API, do not resurrect removed symbols' guideline. Verified: no conflict markers remain and the file passes ast.parse()."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now I understand the conflict. Let me analyze:\n\n- **HEAD (Percona)**: inline config block with PSMDB-2034 RBE logic + rbe_auth pre-flight\n- **BASE**: original inline block\n- **theirs (upstream)**: refactored the inline block into the `_prepare_bazel_configuration()` helper (already present at lines 123-192), replacing the inline code with a call\n\nThe right resolution is to adopt upstream's `_prepare_bazel_configuration()` structure and fold Percona's PSMDB-2034 changes into it. Let me verify the `_has_config_value` helper and rbe_auth module exist."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Confirmed: `LinterFail` is upstream's own symbol (added in SERVER-109365, refactored away in SERVER-128060 = theirs). It's not Percona code, so I follow upstream and drop the `try/except LinterFail`. Now let me make the edits.\n\nFirst, fold the PSMDB-2034 skip logic into `_prepare_bazel_configuration`:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now resolve the imports conflict (hunk 1) \u2014 keep only the rbe_auth import:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now the config block conflict (hunk 2) \u2014 adopt upstream's helper call:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now hunk 3 \u2014 adopt upstream's plain call (dropping the removed `LinterFail` handling), and keep Percona's RBE pre-flight block:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now the closing part of hunk 3 (the trailing markers after Percona's pre-flight block):"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The Percona pre-flight block (HEAD) ends at line 447. I need to remove the leftover base/theirs marker sections:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now verify no conflict markers remain and the file is syntactically valid:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "No markers remain and syntax is valid. Let me review the final resolved regions for coherence:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The resolution is coherent. Now let me write the JSON response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've resolved the merge conflict in `bazel/wrapper_hook/wrapper_hook.py`.\n\n## Summary\n\nThe conflict arose because upstream MongoDB (SERVER-128060) **refactored** the inline enterprise/atlas/bazelrc setup out of `main()` into a new `_prepare_bazel_configuration()` helper, while Percona had added RBE-buildfarm features (PSMDB-2034/2043/2099) to that same inline code.\n\nI resolved all three conflict regions by **adopting upstream's new structure and folding Percona's features into it**:\n\n1. **Imports** \u2014 Kept Percona's `rbe_auth` import (`RbeAuthError, RbeAuthRequired, get_id_token`); dropped the `write_wrapper_hook_bazelrc` import since upstream moved that call inside `_prepare_bazel_configuration()`.\n\n2. **Config block** \u2014 Replaced the Percona inline block with upstream's `args, enterprise, atlas, _added_options = _prepare_bazel_configuration(sys.argv)` call, and moved Percona's PSMDB-2034 logic (skip `--config=local` / `build_enterprise=False` injection when `--config=psmdb_buildfarm` is set) *into* that helper so it survives the restructuring.\n\n3. **Run + pre-flight** \u2014 Adopted upstream's plain `run_with_terminal_output(...)` call and preserved Percona's RBE credential-cache pre-flight block after it.\n\nKey judgment call: the `try/except LinterFail` on the HEAD side is **not** a Percona feature \u2014 `git log -S` shows `LinterFail` is upstream's own symbol (SERVER-109365), which upstream deliberately removed in the theirs commit (SERVER-128060) when moving lint to the quality-check framework. Its import was already gone, so keeping the `except` would have been a `NameError`. I followed the \"don't resurrect removed upstream symbols\" guideline and dropped it.\n\nVerified: no conflict markers remain and the file passes `ast.parse()`."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260826_072604_663871.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.246 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 67662,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.32943575,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 5235,
+        "cacheReadInputTokens": 50731,
+        "cacheCreationInputTokens": 27537,
+        "webSearchRequests": 0,
+        "costUSD": 0.32837675,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 5235,
+            "cache_read": 50731,
+            "cache_creation": 27537
+          },
+          "cost_usd": 0.32837675
+        }
+      }
+    },
+    "text_result": "I've read the prompt and the incoming diffs (`a01b5951149 \u2192 c0e9354c5397`) for each of the seven auto-merged files, then wrote the JSON response.\n\nSummary of what the merge introduces:\n\n- **bazel/config/BUILD.bazel** \u2014 Drops the `gdb_index_enabled_by_default` and `gdb_index_enabled_or_default` config groups; `gdb_index_enabled_linux` now keys off `:gdb_index_enabled` directly.\n- **bazel/wrapper_hook/BUILD.bazel** \u2014 Adds `quality_checks.py` to the library and two new py_test targets.\n- **bazel/wrapper_hook/wrapper_hook.py** \u2014 Upstream adds a quality-checks runner path and extracts config into `_prepare_bazel_configuration`. This is the only real conflict; the fork's HEAD carries Percona RBE-auth code not present in the upstream diff, which I flagged in the review notes.\n- **src/mongo/db/index_builds/BUILD.bazel** \u2014 Adds `repl_index_build_state_test.cpp`.\n- **src/mongo/db/startup_recovery.cpp** \u2014 New `openDbForOfflineValidation` helper catching `BadValue`, so an un-openable DB no longer aborts offline validation.\n- **wiredtiger_kv_engine.cpp** \u2014 `dropIdent` gains a `publishIdent` call gated on schema epochs.\n- **wiredtiger.h.in** \u2014 Trims layered-follower remove wording from `overwrite` docs.\n\nEvery claim is backed by lines I saw in the actual `diff base \u2192 merge commit` output. The response is written to the requested path.",
+    "response": {
+      "summary": "Upstream merge (diff base a01b5951149 -> merge commit c0e9354c5397) pulling MongoDB changes into the fork. It refactors the Bazel wrapper hook to add a quality-checks runner path and extract shared configuration into a helper, simplifies the gdb-index config settings, wires up two new Bazel test targets and a new index-builds unit test source, hardens offline validation so a database that fails to open no longer aborts the run, adds a WiredTiger dropIdent publishIdent call tied to schema epochs, and trims layered-follower remove wording from the generated WiredTiger header docs.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Removes the `gdb_index_enabled_by_default` config_setting_group (match_all of :running_in_evg, :fission_disabled, :separate_debug_enabled) and the `gdb_index_enabled_or_default` group (match_any of :gdb_index_enabled and :gdb_index_enabled_by_default). The `gdb_index_enabled_linux` group now matches `:gdb_index_enabled` directly instead of `:gdb_index_enabled_or_default`, so the GDB index is no longer enabled by default in Evergreen CI.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds `quality_checks.py` to the `wrapper_hook` py_library srcs and declares two new py_test targets: `quality_checks_test` (depends on :wrapper_hook) and `wrapper_scripts_test` (with //tools:bazel and //tools:bazel.bat as data). No existing targets are removed.",
+        "bazel/wrapper_hook/wrapper_hook.py": "Upstream reworks main(): it imports `_invocation_may_run_lint`, `_quality_checks_invocation`, and `run_quality_checks` from the new quality_checks module and adds a dedicated quality-checks branch at the top of main() that bootstraps modules, optionally runs generated-file setup, and dispatches to run_quality_checks. It adds helpers `_write_wrapper_status`/`_wrapper_status_is_handled` (reading/writing MONGO_BAZEL_WRAPPER_STATUS for Windows re-exec handling), `_prepare_bazel_configuration` (consolidates the enterprise/atlas module detection, added --config/--build_enterprise/--build_atlas options, mongot-localdev creation, engflow_auth, write_workstation_bazelrc, write_wrapper_hook_bazelrc, check_resource, plus persisted-config resolution via swap_default_config), and `_run_quality_check_generators`. The normal path now calls `_prepare_bazel_configuration(sys.argv)` and calls test_runner_interface without the LinterFail try/except; a `_write_wrapper_status(handled=False, ...)` call is added at the end. NOTE: this file is a 'both modified' conflict \u2014 the fork side (HEAD) carries Percona RBE-auth customizations (rbe_auth imports, get_id_token pre-flight, LinterFail handling, PSMDB-2034 --config=psmdb_buildfarm handling) that the upstream diff does not contain; the resolution must reconcile the two.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds `repl_index_build_state_test.cpp` to the srcs of the mongo_cc_unit_test target.",
+        "src/mongo/db/startup_recovery.cpp": "Adds `#include \"mongo/stdx/unordered_set.h\"` and a new helper `openDbForOfflineValidation` that wraps openDbDuringStartup and catches ExceptionFor<ErrorCodes::BadValue>, logging a warning (id 13340101) and returning false instead of throwing. Both `offlineValidateParallel` and `offlineValidate` now track databases that could not be opened in a stdx::unordered_set<DatabaseName>, skip those databases when collecting/validating, and mark allValidationComplete/allResultsValid as false when any database was left unopened, so a database that cannot be opened no longer aborts offline validation.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "In WiredTigerKVEngine::dropIdent, removes the `// TODO: SERVER-122163 pass drop schema epoch to WT.` comment and, after the drop, adds a call to `publishIdent(wtRu, uri, *schemaEpoch)` guarded by `_usesSchemaEpochs && schemaEpoch` (with a comment noting schemaEpoch may be none for an unreplicated drop).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "In the generated `overwrite` config documentation for both __wt_cursor and __wt_session, removes the paragraph describing the layered-table follower remove behavior (writing a tombstone to the ingest table without checking the stable table, the associated caller guarantee, and the leader-vs-follower distinction), leaving the shorter description ending at 'the record does not exist.'"
+      },
+      "review_notes": "Only bazel/wrapper_hook/wrapper_hook.py is a real conflict ('both modified'). Upstream refactored main() to add the quality-checks runner and to centralize config in _prepare_bazel_configuration, while the fork's HEAD carries Percona RBE-auth logic (rbe_auth/get_id_token pre-flight, credential_helper flow, PSMDB-2034 --config=psmdb_buildfarm handling that avoids the local-only --config=local override, and the LinterFail exit(3) handling). The resolution should keep upstream's quality-checks branch and _prepare_bazel_configuration structure while preserving the Percona RBE customizations \u2014 in particular ensure _prepare_bazel_configuration still guards the --config=local injection on psmdb_buildfarm, and that the RBE pre-flight and LinterFail handling remain in the run path. The other six files were auto-merged and appear straightforward. Verify the startup_recovery.cpp offline-validation change and the WiredTiger dropIdent publishIdent addition build cleanly against the fork's tree."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the incoming diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Now let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt and the incoming diffs (`a01b5951149 \u2192 c0e9354c5397`) for each of the seven auto-merged files, then wrote the JSON response.\n\nSummary of what the merge introduces:\n\n- **bazel/config/BUILD.bazel** \u2014 Drops the `gdb_index_enabled_by_default` and `gdb_index_enabled_or_default` config groups; `gdb_index_enabled_linux` now keys off `:gdb_index_enabled` directly.\n- **bazel/wrapper_hook/BUILD.bazel** \u2014 Adds `quality_checks.py` to the library and two new py_test targets.\n- **bazel/wrapper_hook/wrapper_hook.py** \u2014 Upstream adds a quality-checks runner path and extracts config into `_prepare_bazel_configuration`. This is the only real conflict; the fork's HEAD carries Percona RBE-auth code not present in the upstream diff, which I flagged in the review notes.\n- **src/mongo/db/index_builds/BUILD.bazel** \u2014 Adds `repl_index_build_state_test.cpp`.\n- **src/mongo/db/startup_recovery.cpp** \u2014 New `openDbForOfflineValidation` helper catching `BadValue`, so an un-openable DB no longer aborts offline validation.\n- **wiredtiger_kv_engine.cpp** \u2014 `dropIdent` gains a `publishIdent` call gated on schema epochs.\n- **wiredtiger.h.in** \u2014 Trims layered-follower remove wording from `overwrite` docs.\n\nEvery claim is backed by lines I saw in the actual `diff base \u2192 merge commit` output. The response is written to the requested path."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260826_072453_418459.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.246 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177",
+    "short_sha": "c0e9354c539",
+    "strategy": "huge_commit",
+    "summary": "This 'Import wiredtiger' commit is a large, well-isolated vendored third-party import - an ideal, easy-to-validate merge boundary. Cutting here yields a batch of ~41 commits (within the comfortable 30-65 band). Critically, it lands immediately after the auto-revert of SERVER-133384 (ab46b793): the original enable of perDocument/perCollection internode hash (f4daf8e5) and its revert are both included in this batch, so they cancel out instead of importing a feature that upstream already undid. The later re-enable (1179c765) is left for a subsequent batch as a settled unit. It also sits after the big SERVER-128060 quality-check framework 'conflict' commit rather than stopping short of it, giving a coherent, self-contained cut point without splitting related work.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/32942302357"
+  },
+  "note_index": [
+    {
+      "sha": "740281e829f3aa4256265db52fe929c988f28f2e",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "00d19493bc3026941b27e8733797ad264512da4d",
+      "message": "Merge commit 'c0e9354c539' into master"
+    },
+    {
+      "sha": "6c65290a006bcac8c5a2dc0b1941a3cc5c00355b",
+      "message": "Resolve conflicts for merge commit 'c0e9354c539' into master"
+    }
+  ]
+}
