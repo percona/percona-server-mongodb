@@ -1,0 +1,443 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "740281e829f3aa4256265db52fe929c988f28f2e",
+    "merge_commit": "c9fffbb2f35302a4a7ef0bf060c84b53f7639a54"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "740281e829f3aa4256265db52fe929c988f28f2e",
+    "theirs_commit": "c9fffbb2f35302a4a7ef0bf060c84b53f7639a54",
+    "base_commit": "c0e9354c5397eaaf0675e9b8e43ceb2bcd373177",
+    "files": [
+      "MODULE.bazel.lock"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex bc86a8c65e8,d92b06097a5..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"TBZfTb7MGU8ulDJ78dLr4O4kEutXbgYHiuEhHWMsf5Q=\",\n++||||||| c0e9354c539\n++        \"bzlTransitiveDigest\": \"0Ls83w+99VX3FWHqU5lq38/OKk0eyea+/nKnrX+KqKU=\",\n++=======\n+         \"bzlTransitiveDigest\": \"TtvMJJcIkTjowpIoYfnUIsXa8Jrjfw0ygdDP5/hhdko=\",\n++>>>>>>> c9fffbb2f35302a4a7ef0bf060c84b53f7639a54"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "ad19c39bdcf5c42b6024f69d916b486ecb1b8dc2",
+        "06f4ab34d9220dcf59b662224a3cb54caa2866ad",
+        "c0311265eb091d563b8d1cb872898f04e5cd9f73"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "c9fffbb2f35302a4a7ef0bf060c84b53f7639a54",
+    "merged_commits": [
+      "c9fffbb2f35302a4a7ef0bf060c84b53f7639a54",
+      "b4965c93b8a0853230e4083612d328cca10497ff",
+      "ae1d9f8fcb5e0b3c5fa415788f32a44ac2b2430c",
+      "9d25fc6502109dd645c24b65000ac2e198575736",
+      "ad19c39bdcf5c42b6024f69d916b486ecb1b8dc2",
+      "283ef80e1c8c652a19d1bc99b135665b6c55c92c",
+      "42375ba3e6649d160f12918bf3e885d6db9249e8",
+      "4cae18ec7a5133592af7493f6a3efaff38dc7bd6",
+      "06f4ab34d9220dcf59b662224a3cb54caa2866ad",
+      "863e65b5ecbb737b41fde4f512ffbaf8d66e1554",
+      "1179c765b9ae93e95487d1f3d47ba748116f850a",
+      "03afc49117b921d58c1df6c8ec9099f9ef7022da",
+      "ffd3caf461f19bcf97beff4d8ee0aa2fb936a10d",
+      "643b9bb4ae7e935e822421366a4cc2b85a55fd74",
+      "afbb5649bd22417d67f34b13e32437e3515e3d32",
+      "13fc417cd13b75e49d36a2082d2ca9a01fa75ce7",
+      "467d2366ada511672ad922dd82d917d911fd8e8e",
+      "8d3b25f861afbcba85623651084d57aee29bd384",
+      "093fa948e21fe15cce4bbcedecbd95b1ba9060a9",
+      "677ee449cc0cfd05294ddbdf163b384739380e43",
+      "3a95ed46888b3223a6b37ff09b620f3a6fe5a7e6",
+      "75c8aaaaed7a086b7c3a2607dcdc8d7011622468",
+      "7a290091e928c7916839fa0632d68910549d7565",
+      "c0311265eb091d563b8d1cb872898f04e5cd9f73",
+      "e9e75a64c9a169d4e2be1a14adad3d41e5f04282",
+      "28e4809099af2e66aaf1dbbd6e6c47758996e84b",
+      "b962d85bd840667292778e1c909cdb7bda18734a",
+      "895d9625f2eab195dc5918340d3a2598471db0ba",
+      "107b32e52e2082111d4ea1bdb06e8484b4eb5f80",
+      "98a178c4419d06ba9a839163cb7994a8414007b9",
+      "02c6d38d32f2fc43a2b010150fd78b3943d7d05e",
+      "a52fc322c8f744ad99c6ae3d87fa8ae8b2598fde",
+      "6a4d1a804d45fd11dcdea81a18e7eeb2b8f63d14",
+      "e7619b06e82205f2bb602f3883b77f6727efccff",
+      "8f7f39701f5f79f29d5a5e5e9e956b2b224b27ee",
+      "1f0ee76fa2a8af1758fbd45ac84c09a6d4a22cc5",
+      "6c5904e6ab186485e0fc9ec8ee1993cb5cc18342",
+      "2c6ab29743bfd3b42874b1b663f0f5aef3bbb134",
+      "5e617291cb4e7a69d192de1703155fd63b8a433b",
+      "94adcd7d4fffff93c7859ef253619cdbef69e62f",
+      "cfa6099cd7f8f1b12cb778c4b44695a1a0d86df7",
+      "9b409336df38055d01ff1ba18c1165133c3084cc"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/utils.bzl",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 63597,
+      "num_turns": 7,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.158201,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 979,
+          "outputTokens": 13,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001044,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 14,
+          "outputTokens": 1791,
+          "cacheReadInputTokens": 90074,
+          "cacheCreationInputTokens": 10764,
+          "webSearchRequests": 0,
+          "costUSD": 0.157157,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 979,
+              "output": 13,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.001044
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 14,
+              "output": 1791,
+              "cache_read": 90074,
+              "cache_creation": 10764
+            },
+            "cost_usd": 0.157157
+          }
+        }
+      },
+      "text_result": "Resolved the `MODULE.bazel.lock` conflict.\n\nFollowing the conflict hints for this generated lock file:\n1. Removed the conflict markers by accepting one side (the upstream `bzlTransitiveDigest` value)\n2. Ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly\n3. Verified no conflict markers remain\n\nThe JSON response has been written to the specified path.",
+      "response": {
+        "summary": "Resolved the MODULE.bazel.lock merge conflict by removing the conflict markers (accepting the upstream/theirs bzlTransitiveDigest value) and then regenerating the lock file with `bazel query //... >/dev/null` as instructed by the conflict hints.",
+        "resolved": {
+          "MODULE.bazel.lock": "The conflict was in the `bzlTransitiveDigest` field under `//bazel:bzlmod.bzl%setup_mongo_python_toolchains`. Per the conflict hints, this lock file cannot be manually merged: I removed the conflict markers by accepting theirs (the upstream value), then executed `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly. No conflict markers remain."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "MODULE.bazel.lock is a generated lock file. Following the documented procedure, conflict markers were removed first and the file was regenerated via `bazel query //... >/dev/null`, which completed successfully. The regenerated content reflects the current MODULE.bazel state rather than any manually chosen digest."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I'll accept theirs (upstream) version, then regenerate the lock file."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now regenerate the lock file with bazel:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "No conflict markers remain and bazel regenerated the file successfully. Writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the `MODULE.bazel.lock` conflict.\n\nFollowing the conflict hints for this generated lock file:\n1. Removed the conflict markers by accepting one side (the upstream `bzlTransitiveDigest` value)\n2. Ran `bazel query //... >/dev/null` (exit 0) to regenerate the file correctly\n3. Verified no conflict markers remain\n\nThe JSON response has been written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260826_180441_303691.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.246 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 75544,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.34724925,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 11,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001034,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 20,
+        "outputTokens": 4919,
+        "cacheReadInputTokens": 182793,
+        "cacheCreationInputTokens": 21079,
+        "webSearchRequests": 0,
+        "costUSD": 0.34621525000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 11,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001034
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 20,
+            "output": 4919,
+            "cache_read": 182793,
+            "cache_creation": 21079
+          },
+          "cost_usd": 0.34621525000000003
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge (`diff base \u2192 merge commit`) for each auto-merged file and written the JSON response.\n\nSummary of what this merge introduces:\n\n- **`.bazelrc`** \u2014 flips `--enable_workspace` to `false`; refactors coverage into a shared `common:coverage_base` config consumed by both the `coverage` command and a new build-only `build:coverage_compile` config (for cache warming). Adds `--experimental_fetch_all_coverage_outputs`.\n- **`bazel/config/BUILD.bazel`** \u2014 adds a `rhel8_ppc64le_gcc_linkstatic` config setting group.\n- **`bazel/resmoke/resmoke.bzl`** \u2014 drops `%p` from the `LLVM_PROFILE_FILE` pattern (`server-%p-%m%c` \u2192 `server-%m%c`) to avoid an ARG_MAX/E2BIG blowup in the coverage glob.\n- **`bazel/utils.bzl`** \u2014 adds a `{toolchain_repo_dir}` \u2192 `external/<ctx.name>` substitution.\n- **`wiredtiger.h.in`** \u2014 regenerated: 5 new `WT_STAT_*` constants (truncate/disagg-eviction/session dirty-byte stats) plus mechanical renumbering of the rest.\n- **`MODULE.bazel.lock`** \u2014 the only real conflict (both modified, `bzlTransitiveDigest`); to be regenerated per the project convention.\n\nAll claims are backed by diffs I read directly; the WiredTiger new-stat symbols were confirmed by set-diffing the symbol names between base and merge.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes centered on the Bazel build/coverage configuration and a regeneration of the WiredTiger public header. The `.bazelrc` coverage setup is refactored around a new shared `coverage_base` config, a new gcc/linkstatic config setting group for RHEL8 on ppc64le is added, the resmoke coverage profile filename pattern is changed, a toolchain repo-dir substitution is added, and the generated `wiredtiger.h.in` gains five new statistics constants (with the following constants renumbered). Only the MODULE.bazel.lock file required conflict resolution (both modified).",
+      "auto_merged": {
+        ".bazelrc": "Switches `common --enable_workspace` from `true` to `false`. Reworks the coverage configuration: introduces a new `common:coverage_base` config that becomes the single source of truth for all compile-affecting coverage flags (`--//bazel/config:coverage=True`, `--config=dbg`, `--compiler_type=clang`, `--linkstatic=False`, `--remote_download_regex=.*coverage.*\\.dat$`, `--fission=no`, `--build_runfile_links`, `--legacy_external_runfiles`, `--collect_code_coverage`, the `--instrumentation_filter=^//src/mongo...` filter, and `--experimental_use_llvm_covmap`). The `coverage` command now pulls in `--config=coverage_base` plus report-generation-only flags (`--combined_report=lcov`, `--experimental_generate_llvm_lcov`, and a newly added `--experimental_fetch_all_coverage_outputs`). A new build-only `build:coverage_compile --config=coverage_base` config is added so a `bazel_coverage_compile` task can pre-build instrumented artifacts and warm the remote cache with matching compile action keys.",
+        "MODULE.bazel.lock": "Conflicting file (both modified). The only conflict is the `bzlTransitiveDigest` value; per project guidance this lock file is not manually merged \u2014 conflict markers are removed by accepting one side and the file is regenerated via `bazel query //... >/dev/null`.",
+        "bazel/config/BUILD.bazel": "Adds a new `selects.config_setting_group` named `rhel8_ppc64le_gcc_linkstatic` that matches linux + ppc64le + `compiler_type_gcc` + `//bazel/platforms:rhel8` + `linkstatic_enabled`, mirroring the existing `rhel9_ppc64le_gcc_linkstatic` group.",
+        "bazel/resmoke/resmoke.bzl": "Changes the `LLVM_PROFILE_FILE` pattern used to route instrumented server coverage counters from `server-%p-%m%c.profraw` to `server-%m%c.profraw` (drops the per-process `%p` specifier). The accompanying comment is rewritten to explain that omitting `%p` caps output at one merged file per module, keeping the `*.profraw` glob in collect_cc_coverage.sh under ARG_MAX (with `%p` a full suite emitted ~20k files, causing E2BIG and a 0-byte coverage.dat).",
+        "bazel/utils.bzl": "In `get_toolchain_subs`, adds a substitution `substitutions[\"{toolchain_repo_dir}\"] = \"external/\" + ctx.name` before returning.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Regenerated WiredTiger header. Adds five new statistics constants and their doc comments: `WT_STAT_CONN_CACHE_TRUNCATE_TXN_UNCOMMITTED_BYTES` (pages dirtied by fast-truncate in uncommitted txn), `WT_STAT_CONN_EVICTION_SERVER_SKIP_STALE_DISAGG_PAGES` (eviction server skips pages on an outdated disaggregated read-only btree a reader still has open), `WT_STAT_CONN_TXN_TRUNCATE_DIRTY_CACHE_ROLLBACK` (truncate operations rolled back for pinning too much dirty cache), `WT_STAT_SESSION_TXN_TRUNCATE_BYTES_DIRTY`, and `WT_STAT_SESSION_TXN_UPDATES_BYTES_DIRTY` (per-session dirty-byte accounting for updates and fast-truncate). The bulk of the 900+ changed lines are the resulting sequential renumbering of the existing `WT_STAT_*` `#define` values."
+      },
+      "review_notes": "Verify the MODULE.bazel.lock conflict was resolved by regenerating the file with `bazel query //... >/dev/null` rather than hand-merging the `bzlTransitiveDigest` values. The coverage refactor in `.bazelrc` is behavior-relevant: confirm the new `coverage_base`/`coverage_compile` configs and the resmoke `%p` removal are consistent with any Percona coverage tooling. The WiredTiger header change is a mechanical regeneration (5 new stats + renumbering) and should match the vendored WiredTiger source drop."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge (`diff base \u2192 merge commit`) for each auto-merged file and written the JSON response.\n\nSummary of what this merge introduces:\n\n- **`.bazelrc`** \u2014 flips `--enable_workspace` to `false`; refactors coverage into a shared `common:coverage_base` config consumed by both the `coverage` command and a new build-only `build:coverage_compile` config (for cache warming). Adds `--experimental_fetch_all_coverage_outputs`.\n- **`bazel/config/BUILD.bazel`** \u2014 adds a `rhel8_ppc64le_gcc_linkstatic` config setting group.\n- **`bazel/resmoke/resmoke.bzl`** \u2014 drops `%p` from the `LLVM_PROFILE_FILE` pattern (`server-%p-%m%c` \u2192 `server-%m%c`) to avoid an ARG_MAX/E2BIG blowup in the coverage glob.\n- **`bazel/utils.bzl`** \u2014 adds a `{toolchain_repo_dir}` \u2192 `external/<ctx.name>` substitution.\n- **`wiredtiger.h.in`** \u2014 regenerated: 5 new `WT_STAT_*` constants (truncate/disagg-eviction/session dirty-byte stats) plus mechanical renumbering of the rest.\n- **`MODULE.bazel.lock`** \u2014 the only real conflict (both modified, `bzlTransitiveDigest`); to be regenerated per the project convention.\n\nAll claims are backed by diffs I read directly; the WiredTiger new-stat symbols were confirmed by set-diffing the symbol names between base and merge."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260826_180317_776604.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.246 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "c9fffbb2f35302a4a7ef0bf060c84b53f7639a54",
+    "short_sha": "c9fffbb2f35",
+    "strategy": "huge_commit",
+    "summary": "This 'Import wiredtiger' commit lands at ~42 commits into the window, squarely inside the comfortable 30-65 band. Vendored WiredTiger imports are ideal merge boundaries: they touch a well-isolated set of files, are atomic, and do not depend on the commits that follow them, making the batch easy to validate and conflict-resolve post-merge. The commit immediately after it (af631aac, an unrelated sharding test change) does not belong to the same unit of work, so no coherent series is split. The next clean boundary of the same kind (the wiredtiger import e6c3c1e7) sits at ~74 commits, overshooting the comfortable band, so stopping here yields the best-sized, self-contained cut.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/32997099218"
+  },
+  "note_index": [
+    {
+      "sha": "9beee687a6e8b009ae757bddfb4a21847fb0be8f",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "413ce2a8e7dfada6f39e65a37bfaea64fcf6d105",
+      "message": "Merge commit 'c9fffbb2f35' into master"
+    },
+    {
+      "sha": "afd0c90cbfd35f31f8b71e13084372a9fdfa2944",
+      "message": "Resolve conflicts for merge commit 'c9fffbb2f35' into master"
+    }
+  ]
+}
