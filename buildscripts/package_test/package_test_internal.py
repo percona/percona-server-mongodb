@@ -47,6 +47,9 @@ test_args = {}  # type: TestArgs
 
 SERVER_PACKAGE_RE = re.compile(r"^mongodb-(?:org|enterprise)(?:-unstable)?(?:-server)?$")
 CRYPT_V1_PACKAGE_RE = re.compile(r"^mongodb-enterprise(?:-unstable)?-crypt-v1$")
+# The ELF interpreter is reported as a DT_NEEDED entry by some Linux toolchains, but it is an
+# architecture-specific runtime component rather than a library dependency of the server binary.
+ARCHITECTURE_LOADER_RE = re.compile(r"^ld-linux-[^.]+\.so\.[0-9.]+$")
 _LOGGING_CONFIGURED = False
 
 SERVER_BINARY_NAMES = ("mongod", "mongos")
@@ -425,13 +428,15 @@ def get_expected_direct_system_libraries(package_platform: str, edition: str) ->
 
 
 def parse_readelf_dependencies(readelf_output: str) -> Set[str]:
-    """Parse the direct shared-library names from readelf's dynamic section."""
+    """Parse direct shared-library names, excluding the architecture-specific ELF interpreter."""
 
     dependencies = set()  # type: Set[str]
     for line in readelf_output.splitlines():
         match = re.search(r"Shared library: \[(?P<name>[^]]+)\]", line)
         if match:
-            dependencies.add(match.group("name"))
+            name = match.group("name")
+            if not ARCHITECTURE_LOADER_RE.match(name):
+                dependencies.add(name)
 
     return dependencies
 
@@ -611,6 +616,17 @@ def test_binary_system_dependencies(test_args: TestArgs) -> None:
         raise RuntimeError(
             "System library dependency check failed:\n- {}".format("\n- ".join(failures))
         )
+
+
+def run_server_package_tests(
+    test_args: TestArgs, expected_edition: str, skip_system_library_check: bool = False
+) -> None:
+    test_binary_edition(test_args, expected_edition)
+    if not skip_system_library_check:
+        test_binary_system_dependencies(test_args)
+    setup(test_args)
+    install_fake_systemd(test_args)
+    test_start()
 
 
 def download_extract_package(package: str) -> List[str]:
@@ -1057,27 +1073,43 @@ def test_uninstall_is_complete(test_args: TestArgs):
             raise RuntimeError("Failed to uninstall cleanly, found: {}".format(path))
 
 
+def parse_package_test_arguments(package_args: List[str]) -> Tuple[str, List[str], bool]:
+    """Parse package_test.py arguments after the log path and edition."""
+
+    skip_system_library_check = "--skip-system-library-check" in package_args
+    package_args = [
+        package_arg for package_arg in package_args if package_arg != "--skip-system-library-check"
+    ]
+    package_platform = ""
+    if package_args and package_args[0] == "--platform":
+        if len(package_args) < 2:
+            raise ValueError("No package platform was provided... Failing test")
+        package_platform = package_args[1]
+        package_args = package_args[2:]
+
+    return package_platform, package_args, skip_system_library_check
+
+
 def main() -> int:
     global test_args
 
     if len(sys.argv) < 5 or sys.argv[2] != "--edition":
         print(
             "Usage: {} <log-path> --edition <edition> [--platform <platform>] "
+            "[--skip-system-library-check] "
             "<package-url> [package-url ...]".format(sys.argv[0])
         )
         return 1
 
     configure_logging(sys.argv[1])
     expected_edition = sys.argv[3]
-    package_args = sys.argv[4:]
-    package_platform = ""
-    if package_args and package_args[0] == "--platform":
-        if len(package_args) < 2:
-            logging.error("No package platform was provided... Failing test")
-            return 1
-        package_platform = package_args[1]
-        package_args = package_args[2:]
-    package_urls = package_args
+    try:
+        package_platform, package_urls, skip_system_library_check = parse_package_test_arguments(
+            sys.argv[4:]
+        )
+    except ValueError as exc:
+        logging.error(str(exc))
+        return 1
 
     if len(package_urls) == 0:
         logging.error("No packages to test... Failing test")
@@ -1108,11 +1140,7 @@ def main() -> int:
     logging.info("Detected package kind: %s", test_args["package_kind"])
 
     if test_args["package_kind"] == "server":
-        test_binary_edition(test_args, expected_edition)
-        test_binary_system_dependencies(test_args)
-        setup(test_args)
-        install_fake_systemd(test_args)
-        test_start()
+        run_server_package_tests(test_args, expected_edition, skip_system_library_check)
 
     test_install_is_complete(test_args)
 

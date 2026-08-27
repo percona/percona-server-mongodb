@@ -364,7 +364,7 @@ const skippedAuthTestingCommands = [
     "streams_updateConnection",
     "streams_updateFeatureFlags",
     "streams_writeCheckpoint",
-    "testCommandFeatureFlaggedOnLatestFCV83",
+    "testCommandFeatureFlaggedOnLatestFCV91",
     "testDeprecation",
     "testDeprecationInVersion2",
     "testInternalTransactions",

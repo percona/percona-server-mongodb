@@ -61,7 +61,6 @@ include:
   - filename: etc/evergreen_yml_components/tasks/resmoke/non_server_teams/tasks.yml
   - filename: etc/evergreen_yml_components/tasks/compile_tasks.yml
   - filename: etc/evergreen_yml_components/tasks/compile_tasks_shared.yml
-  - filename: etc/evergreen_yml_components/tasks/coverage_tasks.yml
   - filename: etc/evergreen_yml_components/tasks/misc_tasks.yml
   - filename: etc/evergreen_yml_components/tasks/security_tasks.yml
 
@@ -132,10 +131,6 @@ commit_queue_aliases:
     task: ".*"
     variant_tags: []
     task_tags: []
-  - variant: "^(windows-compile-required)$"
-    task: "^(bazel_run_format|bazel_run_lint)$"
-    variant_tags: []
-    task_tags: []
   - variant: "^(commit-queue-atlas)$"
     task: ".*"
     variant_tags: []
@@ -160,10 +155,6 @@ github_pr_aliases:
     task_tags: ["benchmarks_sep"]
   - variant: "^(commit-queue-monorepo)$"
     task: ".*"
-    variant_tags: []
-    task_tags: []
-  - variant: "^(windows-compile-required)$"
-    task: "^(bazel_run_format|bazel_run_lint)$"
     variant_tags: []
     task_tags: []
   - variant: "^(commit-queue-atlas)$"

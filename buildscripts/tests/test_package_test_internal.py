@@ -107,6 +107,15 @@ class PackageTestInternalHelpersTest(unittest.TestCase):
             {"libcurl.so.4", "libc.so.6"}, under_test.parse_readelf_dependencies(readelf_output)
         )
 
+    def test_parses_readelf_direct_dependencies_without_architecture_loader(self):
+        readelf_output = """
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-aarch64.so.1]
+ 0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]
+ 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+"""
+
+        self.assertEqual({"libc.so.6"}, under_test.parse_readelf_dependencies(readelf_output))
+
     def test_parses_ldd_dependencies(self):
         ldd_output = """
 linux-vdso.so.1 (0x0000ffff)
@@ -178,6 +187,40 @@ libcurl.so.4 => /lib/aarch64-linux-gnu/libcurl.so.4 (0x0000ffff)
         ):
             with self.assertRaisesRegex(RuntimeError, "unexpected: libunexpected.so.1"):
                 under_test.test_binary_system_dependencies(test_args)
+
+    def test_server_package_tests_can_skip_system_dependency_check(self):
+        test_args = {"package_kind": "server"}
+
+        with (
+            mock.patch.object(under_test, "test_binary_edition"),
+            mock.patch.object(under_test, "test_binary_system_dependencies") as check,
+            mock.patch.object(under_test, "setup"),
+            mock.patch.object(under_test, "install_fake_systemd"),
+            mock.patch.object(under_test, "test_start"),
+        ):
+            under_test.run_server_package_tests(test_args, "org", skip_system_library_check=True)
+            check.assert_not_called()
+
+            under_test.run_server_package_tests(test_args, "org")
+            check.assert_called_once_with(test_args)
+
+    def test_parses_system_library_check_option(self):
+        self.assertEqual(
+            (
+                "ubuntu2404",
+                ["package.tgz"],
+                True,
+            ),
+            under_test.parse_package_test_arguments(
+                ["--platform", "ubuntu2404", "--skip-system-library-check", "package.tgz"]
+            ),
+        )
+
+    def test_defaults_to_running_system_library_check(self):
+        self.assertEqual(
+            ("ubuntu2404", ["package.tgz"], False),
+            under_test.parse_package_test_arguments(["--platform", "ubuntu2404", "package.tgz"]),
+        )
 
     def test_server_required_files_include_mongod_service(self):
         test_args = {

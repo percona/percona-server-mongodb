@@ -156,6 +156,20 @@ void appendQueryPlannerCommonInfo(PlanExecutor* exec,
             nsMetaBob.appendDate("sampleCreatedAt", meta.createdAt.value());
         }
     }
+
+    // Field statistics (analyze mode "ndv") that served estimates during planning.
+    if (const auto fieldStatsMeta = explainer.getFieldStatsMetadata(); fieldStatsMeta.has_value()) {
+        BSONObjBuilder fieldStatsBob(plannerBob.subobjStart("fieldStatsMetadata"));
+        for (const auto& [ns, entries] : fieldStatsMeta.value()) {
+            BSONObjBuilder nsBob(fieldStatsBob.subobjStart(ns));
+            BSONArrayBuilder ndvArr(nsBob.subarrayStart("ndv"));
+            for (const auto& entry : entries) {
+                BSONObjBuilder entryBob(ndvArr.subobjStart());
+                entryBob.append("fieldPaths", entry.sortedFieldPaths);
+                entryBob.appendDate("createdAt", entry.createdAt);
+            }
+        }
+    }
     auto&& enumeratorInfo = explainer.getEnumeratorInfo();
     plannerBob.append("maxIndexedOrSolutionsReached", enumeratorInfo.hitIndexedOrLimit);
     plannerBob.append("maxIndexedAndSolutionsReached", enumeratorInfo.hitIndexedAndLimit);
@@ -357,15 +371,13 @@ BSONObj explainVersionToBson(const PlanExplainer::ExplainVersion& version) {
 
 /**
  * Appends the 'rankerChoice' object to 'out', which contains details the ranker that decided the
- * winning plan, the reason for this choice, and the ranker that was requested.
+ * winning plan and the reason for this choice.
  */
 void appendPlanRankerChoice(const PlanSelectionStrategy decidingPlanRanker,
                             const boost::optional<PlanRankerReason> reason,
                             BSONObjBuilder& out) {
     BSONObjBuilder planRankerBob(out.subobjStart("rankerChoice"));
 
-    // TODO SERVER-132230: populate requestedRanker.
-    planRankerBob.append("requestedRanker", "");
     planRankerBob.append("chosenRanker", getPlanSelectionStrategyName(decidingPlanRanker));
     if (decidingPlanRanker == PlanSelectionStrategy::kSinglePlan ||
         decidingPlanRanker == PlanSelectionStrategy::kCachedPlan) {
