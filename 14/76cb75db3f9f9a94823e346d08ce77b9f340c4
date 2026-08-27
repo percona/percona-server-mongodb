@@ -1,0 +1,199 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "027cdeccbe314d310020fbf334709a57e9a259e4",
+    "merge_commit": "86765b354380240ee18501ba15a28598bd5e0b7b"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "86765b354380240ee18501ba15a28598bd5e0b7b",
+    "merged_commits": [
+      "86765b354380240ee18501ba15a28598bd5e0b7b",
+      "275ddcd72b1883f5ae491b46dcf6cc7de8f46d62",
+      "91f5af7d8cf2f804840442c8e85ad1d0c8741af2",
+      "0e7189b0473b7c188c4c0d062ebc546512ee4764",
+      "e6c3c1e7a0c13b1d79199948c577b393f43c18d9",
+      "590d182020f03699930c8832579c8dfcec312d23",
+      "b49ada695bf64aef5ec39358d613d3f4b93f378b",
+      "25f4243109a8f72e1936f234169ca40255b36aef",
+      "295a0f7491eaecb7249f5c2eb1d44408bfacf5db",
+      "a03e447d34264336546cfb2001ed5334e969926e",
+      "4becceb0028e0522ec852e3cbe477aa4efbf4ef2",
+      "4c3c998ec99bd63f3b46ceae418531e9f6187312",
+      "b66442c6e1295e18ce18e8bd9c6610dabfaad2e1",
+      "143c04c5b63beea11a0fc63f1b8c915f87fad245",
+      "b954747e1d9fcddf81a1805761452332c5e86d7c",
+      "5a311533c64c33cf2a05f8a4ee0128f99ad824aa",
+      "0a3210aadb8f92da0930e319ea07c37ca9971457",
+      "631fe6f5636f33dbb6200bc714034bc86af131e7",
+      "38b5d0ed2dedc18dc2a29721bd3efee7e3f32de5",
+      "88978a32e0fe2ae9b5d4fa4d88ec22b38f188157",
+      "2531795e44b87bf4c910e08896989a6610b752dc",
+      "a703dbadd36bb17f795cc1b2fc89ad656020558e",
+      "dff4b1e17f1047b0b46dfc00b1742345cb8a1ec8",
+      "e041d8ec756e21cabb6357be5ba5f7a0ddad9cdf",
+      "62abe2c431dcdcb771f5b17645fba8eb8ff22748",
+      "90845c2ec82002a164ba6371090694debb20f850",
+      "3d02016a6a4220f54eff77d9a6038628baa8b551",
+      "02f01da3a02d1ec1e9cbca853e482960155f2e91",
+      "e7b23152828d656f6d72796ecec725f75fcb92bc",
+      "f140c3df79ddac6ae1394f1cc6b9229725cc7435",
+      "5c8e9551a098aed753b9d9886fa25711c18e5c8c",
+      "fe5a64cf67af57db9c59b6547a293ad4814dd78e",
+      "fb1c0c93b39fe999ceeef1519fdcc5dcbbd75b44",
+      "8def4d6241f94c42d3f6f8890595090f2c5f3455",
+      "7eecfc2b9a7bcea2e66f819bffc4d2a7550bd639",
+      "ce8e284a005b2e5464ac260d5388fc26e53793e5",
+      "247b78568c31ea5e41970f5f9dba600eaebeeaa3",
+      "d6186e2d8b2d8c4befb8e5d47a354834fc73593b",
+      "4409cae9432fbcaf5208e7ecfb23c389b1eb4414",
+      "b7d87870520928c7a80fcee72131e771bc14acf7",
+      "dd13becef967d24fdc91c6967680365c01c814a8",
+      "18befab5a2fa0ea42812355d1cb1e708fc66f03c",
+      "af631aac3cc1280cecfaf6b7750f9213fe8f9886"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/exec/document_value/value.cpp",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 41378,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.24028099999999997,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001054,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2654,
+        "cacheReadInputTokens": 46044,
+        "cacheCreationInputTokens": 23972,
+        "webSearchRequests": 0,
+        "costUSD": 0.23922699999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001054
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2654,
+            "cache_read": 46044,
+            "cache_creation": 23972
+          },
+          "cost_usd": 0.23922699999999997
+        }
+      }
+    },
+    "text_result": "I've read the incoming diffs for all nine auto-merged files (`diff base c9fffbb \u2192 merge commit 86765b3`) and written the JSON description to the response file.\n\nKey findings:\n- **`startup_recovery.cpp`** \u2014 the main functional change: a new `EnsureIndexPolicy::kSkipMissingForInitialSync` that skips building missing `_id` indexes at startup when the initial-sync flag is set (data will be dropped by the retried initial sync).\n- **`read_write_concern_defaults_application.js`** \u2014 the test now JSON-parses log lines and matches on `attr.writeConcern`/`attr.readConcern`, skipping in-progress \"Slow in-progress query\" entries.\n- **`value.cpp`** \u2014 cosmetic `push_back(Value(...))` \u2192 `emplace_back(...)` and `std::vector` spelling.\n- **Four `BUILD.bazel` files** \u2014 dependency additions only.\n- **`servers.js`** \u2014 removal of one obsolete `_removeSetParameterIfBeforeVersion` call.\n- **`wiredtiger.h.in`** \u2014 new error code `WT_VERIFY_PAGE_ID_MISMATCH`, two new checkpoint-cleanup stat constants, and the resulting stat-constant renumbering.\n\nEach description is grounded in the diff output I actually read; no Percona-specific changes appear in these files.",
+    "response": {
+      "summary": "Upstream merge pulling in a mix of changes. The most substantial functional change is in startup recovery: when the initial sync flag is set at startup, the node now skips building missing _id indexes (new EnsureIndexPolicy::kSkipMissingForInitialSync) because a retried initial sync will drop that data anyway. Also included: a hardening of the read/write concern defaults sharding test's log matching, minor cleanups in Value's array constructors, several BUILD.bazel dependency additions, removal of an obsolete shell version-gating call, and a WiredTiger header update (new error code and stat constants plus renumbering).",
+      "auto_merged": {
+        "jstests/sharding/read_write_concern_defaults_application.js": "checkLogEntryRWC now parses each candidate log line as JSON and inspects entry.attr instead of doing substring matching. It skips 'Slow in-progress query' (SLOWPROG) entries unless attr.writeConcern.w is already populated, and gates the checkWriteConcern/checkReadConcern conditions on attr.writeConcern/attr.readConcern being defined, so the check lands on the completed outer command log entry rather than an in-progress or inner-op entry.",
+        "src/mongo/db/BUILD.bazel": "Adds several dependencies to existing mongo_cc_library targets: query:query_latency_accumulator, query/plan_ranking:plan_selection_strategy and stats:top to one library; query:query_latency_accumulator and query:query_lifespan to another; and repl:replication_process to a third. Build-graph wiring only, no code changes.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds the //src/mongo/db/query:query_latency_accumulator dependency to a mongo_cc_library target. Build dependency only.",
+        "src/mongo/db/exec/document_value/value.cpp": "Small cleanup in the array-building Value constructors: push_back(Value(...)) calls replaced with emplace_back(...), and the vector<BSONObj>/vector<Document> constructor parameter types spelled as std::vector<...>. No behavioral change.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds :index_build_knobs_idl and //src/mongo/db:throttle_cursor to the deps of a mongo_cc_library target. Build dependency only.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the //src/mongo/db/query/compiler/ce/ndv:field_stats dependency to a mongo_cc_library target. Build dependency only.",
+        "src/mongo/db/startup_recovery.cpp": "Adds a new EnsureIndexPolicy::kSkipMissingForInitialSync value. In startupRecovery, when replication is in use and ReplicationProcess's consistency markers report the initial sync flag is set, ensureCollectionProperties is called with this new policy so missing _id indexes are not built (logged via new IDs 13350100/13350101), avoiding wasted work since the retried initial sync will drop the data. Adds includes for replication_consistency_markers.h and replication_process.h.",
+        "src/mongo/shell/servers.js": "Removes the _removeSetParameterIfBeforeVersion call that stripped the 'initialSyncWaitForSyncSourceLastStableRecoveryTsInitiatingSetThresholdSecs' set parameter for versions before 9.0.0.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new sub-level error code WT_VERIFY_PAGE_ID_MISMATCH (-32017) for disaggregated-storage verify btree/PALI page-ID mismatches, and adds two new connection stat constants (WT_STAT_CONN_CHECKPOINT_CLEANUP_THREAD_START/STOP). The bulk of the diff is the mechanical renumbering of subsequent WT_STAT_CONN_* constant values that follows from inserting the new stats."
+      },
+      "review_notes": "This is an auto-merge (ort strategy) with no reported conflicts in the listed files; all changes are upstream additions. The functionally meaningful review targets are startup_recovery.cpp (initial-sync _id index skip behavior) and the sharding test log-matching change. The remaining files are BUILD.bazel dependency additions, a value.cpp micro-cleanup, a shell version-gate removal, and a generated WiredTiger header whose large diff is mostly stat-constant renumbering. No Percona-specific changes appear in these diffs. Note the diffs were read with 200-line truncation; the wiredtiger.h.in change beyond the shown range is more of the same stat renumbering."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have read all the diffs. Now let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the incoming diffs for all nine auto-merged files (`diff base c9fffbb \u2192 merge commit 86765b3`) and written the JSON description to the response file.\n\nKey findings:\n- **`startup_recovery.cpp`** \u2014 the main functional change: a new `EnsureIndexPolicy::kSkipMissingForInitialSync` that skips building missing `_id` indexes at startup when the initial-sync flag is set (data will be dropped by the retried initial sync).\n- **`read_write_concern_defaults_application.js`** \u2014 the test now JSON-parses log lines and matches on `attr.writeConcern`/`attr.readConcern`, skipping in-progress \"Slow in-progress query\" entries.\n- **`value.cpp`** \u2014 cosmetic `push_back(Value(...))` \u2192 `emplace_back(...)` and `std::vector` spelling.\n- **Four `BUILD.bazel` files** \u2014 dependency additions only.\n- **`servers.js`** \u2014 removal of one obsolete `_removeSetParameterIfBeforeVersion` call.\n- **`wiredtiger.h.in`** \u2014 new error code `WT_VERIFY_PAGE_ID_MISMATCH`, two new checkpoint-cleanup stat constants, and the resulting stat-constant renumbering.\n\nEach description is grounded in the diff output I actually read; no Percona-specific changes appear in these files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260827_144146_749242.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.247 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "86765b354380240ee18501ba15a28598bd5e0b7b",
+    "short_sha": "86765b35438",
+    "strategy": null,
+    "summary": "This is the 'SERVER-110427 Update profiling data' commit, an auto-generated artifact (1 file, 6 added / 6 deleted, produced by mongo-pr-bot). Per the merge-pick rules, regenerated/auto-generated artifact commits are ideal boundaries: they touch a well-isolated set of files, do not depend on the commits after them, and are trivial to validate post-merge. Cutting here yields a batch of ~43 commits, comfortably inside the target band (30-65) and close to the ~50 target. It ends on a self-contained commit rather than mid-stream: the commits immediately after it enter active feature churn (e.g. the huge SERVER-33715 DISTINCT_SCAN feature at ~226 lines*13 dirs and the SERVER-131760/131761 NDV stats series), which are better kept together in the next batch. No revert/original pairs are split by this cut - the SERVER-104907 revert, the SERVER-130660 batched-oplog enable/revert/re-enable cycle, and the SERVER-133804 revert all lie well beyond this point and remain intact for a later batch. The earlier alternative boundary (WT import e6c3c1e7 at ~39 commits) is slightly smaller and less centered on the target, so this profiling-data artifact is the cleaner boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33083211656"
+  }
+}
