@@ -1,0 +1,478 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1476cb75db3f9f9a94823e346d08ce77b9f340c4",
+    "merge_commit": "5f66432c93456c084d0b774ebfcee61f2168623a"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "1476cb75db3f9f9a94823e346d08ce77b9f340c4",
+    "theirs_commit": "5f66432c93456c084d0b774ebfcee61f2168623a",
+    "base_commit": "86765b354380240ee18501ba15a28598bd5e0b7b",
+    "files": [
+      "MODULE.bazel.lock"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 82a7676abd7,6876b01c3c8..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"I9kiluiW4KyWVk8NJMdAwsYV47d4MLClsOueMTZSI9I=\",\n++||||||| 86765b35438\n++        \"bzlTransitiveDigest\": \"TtvMJJcIkTjowpIoYfnUIsXa8Jrjfw0ygdDP5/hhdko=\",\n++=======\n+         \"bzlTransitiveDigest\": \"yZkx5JGzp9Wdd0Iv+Teyj+0tr1Gi0dKmCQMY4hU9m70=\",\n++>>>>>>> 5f66432c93456c084d0b774ebfcee61f2168623a"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "4a7c224ae2b4bff14df24b5b303c01155ae816f4"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "5f66432c93456c084d0b774ebfcee61f2168623a",
+    "merged_commits": [
+      "5f66432c93456c084d0b774ebfcee61f2168623a",
+      "e1713b70f8075acafacea4094e27c01609f241c8",
+      "94c283bfdfc8cce0e6fc9608bd6bfe5cf8130c1f",
+      "d2ccf27775a8778ebf494470f0fa51ed4da59e2e",
+      "161040e1703f688f98d968ffae05dfe6a322342e",
+      "c62cfaf2ce0225482d3e4b1a86afda5ba353ce8d",
+      "4a7c224ae2b4bff14df24b5b303c01155ae816f4",
+      "f58b20f2f65be3e18ed8910fc976129cda3b8a49",
+      "f36b49f49f9e25ec695c70dc0271c16615ccc06f",
+      "03eb2d97c2dfd9f551344462fa89f29ef56f387c",
+      "4b1f525ea0dc2e0021d929956a87943c95a2f2f4",
+      "e32c8b13e47576db41130707fb8fe539dbd353be",
+      "a31b8c589881023c4d67f038b8a85de971b727f1",
+      "d9a6c6616e353e444c4575028e38ed914c8eed0b",
+      "9a108e2a37f73be3701a86754784132e81bf72a8",
+      "64fe6c9da28a34e80f6a77b8506a3a6b2441d179",
+      "5e44bd61c0cab217678574672e5ce4dfdd2f0249",
+      "e34e3da7a75d2f03118f31c83e43af09b9e87584",
+      "583ad6c8154de0a307baf6a283a3987f8c182eb6",
+      "69fc18fea3e9feaa965b898a0f66a35943992525",
+      "139dbf2de0bf56d76bd07ca3b1d465bf5b35c092",
+      "6937e3ecb9beb57d89fbdb8ab0a1c79d02fcdc1d",
+      "d4881a70de3e02c9262fa33a552095c393b13fe6",
+      "3f2f499414e76d6be9cb1dad36beddbde588fcef",
+      "77a22efe9fc8afa92769dd52f59d901f586bc6cf",
+      "8b9b0990b92a9b5f5df708c180ee258fe9286ff1",
+      "02268c55b614d8ed594c22e27e8b890c2231884b",
+      "2d81b3b4d7e9bd679c86dd1d881bbe00c0ab16cf",
+      "40bc979d789d0c0d2fec250eea52acfbcb4367c8",
+      "021dfaf3bc1d530d77766977380c5716f19286d8",
+      "55b9a9ba972a2e63a5f1c06e49227e596ba2eb6f",
+      "118197166bc3496ec59dd01bd478d44120304ab4",
+      "26bbf47fe4025c3f2be4e75adaa5e95bf9b8f774",
+      "001738402bcb4b2b5ae0d882b6e2b6028a00dcd0",
+      "b20d08569121a5698a852ff4c0512d761cd65fd5",
+      "2d1094ebab3759d1f9234d6f7303073497ce7ed6",
+      "60f653ba11c7ae86c770c92efe8dd13119ed06fe",
+      "76c4d91c99129ef528724baa115f6980c57965af",
+      "f9990dc0b4fe7e9cad7d744078b35db7db22cbe8",
+      "b8d76a7640d23b342d180446791396b54b8ccc07",
+      "c2f42eb7c210db4ff06026d6d022432d416b494a",
+      "64e476021b5a3bcfd21c997234e7d576ad361b9f",
+      "a2eb2fc281ed1aae2c4e86fb86144c7b0c3a86c4",
+      "b6998a8ede89c3bd2552807e7b451e9919c13df1",
+      "e858ca68634e52ae9de42bf94c1085b56779c7ce",
+      "25c4941631e5fc311497eceb5b07b38fae609788",
+      "8b2f9bd8a5f3af32f986c97c5d709c767936c596",
+      "d88752897110eef1aa5530f6238a53d682469903",
+      "a619b6a958bc00df77a56648dc1c0d5935f9a288",
+      "9c87e578e109b5b3fd862173adc0f176b789e6fa",
+      "41c102dcde350a5582010012856d60a959494a63",
+      "080e17ce3807c8d6213f65fcd4c5d53fed35d398",
+      "f3516784b57bf1670bdcb86c9e8e6375056134b0",
+      "c3bc23b013902d398568f85b2859ff4c008ba9d7",
+      "2cbd3c6bdca482fe7b45fba0f27d41d37eea06a2",
+      "145c561be661efcb6e71db828c2c7c0dce3036d1",
+      "527e9ffad58cf034b3e51c55e45cda90a1b84457"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/utils.bzl",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 66141,
+      "num_turns": 7,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.18840525,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 979,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001059,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 14,
+          "outputTokens": 1952,
+          "cacheReadInputTokens": 104465,
+          "cacheCreationInputTokens": 13799,
+          "webSearchRequests": 0,
+          "costUSD": 0.18734625,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 979,
+              "output": 16,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.001059
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 14,
+              "output": 1952,
+              "cache_read": 104465,
+              "cache_creation": 13799
+            },
+            "cost_usd": 0.18734625
+          }
+        }
+      },
+      "text_result": "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this lock file can't be manually merged), I removed the conflict markers around the `bzlTransitiveDigest` entry by accepting one side, then ran `bazel query //... >/dev/null` which completed successfully (exit 0) and regenerated the file correctly.\n\nVerified no conflict markers remain, and wrote the JSON response to the specified path.",
+      "response": {
+        "summary": "Resolved the single merge conflict in MODULE.bazel.lock. This lock file cannot be manually merged, so per the conflict hints the conflict markers were removed by accepting one side entirely and then the file was regenerated by running 'bazel query //... >/dev/null'.",
+        "resolved": {
+          "MODULE.bazel.lock": "Removed the conflict markers around the 'bzlTransitiveDigest' entry by accepting the theirs (5f66432c934) value, then ran 'bazel query //... >/dev/null' which completed successfully (exit 0) and regenerated the lock file. Verified no conflict markers remain."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "MODULE.bazel.lock was the only conflicting file. Followed the documented procedure: cleared markers first, then regenerated via 'bazel query //...'. The bazel query printed some benign warnings (bazel_features/rules_cc version resolution, missing enterprise module defaulting to local build, and an S3 NoCredentialsError during a public artifact download that still succeeded via the public URL), but exited 0 and produced a clean, marker-free lock file."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I'll remove the conflict markers by accepting HEAD's version, then regenerate the lock file with bazel."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Bazel query succeeded (exit=0). Let me verify no conflict markers remain."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All conflict markers are gone and the lock file was regenerated. Now writing the JSON response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the merge conflict. Summary:\n\n- **MODULE.bazel.lock** was the only conflicting file. Following the conflict hints (this lock file can't be manually merged), I removed the conflict markers around the `bzlTransitiveDigest` entry by accepting one side, then ran `bazel query //... >/dev/null` which completed successfully (exit 0) and regenerated the file correctly.\n\nVerified no conflict markers remain, and wrote the JSON response to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260827_190817_419355.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.247 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 91743,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.4916025,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 6959,
+        "cacheReadInputTokens": 144317,
+        "cacheCreationInputTokens": 39096,
+        "webSearchRequests": 0,
+        "costUSD": 0.4905435,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 6959,
+            "cache_read": 144317,
+            "cache_creation": 39096
+          },
+          "cost_usd": 0.4905435
+        }
+      }
+    },
+    "text_result": "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diffs for every file listed under `auto_merged.files`, and written my JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Bazel 9 / rules_cc migration** (`.bazelrc`, `bazel/mongo_src_rules.bzl`, `bazel/resmoke/resmoke.bzl`, `bazel/utils.bzl`): explicit `@rules_cc` loads replace the removed built-in native C++ rules and `@bazel_tools` toolchain utilities; an autoload flag keeps vendored third-party deps working; a real hollow cc_toolchain replaces the old noop stub.\n- **Clean-shutdown log feature** (`replication_coordinator_impl.cpp`, `namespace_string_reserved.h`): records clean shutdowns in a new `local.system.cleanShutdownLog` collection.\n- **WiredTiger leaf-page-size histogram rework** (`wiredtiger_util.{cpp,h,test.cpp}`): new `buildLeafPageSizeHistogram` helper driven by WT-published bucket geometry; the final bucket now emits `gteBytes` instead of null `maxBytes`.\n- **Mechanical jstest rename** across 8 command-inventory tests: `testCommandFeatureFlaggedOnLatestFCV83` \u2192 `...FCV91`.\n- **Build-list additions** (`db/BUILD.bazel`, `pipeline/BUILD.bazel`, `transport/BUILD.bazel`, `bazel/config/BUILD.bazel`, root `BUILD.bazel`), the `listDurableCatalog` refactor, coverage config simplification, and a WiredTiger docs-only reword.\n\nThe only conflict was `MODULE.bazel.lock` (a regenerated digest), which I noted should be resolved by regenerating per the conflict hint. I confirmed no Percona-specific lines appear in these diffs and flagged for reviewers to verify the new `StorageInterface` clean-shutdown methods and `iterateDurableCatalog` helper are present so the build links.",
+    "response": {
+      "summary": "Merges an upstream MongoDB batch into the fork. The main themes are: (1) Bazel 9 / rules_cc migration \u2014 build files and Starlark rules stop relying on the built-in native C++ rules and toolchain utilities and load them explicitly from @rules_cc (plus a .bazelrc autoload for vendored third-party deps); (2) a new 'clean shutdown log' feature in replication that records clean shutdowns in a local collection; (3) reworked WiredTiger leaf-page-size histogram logging that adapts to WiredTiger-published bucket geometry; (4) a mechanical rename of the internal test command testCommandFeatureFlaggedOnLatestFCV83 to ...FCV91 across command-inventory jstests; and (5) assorted build-list additions and a coverage config simplification. The only textual conflict was in MODULE.bazel.lock (a regenerated digest).",
+      "auto_merged": {
+        ".bazelrc": "Adds 'common --incompatible_autoload_externally=+@rules_cc' so vendored third-party modules (protobuf, grpc, tcmalloc, abseil) that still use the removed Bazel 9 built-in C++ rules keep working. Simplifies the coverage configuration: removes the shared 'coverage_base' common config and the build-only 'coverage_compile' config, folding their flags directly onto the 'coverage' command (--//bazel/config:coverage=True, --config=dbg, --compiler_type=clang, --linkstatic=False, llvm covmap/lcov, remote_download_regex, fission=no, runfile-link flags, instrumentation_filter) and dropping --experimental_fetch_all_coverage_outputs.",
+        "BUILD.bazel": "Adds a new testonly 'gdb' mongo_install target (archive/install-gdb sidecar for pretty-printer tests, Linux-only, installing //:gdb_toolchain_folder into lib). Changes the pretty-printer install target's root_files select to key off //bazel/config:install_gdb_enabled_linux vs install_gdb_disabled_linux instead of a plain @platforms//os:linux match, so the gdb toolchain folder is only installed when install_gdb is enabled.",
+        "MODULE.bazel.lock": "Conflict was only over the regenerated 'bzlTransitiveDigest' hash value; resolved by regenerating the lock file. No semantic content change beyond the recomputed digest.",
+        "bazel/config/BUILD.bazel": "Adds an 'install_gdb' build setting (default False) plus config_settings install_gdb_enabled/disabled and selects.config_setting_group combos install_gdb_enabled_linux / install_gdb_disabled_linux, used by BUILD.bazel to gate installation of the gdb toolchain folder.",
+        "bazel/mongo_src_rules.bzl": "Bazel 9 / rules_cc migration: replaces load of @bazel_tools//tools/cpp:toolchain_utils (find_cpp_toolchain) with @rules_cc//cc:find_cc_toolchain (find_cc_toolchain), and replaces the @rules_cc//cc:defs.bzl aggregate load with individual loads of cc_binary, cc_library, cc_shared_library and cc_test from their own files plus cc_proto_library from @com_google_protobuf. Updates call sites: native.cc_test -> cc_test, native.cc_proto_library -> cc_proto_library, and find_cpp_toolchain -> find_cc_toolchain in strip_deps_impl. The Percona PSMDB-1924 integration-test edits in mongo_cc_integration_test are preserved (not part of this diff).",
+        "bazel/resmoke/resmoke.bzl": "Bazel 9 / rules_cc migration: switches from @bazel_tools//tools/cpp toolchain_utils (find_cpp_toolchain/use_cpp_toolchain) to @rules_cc//cc:find_cc_toolchain (find_cc_toolchain/use_cc_toolchain), uses use_cc_toolchain(mandatory=False) and the @rules_cc//cc:optional_current_cc_toolchain default label. Also refines coverage profile handling: the LLVM_PROFILE_FILE pattern changes from 'server-%m%c.profraw' to 'server-%p-%m%c.profraw' (adding %p), with updated explanatory comments about continuous mode plus per-module online merging.",
+        "bazel/utils.bzl": "Extends generate_noop_toolchain with a new 'resolvable' parameter and replaces the old stub that pointed at @bazel_tools//tools/cpp:current_cc_toolchain with a real hollow cc_toolchain backed by a generated noop_cc_toolchain_config (create_cc_toolchain_config_info with no features/tools). Emits either an _UNRESOLVABLE_TOOLCHAIN (constrained to @platforms//:incompatible so the real platform toolchain wins) or a _RESOLVABLE_TOOLCHAIN (no constraints, always matches) depending on 'resolvable', the latter for analysis-only invocations where the toolchain download is skipped (no_c++_toolchain=1).",
+        "jstests/auth/lib/commands_lib.js": "Renames the internal test command entry testCommandFeatureFlaggedOnLatestFCV83 to testCommandFeatureFlaggedOnLatestFCV91 in the skippedAuthTestingCommands list.",
+        "jstests/core/catalog/views/views_all_commands.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 test-case key to testCommandFeatureFlaggedOnLatestFCV91 (skip: isAnInternalCommand).",
+        "jstests/libs/write_concern_all_commands.js": "Renames testCommandFeatureFlaggedOnLatestFCV83 to testCommandFeatureFlaggedOnLatestFCV91 in two command tables (wcCommandsTests and wcTimeseriesCommandsTests).",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 entry to testCommandFeatureFlaggedOnLatestFCV91 (skip: isAnInternalCommand).",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 entry to testCommandFeatureFlaggedOnLatestFCV91 (skip: isAnInternalCommand).",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 entry to testCommandFeatureFlaggedOnLatestFCV91 (skip: isAnInternalCommand).",
+        "jstests/sharding/database_versioning_all_commands.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 entry to testCommandFeatureFlaggedOnLatestFCV91 (skip: 'internal command', conditional: true).",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Renames the testCommandFeatureFlaggedOnLatestFCV83 entry to testCommandFeatureFlaggedOnLatestFCV91 (skip: 'internal command').",
+        "src/mongo/db/BUILD.bazel": "Adds the new query cardinality-estimation NDV field-stats loader to a mongo_cc_library: the source //src/mongo/db/query/compiler/ce/ndv:field_stats_loader.cpp and the dependency //src/mongo/db/query/compiler/ce/ndv:field_stats_loader.",
+        "src/mongo/db/namespace_string_reserved.h": "Adds a new reserved namespace entry kCleanShutdownLogNamespace (DatabaseName::kLocal, 'system.cleanShutdownLog') for the local clean-shutdown metadata collection.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the source file change_stream_hashed_field_accessors.cpp to a change-stream mongo_cc_library src list.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Rewrites listDurableCatalog to iterate the durable catalog via shard_role_nocheck::iterateDurableCatalog with a callback (collecting system.views namespaces and building list-catalog entries) instead of manually opening an MDBCatalog cursor and filtering feature documents; removes the now-unused include of storage/feature_document_util.h.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "In _startLoadLocalConfig, adds recording of clean shutdowns: unconditionally calls _storage->initializeCleanShutdownCollection(opCtx) (its presence marks a binary that records shutdowns), and when the last shutdown state was kClean, reads the recovery timestamp (getRecoveryTimestamp, defaulting to a null Timestamp), logs it (LOGV2 13224501), and calls _storage->recordCleanShutdown(opCtx, lastCheckpointTs). Guarded by fassert IDs 13224500/13224502.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Refactors the WiredTiger leaf-page-size histogram in logStorageSizeStats into a new static helper WiredTigerUtil::buildLeafPageSizeHistogram. It now reads the histogram geometry (bucket count and ceiling) from the WT-published stats WT_STAT_DSRC_BTREE_SIZE_LEAF_HIST_BUCKETS/_CEILING when available (guarded by #if defined, falling back to 0/0), clamps the bucket count to kLeafPageSizeHistogramMaxBuckets (9), and derives bucket width from the ceiling (or maxLeafPage as fallback). The final open-ended bucket now emits 'gteBytes' (the ceiling) instead of a null 'maxBytes'. Adds includes of bsonobjbuilder.h and <array>.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Adds the public constant kLeafPageSizeHistogramMaxBuckets = 9 and declares the new static method buildLeafPageSizeHistogram(publishedBuckets, publishedCeiling, maxLeafPage, std::span<const int64_t> bucketCounts) returning a BSONArray. Adds includes of bson/bsonobj.h and <cstdint>.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Adds unit tests for buildLeafPageSizeHistogram: LeafPageSizeHistogramUsesPublishedGeometry (uses published bucket count/ceiling, last bucket carries gteBytes), LeafPageSizeHistogramFallsBackWhenPublishedStatsMissing (0/0 falls back to 9 buckets and maxLeafPage ceiling), and LeafPageSizeHistogramClampsOversizePublishedBucketCount (published count of 99 clamped to 9). Adds a leafHistogramBuckets helper and an <vector> include.",
+        "src/mongo/transport/BUILD.bazel": "Adds the dependency //src/mongo/otel/metrics:otel_metrics_service to a transport mongo_cc_library and adds the source ingress_handshake_metrics_test.cpp to a mongo_cc_unit_test src list.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Documentation-only update in the generated WiredTiger config docs for WT_SESSION: rewords the checkpoint_crash_point config description to note it selects proportionally which tree to stop on and always precedes the checkpoint commit (never recoverable), pointing at checkpoint_crash_trigger_point for a recoverable crash and noting the two cannot be combined; reflows the database_size_fix text."
+      },
+      "review_notes": "This merge is dominated by a Bazel 9 / rules_cc migration (mongo_src_rules.bzl, resmoke.bzl, utils.bzl, .bazelrc autoload) and mechanical jstest renames (testCommandFeatureFlaggedOnLatestFCV83 -> ...FCV91) \u2014 both low-risk. Behaviorally notable: the replication clean-shutdown log feature adds calls to _storage->initializeCleanShutdownCollection / recordCleanShutdown / getRecoveryTimestamp and the new kCleanShutdownLogNamespace; confirm the corresponding StorageInterface methods (not in this changeset's file list) are present after the merge so the build links. The listDurableCatalog rewrite switches to shard_role_nocheck::iterateDurableCatalog \u2014 verify that helper is available. The WiredTiger histogram change alters the emitted BSON shape (open-ended bucket now uses 'gteBytes' instead of null 'maxBytes'); any downstream consumers of leafPageSizeHistogram should be aware. The only conflict was MODULE.bazel.lock (a regenerated bzlTransitiveDigest) \u2014 resolve per the conflict hint by regenerating the lock. No Percona-specific code appears in these diffs; the PSMDB-1924 integration-test edits in mongo_src_rules.bzl were untouched by this upstream diff."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough detail. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diffs for every file listed under `auto_merged.files`, and written my JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Bazel 9 / rules_cc migration** (`.bazelrc`, `bazel/mongo_src_rules.bzl`, `bazel/resmoke/resmoke.bzl`, `bazel/utils.bzl`): explicit `@rules_cc` loads replace the removed built-in native C++ rules and `@bazel_tools` toolchain utilities; an autoload flag keeps vendored third-party deps working; a real hollow cc_toolchain replaces the old noop stub.\n- **Clean-shutdown log feature** (`replication_coordinator_impl.cpp`, `namespace_string_reserved.h`): records clean shutdowns in a new `local.system.cleanShutdownLog` collection.\n- **WiredTiger leaf-page-size histogram rework** (`wiredtiger_util.{cpp,h,test.cpp}`): new `buildLeafPageSizeHistogram` helper driven by WT-published bucket geometry; the final bucket now emits `gteBytes` instead of null `maxBytes`.\n- **Mechanical jstest rename** across 8 command-inventory tests: `testCommandFeatureFlaggedOnLatestFCV83` \u2192 `...FCV91`.\n- **Build-list additions** (`db/BUILD.bazel`, `pipeline/BUILD.bazel`, `transport/BUILD.bazel`, `bazel/config/BUILD.bazel`, root `BUILD.bazel`), the `listDurableCatalog` refactor, coverage config simplification, and a WiredTiger docs-only reword.\n\nThe only conflict was `MODULE.bazel.lock` (a regenerated digest), which I noted should be resolved by regenerating per the conflict hint. I confirmed no Percona-specific lines appear in these diffs and flagged for reviewers to verify the new `StorageInterface` clean-shutdown methods and `iterateDurableCatalog` helper are present so the build links."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260827_190641_993962.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.247 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "5f66432c93456c084d0b774ebfcee61f2168623a",
+    "short_sha": "5f66432c934",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import (#61594) is an ideal self-contained merge boundary: it touches a well-isolated set of files, rarely depends on the commits after it, and is easy to validate post-merge. At ~57 commits it lands squarely in the target band (~50, comfortable 30-65). Crucially, it keeps a revert with what it reverts: SERVER-104907 'Fix improper BSONElement creation' (03eb2d97c2d, #61241) and its auto-revert (e1713b70f80, #61644) both fall before this cut, so they cancel out in-batch instead of importing a change upstream already decided to undo. It does not split any coherent series - the next commit (SERVER-133524) starts fresh work - and the later SERVER-130660 revert/re-enable churn (positions 73/74/86) and other unresolved reverts stay beyond the cut, leaving ~2 days of fresher commits to settle for the next batch. An earlier WT import (d4881a70de3, pos 35) was also clean but yields a smaller batch and would leave the BSONElement fix stranded from its revert.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33106341281"
+  },
+  "note_index": [
+    {
+      "sha": "c7fa151b284c07ccda564e7b07f3be421df4edef",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "3aec30f5e76ab1a43eb2d679f7c92a3962aec627",
+      "message": "Merge commit '5f66432c934' into master"
+    },
+    {
+      "sha": "1f00358711b6e5ccd8684831787c4e80da8d2fc7",
+      "message": "Resolve conflicts for merge commit '5f66432c934' into master"
+    }
+  ]
+}
