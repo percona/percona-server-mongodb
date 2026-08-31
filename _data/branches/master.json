@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 94,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.6425891844328704,
-    "files_affected": 644,
-    "total_additions": 17344,
-    "total_deletions": 8168,
+    "commits_behind": 102,
+    "days_behind": 6,
+    "unmerged_oldest_age_days": 6.052771810081018,
+    "files_affected": 656,
+    "total_additions": 18284,
+    "total_deletions": 8276,
     "date_range": {
       "first": "2026-08-25T04:58:29+00:00",
-      "last": "2026-08-28T19:24:08+00:00"
+      "last": "2026-08-30T19:27:31+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "2544ab3284c3ed6aeed953a3aca351c0f1863bd1",
+      "short_sha": "2544ab3284c",
+      "date": "2026-08-30T19:27:31+00:00",
+      "author": {
+        "name": "Steve Vannelli",
+        "email": "54291669+stevevannelli@users.noreply.github.com"
+      },
+      "summary": "SERVER-134105: Add cluster scalability back in (#61892)"
+    },
+    {
+      "sha": "a892cf58cad90c63811cb92f4f4133f5a20aa6b9",
+      "short_sha": "a892cf58cad",
+      "date": "2026-08-29T11:15:01+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-133920 Avoid fieldname length calculation in appendElementsUnique (#61571)"
+    },
+    {
+      "sha": "feb1b2d06867b9fc0a1924c8b6fdf1ab902377df",
+      "short_sha": "feb1b2d0686",
+      "date": "2026-08-28T21:17:20+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134137 Add ConnectionClosedByPeer to the list of retryable error in remove shard suite (#61852)\" (#61936)"
+    },
+    {
+      "sha": "34b8771dabdcb411a12f504aea8e14c81330d531",
+      "short_sha": "34b8771dabd",
+      "date": "2026-08-28T21:15:17+00:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-131384: Add tags to hello response for dsc (#61930)"
+    },
+    {
+      "sha": "590354055fd33b15dc12c6ac266a8177a8aa62b3",
+      "short_sha": "590354055fd",
+      "date": "2026-08-28T20:55:47+00:00",
+      "author": {
+        "name": "Stewart D. Smith",
+        "email": "stewart.smith@mongodb.com"
+      },
+      "summary": "SERVER-134156 Increase accuracy of JS's sleep() (#61840)"
+    },
+    {
+      "sha": "6eab1d85670aa02c421fc1419572e1d00b994093",
+      "short_sha": "6eab1d85670",
+      "date": "2026-08-28T20:40:36+00:00",
+      "author": {
+        "name": "Denis Trailin",
+        "email": "denis.trailin@gmail.com"
+      },
+      "summary": "SERVER-133558 Make SessionCatalog::KillToken RAII so a dropped kill token cannot wedge a session (#61214)"
+    },
+    {
+      "sha": "ef5ac5be13c25bc4988b4cc3dcebcd59848fd23a",
+      "short_sha": "ef5ac5be13c",
+      "date": "2026-08-28T20:29:42+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-129222 Reuse SHA256 Context (#61910)"
+    },
+    {
+      "sha": "691607a6c5ace902030b8027cfa99e043c713cee",
+      "short_sha": "691607a6c5a",
+      "date": "2026-08-28T20:26:26+00:00",
+      "author": {
+        "name": "Cole Harbeck",
+        "email": "cole.harbeck@mongodb.com"
+      },
+      "summary": "SERVER-134160 Add an exception for aggregate command in idl_check_compatibility for getUnfilteredMetrics (#61856)"
+    },
     {
       "sha": "7cd0129f2d397bde6220ba5cbe338dc43d095065",
       "short_sha": "7cd0129f2d3",
@@ -1118,7 +1198,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-28 20:23:39",
+  "generated_at": "2026-08-31 06:14:08",
   "branch_name": "master",
   "display_name": "master"
 }
