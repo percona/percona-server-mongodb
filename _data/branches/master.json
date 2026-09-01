@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 102,
-    "days_behind": 6,
-    "unmerged_oldest_age_days": 6.052771810081018,
-    "files_affected": 656,
-    "total_additions": 18284,
-    "total_deletions": 8276,
+    "commits_behind": 121,
+    "days_behind": 7,
+    "unmerged_oldest_age_days": 7.051849816979167,
+    "files_affected": 867,
+    "total_additions": 31839,
+    "total_deletions": 16780,
     "date_range": {
       "first": "2026-08-25T04:58:29+00:00",
-      "last": "2026-08-30T19:27:31+00:00"
+      "last": "2026-09-01T03:27:29+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,196 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+      "short_sha": "54618137aca",
+      "date": "2026-09-01T03:27:29+00:00",
+      "author": {
+        "name": "Yury Ershov",
+        "email": "yuriy.ershov@gmail.com"
+      },
+      "summary": "Import wiredtiger: 661f1131ff80dab38765cc8da8d1800ae0c99dae from branch mongodb-master (#62021)"
+    },
+    {
+      "sha": "7b50dcb2421a211579075401ae9802219007545c",
+      "short_sha": "7b50dcb2421",
+      "date": "2026-08-31T22:54:13+00:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-134063 Shred collection validator constants during parsing (#61981)"
+    },
+    {
+      "sha": "b077cefe616efaf05cba33b0f37d090f76494690",
+      "short_sha": "b077cefe616",
+      "date": "2026-08-31T22:35:41+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-134013 Move from using internal bazel shell to rules_shell (#61680)"
+    },
+    {
+      "sha": "b0671e83ff207842f197fcec53fa42199ebf245f",
+      "short_sha": "b0671e83ff2",
+      "date": "2026-08-31T20:27:03+00:00",
+      "author": {
+        "name": "Jason Hills",
+        "email": "jason.hills@mongodb.com"
+      },
+      "summary": "SERVER-129061 Consolidate SBOM automation to master (#56649)"
+    },
+    {
+      "sha": "1976090ed54851891a9fc643dabdf3501d296c01",
+      "short_sha": "1976090ed54",
+      "date": "2026-08-31T20:19:41+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134197: Extract duplicated code for populating statement ids in timeseries writes (#61917)"
+    },
+    {
+      "sha": "0253ec8bdf49875db6b382d2a3932e0c1d280725",
+      "short_sha": "0253ec8bdf4",
+      "date": "2026-08-31T20:17:07+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-133985 Remove unused function (#61995)"
+    },
+    {
+      "sha": "169d4ea5f4fec11a7cf9d2e6302cb38448f3ceeb",
+      "short_sha": "169d4ea5f4f",
+      "date": "2026-08-31T19:50:10+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-133922 Avoid repeated field name length calculation in query (#61574)"
+    },
+    {
+      "sha": "e9ef2da20763c0398eafb05e0a7f2fac0d5eaa7b",
+      "short_sha": "e9ef2da2076",
+      "date": "2026-08-31T19:34:20+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-128957 Use `const std::string&` to represent WT URIs (#61998)"
+    },
+    {
+      "sha": "1362f26bfcf503538463f197c39046bad3207fb9",
+      "short_sha": "1362f26bfcf",
+      "date": "2026-08-31T19:18:15+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-134143 Fix ReplicatedFastCountManager::commit() catalog lookup (#61925)"
+    },
+    {
+      "sha": "d0b04b013764bfba44319416258ad77c820c2c67",
+      "short_sha": "d0b04b01376",
+      "date": "2026-08-31T19:11:47+00:00",
+      "author": {
+        "name": "Nathan Frank",
+        "email": "nathantfrank@users.noreply.github.com"
+      },
+      "summary": "SERVER-132778: add more multicore kafka cov and add kafka to sanitizer builds (reapply) (#61988)"
+    },
+    {
+      "sha": "be3792f634ddc8f4c01a8253df7b55a7e8a17802",
+      "short_sha": "be3792f634d",
+      "date": "2026-08-31T18:32:35+00:00",
+      "author": {
+        "name": "Jinfeng Ni",
+        "email": "jinfeng.ni@mongodb.com"
+      },
+      "summary": "SERVER-129401: Recover polygon rings where sin/cos precisions collapse into identical S2Point from vertices with distinct Longitude or Latitude coordinates (#57895)"
+    },
+    {
+      "sha": "71175aa4f963c0db7a5aa8f7ba4b977a5aaa8ef4",
+      "short_sha": "71175aa4f96",
+      "date": "2026-08-31T18:21:12+00:00",
+      "author": {
+        "name": "Alex Li",
+        "email": "98560274+lia394126@users.noreply.github.com"
+      },
+      "summary": "SERVER-131502 Add TassertGuard to expect tassert failures in tests (#61913)"
+    },
+    {
+      "sha": "144994b89bc942a3a1d0cfeac4c36d5599698608",
+      "short_sha": "144994b89bc",
+      "date": "2026-08-31T17:42:53+00:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-132841: Avoid cache invalidation when a relevant but unused index is dropped (#61185)"
+    },
+    {
+      "sha": "d87915547eb0dcfc9f9ccebe78677da736f2bde0",
+      "short_sha": "d87915547eb",
+      "date": "2026-08-31T16:43:23+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-134212: Install unittest data runfiles in mongo_install (#61947)"
+    },
+    {
+      "sha": "3fbf5cd614b6c543e57a983cdf0b6b4dbe674f4e",
+      "short_sha": "3fbf5cd614b",
+      "date": "2026-08-31T16:30:53+00:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-134103 Run no-passthrough FTDC tests in DSC no-passthrough suite (#61921)"
+    },
+    {
+      "sha": "e60c4fa69ede89617d4948fdd916ee5e812550f7",
+      "short_sha": "e60c4fa69ed",
+      "date": "2026-08-31T16:18:09+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-134151: [Reapply] Code coverage artifacts (#61972)"
+    },
+    {
+      "sha": "30ca4652ee31df52cc6d9e68db334fd900f5e314",
+      "short_sha": "30ca4652ee3",
+      "date": "2026-08-31T15:55:24+00:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-134141 Move isReplicatedFastCountEnabled out of the oplog hole hot path (#61829)"
+    },
+    {
+      "sha": "ebe2159e9b9e9f1382724e87e9999efc256f7c35",
+      "short_sha": "ebe2159e9b9",
+      "date": "2026-08-31T15:02:53+00:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-133450 Enable last-patch multiversion suites (#61621)"
+    },
+    {
+      "sha": "248ca0ef42c2db8f4680c34ea00c3ac4c83dbcdf",
+      "short_sha": "248ca0ef42c",
+      "date": "2026-08-31T08:48:24+00:00",
+      "author": {
+        "name": "Rustam Gusein-zade",
+        "email": "rustam.guseinzade@mongodb.com"
+      },
+      "summary": "SERVER-134127 Exclude temporary resharding collections from index consistency checks (#61818)"
+    },
     {
       "sha": "2544ab3284c3ed6aeed953a3aca351c0f1863bd1",
       "short_sha": "2544ab3284c",
@@ -1195,10 +1385,102 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "1976090ed54851891a9fc643dabdf3501d296c01",
+        "short_sha": "1976090ed54",
+        "date": "2026-08-31T20:19:41+00:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-134197: Extract duplicated code for populating statement ids in timeseries writes (#61917)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 11,
+          "num_of_lines": 6756,
+          "lines_added": 24,
+          "lines_deleted": 6732,
+          "num_of_dirs": 2
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b0671e83ff207842f197fcec53fa42199ebf245f",
+        "short_sha": "b0671e83ff2",
+        "date": "2026-08-31T20:27:03+00:00",
+        "author": {
+          "name": "Jason Hills",
+          "email": "jason.hills@mongodb.com"
+        },
+        "summary": "SERVER-129061 Consolidate SBOM automation to master (#56649)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 19,
+          "num_of_lines": 6504,
+          "lines_added": 6302,
+          "lines_deleted": 202,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b077cefe616efaf05cba33b0f37d090f76494690",
+        "short_sha": "b077cefe616",
+        "date": "2026-08-31T22:35:41+00:00",
+        "author": {
+          "name": "Andrew Bradshaw",
+          "email": "andrew.bradshaw@mongodb.com"
+        },
+        "summary": "SERVER-134013 Move from using internal bazel shell to rules_shell (#61680)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 57,
+          "num_of_lines": 209,
+          "lines_added": 162,
+          "lines_deleted": 47,
+          "num_of_dirs": 43
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+        "short_sha": "54618137aca",
+        "date": "2026-09-01T03:27:29+00:00",
+        "author": {
+          "name": "Yury Ershov",
+          "email": "yuriy.ershov@gmail.com"
+        },
+        "summary": "Import wiredtiger: 661f1131ff80dab38765cc8da8d1800ae0c99dae from branch mongodb-master (#62021)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 89,
+          "num_of_lines": 5743,
+          "lines_added": 4037,
+          "lines_deleted": 1706,
+          "num_of_dirs": 27
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-08-31 06:14:08",
+  "generated_at": "2026-09-01 06:12:49",
   "branch_name": "master",
   "display_name": "master"
 }
