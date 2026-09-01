@@ -128,7 +128,6 @@ def _prepare_bazel_configuration(
     """Apply the normal wrapper configuration without running generated-file setup."""
 
     from bazel.wrapper_hook.check_resources import check_resource
-    from bazel.wrapper_hook.engflow_check import engflow_auth
     from bazel.wrapper_hook.generate_common_bes_bazelrc import write_workstation_bazelrc
     from bazel.wrapper_hook.plus_interface import swap_default_config
     from bazel.wrapper_hook.write_wrapper_hook_bazelrc import write_wrapper_hook_bazelrc
@@ -198,7 +197,6 @@ def _prepare_bazel_configuration(
     if any(arg.startswith("--include_mongot") for arg in configured_args):
         os.makedirs("mongot-localdev", exist_ok=True)
 
-    engflow_auth(configured_args)
     write_workstation_bazelrc(configured_args)
     write_wrapper_hook_bazelrc(configured_args)
     check_resource()
