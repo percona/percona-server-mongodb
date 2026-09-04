@@ -784,6 +784,12 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
             WT_ASSERT(session,
               ref->page->disagg_info == NULL || closing ||
                 __wt_materialization_check(session, ref->page->disagg_info->rec_lsn_max));
+            /*
+             * An instantiated page cannot reach here: a skipped write over unwritten changes leaves
+             * the page dirty, and eviction reconciles dirty pages, clearing the flag. WT_REF_DISK
+             * with live page-delete information would resurrect the truncated page.
+             */
+            WT_ASSERT(session, !mod->instantiated);
             __wt_page_modify_clear(session, ref->page);
             __wt_ref_out(session, ref);
             WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -1176,10 +1182,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
              * prune timestamp, do not attempt reconciliation again. Repeating the reconciliation
              * without the prune timestamp advancing will yield no progress in garbage collection.
              */
-            wt_timestamp_t prune_timestamp =
-              __wt_atomic_load_uint64_acquire(&btree->prune_timestamp);
-            if (prune_timestamp != WT_TS_NONE &&
-              page->modify->rec_prune_timestamp >= prune_timestamp) {
+            if (__wti_evict_prune_ts_unmoved(session, page)) {
                 WT_STAT_CONN_INCR(session, cache_eviction_blocked_prune_timestamp);
                 return (__wt_set_return(session, EBUSY));
             }

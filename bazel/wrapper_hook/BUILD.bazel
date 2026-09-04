@@ -18,7 +18,6 @@ py_library(
         "lint.py",
         "plus_interface.py",
         "quality_checks.py",
-        "query_failure_diagnostic.py",
         "rbe_auth.py",
         "wrapper_debug.py",
         "wrapper_hook.py",
@@ -111,17 +110,6 @@ py_test(
     name = "install_modules_test",
     srcs = [
         "install_modules_test.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        ":wrapper_hook",
-    ],
-)
-
-py_test(
-    name = "query_failure_diagnostic_test",
-    srcs = [
-        "query_failure_diagnostic_test.py",
     ],
     visibility = ["//visibility:public"],
     deps = [
