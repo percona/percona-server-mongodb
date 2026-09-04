@@ -75,14 +75,11 @@ WiredTigerSession::~WiredTigerSession() {
 }
 
 void WiredTigerSession::_openCursor(WT_SESSION* session,
-                                    std::string_view uri,
+                                    const std::string& uri,
                                     const char* config,
                                     WT_CURSOR** cursorOut) {
-    // TODO SERVER-128957: Dangerous assumption of null-terminated std::string_view.
-    const char* uriData = uri.data();
-
     // TODO: SERVER-110391 Add an invariant here to catch stale sessions.
-    int ret = session->open_cursor(session, uriData, nullptr, config, cursorOut);
+    int ret = session->open_cursor(session, uri.c_str(), nullptr, config, cursorOut);
     if (ret == 0) {
         return;
     }
@@ -140,7 +137,7 @@ WT_CURSOR* WiredTigerSession::getCachedCursor(uint64_t id, const std::string& co
     return nullptr;
 }
 
-WT_CURSOR* WiredTigerSession::getNewCursor(std::string_view uri, const char* config) {
+WT_CURSOR* WiredTigerSession::getNewCursor(const std::string& uri, const char* config) {
     WT_CURSOR* cursor = nullptr;
     _openCursor(_session, uri, config, &cursor);
     _cursorsOut++;
@@ -153,8 +150,10 @@ void WiredTigerSession::releaseCursor(uint64_t id, WT_CURSOR* cursor, std::strin
     WiredTigerConnection::BlockShutdown blockShutdown(_connection);
 
     // Avoids the cursor already being destroyed during the shutdown. Also, avoids releasing a
-    // cursor from an earlier epoch.
-    if (_connection->isShuttingDown() || _getEngineEpoch() < _connection->_engineEpoch.load()) {
+    // cursor from an earlier epoch. A rollback to stable leaves the WT_CONNECTION intact, so the
+    // cursor must still be closed below in that case.
+    if (_connection->isCleanShuttingDown() ||
+        _getEngineEpoch() < _connection->_engineEpoch.load()) {
         return;
     }
 
@@ -191,8 +190,10 @@ void WiredTigerSession::closeCursor(WT_CURSOR* cursor) {
     WiredTigerConnection::BlockShutdown blockShutdown(_connection);
 
     // Avoids the cursor already being destroyed during the shutdown. Also, avoids releasing a
-    // cursor from an earlier epoch.
-    if (_connection->isShuttingDown() || _getEngineEpoch() < _connection->_engineEpoch.load()) {
+    // cursor from an earlier epoch. A rollback to stable leaves the WT_CONNECTION intact, so the
+    // cursor must still be closed below in that case.
+    if (_connection->isCleanShuttingDown() ||
+        _getEngineEpoch() < _connection->_engineEpoch.load()) {
         return;
     }
 

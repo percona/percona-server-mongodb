@@ -1,6 +1,7 @@
-load("//bazel/uv:defs.bzl", "dependency")
 load("@npm//:eslint/package_json.bzl", "bin")
 load("@rules_python//python:defs.bzl", "py_binary", "py_library")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("//bazel/uv:defs.bzl", "dependency")
 
 exports_files([
     "candle_wrapper.py",
@@ -200,24 +201,6 @@ py_library(
         "mongo_toolchain",
         "setup_clang_tidy_lib",
         "simple_report",
-    ],
-)
-
-py_binary(
-    name = "sbom_linter",
-    srcs = [
-        "sbom_linter.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        dependency(
-            "jsonschema",
-            group = "build-metrics",
-        ),
-        dependency(
-            "license-expression",
-            group = "lint",
-        ),
     ],
 )
 

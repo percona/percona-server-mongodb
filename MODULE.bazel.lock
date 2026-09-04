@@ -242,7 +242,7 @@
   "moduleExtensions": {
     "//bazel:bzlmod.bzl%bazel_features_deps": {
       "general": {
-        "bzlTransitiveDigest": "yZkx5JGzp9Wdd0Iv+Teyj+0tr1Gi0dKmCQMY4hU9m70=",
+        "bzlTransitiveDigest": "1RvThyJfUctyCX7Fv5jZ8MBnns904kg1r+v8FFPYgFg=",
         "usagesDigest": "c91kQ0HotoA1cfwWU4KaqCoQU7lT6pGi6XPGIiMGkb0=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -353,7 +353,13 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
+<<<<<<< HEAD
         "bzlTransitiveDigest": "89Oey8a/opPEgkWv7FHRQtBoSYE+lm1R6mZ/OixE2l8=",
+||||||| 7a82794f70e
+        "bzlTransitiveDigest": "yZkx5JGzp9Wdd0Iv+Teyj+0tr1Gi0dKmCQMY4hU9m70=",
+=======
+        "bzlTransitiveDigest": "1RvThyJfUctyCX7Fv5jZ8MBnns904kg1r+v8FFPYgFg=",
+>>>>>>> 54618137aca40b61cee3aaf4e568d9bea5c9bc31
         "usagesDigest": "bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -466,7 +472,7 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_toolchains": {
       "general": {
-        "bzlTransitiveDigest": "yZkx5JGzp9Wdd0Iv+Teyj+0tr1Gi0dKmCQMY4hU9m70=",
+        "bzlTransitiveDigest": "1RvThyJfUctyCX7Fv5jZ8MBnns904kg1r+v8FFPYgFg=",
         "usagesDigest": "MGOQwrQ4ZotZBZYdRVCjpuGi3weA+XtV/sK4untSEE8=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -540,7 +546,7 @@
     },
     "//bazel/resmoke/multiversion:version_compat.bzl%multiversion_compat": {
       "general": {
-        "bzlTransitiveDigest": "ht8HY1acr6ZvwIAjHvG+wAELB172czx5SAXMCxtJwHI=",
+        "bzlTransitiveDigest": "6TQyCZFSrgdwUsdGrYco2MxZavdco7vs4uXpvjzGcZ8=",
         "usagesDigest": "R4mZQP/JOBtMnHjng8+GXEO6lqaVIOlZ0dRztz3X5ZM=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
@@ -608,7 +614,7 @@
     },
     "//bazel/toolchains/cc/mongo_linux_cross:mongo_linux_cross_toolchain.bzl%setup_mongo_linux_cross_toolchains_extension": {
       "general": {
-        "bzlTransitiveDigest": "99RZnh5t5Av7rshSLHrglVgcUUbeycnBaVu8hG+1dHY=",
+        "bzlTransitiveDigest": "27GtYtHIvSDuGFeL7a0tFJKcx0VPCZNVXEvd5CROp1I=",
         "usagesDigest": "B9JdMmagXv+H97m1bCwaGiKktIVCPGeH/qokO4Hpx1A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

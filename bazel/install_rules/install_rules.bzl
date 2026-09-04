@@ -12,6 +12,7 @@ load("//bazel/install_rules:pretty_printer_tests.bzl", "mongo_pretty_printer_tes
 load("//bazel/install_rules:providers.bzl", "TestBinaryInfo")
 load("//bazel/toolchains/cc:mongo_errors.bzl", "DWP_ERROR_MESSAGE")
 load("//bazel:transitions.bzl", "extensions_transition")
+load("@rules_cc//cc/common:debug_package_info.bzl", "DebugPackageInfo")
 
 _WINDOWS_BINARY_EXTENSIONS = {
     ".dll": True,
@@ -104,16 +105,17 @@ TEST_TAGS = {
 }
 
 def test_binary_aspect_impl(target, ctx):
-    """Collect all test binaries from transitive srcs and deps
+    """Collect all test binaries and their data files from transitive srcs and deps
 
     Args:
         target: current target
         ctx: context of current target
 
     Returns:
-        struct containing collected test binaries
+        provider containing collected test binaries and test data files
     """
-    transitive_deps = []
+    transitive_test_binaries = []
+    transitive_test_data = []
 
     if TestBinaryInfo in target:
         return []
@@ -121,21 +123,27 @@ def test_binary_aspect_impl(target, ctx):
     if TagInfo in target:
         for tag in target[TagInfo].tags:
             if tag in TEST_TAGS:
-                transitive_deps.append(target.files)
+                transitive_test_binaries.append(target.files)
+                transitive_test_data.append(target[DefaultInfo].data_runfiles.files)
                 break
 
     if hasattr(ctx.rule.attr, "srcs"):
         for src in ctx.rule.attr.srcs:
             if TestBinaryInfo in src:
-                transitive_deps.append(src[TestBinaryInfo].test_binaries)
+                transitive_test_binaries.append(src[TestBinaryInfo].test_binaries)
+                if hasattr(src[TestBinaryInfo], "test_data"):
+                    transitive_test_data.append(src[TestBinaryInfo].test_data)
 
     if hasattr(ctx.rule.attr, "deps"):
         for dep in ctx.rule.attr.deps:
             if TestBinaryInfo in dep:
-                transitive_deps.append(dep[TestBinaryInfo].test_binaries)
+                transitive_test_binaries.append(dep[TestBinaryInfo].test_binaries)
+                if hasattr(dep[TestBinaryInfo], "test_data"):
+                    transitive_test_data.append(dep[TestBinaryInfo].test_data)
 
-    test_binaries = depset(transitive = transitive_deps)
-    return [TestBinaryInfo(test_binaries = test_binaries)]
+    test_binaries = depset(transitive = transitive_test_binaries)
+    test_data = depset(transitive = transitive_test_data)
+    return [TestBinaryInfo(test_binaries = test_binaries, test_data = test_data)]
 
 test_binary_aspect = aspect(
     implementation = test_binary_aspect_impl,
@@ -222,6 +230,26 @@ def _destination_in_directory(directory, basename):
     if not directory:
         return basename
     return directory + "/" + basename
+
+def _test_data_files(test_binary_info):
+    """Return test data from TestBinaryInfo, including legacy provider instances."""
+    if hasattr(test_binary_info, "test_data"):
+        return test_binary_info.test_data.to_list()
+    return []
+
+def _runfiles_install_destination(file):
+    """Return the install path that matches the file's Bazel runfiles path.
+
+    The C++ runfiles library addresses files in the main repository below `_main`. External
+    repository paths are represented by File.short_path as `../<repo>/...`, but are addressed
+    without the `../` prefix by Rlocation.
+    """
+    runfiles_path = file.short_path
+    if runfiles_path.startswith("../"):
+        runfiles_path = runfiles_path[3:]
+    elif not runfiles_path.startswith("_main/"):
+        runfiles_path = "_main/" + runfiles_path
+    return "bin/" + runfiles_path
 
 def _normalize_install_destination(ctx, destination, platform_kind):
     """Validate and normalize a path relative to an install tree."""
@@ -413,6 +441,7 @@ def mongo_install_rule_impl(ctx):
         "include_files": {},
     }
     test_files = []
+    test_data_files = []
     outputs = []
     dwps = []
     install_owners = {}
@@ -428,10 +457,25 @@ def mongo_install_rule_impl(ctx):
             dwps.append(bin)
             sort_file(ctx, bin.path, bin.basename, install_dir, file_map, bin.is_directory, platform_kind, install_owners, owned_descendants)
         input_test_binaries = input_bin[TestBinaryInfo].test_binaries.to_list()
+        input_test_data = _test_data_files(input_bin[TestBinaryInfo])
         input_files = input_bin.files.to_list()
         test_files.extend(input_test_binaries)
+        test_data_files.extend(input_test_data)
         for bin in input_files:
             sort_file(ctx, bin.path, bin.basename, install_dir, file_map, bin.is_directory, platform_kind, install_owners, owned_descendants)
+        for data_file in input_test_data:
+            destination = _runfiles_install_destination(data_file)
+            output = _declare_install_output(
+                ctx,
+                install_dir,
+                destination,
+                data_file.path,
+                data_file.is_directory,
+                platform_kind,
+                install_owners,
+                owned_descendants,
+            )
+            _record_file_map_output(ctx, file_map, "root_files", data_file.path, output)
 
     for input_label, output_folder in ctx.attr.root_files.items():
         label_files = input_label.files.to_list()
@@ -559,7 +603,7 @@ def mongo_install_rule_impl(ctx):
     )
     ctx.actions.write(
         output = deps_file,
-        content = json_out.to_json(),
+        content = json.encode(json_out),
     )
 
     if len(installed_tests) > 0:
@@ -590,7 +634,7 @@ def mongo_install_rule_impl(ctx):
 
     input_deps.append(deps_file)
 
-    direct_source_files = test_files + dwps
+    direct_source_files = test_files + test_data_files + dwps
     if installed_test_list_file != None:
         direct_source_files.append(installed_test_list_file)
 
@@ -657,7 +701,7 @@ def mongo_install_rule_impl(ctx):
             deps_files = depset([deps_file], transitive = [dep[MongoInstallInfo].deps_files for dep in ctx.attr.deps]),
             install_owners = install_owners,
             test_file = installed_test_list_file,
-            src_map = depset([json_out.to_json()]),
+            src_map = depset([json.encode(json_out)]),
             source_files = source_files,
         ),
     ]

@@ -11,6 +11,7 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/bson/timestamp.h"
+#include "mongo/crypto/hash_block.h"
 #include "mongo/crypto/sha256_block.h"
 #include "mongo/db/client.h"
 #include "mongo/db/curop.h"
@@ -40,6 +41,7 @@
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/validate/key_string_index_consistency.h"
 #include "mongo/db/validate/record_store_slicer.h"
+#include "mongo/db/validate/validate_gen.h"
 #include "mongo/db/validate/validate_timeseries.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"
@@ -55,6 +57,7 @@
 #include "mongo/util/str.h"
 #include "mongo/util/testing_proctor.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -540,6 +543,8 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
         _progress.finished();
     });
 
+    HashContext hashCtx;
+
     // Because the progress meter is intended as an approximation, it's sufficient to get the number
     // of records when we begin traversing, even if this number may deviate from the final number.
     const auto& coll = _validateState->getCollection();
@@ -587,17 +592,16 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
         BSONObj recordBson = record->data.toBson();
         auto idField = recordBson["_id"];
 
-        auto idBlock =
-            SHA256Block::computeHash({ConstDataRange(idField.value(), idField.valuesize())});
-        auto deeperHash = getPartialHashBucketKey(idBlock.toHexString());
-        if (deeperHash) {
-            auto docHash = SHA256Block::computeHash(
-                {ConstDataRange(record->data.data(), record->data.size())});
-            if (!idHashToDocHash.count(*deeperHash)) {
-                idHashToDocHash.emplace(*deeperHash, std::make_pair(docHash, 1));
-            } else {
-                idHashToDocHash.at(*deeperHash).first.xorInline(docHash);
-                idHashToDocHash.at(*deeperHash).second++;
+        const auto idBlock = SHA256Block::computeHashWithCtx(
+            &hashCtx, {ConstDataRange(idField.value(), idField.valuesize())});
+        if (auto deeperHash = getPartialHashBucketKey(idBlock.toHexString())) {
+            auto docHash = SHA256Block::computeHashWithCtx(
+                &hashCtx, {ConstDataRange(record->data.data(), record->data.size())});
+            const auto [it, inserted] =
+                idHashToDocHash.try_emplace(std::move(*deeperHash), docHash, 1);
+            if (!inserted) {
+                it->second.first.xorInline(docHash);
+                ++it->second.second;
             }
         }
     }
@@ -615,9 +619,10 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults* re
 
 void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                           ValidateResults& validateResults,
-                                          ValidationVersion validationVersion) {
+                                          ValidationVersion validationVersion,
+                                          boost::optional<int64_t> targetRecordsPerSlice) {
     const auto& coll = _validateState->getCollection();
-    const auto totalRecords = coll->getRecordStore()->numRecords();
+    const int64_t totalRecords = coll->getRecordStore()->numRecords();
 
     // In case validation occurs twice and the progress meter persists after index traversal.
     const bool progressStillActive = ([&] {
@@ -639,25 +644,20 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
     int64_t dataSizeTotal{0};
     int64_t numRecords{0};
 
-    // Split the record store into slices targeting ~kTargetRecordsPerSlice records each. Small
+    // Split the record store into slices targeting ~targetRecordsPerSlice records each. Small
     // collections collapse to a single slice and run single-threaded, larger collections are split
     // into enough slices to keep the worker pool busy and allow "work stealing", as no guarantee
     // can be made that the cost of each slice is equal.
 
-    static constexpr int64_t kTargetRecordsPerSlice{5000};
-    static constexpr int64_t kTimeseriesSliceDivisor{4};
-    const int64_t targetRecordsPerSlice = coll->isTimeseriesCollection()
-        ? kTargetRecordsPerSlice / kTimeseriesSliceDivisor
-        : kTargetRecordsPerSlice;
-    const size_t sliceCount =
-        std::max<int64_t>(1, (totalRecords + targetRecordsPerSlice - 1) / targetRecordsPerSlice);
+    const int64_t sliceCount = targetRecordsPerSlice.has_value() && (*targetRecordsPerSlice > 0)
+        ? std::clamp<int64_t>((totalRecords + *targetRecordsPerSlice - 1) / *targetRecordsPerSlice,
+                              1,
+                              gValidateParallelMaxRecordStoreSlices.load())
+        : 1;
 
-    // TODO(SERVER-76346): Remove the feature flag once parallel validation is the permanent
-    // default.
     const bool hashDrillDown = _validateState->getHashPrefixes().has_value() ||
         _validateState->getRevealHashedIds().has_value();
-    const bool parallelEligible = gFeatureFlagParallelCollectionValidation.isEnabled() &&
-        !_validateState->isBackground() &&
+    const bool parallelEligible = !_validateState->isBackground() &&
         _validateState->getRepairMode() == collection_validation::RepairMode::kNone &&
         _keyBasedIndexConsistency.canMergeResults() && !hashDrillDown && sliceCount > 1;
 
@@ -907,6 +907,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
         // zeroed out.
         SHA256Block accumulatedBlock;
         accumulatedBlock.xorInline(accumulatedBlock);
+        HashContext hashCtx;
 
         // Accumulates the same records' XXH3 hashes, XORed together the same way the replicated
         // collection validation hash folds in its per-document hashes. Zero is both the XOR
@@ -962,7 +963,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
 
             if (_validateState->isCollHashValidation()) {
                 const ConstDataRange recordRange(record->data.data(), record->data.size());
-                SHA256Block block = SHA256Block::computeHash({recordRange});
+                const SHA256Block block = SHA256Block::computeHashWithCtx(&hashCtx, {recordRange});
                 accumulatedBlock.xorInline(block);
                 if (computeXxh3Hash) {
                     accumulatedXxh3 ^=
@@ -973,10 +974,11 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
                     !validateRecordStatus.isOK() || validatedSize != dataSize || !validDocument;
                 if (revealHashedIds) {
                     const auto idField = record->data.toBson()["_id"];
-                    auto idBlock = SHA256Block::computeHash(
-                        {ConstDataRange(idField.value(), idField.valuesize())});
+                    const auto idBlock = SHA256Block::computeHashWithCtx(
+                        &hashCtx, {ConstDataRange(idField.value(), idField.valuesize())});
+                    const auto idBlockHexStr = idBlock.toHexString();
                     for (const auto& hashPrefix : _validateState->getRevealHashedIds().get()) {
-                        if (idBlock.toHexString().starts_with(hashPrefix)) {
+                        if (idBlockHexStr.starts_with(hashPrefix)) {
                             revealedIds[hashPrefix].push_back(idField.wrap());
                         }
                     }
