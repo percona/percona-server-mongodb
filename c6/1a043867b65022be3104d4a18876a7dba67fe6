@@ -1,0 +1,533 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "988364f0d5a64587b22d08bc456fbd316a79d8d9",
+    "merge_commit": "54618137aca40b61cee3aaf4e568d9bea5c9bc31"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "988364f0d5a64587b22d08bc456fbd316a79d8d9",
+    "theirs_commit": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+    "base_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "files": [
+      "MODULE.bazel.lock",
+      "bazel/mongo_src_rules.bzl",
+      "src/third_party/scripts/README.third_party.md.template"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "bazel/mongo_src_rules.bzl": "both modified",
+      "src/third_party/scripts/README.third_party.md.template": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 5ba9440cd65,66c388463d8..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"89Oey8a/opPEgkWv7FHRQtBoSYE+lm1R6mZ/OixE2l8=\",\n++||||||| 7a82794f70e\n++        \"bzlTransitiveDigest\": \"yZkx5JGzp9Wdd0Iv+Teyj+0tr1Gi0dKmCQMY4hU9m70=\",\n++=======\n+         \"bzlTransitiveDigest\": \"1RvThyJfUctyCX7Fv5jZ8MBnns904kg1r+v8FFPYgFg=\",\n++>>>>>>> 54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+      "bazel/mongo_src_rules.bzl": "diff --cc bazel/mongo_src_rules.bzl\nindex 51e09e3050b,5214629f15c..00000000000\n--- a/bazel/mongo_src_rules.bzl\n+++ b/bazel/mongo_src_rules.bzl\n@@@ -45,1 -45,3 +45,8 @@@ load(\"//bazel:test_exec_properties.bzl\"\n++<<<<<<< HEAD\n +load(\"//bazel:psmdb_integration_test.bzl\", \"psmdb_integration_test_data\")  # PSMDB (PSMDB-1924)\n++||||||| 7a82794f70e\n++=======\n+ load(\"@rules_cc//cc/common:cc_info.bzl\", \"CcInfo\")\n+ load(\"@rules_cc//cc/common:cc_shared_library_info.bzl\", \"CcSharedLibraryInfo\")\n+ load(\"@rules_cc//cc/common:cc_common.bzl\", \"cc_common\")\n++>>>>>>> 54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+      "src/third_party/scripts/README.third_party.md.template": "diff --cc src/third_party/scripts/README.third_party.md.template\nindex 8c2a9a5c16d,bb8b19c2680..00000000000\n--- a/src/third_party/scripts/README.third_party.md.template\n+++ b/src/third_party/scripts/README.third_party.md.template\n@@@ -47,12 -50,7 +46,30 @@@ Percona Server for MongoDB directly lin\n++<<<<<<< HEAD\n +| Name                  | Typical Linked Library Filename(s)               |\n +| --------------------- | ------------------------------------------------ |\n +| GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |\n +| GCC support library   | `libgcc_s.so.1`                                  |\n +| libcurl               | `libcurl.so.4`                                   |\n +| Cyrus SASL            | `libsasl2.so.2`                                  |\n +| Kerberos 5 GSS-API    | `libgssapi_krb5.so.2`                            |\n +| OpenLDAP              | `liblber.so.2`, `libldap.so.2`                   |\n +| OpenSSL               | `libcrypto.so.3`, `libssl.so.3`                  |\n +\n +Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just\n +examples and can differ from platform to platform.\n++||||||| 7a82794f70e\n++| Name       | Enterprise Only |                    Has Windows DLLs                     |\n++| :--------- | :-------------: | :-----------------------------------------------------: |\n++| Cyrus SASL |       Yes       |                           Yes                           |\n++| libldap    |       Yes       |                           No                            |\n++| net-snmp   |       Yes       |                           Yes                           |\n++| OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">3</a>]</sup> |\n++| libcurl    |       No        |                           No                            |\n++=======\n+ | Name       | Enterprise Only |                    Has Windows DLLs                     |\n+ | :--------- | :-------------: | :-----------------------------------------------------: |\n+ | Cyrus SASL |       Yes       |                           Yes                           |\n+ | libldap    |       Yes       |                           No                            |\n+ | net-snmp   |       Yes       |                           Yes                           |\n+ | OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">2</a>]</sup> |\n+ | libcurl    |       No        |                           No                            |\n++>>>>>>> 54618137aca40b61cee3aaf4e568d9bea5c9bc31\n@@@ -67,3 -65,3 +84,17 @@@\n++<<<<<<< HEAD\n +2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n +   WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n +   development process, we periodically ingest the latest snapshot of that repository.\n++||||||| 7a82794f70e\n++2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n++   WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n++   development process, we periodically ingest the latest snapshot of that repository.\n++\n++3. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n++   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n++   shell and server binaries use Windows' cryptography APIs.\n++=======\n+ 2. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n+    OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n+    shell and server binaries use Windows' cryptography APIs.\n++>>>>>>> 54618137aca40b61cee3aaf4e568d9bea5c9bc31"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "b077cefe616efaf05cba33b0f37d090f76494690",
+        "cb1b7b82b9cb180a22b07c80fa685df488349dad"
+      ],
+      "bazel/mongo_src_rules.bzl": [
+        "b077cefe616efaf05cba33b0f37d090f76494690"
+      ],
+      "src/third_party/scripts/README.third_party.md.template": [
+        "b0671e83ff207842f197fcec53fa42199ebf245f"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+    "merged_commits": [
+      "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+      "7b50dcb2421a211579075401ae9802219007545c",
+      "b077cefe616efaf05cba33b0f37d090f76494690",
+      "b0671e83ff207842f197fcec53fa42199ebf245f",
+      "1976090ed54851891a9fc643dabdf3501d296c01",
+      "0253ec8bdf49875db6b382d2a3932e0c1d280725",
+      "169d4ea5f4fec11a7cf9d2e6302cb38448f3ceeb",
+      "e9ef2da20763c0398eafb05e0a7f2fac0d5eaa7b",
+      "1362f26bfcf503538463f197c39046bad3207fb9",
+      "d0b04b013764bfba44319416258ad77c820c2c67",
+      "be3792f634ddc8f4c01a8253df7b55a7e8a17802",
+      "71175aa4f963c0db7a5aa8f7ba4b977a5aaa8ef4",
+      "144994b89bc942a3a1d0cfeac4c36d5599698608",
+      "d87915547eb0dcfc9f9ccebe78677da736f2bde0",
+      "3fbf5cd614b6c543e57a983cdf0b6b4dbe674f4e",
+      "e60c4fa69ede89617d4948fdd916ee5e812550f7",
+      "30ca4652ee31df52cc6d9e68db334fd900f5e314",
+      "ebe2159e9b9e9f1382724e87e9999efc256f7c35",
+      "248ca0ef42c2db8f4680c34ea00c3ac4c83dbcdf",
+      "2544ab3284c3ed6aeed953a3aca351c0f1863bd1",
+      "a892cf58cad90c63811cb92f4f4133f5a20aa6b9",
+      "feb1b2d06867b9fc0a1924c8b6fdf1ab902377df",
+      "34b8771dabdcb411a12f504aea8e14c81330d531",
+      "590354055fd33b15dc12c6ac266a8177a8aa62b3",
+      "6eab1d85670aa02c421fc1419572e1d00b994093",
+      "ef5ac5be13c25bc4988b4cc3dcebcd59848fd23a",
+      "691607a6c5ace902030b8027cfa99e043c713cee",
+      "7cd0129f2d397bde6220ba5cbe338dc43d095065",
+      "45edc7b3b281d88b27256d0778ef873d5a340945",
+      "5bec2efc0469473195cfc375a5e4abf811a3e639",
+      "1b5eeaaf4d4b53c0afc6f014e190c4ebbdd86376",
+      "68953a5e69180ab715d985f9bbef17e586116b2c",
+      "9b6dbace9212522440e14b7457fb7a9cbec0a594",
+      "54decd42131768083b01dafcaef2ebc41f8f79ba",
+      "47473d4bff9432e6041b8368f52e5e66f312eb43",
+      "c717a469ec0a47aae682aeff1ac6f8e6df19206f",
+      "94fd9ed6e6b7335c47eb90628618801aca09c722",
+      "5141d73382b7ef2ca69df523e9ad3f823c381c7d",
+      "e786cde4e84d275d836043323d3e51d03fba355b",
+      "9b3f53cbbc9e5a6556b0726679f22d558bb488f5",
+      "7ad200777ff1d8f558f9a5b80c019e39d754074b",
+      "38388f66194bb79b4b2f64443b88218c7c933934",
+      "a24bc7aadf07d25882ce1ca086715629433822bb",
+      "a49653fe567fcb605ebb51ada74f216bf537386c",
+      "fd11146cfe092e39f42faed21f25aab65c906952",
+      "4f084ad111365475e710842e054c62af4a9f6b25",
+      "dd287f2754e046653fcc828b8e04512f99621408",
+      "c3ec758d9d97a22495ec6e43300cceb3e2c2420b",
+      "619ca98f1a7b1ecff0b1684e491343083106d88d",
+      "cb1b7b82b9cb180a22b07c80fa685df488349dad",
+      "aeb5d23b142a2674cf3622018889c584adc03647",
+      "064bb496e9c14bad67a0ccd01b6fd365ae5ffbc3",
+      "6a90733033689e8e3d13e73b672f6a91f160c9f6",
+      "55314737610843268ac26d370d44f52762e16910",
+      "4121631f01de8f2f02875bd261c206ebddd2dce7",
+      "392605ef079e5aeeb6617bbee8fbe270bd2c92cb",
+      "136fcb7cf6cc056fcf39c36718aea2f5173808ae",
+      "c009f08ca51124816b987bf72c7fa2acefb41044",
+      "a538fad7a9967136a1b32dbfa48653fdfff8e556",
+      "4b965221ada2f60da3363d48481a5df81cdd0c0b",
+      "5e13b16183fe1e90ed068d1ba0314df2b6edb90a",
+      "9445dc91d66907c74fad808d44613ca13e6c2560",
+      "e992860a9289dd02f4a3772f4a54be8edba27028",
+      "182b888523364a3fcd3ea06e4300e84ce252db63",
+      "e8d94edb0642a512d1edc29fba7750ba42977e9c",
+      "b6720480f749c9438643b795fdf7b1a69cd5fcd4",
+      "08c0b0c7954f74ef412acbf68a75531bf9b6b3e6",
+      "980e2ee4ffa38be5c8793d51c3ccad29aaa27df8",
+      "12919116b49e3f4c2931e3f32f0dcc051912688f",
+      "c24890b89d304be3162cb556dbf09468c0431d1f",
+      "ec7409e33c1843fca21a8023f23f4344ce567527"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "BUILD.bazel",
+        "MODULE.bazel.lock",
+        "README.third_party.md",
+        "bazel/BUILD.bazel",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/utils.bzl",
+        "buildscripts/tests/sbom_linter/sbom_linter.py",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/third_party/README.md",
+        "src/third_party/scripts/README.third_party.md.template",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 101150,
+      "num_turns": 12,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.40795299999999995,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 979,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001064,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 24,
+          "outputTokens": 5619,
+          "cacheReadInputTokens": 250613,
+          "cacheCreationInputTokens": 22558,
+          "webSearchRequests": 0,
+          "costUSD": 0.40688899999999995,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 416,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 979,
+              "output": 17,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.001064
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 24,
+              "output": 5619,
+              "cache_read": 250613,
+              "cache_creation": 22558
+            },
+            "cost_usd": 0.40688899999999995
+          }
+        }
+      },
+      "text_result": "I resolved all three merge conflicts:\n\n1. **`bazel/mongo_src_rules.bzl`** \u2014 Merged both sides: kept upstream's three new `@rules_cc//cc/common` loads (`CcInfo`, `CcSharedLibraryInfo`, `cc_common`) and preserved the Percona `psmdb_integration_test_data` load tagged `# PSMDB (PSMDB-1924)`, per the Conflict Hints.\n\n2. **`src/third_party/scripts/README.third_party.md.template`** \u2014 Kept Percona's rewritten Linux dynamic-library table and the WiredTiger note (Percona's version is a deliberate Linux-focused rewrite that diverges from MongoDB's Windows/Enterprise table, so upstream's footnote renumbering didn't apply).\n\n3. **`MODULE.bazel.lock`** \u2014 Removed conflict markers (accepted HEAD's digest) and regenerated with `bazel query //... >/dev/null`, which completed successfully.\n\nVerified no conflict markers remain in any file. The JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved three merge conflicts. In bazel/mongo_src_rules.bzl kept upstream's new rules_cc load lines and preserved the Percona PSMDB-1924 psmdb_integration_test load. In the third-party README template kept Percona's rewritten Linux dynamic-library table and WiredTiger note. Regenerated MODULE.bazel.lock via bazel query after removing its conflict markers.",
+        "resolved": {
+          "bazel/mongo_src_rules.bzl": "Merged both sides: added upstream's three new loads (CcInfo, CcSharedLibraryInfo, cc_common from @rules_cc//cc/common) and kept the Percona-specific load(\"//bazel:psmdb_integration_test.bzl\", \"psmdb_integration_test_data\") line tagged # PSMDB (PSMDB-1924), as required by the Conflict Hints.",
+          "src/third_party/scripts/README.third_party.md.template": "Kept Percona's HEAD version in both hunks. First hunk: Percona's Linux 'Typical Linked Library Filename(s)' table (with GNU C Library, GCC, libcurl, Cyrus SASL, Kerberos, OpenLDAP, OpenSSL) plus the version-numbers note, replacing MongoDB's Windows/Enterprise table. Second hunk: kept Percona's note 2 referencing note_wt (WiredTiger); the upstream footnote renumbering (note_ssl) does not apply since Percona's table has no Windows OpenSSL footnote reference.",
+          "MODULE.bazel.lock": "Removed conflict markers by accepting HEAD's bzlTransitiveDigest, then regenerated the file with 'bazel query //... >/dev/null' which completed successfully (exit 0)."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "bazel/mongo_src_rules.bzl: the PSMDB-1924 integration-test seam edit (load line) is preserved per Conflict Hints; the other three PSMDB-1924 edits in mongo_cc_integration_test were not in conflict. README template: Percona's table is a deliberate Linux-focused rewrite that diverges from MongoDB's Windows/Enterprise table, so the upstream footnote renumbering was intentionally not applied. MODULE.bazel.lock was regenerated by bazel query (succeeded despite unrelated S3 credential warnings in log)."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Keep both the PSMDB load and upstream's new loads:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both are Percona-specific rewrites. Keep HEAD in both:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now the MODULE.bazel.lock. Let me resolve it last by removing markers, then regenerating:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Bazel query succeeded and regenerated the lock file. Let me verify no conflict markers remain anywhere:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All conflict markers removed. Now writing the JSON response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I resolved all three merge conflicts:\n\n1. **`bazel/mongo_src_rules.bzl`** \u2014 Merged both sides: kept upstream's three new `@rules_cc//cc/common` loads (`CcInfo`, `CcSharedLibraryInfo`, `cc_common`) and preserved the Percona `psmdb_integration_test_data` load tagged `# PSMDB (PSMDB-1924)`, per the Conflict Hints.\n\n2. **`src/third_party/scripts/README.third_party.md.template`** \u2014 Kept Percona's rewritten Linux dynamic-library table and the WiredTiger note (Percona's version is a deliberate Linux-focused rewrite that diverges from MongoDB's Windows/Enterprise table, so upstream's footnote renumbering didn't apply).\n\n3. **`MODULE.bazel.lock`** \u2014 Removed conflict markers (accepted HEAD's digest) and regenerated with `bazel query //... >/dev/null`, which completed successfully.\n\nVerified no conflict markers remain in any file. The JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260904_155813_128063.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.260 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 65347,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.36082325000000004,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 4728,
+        "cacheReadInputTokens": 81461,
+        "cacheCreationInputTokens": 32127,
+        "webSearchRequests": 0,
+        "costUSD": 0.35976425,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 699,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 4728,
+            "cache_read": 81461,
+            "cache_creation": 32127
+          },
+          "cost_usd": 0.35976425
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diffs for every file listed under `merge_context.auto_merged.files` and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Bazel plumbing**: switch to `//bazel/platforms:host`, explicit `rules_cc`/`rules_shell` loads (`.bazelrc`, `BUILD.bazel`, `bazel/BUILD.bazel`, `bazel/utils.bzl`, `bazel/mongo_src_rules.bzl`), `allow_empty` globs, and a generalized dedicated-suite skip that adds a `last-patch` case (`bazel/resmoke/resmoke.bzl`).\n- **Coverage fix**: `-fcoverage-compilation-dir=.` in `.bazelrc`.\n- **SBOM/docs overhaul**: CycloneDX 1.6, metadata moved to `.cdx.yaml`, WiredTiger vendored-test-libraries section removed, license-footnotes template block added, new `sbom_linter.py` test file.\n- **Code**: new `BSONInternalError` (525) error code, `WiredTigerUtil::truncate` signature change (`string_view`\u2192`const std::string&`), extended `ValidationOptions` call in `startup_recovery.cpp`, and WiredTiger header doc updates.\n\nThe three conflicting files (`MODULE.bazel.lock`, `bazel/mongo_src_rules.bzl`, `README.third_party.md.template`) are called out in `review_notes` with the Percona-preservation concerns per the conflict hints. I described only what appears in the `7a82794 \u2192 54618137` diffs and did not invert the direction.",
+    "response": {
+      "summary": "Merges an upstream MongoDB batch into the Percona master branch. The incoming changes are mostly Bazel build plumbing (switching to //bazel/platforms:host, adding explicit rules_cc/rules_shell loads, allow_empty globs, and a new last-patch dedicated-suite skip setting), a vendored SBOM/third-party documentation overhaul (CycloneDX 1.6, metadata moved from metadata.cdx.json to metadata.cdx.yaml, removal of the WiredTiger vendored test-libraries section, and a new License-footnotes template block), a new BSONInternalError (525) error code, LLVM coverage-mapping fix in .bazelrc, a WiredTiger util signature change, an added test file, updated WiredTiger header docs, and a startup_recovery validation-options call update.",
+      "auto_merged": {
+        ".bazelrc": "Changes the default build platform from @internal_platforms_do_not_use//host to //bazel/platforms:host. Adds `coverage --copt=-fcoverage-compilation-dir=.` so LLVM coverage mapping records the compilation directory as \".\" (avoiding absolute SF: paths that caused CoverageOutputGenerator to discard records and emit an empty report), with an explanatory comment.",
+        "BUILD.bazel": "Adds a `load(\"@rules_shell//shell:sh_binary.bzl\", \"sh_binary\")` statement. Adds `allow_empty = True` to the glob() calls for the `installed-dist-test` and `generated_resmoke_config` filegroups.",
+        "MODULE.bazel.lock": "Only the `bzlTransitiveDigest` hash value changes (regenerated lock content). No semantic dependency change is visible in the diff.",
+        "README.third_party.md": "Removes the \"WiredTiger Vendored Test Libraries\" section (the pypi concurrencytest/discover/extras/iso8601/python-subunit/testscenarios/testtools table). Rewrites the SBOM section: the sbom.json format is described as CycloneDX 1.6 (was 1.5), component metadata references move from buildscripts/sbom/metadata.cdx.json to buildscripts/sbom/metadata.cdx.yaml, and the detailed Components/Properties field tables and the Boost metadata example are removed in favor of a short description of the nightly Evergreen-generated SBOM.",
+        "bazel/BUILD.bazel": "Adds a `load(\"@rules_shell//shell:sh_binary.bzl\", \"sh_binary\")` statement and reorders the rules_python `py_binary/py_library/py_test` load to the top; no target logic change.",
+        "bazel/mongo_src_rules.bzl": "Adds three explicit rules_cc loads: CcInfo from cc_info.bzl, CcSharedLibraryInfo from cc_shared_library_info.bzl, and cc_common from cc_common.bzl. The Percona PSMDB-1924 `psmdb_integration_test` load is retained alongside these upstream additions.",
+        "bazel/resmoke/resmoke.bzl": "Generalizes the dedicated-multiversion-suite skip logic. Introduces a `_DEDICATED_SUITE_SKIP_SETTING` map ({last-continuous: last_continuous_redundant, last-patch: last_patch_unavailable}). A suite with a single multiversion dep in that map now gains an @platforms//:incompatible constraint via the corresponding select() key (previously only exactly [\"last-continuous\"] was handled). Docstring/comments updated to explain that last-patch on a series with no GA release has no binaries to download and is skipped.",
+        "bazel/utils.bzl": "In the generated no-op cc toolchain config string, adds loads for cc_common and CcToolchainConfigInfo from rules_cc. In the generated toolchain BUILD template, adds a `load(\"@rules_shell//shell:sh_binary.bzl\", \"sh_binary\")` line.",
+        "buildscripts/tests/sbom_linter/sbom_linter.py": "New file: an SBOM linter (403 lines). Adds an ErrorManager class for collecting errors/warnings, schema loading helpers (get_schema, local_schema_registry) resolving bom-1.6.schema.json and spdx.schema.json relative to the script directory, error-message constants, and third-party directory scanning constants.",
+        "src/mongo/base/error_codes.yml": "Adds error code 525 BSONInternalError in the CloseConnectionError category, documented as being only for defensive BSON checks inside BSONObj/BSONElement.",
+        "src/mongo/db/startup_recovery.cpp": "In offlineValidateCollection, extends the ValidationOptions constructor call with additional arguments: currentValidationVersion, verifyConfigurationOverride=boost::none, readTimestamp=boost::none, hashPrefixes=boost::none, revealHashedIds=boost::none, and collection_validation::getTargetRecordsPerRecordStoreSlice().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Changes WiredTigerUtil::truncate's uri parameter from std::string_view to const std::string&, and updates the truncate() call to use uri.c_str() instead of uri.data().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Updates the WiredTigerUtil::truncate declaration's uri parameter from std::string_view to const std::string& (matching the .cpp change).",
+        "src/third_party/README.md": "Updates the vendoring policy doc: the optional component-metadata file reference changes from buildscripts/sbom/metadata.cdx.json to buildscripts/sbom/metadata.cdx.yaml, and the SBOM section is rewritten to describe sbom.json as an automatically nightly-generated CycloneDX 1.6 SBOM (previously 1.5 with extensive manual field documentation).",
+        "src/third_party/scripts/README.third_party.md.template": "Removes the \"WiredTiger Vendored Test Libraries\" section and its $wiredtiger_chart placeholder and the WiredTiger note. Adds a conditional (!!if $license_footnotes!!) block emitting a License-column footnotes section with a $license_footnotes placeholder. Renumbers the OpenSSL footnote reference from 3 to 2 accordingly.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Documentation-only updates to config option descriptions: cache_max_wait_ms text now points to the ignore_cache_size configuration instead of \"1 will never wait\"; ignore_cache_size docs note that WT_SESSION::reconfigure returns EINVAL if set during a transaction; a new ignore_cache_size option is documented for begin_transaction; block_manager \"disagg\" now notes it requires a page log service; and a note is added that a checkpoint must not run with a schema epoch below a recreated table's drop epoch."
+      },
+      "review_notes": "The three conflicting files were resolved as follows: bazel/mongo_src_rules.bzl keeps the Percona PSMDB-1924 psmdb_integration_test load alongside upstream's new rules_cc loads (verify all four PSMDB-1924 edits remain in mongo_cc_integration_test). README.third_party.md.template took upstream's structure (license footnotes block, removed WiredTiger section, footnote renumber) \u2014 confirm no Percona-specific dynamic-library table customizations were lost. MODULE.bazel.lock should be regenerated via bazel rather than hand-merged. The wiredtiger_util truncate signature change (string_view -> const std::string&) may affect any Percona callers passing a string_view; verify call sites still compile."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read. Now writing the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for every file listed under `merge_context.auto_merged.files` and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Bazel plumbing**: switch to `//bazel/platforms:host`, explicit `rules_cc`/`rules_shell` loads (`.bazelrc`, `BUILD.bazel`, `bazel/BUILD.bazel`, `bazel/utils.bzl`, `bazel/mongo_src_rules.bzl`), `allow_empty` globs, and a generalized dedicated-suite skip that adds a `last-patch` case (`bazel/resmoke/resmoke.bzl`).\n- **Coverage fix**: `-fcoverage-compilation-dir=.` in `.bazelrc`.\n- **SBOM/docs overhaul**: CycloneDX 1.6, metadata moved to `.cdx.yaml`, WiredTiger vendored-test-libraries section removed, license-footnotes template block added, new `sbom_linter.py` test file.\n- **Code**: new `BSONInternalError` (525) error code, `WiredTigerUtil::truncate` signature change (`string_view`\u2192`const std::string&`), extended `ValidationOptions` call in `startup_recovery.cpp`, and WiredTiger header doc updates.\n\nThe three conflicting files (`MODULE.bazel.lock`, `bazel/mongo_src_rules.bzl`, `README.third_party.md.template`) are called out in `review_notes` with the Percona-preservation concerns per the conflict hints. I described only what appears in the `7a82794 \u2192 54618137` diffs and did not invert the direction."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260904_155704_160640.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.260 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+    "short_sha": "54618137aca",
+    "strategy": "huge_commit",
+    "summary": "This is a self-contained vendored wiredtiger import (SERVER, #62021) - an ideal, well-isolated merge boundary that rarely depends on the commits after it and is easy to validate post-merge. Cutting here yields a coherent ~71-commit batch that: (1) includes the SBOM-consolidation conflict commit b0671e83 that forced the gate open, so the existing resolve flow handles it now rather than deferring it; (2) fully settles the revert/reapply chains that would otherwise land the fork in a half-applied state - code-coverage (add c3ec758d -> revert 4f084ad1 -> reapply e60c4fa6) and kafka (add dd287f27 -> revert fd11146c -> reapply d0b04b01) are all in range and net re-added, and the hello-tags trilogy (1b5eeaaf -> 7cd0129f -> 34b8771d) is complete; (3) the earlier wiredtiger import a49653fe would only give ~28 commits (below the target band) and leave the triggering conflict for later. Going slightly past the ~65 comfortable ceiling is justified to reach this clean atomic import boundary rather than cutting mid-stream in active timeseries/SBOM churn just before it.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33891837584"
+  },
+  "note_index": [
+    {
+      "sha": "c61a043867b65022be3104d4a18876a7dba67fe6",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "58f4507bb0b5885c22ac23d9750eec42db8a9df7",
+      "message": "Merge commit '54618137aca' into master"
+    },
+    {
+      "sha": "39a4cdd195a62dfe98da719c4a08dc7d03fcb699",
+      "message": "Resolve conflicts for merge commit '54618137aca' into master"
+    }
+  ]
+}
