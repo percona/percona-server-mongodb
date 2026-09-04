@@ -1,0 +1,304 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4d6fbbc3b0f3a1b2a2171b249a380f4c1b549d1a",
+    "merge_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "4d6fbbc3b0f3a1b2a2171b249a380f4c1b549d1a",
+    "theirs_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "base_commit": "5f66432c93456c084d0b774ebfcee61f2168623a",
+    "files": [
+      "bazel/wrapper_hook/BUILD.bazel",
+      "bazel/wrapper_hook/wrapper_hook.py",
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "bazel/wrapper_hook/BUILD.bazel": "both modified",
+      "bazel/wrapper_hook/wrapper_hook.py": "both modified",
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "bazel/wrapper_hook/BUILD.bazel": "diff --cc bazel/wrapper_hook/BUILD.bazel\nindex 4338223dd4d,4c71a35ec47..00000000000\n--- a/bazel/wrapper_hook/BUILD.bazel\n+++ b/bazel/wrapper_hook/BUILD.bazel\n@@@ -21,2 -20,0 +21,7 @@@ py_library\n++<<<<<<< HEAD\n +        \"query_failure_diagnostic.py\",\n +        \"rbe_auth.py\",\n++||||||| 5f66432c934\n++        \"query_failure_diagnostic.py\",\n++=======\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "bazel/wrapper_hook/wrapper_hook.py": "diff --cc bazel/wrapper_hook/wrapper_hook.py\nindex 95768a1e84b,35ae6a56292..00000000000\n--- a/bazel/wrapper_hook/wrapper_hook.py\n+++ b/bazel/wrapper_hook/wrapper_hook.py\n@@@ -200,0 -158,6 +200,11 @@@ def _prepare_bazel_configuration\n++<<<<<<< HEAD\n++||||||| 5f66432c934\n++    engflow_auth(configured_args)\n++=======\n+     # resmoke_suite_test tests get their shard count from a rule transition that sets\n+     # --test_sharding_strategy, which would silently overrule the requested strategy.\n+     if any(arg.startswith(\"--test_sharding_strategy\") for arg in configured_args):\n+         configured_args.append(\"--//bazel/resmoke:support_extended_shard_count=False\")\n+ \n+     engflow_auth(configured_args)\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 54c2b8ebb11,82d40c5a3f9..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -38,1 -38,1 +38,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53 + 1);\n++||||||| 5f66432c934\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52);\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58"
+    },
+    "their_commits": {
+      "bazel/wrapper_hook/BUILD.bazel": [
+        "bac9ca04acc44570f8a571507e9903aa4d7e4274"
+      ],
+      "bazel/wrapper_hook/wrapper_hook.py": [
+        "13a8f4fb00e286cbd7031e37ac624a7cdc48b6e9"
+      ],
+      "src/mongo/db/commands/profile_common.cpp": [
+        "3ea3ec557a08b860c31cb7187d67b5c8ec9be0fb"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "merged_commits": [
+      "7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "7a690d9f0bd6ac9ff3a6fbe04398fb0e478d24f0",
+      "addf8391903068b344aca844a63c2d4c272f47d8",
+      "24c73cc6141cbe7a9adbc813f6b3585f15a4b7cd",
+      "0ca863c786287e6e02f3b497931f59e4ac5cac40",
+      "9850b631a0a48782172f216f3809f775aa6199bc",
+      "353a342953fc7f83bdeb3b3e04bcb0e0036a655b",
+      "99a3beeec4d9655c0ef466d2b80d31394fb70302",
+      "e9b45fc1bfc945eadc366c0f9af9f353589bd265",
+      "ceeabb0d13c6db0696ec9ae2355c2957b5c25dd3",
+      "a1e1b91baeca3d91d877b7162a50c8ec4fc4e562",
+      "9cd55f0391f87113b2ce193a4a612356bdf91b14",
+      "04099650db6baa859eb2400fec9e225f9aaeecd0",
+      "922f3a294c8d9ebc0600694c59f6f30502b90f39",
+      "80649872ee9da995e58f706512a03b039f7bad2c",
+      "1ba93998d655deb9138e959605d6f96b54e5c763",
+      "f1d5dad952bc5e259059515efa478947921caa93",
+      "73c396c1ac303b757b6b41b2d75d5ac2a966c229",
+      "c20e6ccdcdb40444bc454cfa89b1af40b3c17c52",
+      "66a71844a27ceab5fa37c72bde8083514786b8a1",
+      "c626b5e424064c996b632d4d1393afdb57c6c41c",
+      "7b173aff862b19ffe3cbb6ceaef5f7f64cfc5376",
+      "c68e0440e5e887abebde44003cbd2392a1a900af",
+      "c3859f01c63c86c33f956ebf13cb9ab1a0019e2b",
+      "a771424c0a92e34369b05674f5752dc9457c6aa2",
+      "0bfc55a5ff80abcf542e15eab8f8ef1dba46eef2",
+      "b117c162ad97821572aaafd6eea2630d41490386",
+      "762f35b59c3af6701362e14c7a101f0d289f9003",
+      "a44c759bf629f31a5fbf6852a21e72eafe4bcc7e",
+      "9f4bcc63ee5c705e892f8f6a567e7c1206f543dd",
+      "e5864426c1f76c5aafa3e929d881b8bde857ecf9",
+      "3ea3ec557a08b860c31cb7187d67b5c8ec9be0fb",
+      "bac9ca04acc44570f8a571507e9903aa4d7e4274",
+      "d68ff218c57ca9715ad1a7587bd6f1de7397c194",
+      "dc048bd8fec4211f98bc3190db10fac6c3bb19c7",
+      "84bb6cc01d9fcc23d40dff91b942256d9c82e661",
+      "38b1dee00fa7e22f4b3b16c7812f4f2454cd5218",
+      "e883652127b7cc85b6149aeca48d1452fc999444",
+      "2d562130d1f687847c9e345d0373ce720381dbe4",
+      "b9f86ff6701971f8641f1a40c5d33a63950f62a2",
+      "45d5f75daf32683e8b467dbf222d7e5c17e5f426",
+      "c93f77a9f175b65184010600d45f4d49af23dc11",
+      "723fc39f84b8bd7b0651aee5049d42a758abe9ce",
+      "13a8f4fb00e286cbd7031e37ac624a7cdc48b6e9",
+      "a0ebdea6deff81257b5c6ecab76f151a0c8d5e45",
+      "85e40970359b01ec38327cf5d0090577e38d62ca",
+      "eb69320f55fc9c35690108d40e0f52803dca0ee7",
+      "2b7dee61a19954bb968a181a89b0f0baf4b08fa8",
+      "b2cced10fb9a817917533bcf60ed72b7294ff4cd",
+      "9d76d3bd5fa9ed978e17c58325e15a30c98039ce"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "bazel/wrapper_hook/wrapper_hook.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/mongo/shell/mongo.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 87702,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.42265675,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 6458,
+        "cacheReadInputTokens": 127863,
+        "cacheCreationInputTokens": 31385,
+        "webSearchRequests": 0,
+        "costUSD": 0.42159775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1092,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 6458,
+            "cache_read": 127863,
+            "cache_creation": 31385
+          },
+          "cost_usd": 0.42159775
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's what this merge introduces (upstream MongoDB changes since the fork diverged at `5f66432c934`):\n\n**Main feature \u2014 new `updateMetricsFilteringAllowlist` admin command:**\n- `src/mongo/db/commands/BUILD.bazel` adds the IDL generator, source file, and a `backoff_with_jitter` dependency.\n- The command is registered (mostly as skipped/authorization entries) across ~11 \"all commands\" jstest coverage files, gated on a new cluster-wide `manageMetricsFiltering` privilege action.\n\n**Build/tooling:**\n- `bazel/resmoke/resmoke.bzl` \u2014 support for resmoke suites needing more than Bazel's native 50-shard cap, via a `forced_shards` attribute and a `_forced_shards_transition` that sets `--test_sharding_strategy`.\n- `bazel/wrapper_hook/wrapper_hook.py` \u2014 disables extended-shard-count support when `--test_sharding_strategy` is passed explicitly.\n- `bazel/wrapper_hook/BUILD.bazel` \u2014 removes the `query_failure_diagnostic` module and its test.\n- `.bazelrc` / top-level `BUILD.bazel` \u2014 minor scope/export tweaks.\n\n**Source:**\n- `startup_recovery.cpp` \u2014 refactors offline-validation logging into a helper and now reports databases that couldn't be opened.\n- `shell/mongo.js` \u2014 reworks OTEL trace propagation (passes a `traceparent` to the command impl instead of a `$traceCtx` field; adds `withoutTelemetryContext`).\n- `profile_common.cpp` \u2014 field-count static assert update.\n- bundled `wiredtiger.h.in` \u2014 new `fix_btree_size` verify option, new eviction stat, renumbered stat constants.\n\n**Reviewer attention** (flagged in `review_notes`): the three conflicted files. Notably `profile_common.cpp` \u2014 upstream lowered the assert to `52`, but the fork adds a Percona profile field (`53 + 1`), so the resolved count must keep the `+1` offset on top of upstream's new base.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes since the fork diverged at 5f66432c934. The most visible feature is a new admin command 'updateMetricsFilteringAllowlist' (companion to the existing list command), added to the commands BUILD.bazel (new idl_generator + source + a backoff_with_jitter dep) and registered across the many 'all commands' jstest coverage files. Other upstream changes: resmoke Bazel rules gain support for shard counts above Bazel's native cap of 50 via a configuration transition; the wrapper_hook learns to disable that extended-shard-count support when --test_sharding_strategy is passed explicitly; the wrapper_hook drops the query_failure_diagnostic module and its test; startup offline validation logging is refactored into a shared helper and now also reports databases that could not be opened; the mongo shell reworks OTEL trace propagation (passing a traceparent to the command impl instead of a $traceCtx field, plus a withoutTelemetryContext helper); the profile command field-count static assert is updated; and the bundled WiredTiger header gains a fix_btree_size verify option, a new eviction stat and renumbered stat constants.",
+      "auto_merged": {
+        ".bazelrc": "Under the remote_unittest config, the '--run_under=//bazel:test_wrapper' setting is moved from the 'common:remote_unittest' scope to the 'test:remote_unittest' scope (so it only applies to test commands).",
+        "BUILD.bazel": "Adds '.bazelrc' to the top-level exports_files() list so it can be referenced by other Bazel targets.",
+        "bazel/resmoke/resmoke.bzl": "Adds support for resmoke suites needing more shards than Bazel's native shard_count cap of 50. Introduces a _MAX_NATIVE_SHARD_COUNT=50 constant; resmoke_suite_test now pops shard_count and, when it exceeds 50, pins the native attribute at 50 and passes the real count via a new 'forced_shards' attribute on _resmoke_test. A new _forced_shards_transition sets --test_sharding_strategy to 'forced=N' for that target when //bazel/resmoke:support_extended_shard_count is enabled.",
+        "bazel/wrapper_hook/BUILD.bazel": "Removes 'query_failure_diagnostic.py' from the wrapper_hook py_library srcs and deletes the 'query_failure_diagnostic_test' py_test target. (Conflict: the fork's HEAD had also added 'rbe_auth.py' to the srcs; that Percona line is retained while the upstream removal of query_failure_diagnostic is applied.)",
+        "bazel/wrapper_hook/wrapper_hook.py": "In _prepare_bazel_configuration, adds a block that appends '--//bazel/resmoke:support_extended_shard_count=False' when any argument starts with '--test_sharding_strategy', so an explicitly requested sharding strategy is not silently overruled by the resmoke rule transition. (Conflict resolved together with the fork's engflow_auth handling.)",
+        "jstests/auth/lib/commands_lib.js": "Adds an authorization test entry for the new 'updateMetricsFilteringAllowlist' command, requiring the cluster-wide 'manageMetricsFiltering' privilege action, run on the admin DB.",
+        "jstests/core/catalog/views/views_all_commands.js": "Registers 'updateMetricsFilteringAllowlist' as unrelated/skipped in the views command coverage map.",
+        "jstests/libs/write_concern_all_commands.js": "Adds 'updateMetricsFilteringAllowlist' entries (skip: 'does not accept write concern') to both the standard and timeseries write-concern command maps.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds an 'updateMetricsFilteringAllowlist' entry (as an admin command) to the all-commands map used during FCV downgrade/upgrade testing.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Registers 'updateMetricsFilteringAllowlist' with skip isNotAUserDataRead.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds an 'updateMetricsFilteringAllowlist' test case with setUp/teardown that creates and grants a custom role holding the 'manageMetricsFiltering' action (no built-in role grants it), runs the admin command with shouldFail:false, and cleans up the role afterward.",
+        "jstests/sharding/database_versioning_all_commands.js": "Registers 'updateMetricsFilteringAllowlist' as skipped in two maps ('executes locally on mongos (not sent to any remote node)' and 'admin write command').",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Adds an 'updateMetricsFilteringAllowlist' entry skipped as executing locally on mongos.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Registers 'updateMetricsFilteringAllowlist' with skip 'does not accept read or write concern'.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Registers 'updateMetricsFilteringAllowlist' with skip 'does not return user data'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Registers 'updateMetricsFilteringAllowlist' with skip 'does not return user data'.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Registers 'updateMetricsFilteringAllowlist' with skip 'does not return user data'.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds a new idl_generator 'update_metrics_filtering_allowlist_command_gen' (with basic_types_gen, metrics_category_gen, generic_argument_gen deps), adds 'update_metrics_filtering_allowlist_command.cpp' and the generated target to the command library srcs, and adds a '//src/mongo/client:backoff_with_jitter' dependency.",
+        "src/mongo/db/commands/profile_common.cpp": "Updates the MONGO_STATIC_ASSERT guarding ProfileCmdRequest::fieldMetadata.size(); upstream changes the expected field count from 53 to 52. (Conflict: the fork's HEAD used '53 + 1' to account for a Percona-added profile field; the '+1' offset for the Percona field should be preserved on top of upstream's new base count.)",
+        "src/mongo/db/startup_recovery.cpp": "Extracts the offline-validation result logging into a new logOfflineValidateResults() helper (called from offlineValidateCollection instead of the inline BSON/LOGV2 block). openDbForOfflineValidation's BadValue catch handler now logs the database name, its hex-encoded name bytes, and the redacted error, and constructs a ValidateResults with an error and reports it via the same helper so a skipped database is surfaced like a validated collection.",
+        "src/mongo/dbtests/BUILD.bazel": "Adds a '//src/mongo/db/repl:internode_validation_hash_utils' dependency to the dbtests binary.",
+        "src/mongo/shell/mongo.js": "Reworks OTEL trace-context propagation in Mongo.prototype.runCommand: instead of injecting a '$traceCtx' field into the command object, it now extracts a 'traceparent' string from jsTestOptions().traceCtx and passes it as an extra argument to _runCommandImpl. It also reads queryOptions from an options object, honors a skipTelemetryContext flag, and adds a Mongo.prototype.withoutTelemetryContext(fn) helper that temporarily sets _skipTelemetryContext around a callback.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds documentation for a new session verify config option 'fix_btree_size' (verify overwrites the checkpoint metadata size with the tree-walk-derived size when they differ), adds a new connection stat WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY (1158), and renumbers the subsequent WT_STAT_CONN_* eviction stat constants accordingly."
+      },
+      "review_notes": "Three files had textual conflicts that a reviewer should double-check: (1) bazel/wrapper_hook/BUILD.bazel \u2014 the fork's Percona 'rbe_auth.py' src entry must remain while upstream's removal of query_failure_diagnostic.py (and its test) is applied. (2) bazel/wrapper_hook/wrapper_hook.py \u2014 the new --test_sharding_strategy handling must coexist with the fork's engflow_auth call. (3) src/mongo/db/commands/profile_common.cpp \u2014 upstream lowered the ProfileCmdRequest field-count assert to 52, but the fork adds a Percona profile field (the fork used '53 + 1'); the resolved value must keep the '+1' offset for the Percona field on top of upstream's new count (i.e. it should reflect 52 + the fork's added field), otherwise the static assert or authorization check will be wrong. Verify the merged file uses the correct total for the fork. The wiredtiger.h.in change renumbers many stat constants; confirm no fork code hard-codes those numeric IDs."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each file. Let me start with the conflicted files and the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me check the jstests files quickly to understand their changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have a clear picture of the merge. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's what this merge introduces (upstream MongoDB changes since the fork diverged at `5f66432c934`):\n\n**Main feature \u2014 new `updateMetricsFilteringAllowlist` admin command:**\n- `src/mongo/db/commands/BUILD.bazel` adds the IDL generator, source file, and a `backoff_with_jitter` dependency.\n- The command is registered (mostly as skipped/authorization entries) across ~11 \"all commands\" jstest coverage files, gated on a new cluster-wide `manageMetricsFiltering` privilege action.\n\n**Build/tooling:**\n- `bazel/resmoke/resmoke.bzl` \u2014 support for resmoke suites needing more than Bazel's native 50-shard cap, via a `forced_shards` attribute and a `_forced_shards_transition` that sets `--test_sharding_strategy`.\n- `bazel/wrapper_hook/wrapper_hook.py` \u2014 disables extended-shard-count support when `--test_sharding_strategy` is passed explicitly.\n- `bazel/wrapper_hook/BUILD.bazel` \u2014 removes the `query_failure_diagnostic` module and its test.\n- `.bazelrc` / top-level `BUILD.bazel` \u2014 minor scope/export tweaks.\n\n**Source:**\n- `startup_recovery.cpp` \u2014 refactors offline-validation logging into a helper and now reports databases that couldn't be opened.\n- `shell/mongo.js` \u2014 reworks OTEL trace propagation (passes a `traceparent` to the command impl instead of a `$traceCtx` field; adds `withoutTelemetryContext`).\n- `profile_common.cpp` \u2014 field-count static assert update.\n- bundled `wiredtiger.h.in` \u2014 new `fix_btree_size` verify option, new eviction stat, renumbered stat constants.\n\n**Reviewer attention** (flagged in `review_notes`): the three conflicted files. Notably `profile_common.cpp` \u2014 upstream lowered the assert to `52`, but the fork adds a Percona profile field (`53 + 1`), so the resolved count must keep the `+1` offset on top of upstream's new base."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260904_093012_009721.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.260 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "short_sha": "7a82794f70e",
+    "strategy": "huge_commit",
+    "summary": "This is an 'Import wiredtiger' commit (huge_commit, 28 files, isolated vendored third-party update) sitting at ~50 commits into the window - squarely on the ~50 target and a textbook-ideal merge boundary: a well-isolated set of files that later commits do not depend on and that is easy to validate post-merge. Revert pairing within range is clean: SERVER-130660 'enable batched oplog' (#61683) and its auto-revert (#61711) both fall inside the batch and cancel, and the reapply (#61733) is also included, so that back-and-forth lands in a settled state. The only blemish is that SERVER-133522 waitForKeys (a single test-fixture file) is imported here while its revert sits ~18 commits later; pulling that pair in would force overshooting to ~78 commits (past an x509 cert regeneration and another WT import), well above the comfortable band. Trading a trivial one-file test-fixture split for cutting exactly on target size at an isolated vendored-import boundary is the cleaner choice.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33858290547"
+  }
+}
