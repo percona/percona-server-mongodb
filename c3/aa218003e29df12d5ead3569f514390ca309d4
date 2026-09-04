@@ -1,0 +1,288 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4d6fbbc3b0f3a1b2a2171b249a380f4c1b549d1a",
+    "merge_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "4d6fbbc3b0f3a1b2a2171b249a380f4c1b549d1a",
+    "theirs_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "base_commit": "5f66432c93456c084d0b774ebfcee61f2168623a",
+    "files": [
+      "bazel/wrapper_hook/BUILD.bazel",
+      "bazel/wrapper_hook/wrapper_hook.py",
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "bazel/wrapper_hook/BUILD.bazel": "both modified",
+      "bazel/wrapper_hook/wrapper_hook.py": "both modified",
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "bazel/wrapper_hook/BUILD.bazel": "diff --cc bazel/wrapper_hook/BUILD.bazel\nindex 4338223dd4d,4c71a35ec47..00000000000\n--- a/bazel/wrapper_hook/BUILD.bazel\n+++ b/bazel/wrapper_hook/BUILD.bazel\n@@@ -21,2 -20,0 +21,7 @@@ py_library\n++<<<<<<< HEAD\n +        \"query_failure_diagnostic.py\",\n +        \"rbe_auth.py\",\n++||||||| 5f66432c934\n++        \"query_failure_diagnostic.py\",\n++=======\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "bazel/wrapper_hook/wrapper_hook.py": "diff --cc bazel/wrapper_hook/wrapper_hook.py\nindex 95768a1e84b,35ae6a56292..00000000000\n--- a/bazel/wrapper_hook/wrapper_hook.py\n+++ b/bazel/wrapper_hook/wrapper_hook.py\n@@@ -200,0 -158,6 +200,11 @@@ def _prepare_bazel_configuration\n++<<<<<<< HEAD\n++||||||| 5f66432c934\n++    engflow_auth(configured_args)\n++=======\n+     # resmoke_suite_test tests get their shard count from a rule transition that sets\n+     # --test_sharding_strategy, which would silently overrule the requested strategy.\n+     if any(arg.startswith(\"--test_sharding_strategy\") for arg in configured_args):\n+         configured_args.append(\"--//bazel/resmoke:support_extended_shard_count=False\")\n+ \n+     engflow_auth(configured_args)\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 54c2b8ebb11,82d40c5a3f9..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -38,1 -38,1 +38,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53 + 1);\n++||||||| 5f66432c934\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52);\n++>>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58"
+    },
+    "their_commits": {
+      "bazel/wrapper_hook/BUILD.bazel": [
+        "bac9ca04acc44570f8a571507e9903aa4d7e4274"
+      ],
+      "bazel/wrapper_hook/wrapper_hook.py": [
+        "13a8f4fb00e286cbd7031e37ac624a7cdc48b6e9"
+      ],
+      "src/mongo/db/commands/profile_common.cpp": [
+        "3ea3ec557a08b860c31cb7187d67b5c8ec9be0fb"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "merged_commits": [
+      "7a82794f70eede0b361e308e81baeea47c5b0d58",
+      "7a690d9f0bd6ac9ff3a6fbe04398fb0e478d24f0",
+      "addf8391903068b344aca844a63c2d4c272f47d8",
+      "24c73cc6141cbe7a9adbc813f6b3585f15a4b7cd",
+      "0ca863c786287e6e02f3b497931f59e4ac5cac40",
+      "9850b631a0a48782172f216f3809f775aa6199bc",
+      "353a342953fc7f83bdeb3b3e04bcb0e0036a655b",
+      "99a3beeec4d9655c0ef466d2b80d31394fb70302",
+      "e9b45fc1bfc945eadc366c0f9af9f353589bd265",
+      "ceeabb0d13c6db0696ec9ae2355c2957b5c25dd3",
+      "a1e1b91baeca3d91d877b7162a50c8ec4fc4e562",
+      "9cd55f0391f87113b2ce193a4a612356bdf91b14",
+      "04099650db6baa859eb2400fec9e225f9aaeecd0",
+      "922f3a294c8d9ebc0600694c59f6f30502b90f39",
+      "80649872ee9da995e58f706512a03b039f7bad2c",
+      "1ba93998d655deb9138e959605d6f96b54e5c763",
+      "f1d5dad952bc5e259059515efa478947921caa93",
+      "73c396c1ac303b757b6b41b2d75d5ac2a966c229",
+      "c20e6ccdcdb40444bc454cfa89b1af40b3c17c52",
+      "66a71844a27ceab5fa37c72bde8083514786b8a1",
+      "c626b5e424064c996b632d4d1393afdb57c6c41c",
+      "7b173aff862b19ffe3cbb6ceaef5f7f64cfc5376",
+      "c68e0440e5e887abebde44003cbd2392a1a900af",
+      "c3859f01c63c86c33f956ebf13cb9ab1a0019e2b",
+      "a771424c0a92e34369b05674f5752dc9457c6aa2",
+      "0bfc55a5ff80abcf542e15eab8f8ef1dba46eef2",
+      "b117c162ad97821572aaafd6eea2630d41490386",
+      "762f35b59c3af6701362e14c7a101f0d289f9003",
+      "a44c759bf629f31a5fbf6852a21e72eafe4bcc7e",
+      "9f4bcc63ee5c705e892f8f6a567e7c1206f543dd",
+      "e5864426c1f76c5aafa3e929d881b8bde857ecf9",
+      "3ea3ec557a08b860c31cb7187d67b5c8ec9be0fb",
+      "bac9ca04acc44570f8a571507e9903aa4d7e4274",
+      "d68ff218c57ca9715ad1a7587bd6f1de7397c194",
+      "dc048bd8fec4211f98bc3190db10fac6c3bb19c7",
+      "84bb6cc01d9fcc23d40dff91b942256d9c82e661",
+      "38b1dee00fa7e22f4b3b16c7812f4f2454cd5218",
+      "e883652127b7cc85b6149aeca48d1452fc999444",
+      "2d562130d1f687847c9e345d0373ce720381dbe4",
+      "b9f86ff6701971f8641f1a40c5d33a63950f62a2",
+      "45d5f75daf32683e8b467dbf222d7e5c17e5f426",
+      "c93f77a9f175b65184010600d45f4d49af23dc11",
+      "723fc39f84b8bd7b0651aee5049d42a758abe9ce",
+      "13a8f4fb00e286cbd7031e37ac624a7cdc48b6e9",
+      "a0ebdea6deff81257b5c6ecab76f151a0c8d5e45",
+      "85e40970359b01ec38327cf5d0090577e38d62ca",
+      "eb69320f55fc9c35690108d40e0f52803dca0ee7",
+      "2b7dee61a19954bb968a181a89b0f0baf4b08fa8",
+      "b2cced10fb9a817917533bcf60ed72b7294ff4cd",
+      "9d76d3bd5fa9ed978e17c58325e15a30c98039ce"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "BUILD.bazel",
+        "bazel/resmoke/resmoke.bzl",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "bazel/wrapper_hook/wrapper_hook.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/mongo/shell/mongo.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 117793,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.49580575,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 7035,
+        "cacheReadInputTokens": 148561,
+        "cacheCreationInputTokens": 39125,
+        "webSearchRequests": 0,
+        "costUSD": 0.49474675000000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1640,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 7035,
+            "cache_read": 148561,
+            "cache_creation": 39125
+          },
+          "cost_usd": 0.49474675000000007
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's a summary of what this merge introduces (diff base `5f66432` \u2192 merge commit `7a82794`):\n\n**Main theme:** Auto-merge of upstream MongoDB into PSMDB `master`. The dominant change is a new admin command **`updateMetricsFilteringAllowlist`** (guarded by a new `manageMetricsFiltering` privilege), wired into the command library build targets and registered across the many all-commands/coverage test catalogs.\n\n**Other incoming changes:**\n- **Bazel resmoke** \u2014 new \"extended shard count\" mechanism (`forced_shards` attr + `_forced_shards_transition`) to exceed the native 50-shard cap, with a matching guard in `wrapper_hook.py` that disables it when `--test_sharding_strategy` is passed.\n- **wrapper_hook** \u2014 removes the upstream-deleted `query_failure_diagnostic` module/test.\n- **startup_recovery.cpp** \u2014 richer offline-validation logging (extracted `logOfflineValidateResults` helper; skipped-DB now logged with name/bytes/redacted error and reported as a validation error).\n- **shell/mongo.js** \u2014 reworks OTEL trace propagation to pass a `traceparent` arg instead of injecting `$traceCtx`, adds `withoutTelemetryContext`.\n- **WiredTiger header** \u2014 new verify `fix_btree_size` config + stat-constant renumbering.\n\n**Key review flag I called out:** `profile_common.cpp` \u2014 the fork tip carried a Percona `+1` offset (`== 53 + 1`), but the resolved merge takes upstream's plain `== 52`. If PSMDB still adds a profile field, the correct value is likely `52 + 1 = 53`. This static assert guards an authorization safety check, so it's worth confirming before build.",
+    "response": {
+      "summary": "Auto-merge of upstream MongoDB into the PSMDB master fork. The most visible upstream change is a new admin command 'updateMetricsFilteringAllowlist' (guarded by a new 'manageMetricsFiltering' privilege action, category e.g. 'serverStatus', add: [...]); it is registered in the command tables and wired into the many all-commands/coverage test catalogs. Other incoming changes: Bazel resmoke gains an 'extended shard count' mechanism to exceed the native 50-shard cap via a rule transition; the wrapper_hook loses the query_failure_diagnostic module and gains logic to disable extended shard count when --test_sharding_strategy is passed; the profile command's field-count static assert is adjusted; offline startup validation gains richer logging; the mongo shell reworks OTEL trace-context propagation to use a traceparent argument; and a WiredTiger verify 'fix_btree_size' config option plus statistics-counter renumbering are imported.",
+      "auto_merged": {
+        ".bazelrc": "Under the remote_unittest config, the '--run_under=//bazel:test_wrapper' option is moved from a 'common:' scope to a 'test:' scope (common:remote_unittest --run_under ... removed, test:remote_unittest --run_under=//bazel:test_wrapper added). No other behavior change.",
+        "BUILD.bazel": "Adds '.bazelrc' to the exports_files list at the repository root so the file can be referenced by other Bazel targets.",
+        "bazel/resmoke/resmoke.bzl": "Adds support for resmoke suites needing more than Bazel's native 50-shard cap. Introduces _MAX_NATIVE_SHARD_COUNT = 50; in resmoke_suite_test, shard_count above the cap is pinned to 50 for the native attribute and the real count is passed as a new 'forced_shards' attribute. Adds a _forced_shards_transition (implementation _forced_shards_transition_impl) gated on //bazel/resmoke:support_extended_shard_count that sets --test_sharding_strategy=forced=N per target, and applies it as the _resmoke_test rule's cfg with the new forced_shards int attribute.",
+        "bazel/wrapper_hook/BUILD.bazel": "Conflict resolved by dropping the query_failure_diagnostic module that upstream removed: 'query_failure_diagnostic.py' is removed from the py_library srcs and the 'query_failure_diagnostic_test' py_test target is deleted. The Percona-specific 'rbe_auth.py' src entry present on the fork side is preserved (it is not part of this diff-base->merge change).",
+        "bazel/wrapper_hook/wrapper_hook.py": "In _prepare_bazel_configuration, adds a block that appends '--//bazel/resmoke:support_extended_shard_count=False' when any argument starts with '--test_sharding_strategy', so a user-requested sharding strategy is not silently overridden by the new resmoke shard-count transition. The Percona engflow_auth(...) call is retained around this insertion.",
+        "jstests/auth/lib/commands_lib.js": "Adds an authorization test case for the new 'updateMetricsFilteringAllowlist' command (category 'serverStatus', add: ['test.path']) requiring the cluster-level 'manageMetricsFiltering' privilege on the admin DB.",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds 'updateMetricsFilteringAllowlist: {skip: isUnrelated}' to the views command coverage table.",
+        "jstests/libs/write_concern_all_commands.js": "Registers 'updateMetricsFilteringAllowlist' in both the general and time-series write-concern command tables as {skip: \"does not accept write concern\"}.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds an entry for 'updateMetricsFilteringAllowlist' (command {updateMetricsFilteringAllowlist: 1, category: 'serverStatus', add: ['test.path']}, isAdminCommand: true) to the all-commands FCV table.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds 'updateMetricsFilteringAllowlist: {skip: isNotAUserDataRead}' to the command coverage table.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds an 'updateMetricsFilteringAllowlist' test case with setUp/teardown that creates a 'metricsFilteringAdmin' role granting the cluster 'manageMetricsFiltering' action, grants/revokes it to the test user, runs the command (isAdminCommand: true, shouldFail: false), and drops the role.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds 'updateMetricsFilteringAllowlist' entries in two coverage sections: one skipped as 'executes locally on mongos (not sent to any remote node)' and one skipped as 'admin write command'.",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Adds an 'updateMetricsFilteringAllowlist' entry skipped as 'executes locally on mongos (not sent to any remote node)'.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds 'updateMetricsFilteringAllowlist: {skip: \"does not accept read or write concern\"}' to the test cases.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Adds 'updateMetricsFilteringAllowlist: {skip: \"does not return user data\"}' to the testCases table.",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Adds 'updateMetricsFilteringAllowlist: {skip: \"does not return user data\"}' to the testCases table.",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Adds 'updateMetricsFilteringAllowlist: {skip: \"does not return user data\"}' to the testCases table.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds build wiring for the new command: an idl_generator 'update_metrics_filtering_allowlist_command_gen' (from update_metrics_filtering_allowlist_command.idl, deps on basic_types_gen, metrics_category_gen, generic_argument_gen); adds update_metrics_filtering_allowlist_command.cpp and the generated target to the command library srcs; and adds a '//src/mongo/client:backoff_with_jitter' dependency.",
+        "src/mongo/db/commands/profile_common.cpp": "Conflict resolved in the static assert guarding the profile command field count. The merge takes upstream's reduced value: MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52) (base was 53).",
+        "src/mongo/db/startup_recovery.cpp": "Refactors offline validation logging: extracts a logOfflineValidateResults() helper (LOGV2_OPTIONS 9437301, truncation disabled) and reuses it in offlineValidateCollection. When a database cannot be opened, the BadValue catch handler now logs the db name, hex-encoded name bytes and redacted error (LOGV2_WARNING 13340101) and additionally reports the skip as a ValidateResults error routed through logOfflineValidateResults.",
+        "src/mongo/dbtests/BUILD.bazel": "Adds a dependency on '//src/mongo/db/repl:internode_validation_hash_utils' to the dbtests binary.",
+        "src/mongo/shell/mongo.js": "Reworks OTEL trace-context propagation in Mongo.prototype.runCommand. Instead of injecting a '$traceCtx' field into the command object, it now extracts jsTestOptions().traceCtx.traceparent into a 'traceparent' string passed as a new argument to _runCommandImpl. Adds Mongo.prototype.withoutTelemetryContext(fn) and a _skipTelemetryContext flag (also honoring options.skipTelemetryContext) to suppress trace-context injection; options handling now reads options.queryOptions when options is an object.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Imports upstream WiredTiger header changes: documents a new session verify config option 'fix_btree_size' (verify overwrites checkpoint metadata size with the tree-walk-derived size when they differ; default false), and renumbers connection cache statistics constants, notably moving WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY to 1158 and shifting subsequent WT_STAT_CONN_* values by one."
+      },
+      "review_notes": "1) profile_common.cpp: the pre-merge fork tip carried a Percona '+1' offset (fieldMetadata.size() == 53 + 1); the resolved merge uses upstream's plain '== 52'. If PSMDB still adds a profile field, the expected count should likely be 52 + 1 = 53. Please confirm the static assert value is correct for the fork (i.e. that the Percona extra field was intentionally reconciled) so the build's authorization safety check does not fail or mask a missing field. 2) The bulk of the incoming diff is the new upstream 'updateMetricsFilteringAllowlist' admin command and its registration across all-commands coverage tables plus new IDL/cpp build targets; verify the generated IDL sources (update_metrics_filtering_allowlist_command.idl/.cpp, not conflicting files) are present and build. 3) bazel/wrapper_hook/BUILD.bazel: confirm the Percona 'rbe_auth.py' src line remains after dropping the upstream-removed query_failure_diagnostic entries. 4) The resmoke extended-shard-count transition and the wrapper_hook guard are coupled (support_extended_shard_count flag); confirm no PSMDB-specific resmoke customizations conflict with the new forced_shards transition."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs I need. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's a summary of what this merge introduces (diff base `5f66432` \u2192 merge commit `7a82794`):\n\n**Main theme:** Auto-merge of upstream MongoDB into PSMDB `master`. The dominant change is a new admin command **`updateMetricsFilteringAllowlist`** (guarded by a new `manageMetricsFiltering` privilege), wired into the command library build targets and registered across the many all-commands/coverage test catalogs.\n\n**Other incoming changes:**\n- **Bazel resmoke** \u2014 new \"extended shard count\" mechanism (`forced_shards` attr + `_forced_shards_transition`) to exceed the native 50-shard cap, with a matching guard in `wrapper_hook.py` that disables it when `--test_sharding_strategy` is passed.\n- **wrapper_hook** \u2014 removes the upstream-deleted `query_failure_diagnostic` module/test.\n- **startup_recovery.cpp** \u2014 richer offline-validation logging (extracted `logOfflineValidateResults` helper; skipped-DB now logged with name/bytes/redacted error and reported as a validation error).\n- **shell/mongo.js** \u2014 reworks OTEL trace propagation to pass a `traceparent` arg instead of injecting `$traceCtx`, adds `withoutTelemetryContext`.\n- **WiredTiger header** \u2014 new verify `fix_btree_size` config + stat-constant renumbering.\n\n**Key review flag I called out:** `profile_common.cpp` \u2014 the fork tip carried a Percona `+1` offset (`== 53 + 1`), but the resolved merge takes upstream's plain `== 52`. If PSMDB still adds a profile field, the correct value is likely `52 + 1 = 53`. This static assert guards an authorization safety check, so it's worth confirming before build."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260904_070332_583586.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.260 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "7a82794f70eede0b361e308e81baeea47c5b0d58",
+    "short_sha": "7a82794f70e",
+    "strategy": "huge_commit",
+    "summary": "This is the wiredtiger vendored import 'Import wiredtiger: ebf4871... (#61731)' at position 50 in the window - a large, well-isolated third-party import that the project rules explicitly call an ideal merge boundary: it touches a self-contained set of files, rarely depends on the commits after it, and is easy to validate post-merge. It also lands dead-center in the ~50-commit target band (comfortable 30-65). Crucially, the SERVER-130660 'enable batched oplog container writes' sequence (enable #61683, its auto-revert, and the reapply #61733) is fully contained before this cut, so that cancel-and-reapply group is not split. The earlier wiredtiger import (position 26) would make an under-sized batch, and the next clean artifact boundaries (x509 cert regeneration at ~64, another WT import at ~72) sit at or beyond the band's upper edge. The only minor downside is that SERVER-133522 waitForKeys (a single DisaggReplSetTest helper file) is imported here while its revert sits a few commits past the cut at position 68; that is a low-cost, low-conflict split of one test file and not worth pushing the batch past the target band onto a weaker plain-revert boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33846490755"
+  }
+}
