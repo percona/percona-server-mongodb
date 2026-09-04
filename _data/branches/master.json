@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 179,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.051150610648149,
-    "files_affected": 1155,
-    "total_additions": 38191,
-    "total_deletions": 19802,
+    "commits_behind": 207,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.050656802094906,
+    "files_affected": 1258,
+    "total_additions": 41948,
+    "total_deletions": 21687,
     "date_range": {
       "first": "2026-08-25T04:58:29+00:00",
-      "last": "2026-09-03T02:00:47+00:00"
+      "last": "2026-09-04T05:17:14+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,286 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "b35bfa9ade57b0f45a44bc1cdf59d51272d8605b",
+      "short_sha": "b35bfa9ade5",
+      "date": "2026-09-04T05:17:14+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134159 Build remote execution containers in Evergreen and publish to ECR Public (#61854)\" (#62289)"
+    },
+    {
+      "sha": "f41778fb400343aa298a77bf9bafeb93c11652fc",
+      "short_sha": "f41778fb400",
+      "date": "2026-09-03T22:50:46+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-134504 Defer missing libvoidstar failure for non-Antithesis Bazel builds (#62271)"
+    },
+    {
+      "sha": "0790a045dff1fa449ad188730c1d39584de970ed",
+      "short_sha": "0790a045dff",
+      "date": "2026-09-03T22:50:20+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-134505: fall back to update mode when refreshing MODULE.bazel.lock (#62257)"
+    },
+    {
+      "sha": "982cf3510c9c62a21222c415bcb6527da002c804",
+      "short_sha": "982cf3510c9",
+      "date": "2026-09-03T21:31:09+00:00",
+      "author": {
+        "name": "winstonzmdb",
+        "email": "103599738+winstonzmdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134159 Build remote execution containers in Evergreen and publish to ECR Public (#61854)"
+    },
+    {
+      "sha": "0b83ac80d3de3df84b878d86dd08a47c08455ae9",
+      "short_sha": "0b83ac80d3d",
+      "date": "2026-09-03T21:01:59+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134018: Throttle logging in ReplicaSetMonitor to one log per second (#62019)"
+    },
+    {
+      "sha": "74f1a3d18bd8c19e67b0675558adb421001c8131",
+      "short_sha": "74f1a3d18bd",
+      "date": "2026-09-03T20:31:06+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-133221 Apply work items on POA workers through the shared apply path (#62147)"
+    },
+    {
+      "sha": "5def4ebb9105c5f21af17a723fa0fe8d0cad9f8d",
+      "short_sha": "5def4ebb910",
+      "date": "2026-09-03T20:19:01+00:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-133915 Remove TODO in join optimization query stat test (#62220)"
+    },
+    {
+      "sha": "1fc68556d56bea19471e10e240d274282c0ca089",
+      "short_sha": "1fc68556d56",
+      "date": "2026-09-03T20:05:52+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-134431 fix racy wait in ServiceEntryPointShardServerTest.QueuedAdmissionInterrupted (#62204)"
+    },
+    {
+      "sha": "93ab7fabc74f6a6af8ff8d738606773f29c18d43",
+      "short_sha": "93ab7fabc74",
+      "date": "2026-09-03T18:16:33+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134210: eliminate race condition in rename test setup on sharded clusters (#62016)"
+    },
+    {
+      "sha": "eb285c4eae3c7cc3eb357c5397e65c3d78f1be5c",
+      "short_sha": "eb285c4eae3",
+      "date": "2026-09-03T17:54:22+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-134447 Remove one pointer indirection for SBE $group key accesses (#62223)"
+    },
+    {
+      "sha": "0243011640cb2c3623429b5290085e54d032a1df",
+      "short_sha": "0243011640c",
+      "date": "2026-09-03T17:38:21+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-131801 Refactor index bounds checker so checkKey logic is generic (#61863)"
+    },
+    {
+      "sha": "e83380cbde8a4cf9d5f14f3400f077c7470ce30d",
+      "short_sha": "e83380cbde8",
+      "date": "2026-09-03T17:31:03+00:00",
+      "author": {
+        "name": "Evelyn Wu",
+        "email": "32441547+evelynwu88@users.noreply.github.com"
+      },
+      "summary": "SERVER-134405 Re-add server_status_metrics.js exclusion to multiversion tests (#62165)"
+    },
+    {
+      "sha": "035831dfc67b37ec165a8199ec1d7b48138800be",
+      "short_sha": "035831dfc67",
+      "date": "2026-09-03T17:18:24+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-132854 Create fast count containers unconditionally (#62128)"
+    },
+    {
+      "sha": "599596442f0036a30223b528c58f8a06b13ae4af",
+      "short_sha": "599596442f0",
+      "date": "2026-09-03T17:13:13+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-134475: Avoid activate_version_tasks race in activate_task.py (#62120)"
+    },
+    {
+      "sha": "e2bdc305d5d99050a818fad988f404584d8957d7",
+      "short_sha": "e2bdc305d5d",
+      "date": "2026-09-03T17:12:50+00:00",
+      "author": {
+        "name": "Dylan Richardson",
+        "email": "dylan.richardson@mongodb.com"
+      },
+      "summary": "SERVER-134426: fix version expansions (#62200)"
+    },
+    {
+      "sha": "f487abaaa261ed10302b05565cd8a32da4c8f41e",
+      "short_sha": "f487abaaa26",
+      "date": "2026-09-03T16:34:34+00:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "milena.ivanova@mongodb.com"
+      },
+      "summary": "SERVER-134223 Reduce serialization overhead of server status OTel histograms (#62035)"
+    },
+    {
+      "sha": "8c9da88cb6b826ebb6a4c65b47661dc1454e38ec",
+      "short_sha": "8c9da88cb6b",
+      "date": "2026-09-03T16:22:45+00:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-134370: Task group artifact precheck (#62124)"
+    },
+    {
+      "sha": "5db1f59600c762d6dbf623e6b337bf04b5b41dab",
+      "short_sha": "5db1f59600c",
+      "date": "2026-09-03T16:16:02+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-134295: Add EngFlow links to specific tests in result tasks (#62039)"
+    },
+    {
+      "sha": "817680475d9433831a2dd108c1a5b41ba7771532",
+      "short_sha": "817680475d9",
+      "date": "2026-09-03T15:34:05+00:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-129268: Evict stale entries from join plan cache (#61990)"
+    },
+    {
+      "sha": "386fa085ca1555ed75715b48e50e84966741e4fe",
+      "short_sha": "386fa085ca1",
+      "date": "2026-09-03T15:32:51+00:00",
+      "author": {
+        "name": "sdgoodrick",
+        "email": "sam.goodrick@mongodb.com"
+      },
+      "summary": "SERVER-131560: Do not calculate completed auth time when auth does not complete (#61604)"
+    },
+    {
+      "sha": "7d24ca777ed27ece073f0c5f5a495808b0219de0",
+      "short_sha": "7d24ca777ed",
+      "date": "2026-09-03T14:59:22+00:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-134451: Retry python dependency installs in antithesis workload image (#62143)"
+    },
+    {
+      "sha": "3a45c25e66fb659c0a01b01cbb888b1f9f3aeabd",
+      "short_sha": "3a45c25e66f",
+      "date": "2026-09-03T14:53:33+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134423: Remove the onDrop callback from addDropPendingIdent() (#62168)"
+    },
+    {
+      "sha": "cceecd1a4af13193d4461c4a9ea7e76135e238d6",
+      "short_sha": "cceecd1a4af",
+      "date": "2026-09-03T14:53:24+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134033 Clean up already staged writes if staging a timeseries write fails (#62017)"
+    },
+    {
+      "sha": "efec036605991d5ec959e52d470be8ef40a5a438",
+      "short_sha": "efec0366059",
+      "date": "2026-09-03T14:32:58+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62199)"
+    },
+    {
+      "sha": "aa2e8961d8489d12163738a0571dc3987ceb68fc",
+      "short_sha": "aa2e8961d84",
+      "date": "2026-09-03T13:53:53+00:00",
+      "author": {
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
+      },
+      "summary": "SERVER-132833 Enable internalEnableJoinOptimizationUseIndexUniqueness by default (#62032)"
+    },
+    {
+      "sha": "d0019f6f1bc32e675c848cb4182eb33965336876",
+      "short_sha": "d0019f6f1bc",
+      "date": "2026-09-03T12:48:48+00:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-134287 Make direct_shard_connection_auth_rs_commands.js resilient to multiple elections (#62053)"
+    },
+    {
+      "sha": "8ffec123f3ae54240ee7846926d78e2ed7ef7007",
+      "short_sha": "8ffec123f3a",
+      "date": "2026-09-03T10:47:05+00:00",
+      "author": {
+        "name": "ppolato",
+        "email": "82828243+ppolato@users.noreply.github.com"
+      },
+      "summary": "SERVER-132525 Avoid using foreground index builds within createIndexOnConfigCollection() (#60273)"
+    },
+    {
+      "sha": "bf744d24802b60e494ecebdbbfbdc8db26e591c2",
+      "short_sha": "bf744d24802",
+      "date": "2026-09-03T08:31:53+00:00",
+      "author": {
+        "name": "Jordi Olivares Provencio",
+        "email": "jordi.olivares-provencio@mongodb.com"
+      },
+      "summary": "SERVER-127622 Add movePrimary DDL to random DDL + CRUD test (#61653)"
+    },
     {
       "sha": "e7792e2a4cf20d7cc45ae4141649e893058005c8",
       "short_sha": "e7792e2a4cf",
@@ -2103,10 +2383,48 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "3a45c25e66fb659c0a01b01cbb888b1f9f3aeabd",
+        "short_sha": "3a45c25e66f",
+        "date": "2026-09-03T14:53:33+00:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-134423: Remove the onDrop callback from addDropPendingIdent() (#62168)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/storage_engine.h",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "035831dfc67b37ec165a8199ec1d7b48138800be",
+        "short_sha": "035831dfc67",
+        "date": "2026-09-03T17:18:24+00:00",
+        "author": {
+          "name": "Cedric Sirianni",
+          "email": "cedric.sirianni@mongodb.com"
+        },
+        "summary": "SERVER-132854 Create fast count containers unconditionally (#62128)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-03 06:11:55",
+  "generated_at": "2026-09-04 06:11:12",
   "branch_name": "master",
   "display_name": "master"
 }
