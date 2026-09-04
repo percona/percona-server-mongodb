@@ -1928,6 +1928,10 @@ export let MongosAPIParametersUtil = (function () {
             },
         },
         {
+            commandName: "updateMetricsFilteringAllowlist",
+            skip: "executes locally on mongos (not sent to any remote node)",
+        },
+        {
             commandName: "updateRole",
             run: {
                 inAPIVersion1: false,

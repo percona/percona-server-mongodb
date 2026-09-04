@@ -94,6 +94,13 @@ case "$*" in
             printf '%s\n' "$FAKE_BAZEL_SERVER_PID" >"$FAKE_BAZEL_PIDFILE"
         fi
         ;;
+    cquery*)
+        [[ "$*" == *"--build_tag_filters=resmoke_config"* ]] || {
+            echo "resmoke config cquery must filter by tag: $*" >&2
+            exit 96
+        }
+        printf '%s\n' "//buildscripts/resmokeconfig:fake_config bazel-out/fake/config.yml"
+        ;;
     "shutdown")
         if [[ -n "${FAKE_BAZEL_PIDFILE:-}" ]]; then
             rm -f "$FAKE_BAZEL_PIDFILE"
@@ -220,6 +227,148 @@ test_should_disable_gdb_index_for_all_ci_builds() {
     done
 }
 
+test_remote_unittest_wrapper_is_test_scoped() {
+    local bazelrc="${TEST_SRCDIR}/${TEST_WORKSPACE}/.bazelrc"
+    local common_run_under
+    local test_run_under
+
+    [[ -f "$bazelrc" ]] || fail "the repository .bazelrc should be available to this test"
+
+    common_run_under="$(awk '$1 == "common:remote_unittest" && $2 ~ /^--run_under=/ { print }' "$bazelrc")"
+    test_run_under="$(awk '$1 == "test:remote_unittest" && $2 ~ /^--run_under=/ { print }' "$bazelrc")"
+
+    assert_eq "" "$common_run_under" "the test wrapper should not apply to bazel run"
+    assert_eq \
+        "test:remote_unittest --run_under=//bazel:test_wrapper" \
+        "$test_run_under" \
+        "the test wrapper should still apply to bazel test"
+}
+
+test_query_resmoke_configs_filters_target_universe() {
+    local tmpdir
+    local fake_bazel
+    local output_file
+
+    tmpdir="$(new_tmpdir)"
+    export FAKE_BAZEL_LOG="${tmpdir}/invocations.log"
+    export FAKE_BAZEL_OUTPUT_BASE="${tmpdir}/output-base"
+    export FAKE_BAZEL_COMMAND_LOG="${tmpdir}/command.log"
+    : >"$FAKE_BAZEL_LOG"
+    : >"$FAKE_BAZEL_COMMAND_LOG"
+    fake_bazel="$(make_fake_bazel "$tmpdir")"
+    output_file="${tmpdir}/resmoke_suite_configs.yml"
+
+    bazel_evergreen_shutils::query_resmoke_configs "$fake_bazel" "" "$output_file"
+
+    assert_contains "$(<"$FAKE_BAZEL_LOG")" "--build_tag_filters=resmoke_config" \
+        "resmoke config discovery should filter cquery's target universe"
+    assert_eq \
+        "//buildscripts/resmokeconfig:fake_config bazel-out/fake/config.yml" \
+        "$(<"$output_file")" \
+        "resmoke config discovery should preserve cquery output"
+}
+
+test_provenance_build_invocation_file_selection() {
+    assert_eq \
+        ".bazel_provenance_build_invocation" \
+        "$(bazel_evergreen_shutils::get_provenance_build_invocation_file archive_dist_test mongodb-mongo-v8.3-staging)" \
+        "archive_dist_test should create the provenance invocation file"
+    assert_eq \
+        ".bazel_provenance_build_invocation" \
+        "$(bazel_evergreen_shutils::get_provenance_build_invocation_file package mongo-release)" \
+        "release package should create the provenance invocation file"
+    assert_eq \
+        "" \
+        "$(bazel_evergreen_shutils::get_provenance_build_invocation_file package mongodb-mongo-v8.3-staging)" \
+        "non-server-release package should not create the provenance invocation file"
+    assert_eq \
+        ".bazel_crypt_build_invocation" \
+        "$(bazel_evergreen_shutils::get_provenance_build_invocation_file crypt_create_lib mongo-release)" \
+        "crypt_create_lib should create its dedicated invocation file"
+    assert_eq \
+        "" \
+        "$(bazel_evergreen_shutils::get_provenance_build_invocation_file unit_tests mongo-release)" \
+        "unrelated tasks should not create a provenance invocation file"
+}
+
+test_timeout_prefix_uses_the_expected_fallback_for_each_execution_mode() {
+    local tmpdir
+    local timeout_bin
+    local old_path
+    local local_timeout
+    local local_test_timeout
+    local remote_timeout
+    local explicit_timeout
+    local kill_after_seconds="${BAZEL_EVG_TIMEOUT_KILL_AFTER_SECONDS:-15}"
+
+    tmpdir="$(new_tmpdir)"
+    timeout_bin="${tmpdir}/timeout"
+    printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$timeout_bin"
+    chmod +x "$timeout_bin"
+
+    old_path="$PATH"
+    PATH="${tmpdir}:${PATH}"
+
+    local evergreen_remote_exec=""
+    local build_timeout_seconds=""
+    local_timeout="$(bazel_evergreen_shutils::timeout_prefix "$evergreen_remote_exec" "build")"
+    assert_eq \
+        "timeout -s QUIT -k ${kill_after_seconds}s 7200" \
+        "$local_timeout" \
+        "local execution should use a two-hour fallback timeout"
+
+    local_test_timeout="$(bazel_evergreen_shutils::timeout_prefix "$evergreen_remote_exec" "test")"
+    assert_eq \
+        "" \
+        "$local_test_timeout" \
+        "local test execution should not use the build fallback timeout"
+
+    evergreen_remote_exec="on"
+    remote_timeout="$(bazel_evergreen_shutils::timeout_prefix "$evergreen_remote_exec" "build")"
+    assert_eq \
+        "timeout -s QUIT -k ${kill_after_seconds}s 3600" \
+        "$remote_timeout" \
+        "remote execution should retain its one-hour fallback timeout"
+
+    evergreen_remote_exec=""
+    build_timeout_seconds="1234"
+    explicit_timeout="$(bazel_evergreen_shutils::timeout_prefix "$evergreen_remote_exec" "test")"
+    assert_eq \
+        "timeout -s QUIT -k ${kill_after_seconds}s 1234" \
+        "$explicit_timeout" \
+        "an explicit timeout should override the execution-mode fallback"
+
+    PATH="$old_path"
+}
+
+test_retry_bazel_cmd_does_not_retry_test_timeouts() {
+    local tmpdir
+    local fake_bazel
+    local timeout_bin
+    local old_path
+
+    setup_retry_test running
+    tmpdir="$RETRY_TMPDIR"
+    fake_bazel="$RETRY_FAKE_BAZEL"
+    timeout_bin="${tmpdir}/timeout"
+    export FAKE_TIMEOUT_LOG="${tmpdir}/timeout.log"
+    : >"$FAKE_TIMEOUT_LOG"
+    printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >>"$FAKE_TIMEOUT_LOG"' 'exit 124' >"$timeout_bin"
+    chmod +x "$timeout_bin"
+
+    old_path="$PATH"
+    PATH="${tmpdir}:${PATH}"
+    build_timeout_seconds="1"
+
+    RETRY_OUTPUT="$(bazel_evergreen_shutils::retry_bazel_cmd 3 "$fake_bazel" test //evergreen:fake_target 2>&1)" || RETRY_STATUS=$?
+
+    assert_eq "124" "$RETRY_STATUS" "a test timeout should retain its timeout status"
+    assert_eq "1" "$(awk 'END {print NR}' "$FAKE_TIMEOUT_LOG")" "a test timeout should not start another attempt"
+    assert_not_contains "$RETRY_OUTPUT" "Attempt 2/3" "a test timeout should not retry"
+
+    PATH="$old_path"
+}
+
 test_retry_bazel_cmd_primes_output_base_before_running_bazel() {
     local tmpdir
     local fake_bazel
@@ -334,6 +483,11 @@ test_retry_bazel_cmd_does_not_retry_or_sleep_after_final_failure() {
 
 test_cache_bazel_output_base_uses_plain_info_once
 test_should_disable_gdb_index_for_all_ci_builds
+test_remote_unittest_wrapper_is_test_scoped
+test_query_resmoke_configs_filters_target_universe
+test_provenance_build_invocation_file_selection
+test_timeout_prefix_uses_the_expected_fallback_for_each_execution_mode
+test_retry_bazel_cmd_does_not_retry_test_timeouts
 test_retry_bazel_cmd_primes_output_base_before_running_bazel
 test_retry_bazel_cmd_reuses_healthy_server_after_regular_failure
 test_retry_bazel_cmd_starts_missing_server_with_neutral_message
