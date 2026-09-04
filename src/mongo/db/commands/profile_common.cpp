@@ -35,13 +35,7 @@ namespace {
 
 // This assert is here to make sure new command options are considered in the 'isReadOnly' check. If
 // this assert fails, please make sure you consider the authorization implications of your change.
-<<<<<<< HEAD
-MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53 + 1);
-||||||| 5f66432c934
-MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);
-=======
-MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52);
->>>>>>> 7a82794f70eede0b361e308e81baeea47c5b0d58
+MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52 + 1);
 
 bool isReadOnly(const ProfileCmdRequest& request) {
     return !request.getSlowms() && !request.getSlowinprogms() && !request.getSampleRate() &&
