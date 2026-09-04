@@ -198,13 +198,12 @@ TEST(BSONValidate, Fuzz) {
                 }
             }
         }
-        BSONObj fuzzed(buffer.data());
 
         // There is no assert here because there is no other BSON validator oracle
         // to compare outputs against (BSONObj::valid() is a wrapper for validateBSON()).
         // Thus, the reason for this test is to ensure that validateBSON() doesn't trip
         // any ASAN or UBSAN check when fed fuzzed input.
-        validateBSON(fuzzed).isOK();
+        validateBSON(buffer.data(), buffer.size()).isOK();
     }
 }
 
@@ -661,6 +660,19 @@ TEST(BSONValidateFast, UnterminatedStringErrorInNestedObjectWithId) {
                   "in object with _id: 1");
 }
 
+TEST(BSONValidateFast, UnterminatedStringErrorInCodeWScope) {
+    BufBuilder bb;
+    BSONObjBuilder ob(bb);
+    appendInvalidStringElement("invalid", &bb);
+    const BSONObj scope = ob.done();
+    const BSONObj x = BSON("_id" << 1 << "cws" << BSONCodeWScope("code", scope));
+    const Status status = validateBSON(x);
+    ASSERT_NOT_OK(status);
+    ASSERT_EQUALS(status.reason(),
+                  "Not null terminated string in element with field name 'cws.invalid' "
+                  "in object with _id: 1");
+}
+
 TEST(BSONValidateFast, UnterminatedStringErrorInNestedObjectWithoutId) {
     BufBuilder bb;
     BSONObjBuilder ob(bb);
@@ -687,7 +699,7 @@ TEST(BSONValidateFast, InvalidObjectWithInvalidSizeInNestedObjectWithId) {
     ASSERT_NOT_OK(status);
     ASSERT_EQUALS(status.reason(),
                   "Nested BSON object has to be at least 5 bytes (decoded length: 4) in element "
-                  "with field name 'nested.2..invalid' in object with _id: 1");
+                  "with field name 'nested.2.invalid' in object with _id: 1");
 }
 
 TEST(BSONValidateFast, InvalidObjectWithZeroSizeInNestedObjectWithId) {
@@ -701,7 +713,7 @@ TEST(BSONValidateFast, InvalidObjectWithZeroSizeInNestedObjectWithId) {
     ASSERT_NOT_OK(status);
     ASSERT_EQUALS(status.reason(),
                   "Nested BSON object has to be at least 5 bytes (decoded length: 0) in element "
-                  "with field name 'nested.2..invalid' in object with _id: 1");
+                  "with field name 'nested.2.invalid' in object with _id: 1");
 }
 
 TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithId) {
@@ -715,7 +727,7 @@ TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithId) {
     ASSERT_NOT_OK(status);
     ASSERT_EQUALS(status.reason(),
                   "Nested BSON object has to be at least 5 bytes (decoded length: -999) in element "
-                  "with field name 'nested.2..invalid' in object with _id: 1");
+                  "with field name 'nested.2.invalid' in object with _id: 1");
 }
 
 TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithIdWithoutArray) {
@@ -729,7 +741,7 @@ TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithIdWithoutA
     ASSERT_NOT_OK(status);
     ASSERT_EQUALS(status.reason(),
                   "Nested BSON object has to be at least 5 bytes (decoded length: -888) in element "
-                  "with field name 'nested..invalid' in object with _id: 1");
+                  "with field name 'nested.invalid' in object with _id: 1");
 }
 
 TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithIdTopLevelField) {
@@ -742,7 +754,7 @@ TEST(BSONValidateFast, InvalidObjectWithNegativeSizeInNestedObjectWithIdTopLevel
     ASSERT_NOT_OK(status);
     ASSERT_EQUALS(status.reason(),
                   "Nested BSON object has to be at least 5 bytes (decoded length: -777) in element "
-                  "with field name '.invalid' in object with _id: 1");
+                  "with field name 'invalid' in object with _id: 1");
 }
 
 TEST(BSONValidateFast, StringHasSomething) {

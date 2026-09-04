@@ -124,6 +124,9 @@ filters:
   - "replica_sets_jscore_passthrough.yml":
     approvers:
       - 10gen/server-jstest-infra
+  - "replica_sets_last_patch.yml":
+    approvers:
+      - 10gen/server-jstest-infra
   - "*execution_control*":
     approvers:
       - 10gen/server-workload-resilience
@@ -154,3 +157,6 @@ filters:
   - "with_mongot_extension*":
     approvers:
       - 10gen/query-integration-extensions-api
+  - "multiversion_sanity_check*":
+    approvers:
+      - 10gen/server-jstest-infra
