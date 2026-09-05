@@ -1,0 +1,255 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4ed094fbd6993217115e4484349b0c6c5eb7f3bc",
+    "merge_commit": "40a624b8e02075d780f72b7142f437f8df3a2f40"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "4ed094fbd6993217115e4484349b0c6c5eb7f3bc",
+    "theirs_commit": "40a624b8e02075d780f72b7142f437f8df3a2f40",
+    "base_commit": "6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\nindex c103f92f63c,d4a3f7744fe..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n@@@ -850,18 -821,0 +849,27 @@@ private\n++<<<<<<< HEAD\n +    class DataAtRestEncryption;\n +\n +    struct IdentToDrop {\n +        std::string uri;\n +        StorageEngine::DropIdentCallback callback;\n +    };\n +\n +    // srcPath, destPath, session, cursor\n +    typedef std::tuple<boost::filesystem::path,\n +                       boost::filesystem::path,\n +                       std::shared_ptr<WiredTigerSession>,\n +                       WT_CURSOR*>\n +        DBTuple;\n +    // srcPath, destPath, filename, size to copy\n +    typedef std::\n +        tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t>\n +            FileTuple;\n +\n++||||||| 6bfc2af2dd8\n++    struct IdentToDrop {\n++        std::string uri;\n++        StorageEngine::DropIdentCallback callback;\n++    };\n++\n++=======\n++>>>>>>> 40a624b8e02075d780f72b7142f437f8df3a2f40"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": [
+        "3a45c25e66fb659c0a01b01cbb888b1f9f3aeabd"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "40a624b8e02075d780f72b7142f437f8df3a2f40",
+    "merged_commits": [
+      "40a624b8e02075d780f72b7142f437f8df3a2f40",
+      "b35bfa9ade57b0f45a44bc1cdf59d51272d8605b",
+      "f41778fb400343aa298a77bf9bafeb93c11652fc",
+      "0790a045dff1fa449ad188730c1d39584de970ed",
+      "982cf3510c9c62a21222c415bcb6527da002c804",
+      "0b83ac80d3de3df84b878d86dd08a47c08455ae9",
+      "74f1a3d18bd8c19e67b0675558adb421001c8131",
+      "5def4ebb9105c5f21af17a723fa0fe8d0cad9f8d",
+      "1fc68556d56bea19471e10e240d274282c0ca089",
+      "93ab7fabc74f6a6af8ff8d738606773f29c18d43",
+      "eb285c4eae3c7cc3eb357c5397e65c3d78f1be5c",
+      "0243011640cb2c3623429b5290085e54d032a1df",
+      "e83380cbde8a4cf9d5f14f3400f077c7470ce30d",
+      "035831dfc67b37ec165a8199ec1d7b48138800be",
+      "599596442f0036a30223b528c58f8a06b13ae4af",
+      "e2bdc305d5d99050a818fad988f404584d8957d7",
+      "f487abaaa261ed10302b05565cd8a32da4c8f41e",
+      "8c9da88cb6b826ebb6a4c65b47661dc1454e38ec",
+      "5db1f59600c762d6dbf623e6b337bf04b5b41dab",
+      "817680475d9433831a2dd108c1a5b41ba7771532",
+      "386fa085ca1555ed75715b48e50e84966741e4fe",
+      "7d24ca777ed27ece073f0c5f5a495808b0219de0",
+      "3a45c25e66fb659c0a01b01cbb888b1f9f3aeabd",
+      "cceecd1a4af13193d4461c4a9ea7e76135e238d6",
+      "efec036605991d5ec959e52d470be8ef40a5a438",
+      "aa2e8961d8489d12163738a0571dc3987ceb68fc",
+      "d0019f6f1bc32e675c848cb4182eb33965336876",
+      "8ffec123f3ae54240ee7846926d78e2ed7ef7007",
+      "bf744d24802b60e494ecebdbbfbdc8db26e591c2",
+      "e7792e2a4cf20d7cc45ae4141649e893058005c8",
+      "f7ed26078213f2765e3532048d24e5f16b3bb973",
+      "c9fad3227891cb7ada99f09325e0490b4b90d5b4",
+      "efe6fda0297f2293c09d892a444bd9f0906b75c0",
+      "d44e9c24be6c6cd7c8f91252d921d136ccb32f97",
+      "b4bc69fb5a03182ae9fa79f6ec9eeb14deb0e404",
+      "5b1c1b0ba7bf0d08d651639e33aca45d485f2a15",
+      "fbd71c0afa867420643c445ecc2c2b018560f58f",
+      "6a8607028adb402f4f53380391b3d503ee05a9ff",
+      "a8d344d4d6b35d3f3b2568daaa0b6ad7a053cbe6",
+      "211004153811b900416dec61b3b1538601b7ee75"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "BUILD.bazel",
+        "bazel/config/BUILD.bazel",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 85703,
+    "num_turns": 8,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.43294175,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001054,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 16,
+        "outputTokens": 6279,
+        "cacheReadInputTokens": 185128,
+        "cacheCreationInputTokens": 29163,
+        "webSearchRequests": 0,
+        "costUSD": 0.43188775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1876,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001054
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 16,
+            "output": 6279,
+            "cache_read": 185128,
+            "cache_creation": 29163
+          },
+          "cost_usd": 0.43188775
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON description. Here's what this merge pulls in from upstream (diff base `6bfc2af` \u2192 merge commit `40a624b`):\n\n**Main themes:**\n1. **Removal of the storage-engine drop-ident callback** (`DropIdentCallback` / `onDrop`) \u2014 the type alias and its parameters are stripped from `StorageEngine`, `KVEngine`, `StorageEngineImpl`, and `WiredTigerKVEngine` drop/`addDropPendingIdent` APIs, including deleting the `IdentToDrop` struct and the `onDrop()` invocation.\n2. **FTDC Linux NIC-stats hardening** against kernel CVE-2025-68795 via a new guard-page-protected `ProtectedEthToolBuf`, stricter length validation, and a switch from `string_view` to owned `string` names.\n3. **Bazel packaging** \u2014 ships amazon2-flavored `mongot`/`rerank` extensions on non-AL2023 Linux via three new `config_setting_group`s.\n4. **Minor**: extra deps on a transport unit test; a new input `lsn` field in the vendored WiredTiger `pl_get_complete_checkpoint` args.\n\n**Conflict note I flagged for reviewers:** the only conflict was in `wiredtiger_kv_engine.h`, resolved by taking upstream's callback removal while preserving Percona's private members. Importantly, the merge-commit side is pure upstream, so the fork-only members (`DataAtRestEncryption`, `DBTuple`/`FileTuple`) don't appear in this diff and must be retained in the final resolved file.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes since the fork diverged at 6bfc2af. The most far-reaching change removes the storage-engine 'drop ident' callback mechanism (DropIdentCallback / onDrop): the callback type and its parameters are dropped from StorageEngine, KVEngine, StorageEngineImpl and WiredTigerKVEngine drop/addDropPendingIdent APIs. FTDC Linux NIC (ethtool) stats collection is hardened against kernel CVE-2025-68795 by introducing a guard-page-protected buffer and stricter length validation. The Bazel packaging is extended to ship amazon2-flavored mongot/rerank extensions on non-AL2023 Linux, a transport unit test gains extra deps, and the vendored WiredTiger header adds an input LSN argument to pl_get_complete_checkpoint. One conflict in wiredtiger_kv_engine.h was resolved by taking upstream's removal of the drop-ident callback while preserving the Percona-specific private members.",
+      "auto_merged": {
+        "BUILD.bazel": "In the mongo_install include_files select, adds two new branches for non_al2023_linux_x86_64 and non_al2023_linux_aarch64 that install the amazon2-flavored mongot_extension and rerank_extension .so and .so.sig files (mapped to lib/libmongot_extension.so / lib/librerank_extension.so). A comment explains the amazon2 (older glibc) artifacts run on every non-AL2023 Linux flavor, while the plain 'dist' target stays AL2023-only.",
+        "bazel/config/BUILD.bazel": "Adds three new selects.config_setting_group definitions: 'non_al2023_any' (match_any over the linux/ubuntu/amazon_linux_2/debian/rhel/suse platforms), and 'non_al2023_linux_x86_64' / 'non_al2023_linux_aarch64' which combine @platforms//os:linux, :non_al2023_any and the respective CPU. These back the new extension-packaging branches added in BUILD.bazel.",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "Hardens the ethtool-based NIC stats gathering against kernel CVE-2025-68795. Adds includes <limits> and <sys/mman.h> and a new ProtectedEthToolBuf class that mmaps a page-aligned buffer followed by a PROT_NONE guard page (via mprotect) so a kernel copy_to_user overflow returns EFAULT instead of corrupting the heap. EthTool now stores a boost::optional<ProtectedEthToolBuf> instead of a raw calloc'd ethtool_gstrings*, and _names becomes std::vector<std::string> instead of std::vector<std::string_view>. _get_strings and _get_stats now validate that the returned len/n_stats matches the expected count (logging warnings 13433900-13433903 and bailing on mismatch or zero count), the destructor no longer free()s _gstrings, get_info uses value-initialization, lastPosixError is replaced by lastSystemError, and the caller's invariant is tightened from 'stats.size() >= names.size()' to '=='.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Removes the 'const StorageEngine::DropIdentCallback& onDrop = nullptr' parameter from the virtual dropIdent() and updates the accompanying doc comment to drop the sentence describing the callback.",
+        "src/mongo/db/storage/storage_engine.h": "Removes the 'using DropIdentCallback = std::function<void()>;' alias and drops the 'DropIdentCallback&& onDrop = nullptr' parameter from the virtual addDropPendingIdent() signature.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Updates callers to the new signatures: dropSpillTable's _spillEngine->dropIdent no longer passes nullptr onDrop, dropIdent's addDropPendingIdent(Immediate{}, ...) call drops the trailing nullptr, and StorageEngineImpl::addDropPendingIdent loses its DropIdentCallback&& onDrop parameter and forwards only dropTime and ident to the reaper.",
+        "src/mongo/db/storage/storage_engine_impl.h": "Removes the 'DropIdentCallback&& onDrop' parameter from the addDropPendingIdent override declaration.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Removes the 'const StorageEngine::DropIdentCallback& onDrop' parameter from WiredTigerKVEngine::dropIdent and deletes the 'if (onDrop) { onDrop(); }' invocation that ran after _removeIdentDirectoryIfEmpty.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Removes the 'const StorageEngine::DropIdentCallback& onDrop' parameter from the dropIdent override and deletes the private IdentToDrop struct (uri + callback). This file was a merge conflict; upstream's removal of the drop-ident callback was taken while the Percona-specific private members were preserved.",
+        "src/mongo/transport/BUILD.bazel": "Adds two dependencies to a mongo_cc_unit_test target: '//src/mongo/db:commands' and '//src/mongo/db/commands/server_status:server_status_core'.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new input field 'uint64_t lsn' to struct __wt_page_log_get_complete_checkpoint_args and documents the pl_get_complete_checkpoint semantics: lsn 0 requests the most recently completed checkpoint, non-zero requests the checkpoint at that LSN (or the next one above it), returning WT_NOTFOUND when none satisfies."
+      },
+      "review_notes": "The dominant upstream change is the wholesale removal of the storage-engine DropIdentCallback/onDrop mechanism across storage_engine.h, kv_engine.h, storage_engine_impl.{h,cpp} and wiredtiger_kv_engine.{h,cpp}; reviewers should confirm no Percona code still relies on passing an onDrop callback into dropIdent/addDropPendingIdent. The only textual conflict was in wiredtiger_kv_engine.h around the private section: the resolution correctly drops upstream's now-removed IdentToDrop struct and the onDrop parameter. Note that the merge-commit side (40a624) is the pure upstream tree, so the Percona-specific private members (e.g. DataAtRestEncryption, DBTuple/FileTuple typedefs) that appear only on the fork are not present in this diff and must be retained in the final resolved file. The FTDC CVE mitigation (ProtectedEthToolBuf) is Linux-specific and introduces new mmap/mprotect usage plus new log IDs (13433900-13433910)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON description. Here's what this merge pulls in from upstream (diff base `6bfc2af` \u2192 merge commit `40a624b`):\n\n**Main themes:**\n1. **Removal of the storage-engine drop-ident callback** (`DropIdentCallback` / `onDrop`) \u2014 the type alias and its parameters are stripped from `StorageEngine`, `KVEngine`, `StorageEngineImpl`, and `WiredTigerKVEngine` drop/`addDropPendingIdent` APIs, including deleting the `IdentToDrop` struct and the `onDrop()` invocation.\n2. **FTDC Linux NIC-stats hardening** against kernel CVE-2025-68795 via a new guard-page-protected `ProtectedEthToolBuf`, stricter length validation, and a switch from `string_view` to owned `string` names.\n3. **Bazel packaging** \u2014 ships amazon2-flavored `mongot`/`rerank` extensions on non-AL2023 Linux via three new `config_setting_group`s.\n4. **Minor**: extra deps on a transport unit test; a new input `lsn` field in the vendored WiredTiger `pl_get_complete_checkpoint` args.\n\n**Conflict note I flagged for reviewers:** the only conflict was in `wiredtiger_kv_engine.h`, resolved by taking upstream's callback removal while preserving Percona's private members. Importantly, the merge-commit side is pure upstream, so the fork-only members (`DataAtRestEncryption`, `DBTuple`/`FileTuple`) don't appear in this diff and must be retained in the final resolved file."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260905_202215_612474.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.261 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "40a624b8e02075d780f72b7142f437f8df3a2f40",
+    "short_sha": "40a624b8e02",
+    "strategy": "huge_commit",
+    "summary": "The WiredTiger vendored import (Import wiredtiger: 7a19be47...) is an ideal merge boundary: a large, atomic, well-isolated third-party import that rarely depends on commits after it and is easy to validate post-merge. It sits at ~40 commits into the window, comfortably within the ~30-65 target band. Crucially, cutting here keeps revert pairs intact so they cancel out within the batch: SERVER-132553 (211004153811) with its revert (c9fad322), SERVER-134155 (fbd71c0a) with its revert (f7ed2607), and SERVER-134159 (982cf351) with its revert (b35bfa9a) are all included together. The re-land of SERVER-134155 (5a88d0e5) is well past this cut and is cleanly left for the next batch. It also stops well short of the freshest, still-unsettled commits at the window's tail.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33989728392"
+  }
+}
