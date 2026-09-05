@@ -1,30 +1,14 @@
 {
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
-<<<<<<< HEAD
-  "specVersion": "1.5",
+  "specVersion": "1.6",
   "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
   "version": 6,
-||||||| 54618137aca
-  "specVersion": "1.5",
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 15,
-=======
-  "specVersion": "1.6",
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 16,
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
   "metadata": {
     "timestamp": "2026-09-01T17:30:15.768931+00:00",
     "lifecycles": [
       {
         "phase": "pre-build"
-      }
-    ],
-    "tools": [
-      {
-        "name": "Endor Labs Inc",
-        "version": "v1.7.1133"
       }
     ],
     "component": {
@@ -36,26 +20,10 @@
           "https://percona.com"
         ]
       },
-<<<<<<< HEAD
       "author": "Percona LLC",
       "publisher": "Percona LLC",
       "group": "percona",
       "name": "percona-server-mongodb",
-||||||| 54618137aca
-      "author": "MongoDB, Inc.",
-      "publisher": "MongoDB, Inc.",
-      "group": "mongodb",
-      "name": "mongodb/mongo",
-=======
-      "authors": [
-        {
-          "name": "MongoDB, Inc."
-        }
-      ],
-      "publisher": "MongoDB, Inc.",
-      "group": "mongodb",
-      "name": "mongodb/mongo",
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
       "version": "master",
       "description": "Percona Server for MongoDB",
       "licenses": [
@@ -74,75 +42,25 @@
           "type": "license"
         },
         {
-<<<<<<< HEAD
           "url": "https://docs.percona.com/percona-server-for-mongodb",
           "comment": "documentation",
-||||||| 54618137aca
-          "url": "https://www.mongodb.com/products/self-managed/community-edition",
-          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.",
-=======
-          "url": "https://www.mongodb.com/docs/manual/release-notes/",
-          "type": "release-notes"
-        },
-        {
-          "url": "https://github.com/mongodb/mongo",
-          "type": "vcs"
-        },
-        {
-          "url": "https://www.mongodb.com/products/self-managed/community-edition",
-          "comment": "MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.",
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
           "type": "website"
         },
         {
-<<<<<<< HEAD
           "url": "https://docs.percona.com/percona-server-for-mongodb/release_notes",
           "type": "release-notes"
         },
         {
           "url": "https://github.com/percona/percona-server-mongodb",
           "type": "vcs"
-||||||| 54618137aca
-          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
-          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.",
-          "type": "website"
-        },
-        {
-          "url": "https://www.mongodb.com/docs/manual/release-notes/",
-          "type": "release-notes"
-        },
-        {
-          "url": "https://github.com/mongodb/mongo",
-          "type": "vcs"
-=======
-          "url": "https://www.mongodb.com/products/self-managed/enterprise-advanced",
-          "comment": "MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.",
-          "type": "website"
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
         }
       ]
     },
     "supplier": {
       "name": "Percona LLC",
       "url": [
-<<<<<<< HEAD
         "https://percona.com"
       ]
-||||||| 54618137aca
-        "https://mongodb.com"
-      ]
-    },
-    "tools": {
-      "services": [
-        {
-          "name": "Endor Labs Inc",
-          "version": "v1.7.1104"
-        }
-      ]
-=======
-        "https://mongodb.com"
-      ]
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
     }
   },
   "components": [
@@ -3702,123 +3620,6 @@
   ],
   "dependencies": [
     {
-      "ref": "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source"
-    },
-    {
-      "ref": "pkg:generic/intel/IntelRDFPMathLib@2.0.1"
-    },
-    {
-      "ref": "pkg:generic/unicode-org/unicode@8.0.0"
-    },
-    {
-      "ref": "pkg:generic/valgrind/valgrind@3.17.0"
-    },
-    {
-      "ref": "pkg:github/aappleby/smhasher@a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb"
-    },
-    {
-      "ref": "pkg:github/abseil/abseil-cpp@20250512.1"
-    },
-    {
-      "ref": "pkg:github/antirez/linenoise@6cdc775807e57b2c3fd64bd207814f8ee1fe35f3"
-    },
-    {
-      "ref": "pkg:github/arximboldi/immer@v0.9.1"
-    },
-    {
-      "ref": "pkg:github/aws/s2n-tls@v1.7.3"
-    },
-    {
-      "ref": "pkg:github/boostorg/boost@boost-1.88.0"
-    },
-    {
-      "ref": "pkg:github/c-ares/c-ares@cares-1_27_0"
-    },
-    {
-      "ref": "pkg:github/chriskohlhoff/asio@asio-1-34-2"
-    },
-    {
-      "ref": "pkg:github/cyan4973/xxhash@v0.8.3"
-    },
-    {
-      "ref": "pkg:github/cyrusimap/cyrus-sasl@cyrus-sasl-2.1.28"
-    },
-    {
-      "ref": "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0"
-    },
-    {
-      "ref": "pkg:github/dcleblanc/safeint@3.0.28a"
-    },
-    {
-      "ref": "pkg:github/derickr/timelib@2022.13"
-    },
-    {
-      "ref": "pkg:github/facebook/folly@v2025.04.21.00"
-    },
-    {
-      "ref": "pkg:github/facebook/zstd@v1.5.5"
-    },
-    {
-      "ref": "pkg:github/fmtlib/fmt@11.2.0"
-    },
-    {
-      "ref": "pkg:github/google/benchmark@v1.5.2"
-    },
-    {
-      "ref": "pkg:github/google/fuzztest@2025-07-28"
-    },
-    {
-      "ref": "pkg:github/google/googletest@1.17.0"
-    },
-    {
-      "ref": "pkg:github/google/re2@2025-08-12"
-    },
-    {
-      "ref": "pkg:github/google/s2geometry@a25c502bda9d7e0274b9e2b7825fbddf13cc0306"
-    },
-    {
-      "ref": "pkg:github/google/snappy@1.1.10"
-    },
-    {
-      "ref": "pkg:github/google/tcmalloc@f3b20f9a07e175c5d897df7b49d9830d4efa6110"
-    },
-    {
-      "ref": "pkg:github/gperftools/gperftools@2.9.1"
-    },
-    {
-      "ref": "pkg:github/grpc/grpc@1.74.1"
-    },
-    {
-      "ref": "pkg:github/jbeder/yaml-cpp@yaml-cpp-0.6.3"
-    },
-    {
-      "ref": "pkg:github/jeremy-rifkin/cpptrace@v1.0.3"
-    },
-    {
-      "ref": "pkg:github/json-c/json-c@0.17"
-    },
-    {
-      "ref": "pkg:github/json-schema-org/json-schema-test-suite@728066f9c5c258ba3b1804a22a5b998f2ec77ec0"
-    },
-    {
-      "ref": "pkg:github/jupp0r/prometheus-cpp@v1.2.2"
-    },
-    {
-      "ref": "pkg:github/libarchive/bzip2@bzip2-1.0.8"
-    },
-    {
-      "ref": "pkg:github/libtom/libtomcrypt@v1.18.2"
-    },
-    {
-      "ref": "pkg:github/libunwind/libunwind@1.8.1"
-    },
-    {
-      "ref": "pkg:github/madler/zlib@1.3.2"
-    },
-    {
-      "ref": "pkg:github/mongodb/libmongocrypt@1.20.0"
-    },
-    {
       "ref": "pkg:github/mongodb/mongo-c-driver@2.3.0",
       "dependsOn": [
         "pkg:github/madler/zlib@1.3.2"
@@ -3839,8 +3640,6 @@
         "pkg:github/boostorg/boost@boost-1.88.0",
         "pkg:github/c-ares/c-ares@cares-1_27_0",
         "pkg:github/chriskohlhoff/asio@asio-1-34-2",
-        "pkg:github/cyan4973/xxhash@v0.8.3",
-        "pkg:github/cyrusimap/cyrus-sasl@cyrus-sasl-2.1.28",
         "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
         "pkg:github/dcleblanc/safeint@3.0.28a",
         "pkg:github/derickr/timelib@2022.13",
@@ -3850,21 +3649,19 @@
         "pkg:github/google/benchmark@v1.5.2",
         "pkg:github/google/fuzztest@2025-07-28",
         "pkg:github/google/googletest@1.17.0",
-        "pkg:github/google/re2@2025-08-12",
+        "pkg:github/google/re2@2025-08-05",
         "pkg:github/google/s2geometry@a25c502bda9d7e0274b9e2b7825fbddf13cc0306",
         "pkg:github/google/snappy@1.1.10",
         "pkg:github/google/tcmalloc@f3b20f9a07e175c5d897df7b49d9830d4efa6110",
         "pkg:github/gperftools/gperftools@2.9.1",
-        "pkg:github/grpc/grpc@1.74.1",
+        "pkg:github/grpc/grpc@v1.74.1",
         "pkg:github/jbeder/yaml-cpp@yaml-cpp-0.6.3",
         "pkg:github/jeremy-rifkin/cpptrace@v1.0.3",
         "pkg:github/json-schema-org/json-schema-test-suite@728066f9c5c258ba3b1804a22a5b998f2ec77ec0",
-        "pkg:github/jupp0r/prometheus-cpp@v1.2.2",
         "pkg:github/libtom/libtomcrypt@v1.18.2",
-        "pkg:github/libunwind/libunwind@1.8.1",
+        "pkg:github/libunwind/libunwind@v1.8.1",
         "pkg:github/madler/zlib@1.3.2",
         "pkg:github/mongodb/libmongocrypt@1.20.0",
-        "pkg:github/mongodb/mongo-c-driver@2.3.0",
         "pkg:github/nlohmann/json@v3.11.3",
         "pkg:github/nodejs/node@22.1.0?download_url=https%3A%2F%2Fgithub.com%2Fnodejs%2Fnode%2Fblob%2F8b45c5d26a829bcd3280401dbc1874bcd1302289%2Fsrc%2Fnode_i18n.cc%23L825%23src%2Fnode_i18n.cc%3AGetStringWidth#src/node_i18n.cc",
         "pkg:github/open-telemetry/opentelemetry-cpp@v1.24.0",
@@ -3883,24 +3680,6 @@
       ]
     },
     {
-      "ref": "pkg:github/nlohmann/json@v3.11.3"
-    },
-    {
-      "ref": "pkg:github/nodejs/node@22.1.0?download_url=https%3A%2F%2Fgithub.com%2Fnodejs%2Fnode%2Fblob%2F8b45c5d26a829bcd3280401dbc1874bcd1302289%2Fsrc%2Fnode_i18n.cc%23L825%23src%2Fnode_i18n.cc%3AGetStringWidth#src/node_i18n.cc"
-    },
-    {
-      "ref": "pkg:github/open-telemetry/opentelemetry-cpp@v1.24.0"
-    },
-    {
-      "ref": "pkg:github/open-telemetry/opentelemetry-proto@1.3.2"
-    },
-    {
-      "ref": "pkg:github/pcre2project/pcre2@pcre2-10.40"
-    },
-    {
-      "ref": "pkg:github/protocolbuffers/protobuf@v6.31.1"
-    },
-    {
       "ref": "pkg:github/rnpgp/rnp@v0.18.1",
       "dependsOn": [
         "pkg:github/json-c/json-c@0.17",
@@ -3908,28 +3687,34 @@
       ]
     },
     {
-      "ref": "pkg:github/roaringbitmap/croaring@v3.0.1"
+      "ref": "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:github/schemastore/schemastore@6847cfc3a17a04a7664474212db50c627e1e3408"
+      "ref": "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:github/snowballstem/snowball@1.0.0"
+      "ref": "pkg:generic/unicode-org/unicode@8.0.0",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:github/unicode-org/icu@icu-release-57-1"
+      "ref": "pkg:generic/valgrind/valgrind@3.17.0",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:github/veorq/siphash@32d067603b93b47828700880649198e0bfbbcffa"
+      "ref": "pkg:github/aappleby/smhasher@a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:github/wiredtiger/wiredtiger@12.0.0"
+      "ref": "pkg:github/abseil/abseil-cpp@20250512.1",
+      "dependsOn": []
     },
     {
-      "ref": "pkg:pypi/ocspbuilder@0.10.2"
+      "ref": "pkg:github/antirez/linenoise@6cdc775807e57b2c3fd64bd207814f8ee1fe35f3",
+      "dependsOn": []
     },
     {
-<<<<<<< HEAD
       "ref": "pkg:github/arximboldi/immer@v0.9.1",
       "dependsOn": []
     },
@@ -4131,188 +3916,6 @@
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0",
       "dependsOn": []
-||||||| 54618137aca
-      "ref": "pkg:github/arximboldi/immer@v0.9.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/aws/s2n-tls@v1.7.3",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/boostorg/boost@boost-1.88.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/c-ares/c-ares@cares-1_27_0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/chriskohlhoff/asio@asio-1-34-2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/cyan4973/xxhash@v0.8.3",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/dcleblanc/safeint@3.0.28a",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/derickr/timelib@2022.13",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/facebook/folly@v2025.04.21.00",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/facebook/zstd@v1.5.5",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/fmtlib/fmt@11.2.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/benchmark@v1.5.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/fuzztest@2025-07-28",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/googletest@1.17.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/re2@2025-08-05",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/s2geometry@a25c502bda9d7e0274b9e2b7825fbddf13cc0306",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/snappy@1.1.10",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/google/tcmalloc@f3b20f9a07e175c5d897df7b49d9830d4efa6110",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/gperftools/gperftools@2.9.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/grpc/grpc@v1.74.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/jbeder/yaml-cpp@yaml-cpp-0.6.3",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/jeremy-rifkin/cpptrace@v1.0.3",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/json-c/json-c@0.17",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/json-schema-org/json-schema-test-suite@728066f9c5c258ba3b1804a22a5b998f2ec77ec0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/jupp0r/prometheus-cpp@v1.2.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/libarchive/bzip2@bzip2-1.0.8",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/libtom/libtomcrypt@v1.18.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/libunwind/libunwind@v1.8.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/madler/zlib@1.3.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/mongodb/libmongocrypt@1.20.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/nlohmann/json@v3.11.3",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/nodejs/node@22.1.0?download_url=https%3A%2F%2Fgithub.com%2Fnodejs%2Fnode%2Fblob%2F8b45c5d26a829bcd3280401dbc1874bcd1302289%2Fsrc%2Fnode_i18n.cc%23L825%23src%2Fnode_i18n.cc%3AGetStringWidth#src/node_i18n.cc",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/open-telemetry/opentelemetry-cpp@v1.24.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/open-telemetry/opentelemetry-proto@1.3.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/pcre2project/pcre2@pcre2-10.40",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/protocolbuffers/protobuf@v6.31.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/roaringbitmap/croaring@v3.0.1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/schemastore/schemastore@6847cfc3a17a04a7664474212db50c627e1e3408",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/snowballstem/snowball@1.0.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/unicode-org/icu@icu-release-57-1",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/veorq/siphash@32d067603b93b47828700880649198e0bfbbcffa",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:github/wiredtiger/wiredtiger@12.0.0",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:pypi/ocspbuilder@0.10.2",
-      "dependsOn": []
-    },
-    {
-      "ref": "pkg:pypi/ocspresponder@0.5.0",
-      "dependsOn": []
-=======
-      "ref": "pkg:pypi/ocspresponder@0.5.0"
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
     }
   ],
   "vulnerabilities": []

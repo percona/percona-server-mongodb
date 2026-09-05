@@ -45,15 +45,9 @@ a notice will be included in
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [json-c]                                             | MIT                                            | 0.17                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
-<<<<<<< HEAD
 | [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
-| [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
-| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
-||||||| 54618137aca
-| [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
-=======
 | [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
+| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
 | [libunwind]                                          | MIT                                            | 1.8.1                                    |                      | ✗                               |
 | [linenoise]                                          | BSD-2-Clause                                   | 6cdc775807e57b2c3fd64bd207814f8ee1fe35f3 |                      | ✗                               |
@@ -163,7 +157,6 @@ here.
 
 Percona Server for MongoDB directly links the following dynamic libraries:
 
-<<<<<<< HEAD
 | Name                  | Typical Linked Library Filename(s)               |
 | --------------------- | ------------------------------------------------ |
 | GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |
@@ -176,23 +169,6 @@ Percona Server for MongoDB directly links the following dynamic libraries:
 
 Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just
 examples and can differ from platform to platform.
-||||||| 54618137aca
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">3</a>]</sup> |
-| libcurl    |       No        |                           No                            |
-=======
-| Name       | Enterprise Only |                    Has Windows DLLs                     |
-| :--------- | :-------------: | :-----------------------------------------------------: |
-| Cyrus SASL |       Yes       |                           Yes                           |
-| libldap    |       Yes       |                           No                            |
-| net-snmp   |       Yes       |                           Yes                           |
-| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">2</a>]</sup> |
-| libcurl    |       No        |                           No                            |
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
 
 ## Notes:
 
@@ -201,20 +177,6 @@ examples and can differ from platform to platform.
    header file which is licensed under a BSD license. This BSD licensed header is the only
    file from Valgrind which is vendored and consumed by MongoDB.
 
-<<<<<<< HEAD
 2. <a id="note_wt" href="#ref_wt">^</a>
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
-||||||| 54618137aca
-2. <a id="note_wt" href="#ref_wt">^</a>
-   WiredTiger is maintained by MongoDB in a separate repository. As a part of our
-   development process, we periodically ingest the latest snapshot of that repository.
-
-3. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
-=======
-2. <a id="note_ssl" href="#ref_ssl">^</a>
-   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
-   shell and server binaries use Windows' cryptography APIs.
->>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
