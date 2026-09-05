@@ -1,0 +1,265 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "c61a043867b65022be3104d4a18876a7dba67fe6",
+    "merge_commit": "6bfc2af2dd869272e7802a8ec018dee84d9e2c95"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "c61a043867b65022be3104d4a18876a7dba67fe6",
+    "theirs_commit": "6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+    "base_commit": "54618137aca40b61cee3aaf4e568d9bea5c9bc31",
+    "files": [
+      "README.third_party.md",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "README.third_party.md": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "README.third_party.md": "diff --cc README.third_party.md\nindex 823e41a5727,38ba880d587..00000000000\n--- a/README.third_party.md\n+++ b/README.third_party.md\n@@@ -47,3 -47,1 +48,9 @@@ a notice will be included i\n++<<<<<<< HEAD\n +| [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | \u2717                    | \u2717                               |\n +| [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |\n +| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | \u2717                               |\n++||||||| 54618137aca\n++| [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |\n++=======\n+ | [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -145,16 -150,15 +162,34 @@@ libraries will depend on the runtime en\n -here. On Windows and Mac OS, other libraries and components provided by\n -the Operating System may be loaded.\n -\n -For Windows Enterprise, we may ship precompiled DLLs containing some of\n -these libraries. Releases prepared in this fashion will include a copy\n -of these libraries' license in a file named\n -`THIRD-PARTY-NOTICES.windows`.\n -\n +here.\n +\n +Percona Server for MongoDB directly links the following dynamic libraries:\n +\n++<<<<<<< HEAD\n +| Name                  | Typical Linked Library Filename(s)               |\n +| --------------------- | ------------------------------------------------ |\n +| GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |\n +| GCC support library   | `libgcc_s.so.1`                                  |\n +| libcurl               | `libcurl.so.4`                                   |\n +| Cyrus SASL            | `libsasl2.so.2`                                  |\n +| Kerberos 5 GSS-API    | `libgssapi_krb5.so.2`                            |\n +| OpenLDAP              | `liblber.so.2`, `libldap.so.2`                   |\n +| OpenSSL               | `libcrypto.so.3`, `libssl.so.3`                  |\n +\n +Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just\n +examples and can differ from platform to platform.\n++||||||| 54618137aca\n++| Name       | Enterprise Only |                    Has Windows DLLs                     |\n++| :--------- | :-------------: | :-----------------------------------------------------: |\n++| Cyrus SASL |       Yes       |                           Yes                           |\n++| libldap    |       Yes       |                           No                            |\n++| net-snmp   |       Yes       |                           Yes                           |\n++| OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">3</a>]</sup> |\n++| libcurl    |       No        |                           No                            |\n++=======\n+ | Name       | Enterprise Only |                    Has Windows DLLs                     |\n+ | :--------- | :-------------: | :-----------------------------------------------------: |\n+ | Cyrus SASL |       Yes       |                           Yes                           |\n+ | libldap    |       Yes       |                           No                            |\n+ | net-snmp   |       Yes       |                           Yes                           |\n+ | OpenSSL    |       No        | Yes<sup>\\[<a href=\"#note_ssl\" id=\"ref_ssl\">2</a>]</sup> |\n+ | libcurl    |       No        |                           No                            |\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -169,3 -173,3 +204,17 @@@\n++<<<<<<< HEAD\n +2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n +   WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n +   development process, we periodically ingest the latest snapshot of that repository.\n++||||||| 54618137aca\n++2. <a id=\"note_wt\" href=\"#ref_wt\">^</a>\n++   WiredTiger is maintained by MongoDB in a separate repository. As a part of our\n++   development process, we periodically ingest the latest snapshot of that repository.\n++\n++3. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n++   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n++   shell and server binaries use Windows' cryptography APIs.\n++=======\n+ 2. <a id=\"note_ssl\" href=\"#ref_ssl\">^</a>\n+    OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB\n+    shell and server binaries use Windows' cryptography APIs.\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+      "sbom.json": "diff --cc sbom.json\nindex f33803b1e0b,c3a89c3b896..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -4,3 -4,3 +4,13 @@@\n++<<<<<<< HEAD\n +  \"specVersion\": \"1.5\",\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 54618137aca\n++  \"specVersion\": \"1.5\",\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 15,\n++=======\n+   \"specVersion\": \"1.6\",\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 16,\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -23,4 -29,8 +39,20 @@@\n++<<<<<<< HEAD\n +      \"author\": \"Percona LLC\",\n +      \"publisher\": \"Percona LLC\",\n +      \"group\": \"percona\",\n +      \"name\": \"percona-server-mongodb\",\n++||||||| 54618137aca\n++      \"author\": \"MongoDB, Inc.\",\n++      \"publisher\": \"MongoDB, Inc.\",\n++      \"group\": \"mongodb\",\n++      \"name\": \"mongodb/mongo\",\n++=======\n+       \"authors\": [\n+         {\n+           \"name\": \"MongoDB, Inc.\"\n+         }\n+       ],\n+       \"publisher\": \"MongoDB, Inc.\",\n+       \"group\": \"mongodb\",\n+       \"name\": \"mongodb/mongo\",\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -45,2 -53,10 +77,18 @@@\n++<<<<<<< HEAD\n +          \"url\": \"https://docs.percona.com/percona-server-for-mongodb\",\n +          \"comment\": \"documentation\",\n++||||||| 54618137aca\n++          \"url\": \"https://www.mongodb.com/products/self-managed/community-edition\",\n++          \"comment\": \"MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.\",\n++=======\n+           \"url\": \"https://www.mongodb.com/docs/manual/release-notes/\",\n+           \"type\": \"release-notes\"\n+         },\n+         {\n+           \"url\": \"https://github.com/mongodb/mongo\",\n+           \"type\": \"vcs\"\n+         },\n+         {\n+           \"url\": \"https://www.mongodb.com/products/self-managed/community-edition\",\n+           \"comment\": \"MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.\",\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -50,6 -66,3 +98,24 @@@\n++<<<<<<< HEAD\n +          \"url\": \"https://docs.percona.com/percona-server-for-mongodb/release_notes\",\n +          \"type\": \"release-notes\"\n +        },\n +        {\n +          \"url\": \"https://github.com/percona/percona-server-mongodb\",\n +          \"type\": \"vcs\"\n++||||||| 54618137aca\n+           \"url\": \"https://www.mongodb.com/products/self-managed/enterprise-advanced\",\n+           \"comment\": \"MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.\",\n+           \"type\": \"website\"\n++        },\n++        {\n++          \"url\": \"https://www.mongodb.com/docs/manual/release-notes/\",\n++          \"type\": \"release-notes\"\n++        },\n++        {\n++          \"url\": \"https://github.com/mongodb/mongo\",\n++          \"type\": \"vcs\"\n++=======\n++          \"url\": \"https://www.mongodb.com/products/self-managed/enterprise-advanced\",\n++          \"comment\": \"MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.\",\n++          \"type\": \"website\"\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n@@@ -62,103 -75,5 +128,21 @@@\n++<<<<<<< HEAD\n +        \"https://percona.com\"\n +      ]\n-     }\n-   },\n-   \"components\": [\n-     {\n-       \"type\": \"library\",\n- (... 40 more deleted lines...)\n-         },\n-         {\n-           \"name\": \"import_script_path\",\n-           \"value\": \"src/third_party/mozjs/scripts/import.sh\"\n-         }\n++||||||| 54618137aca\n++        \"https://mongodb.com\"\n +      ]\n +    },\n-     {\n-       \"type\": \"library\",\n-       \"bom-ref\": \"pkg:generic/intel/IntelRDFPMathLib@2.0.1\",\n-       \"supplier\": {\n-         \"name\": \"Intel\",\n- (... 33 more deleted lines...)\n-             \"location\": \"src/third_party/IntelRDFPMathLib20U1\"\n-           }\n-         ]\n-       },\n-       \"properties\": [\n++    \"tools\": {\n++      \"services\": [\n +        {\n-           \"name\": \"emits_persisted_data\",\n-           \"value\": \"false\"\n++          \"name\": \"Endor Labs Inc\",\n++          \"version\": \"v1.7.1104\"\n +        }\n +      ]\n-     },\n++=======\n+         \"https://mongodb.com\"\n+       ]\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95\n+     }\n+   },\n+   \"components\": [\n@@@ -2013,71 -2425,126 +2594,197 @@@\n +    {\n +      \"type\": \"application\",\n +      \"bom-ref\": \"pkg:github/mongodb/mongo@master\",\n +      \"supplier\": {\n +        \"name\": \"MongoDB, Inc.\",\n +        \"url\": [\n +          \"https://mongodb.com\"\n +        ]\n +      },\n +      \"author\": \"MongoDB, Inc.\",\n +      \"publisher\": \"MongoDB, Inc.\",\n +      \"group\": \"mongodb\",\n +      \"name\": \"mongodb/mongo\",\n +      \"version\": \"master\",\n +      \"description\": \"The MongoDB Database\",\n +      \"scope\": \"required\",\n +      \"licenses\": [\n +        {\n +          \"expression\": \"SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License\"\n +        }\n +      ],\n +      \"copyright\": \"MongoDB, Inc.\",\n +      \"cpe\": \"cpe:2.3:a:mongodb:mongodb:master:*:*:*:*:*:*:*\",\n +      \"purl\": \"pkg:github/mongodb/mongo@master\",\n +      \"externalReferences\": [\n +        {\n +          \"url\": \"https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt\",\n +          \"comment\": \"Server Side Public License 1.0\",\n +          \"type\": \"license\"\n +        },\n +        {\n +          \"url\": \"https://www.mongodb.com/products/self-managed/community-edition\",\n +          \"comment\": \"MongoDB Community Edition is self-managed and can be hosted locally or in the cloud.\",\n +          \"type\": \"website\"\n +        },\n +        {\n +          \"url\": \"https://www.mongodb.com/products/self-managed/enterprise-advanced\",\n +          \"comment\": \"MongoDB Enterprise Advanced has powerful tools for automation, operations, and security in self-managed environments.\",\n +          \"type\": \"website\"\n +        },\n +        {\n +          \"url\": \"https://www.mongodb.com/docs/manual/release-notes/\",\n +          \"type\": \"release-notes\"\n +        },\n +        {\n +          \"url\": \"https://github.com/mongodb/mongo\",\n +          \"type\": \"vcs\"\n +        }\n +      ],\n +      \"evidence\": {\n +        \"occurrences\": [\n +          {\n +            \"location\": \"src/mongo\"\n +          }\n +        ]\n +      },\n +      \"properties\": [\n +        {\n +          \"name\": \"emits_persisted_data\",\n +          \"value\": \"true\"\n +        },\n +        {\n +          \"name\": \"internal:team_responsible\",\n +          \"value\": \"MongoDB Team\"\n +        },\n +        {\n +          \"name\": \"mdb_first_party\",\n +          \"value\": \"true\"\n +        }\n +      ]\n +    },\n+     {\n+       \"type\": \"library\",\n+       \"bom-ref\": \"pkg:github/mongodb/libmongocrypt@1.20.0\",\n+       \"supplier\": {\n+         \"name\": \"MongoDB, Inc.\",\n+ (... 116 more added lines...)\n+           \"name\": \"import_script_path\",\n+           \"value\": \"src/third_party/mozjs/scripts/import.sh\"\n+         }\n+       ]\n+     },\n@@@ -2915,201 -3645,1 +3932,384 @@@\n++<<<<<<< HEAD\n +      \"ref\": \"pkg:github/arximboldi/immer@v0.9.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/aws/aws-sdk-cpp@1.11.471\",\n +      \"dependsOn\": [\n +        \"pkg:github/madler/zlib@1.3.2\"\n +      ]\n +    },\n +    {\n +      \"ref\": \"pkg:github/aws/s2n-tls@v1.7.3\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/boostorg/boost@boost-1.88.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/c-ares/c-ares@cares-1_27_0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/chriskohlhoff/asio@asio-1-34-2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/cyan4973/xxhash@v0.8.3\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/davea42/libdwarf-code@libdwarf-2.1.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/dcleblanc/safeint@3.0.28a\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/derickr/timelib@2022.13\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/facebook/folly@v2025.04.21.00\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/facebook/zstd@v1.5.5\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/fmtlib/fmt@11.2.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/benchmark@v1.5.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/fuzztest@2025-07-28\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/googletest@1.17.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/re2@2025-08-05\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/s2geometry@a25c502bda9d7e0274b9e2b7825fbddf13cc0306\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/snappy@1.1.10\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/google/tcmalloc@f3b20f9a07e175c5d897df7b49d9830d4efa6110\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/gperftools/gperftools@2.9.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/grpc/grpc@v1.74.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/jbeder/yaml-cpp@yaml-cpp-0.6.3\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/jeremy-rifkin/cpptrace@v1.0.3\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/json-c/json-c@0.17\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/json-schema-org/json-schema-test-suite@728066f9c5c258ba3b1804a22a5b998f2ec77ec0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/jupp0r/prometheus-cpp@v1.2.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/libarchive/bzip2@bzip2-1.0.8\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/libarchive/libarchive@v3.8.4\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/libtom/libtomcrypt@v1.18.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/libunwind/libunwind@v1.8.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/madler/zlib@1.3.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/mongodb/libmongocrypt@1.20.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/nlohmann/json@v3.11.3\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/nodejs/node@22.1.0?download_url=https%3A%2F%2Fgithub.com%2Fnodejs%2Fnode%2Fblob%2F8b45c5d26a829bcd3280401dbc1874bcd1302289%2Fsrc%2Fnode_i18n.cc%23L825%23src%2Fnode_i18n.cc%3AGetStringWidth#src/node_i18n.cc\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/open-telemetry/opentelemetry-cpp@v1.24.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/open-telemetry/opentelemetry-proto@1.3.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/pcre2project/pcre2@pcre2-10.40\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/percona/percona-server-mongodb@master\",\n +      \"dependsOn\": [\n +        \"pkg:github/aws/aws-sdk-cpp@1.11.471\",\n +        \"pkg:github/libarchive/libarchive@v3.8.4\",\n +        \"pkg:github/mongodb/mongo@master\",\n +        \"pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d\"\n +      ]\n +    },\n +    {\n +      \"ref\": \"pkg:github/protocolbuffers/protobuf@v6.31.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/roaringbitmap/croaring@v3.0.1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/schemastore/schemastore@6847cfc3a17a04a7664474212db50c627e1e3408\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/snowballstem/snowball@1.0.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/unicode-org/icu@icu-release-57-1\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/veorq/siphash@32d067603b93b47828700880649198e0bfbbcffa\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:github/wiredtiger/wiredtiger@12.0.0\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:pypi/ocspbuilder@0.10.2\",\n +      \"dependsOn\": []\n +    },\n +    {\n +      \"ref\": \"pkg:pypi/ocspresponder@0.5.0\",\n +      \"dependsOn\": []\n++||||||| 54618137aca\n++      \"ref\": \"pkg:github/arximboldi/immer@v0.9.1\",\n++      \"dependsOn\": []\n++    },\n++    {\n+ (... 172 more added lines...)\n++      \"ref\": \"pkg:pypi/ocspresponder@0.5.0\",\n++      \"dependsOn\": []\n++=======\n+       \"ref\": \"pkg:pypi/ocspresponder@0.5.0\"\n++>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95"
+    },
+    "their_commits": {
+      "README.third_party.md": [
+        "d4089ca8721646c1dc944b2e81ca72cdbab5e5a2"
+      ],
+      "sbom.json": [
+        "d4089ca8721646c1dc944b2e81ca72cdbab5e5a2"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+    "merged_commits": [
+      "6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+      "c21a37289cec91cd215da38d094e5408fe349cdb",
+      "045fb56702782c68e2245f6fe4f67fc81ac8d357",
+      "0afca1dcbb9f314488008a025fb5c81859a3a768",
+      "21162476e3b18b7bf98f3930039cde362c26a993",
+      "c9564fe204ed6482179dc4b52c72e1367ad7b748",
+      "b2717cfa571136ad0ddff95ebe8c89820afa9324",
+      "dfb906d1cc4c6ec6b1a37586fd6f2fdf7bb0cb79",
+      "33ed9bb49c3cbbcfd4bad8d3bc05404bf08629e0",
+      "a59dd4bca5b1e74080a037d81655df5cec33efb7",
+      "7575f1861ad78d59756a4349a3d53316f0bdb3b9",
+      "a246cf727e3a9107b3460266d59ddd94e8f1f968",
+      "40fd447bcd8b028753e6428df7ba0463aa6fe9e6",
+      "6c203f77f091764ba279d20bf0a3949c86d3c98c",
+      "4e1a5009c84c3eda575320f18569e07164d9d121",
+      "a234c0a4f9b65d1523fc2462bfc03dc81867ace1",
+      "4af5793b18665205654bffdcc0980beaef186cac",
+      "33e8b8c3299cd5463cc898fc6ff8fc2987295966",
+      "939b5bbd8156bf0934d2d04fb786bace50db735d",
+      "2b26bd3f50a1563a5da121c3e9f25381a0d9b61d",
+      "402b32b0afdd71e5d0bfa7c426876dd805a4357e",
+      "22b04da90e5d955dde4ad683d55a12c73a586686",
+      "d93fafcecc937dd2c27d849e50732f8bd1e78af3",
+      "06a0135ce6e12dd1546d8e43e9690918f1e429d3",
+      "4d73f9c51283776d460232cfc350c64de2a3c6f0",
+      "d4089ca8721646c1dc944b2e81ca72cdbab5e5a2",
+      "9f4465442e0f65f921a63395e5330b1fcdfbf3ea",
+      "7abdd5395c5565e6455b43e255b6733c29bff8fc",
+      "2a2e79f865864203f791527c7b0e5df774bc5128",
+      "ec789b9470b24b35bc6e8c0014d9ffe9f65f8a32",
+      "b6c1a4625f5d2bb71a0c0c785b02eb88380dba60",
+      "53f6c0a84bbcbf1f6f3b428b73d296900c16fe0b",
+      "1feb1ffaffce5d3582ecd5a101955bf7ccedef05",
+      "235d6fe3696db2d6fec83123cb0aa2031908a328",
+      "d0dd4ab6a66b85eccc779c2eecb56697894b9b03",
+      "3e664eb426a059f51700a8f9929da7acd7cfbeb3",
+      "249b13434d49bb17987e6800d0057e4ef09c5f3b",
+      "e730bacf473c0d8c8a12ad08ac24dbe58ae0fd46",
+      "736f780306ef2dc57e2d07559bf71ed281f08844",
+      "15afad485cce11a90908ce69a1d53eeff2a1818b",
+      "207c296e2326085e5db2a67d8042b26db16e8f55",
+      "b7efc6bfd451e2d27c58da122879ea29907f6279",
+      "19f5c3517dd0a70a4a8a38390dedd74d844e7aee",
+      "04e25ea2017c5851a50f5632304491397ba2bc42",
+      "efe8c9ea27dbeb26990471b3d429c779d52087c7",
+      "c182a1610b09ea31f4403037ca05394e8b66b57b",
+      "7e534d63fd3134218b13a23e257e5a26b8f375e4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "README.third_party.md",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/libs/mongos_api_params_util.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 80896,
+    "num_turns": 6,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.50307075,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 16,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001059,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 5816,
+        "cacheReadInputTokens": 179091,
+        "cacheCreationInputTokens": 42721,
+        "webSearchRequests": 0,
+        "costUSD": 0.50201175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 559,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 16,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001059
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 5816,
+            "cache_read": 179091,
+            "cache_creation": 42721
+          },
+          "cost_usd": 0.50201175
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge by reading the real `diff base \u2192 merge commit` diff for every auto-merged file and the two conflicted files, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **`listMetricsFilteringAllowlist` \u2192 `getMetricsFilteringAllowlist`**: a test-only command is replaced by a new command. This drives the largest share of the changeset \u2014 the IDL/source target rename in `src/mongo/db/commands/BUILD.bazel` plus updated command-catalog entries across ~12 jstests (auth, views, write-concern, replset and sharding \"all commands\" suites).\n- **New internal streams preview commands**: `streams_previewStream`, `streams_getMorePreview`, `streams_stopPreview` added as skips in the same catalogs.\n- **Error code 512 `WriteConflictRetryLimitExceeded` removed** (\"Removed in v9.1\"), with the matching `write_conflict_storm` dep dropped from `src/mongo/db/BUILD.bazel`.\n- **Resharding document verification** now enabled unconditionally in `shardedcluster.py` (multiversion gate removed).\n- **WiredTiger ingest**: new eviction stat `..._SKIP_TREES_WALK_COMPLETE` (1172) with renumbering of following constants.\n- **README.third_party.md / sbom.json**: third-party/license metadata updates; both were conflicted and I described the Percona-preserving resolution per the conflict hints.\n\nThe response file was written to the requested path with a per-file breakdown and reviewer notes (including reminders about the sbom `tools`-section removal, Percona supplier URL, and regenerating `MODULE.bazel.lock` via bazel).",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the PSMDB master branch. The dominant theme is the replacement of the test-only 'listMetricsFilteringAllowlist' command with a new 'getMetricsFilteringAllowlist' command (renamed IDL/source targets and updated command-catalog test entries across many jstests), plus the addition of three new internal stream-processor preview commands: 'streams_previewStream', 'streams_getMorePreview' and 'streams_stopPreview'. Other changes: the WriteConflictRetryLimitExceeded error code (512) is removed (commented out, 'Removed in v9.1') and the 'write_conflict_storm' library dependency is dropped from src/mongo/db/BUILD.bazel; the resharding document-verification test parameter is now enabled unconditionally (the multiversion skip is removed); a WiredTiger snapshot ingest adds a new eviction statistic and renumbers subsequent WT_STAT_CONN constants; and README.third_party.md / sbom.json receive third-party metadata/license updates (both had conflicts that were resolved keeping Percona-specific content).",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Bazel lock file regenerated as part of the merge (16 insertions, 1 deletion). Not manually mergeable; regenerated via bazel so its dependency hashes match the merged MODULE.bazel state.",
+        "README.third_party.md": "Upstream third-party dependency table updates: adds a 'Cyrus SASL' entry (BSD-Attribution-HPND-disclaimer, 2.1.28) with its repo link; renames 'node' to 'node GetStringWidth function'; bumps re2 to 2025-08-12; reorders multi-license strings (fuzztest, libdwarf, rnp); marks several concluded licenses with footnote references [1] MurmurHash3 (Public-Domain), [2] Zstandard (BSD-3-Clause), [3] CRoaring (MIT), and adds a footnotes section explaining these were determined via automated SPDX resolution. This file had a merge conflict resolved keeping Percona's own sections (e.g. libarchive/libkmip rows, the 'Percona Server for MongoDB directly links the following dynamic libraries' table, and Percona-numbered footnotes).",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "The ShardedClusterFixture no longer gates the 'reshardingDocumentVerification' set-parameter behind non-mixed-binary-version runs. The MIXED_BIN_VERSIONS check and the TODO(SERVER-131910) comment are removed; the parameter is now always set to True via setdefault.",
+        "jstests/auth/lib/commands_lib.js": "Adds the three new stream preview commands ('streams_getMorePreview', 'streams_previewStream', 'streams_stopPreview') to the skippedAuthTestingCommands list, and adds a new auth test case for 'getMetricsFilteringAllowlist' requiring the 'manageMetricsFiltering' cluster action and expecting IllegalOperation (feature flags off by default).",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds the three new streams preview commands as internal-command skips, adds 'getMetricsFilteringAllowlist' as an unrelated skip, and removes the old 'listMetricsFilteringAllowlist' entry.",
+        "jstests/libs/write_concern_all_commands.js": "In both wcCommandsTests and wcTimeseriesCommandsTests: adds the three streams preview commands as internal-command skips and 'getMetricsFilteringAllowlist' as 'does not accept write concern', and removes the old 'listMetricsFilteringAllowlist' entries.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Removes the now-unused isTestOnlyCommand reason and the 'listMetricsFilteringAllowlist' skip; adds the three streams preview command skips and a full 'getMetricsFilteringAllowlist' admin-command test case expecting IllegalOperation.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds the three streams preview commands as internal-command skips and 'getMetricsFilteringAllowlist' as a not-a-user-data-read skip; removes the 'listMetricsFilteringAllowlist' entry.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Removes the unused isTestOnlyCommand reason; adds the three streams preview command skips; adds a 'getMetricsFilteringAllowlist' test case that creates/grants a role with the 'manageMetricsFiltering' privilege (setUp), runs the admin command expecting IllegalOperation, and revokes the role in teardown.",
+        "jstests/sharding/database_versioning_all_commands.js": "Replaces 'listMetricsFilteringAllowlist' entries with 'getMetricsFilteringAllowlist' (executes locally on mongos / TODO skips) and adds the three streams preview commands as conditional TODO skips.",
+        "jstests/sharding/libs/mongos_api_params_util.js": "Replaces the 'listMetricsFilteringAllowlist' command entry with 'getMetricsFilteringAllowlist' (both skipped as executing locally on mongos).",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds the three streams preview commands as internal-command skips and 'getMetricsFilteringAllowlist' as 'does not accept read or write concern'; removes the 'listMetricsFilteringAllowlist' entry.",
+        "jstests/sharding/safe_secondary_reads_drop_recreate.js": "Replaces the 'listMetricsFilteringAllowlist' skip with 'getMetricsFilteringAllowlist' (both 'does not return user data').",
+        "jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js": "Replaces the 'listMetricsFilteringAllowlist' skip with 'getMetricsFilteringAllowlist' (both 'does not return user data').",
+        "jstests/sharding/safe_secondary_reads_single_migration_waitForDelete.js": "Replaces the 'listMetricsFilteringAllowlist' skip with 'getMetricsFilteringAllowlist' (both 'does not return user data').",
+        "sbom.json": "Upstream CycloneDX SBOM changes (bumped specVersion, added mongodb/mongo application component and dependency graph entries, etc.). This file had a merge conflict resolved per Percona conventions: kept Percona metadata (author/publisher/group/name percona-server-mongodb, docs.percona.com and github.com/percona URLs, supplier url https://percona.com) and omitted the upstream metadata.tools/services (Endor Labs) section.",
+        "src/mongo/base/error_codes.yml": "Comments out error code 512 'WriteConflictRetryLimitExceeded' (categories SystemOverloadedError, RetriableError) with a note 'Removed in v9.1'; the descriptive comment about backoff retry and internalQueryWriteConflictRetryLimitMax is also removed.",
+        "src/mongo/db/BUILD.bazel": "Removes the '//src/mongo/db/query:write_conflict_storm' entry from a library's deps list (consistent with the removal of the write-conflict retry-limit feature).",
+        "src/mongo/db/commands/BUILD.bazel": "Renames the metrics-filtering-allowlist command target from 'list_' to 'get_': the idl_generator becomes 'get_metrics_filtering_allowlist_command_gen' (src get_metrics_filtering_allowlist_command.idl), and the library srcs/deps swap 'list_metrics_filtering_allowlist_command.cpp'/':list_metrics_filtering_allowlist_command_gen' for the 'get_' equivalents.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger snapshot ingest: adds a new eviction statistic WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_WALK_COMPLETE (1172) ('eviction server skips resuming trees whose walk already traversed the whole tree') and increments the numeric values of all subsequent WT_STAT_CONN_* eviction constants by one."
+      },
+      "review_notes": "Two files (README.third_party.md, sbom.json) had 'both modified' conflicts; verify the resolutions follow the conflict hints: sbom.json must not contain the metadata.tools/services (Endor Labs) section and must keep Percona's supplier url (https://percona.com); README.third_party.md must retain Percona's own dependency rows, dynamic-library table and footnotes while adopting the upstream table/license-footnote updates. MODULE.bazel.lock should be regenerated via 'bazel query //... >/dev/null' rather than hand-merged. The bulk of the merge is the mechanical rename listMetricsFilteringAllowlist -> getMetricsFilteringAllowlist plus the new streams_previewStream/getMorePreview/stopPreview internal commands; ensure the command catalog stays exhaustive so all-commands tests pass. Note the removal of error code 512 (WriteConflictRetryLimitExceeded) and the write_conflict_storm dependency \u2014 confirm no PSMDB code still references either. The WiredTiger stat renumbering is purely a header regeneration from the ingested snapshot."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge by reading the real `diff base \u2192 merge commit` diff for every auto-merged file and the two conflicted files, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **`listMetricsFilteringAllowlist` \u2192 `getMetricsFilteringAllowlist`**: a test-only command is replaced by a new command. This drives the largest share of the changeset \u2014 the IDL/source target rename in `src/mongo/db/commands/BUILD.bazel` plus updated command-catalog entries across ~12 jstests (auth, views, write-concern, replset and sharding \"all commands\" suites).\n- **New internal streams preview commands**: `streams_previewStream`, `streams_getMorePreview`, `streams_stopPreview` added as skips in the same catalogs.\n- **Error code 512 `WriteConflictRetryLimitExceeded` removed** (\"Removed in v9.1\"), with the matching `write_conflict_storm` dep dropped from `src/mongo/db/BUILD.bazel`.\n- **Resharding document verification** now enabled unconditionally in `shardedcluster.py` (multiversion gate removed).\n- **WiredTiger ingest**: new eviction stat `..._SKIP_TREES_WALK_COMPLETE` (1172) with renumbering of following constants.\n- **README.third_party.md / sbom.json**: third-party/license metadata updates; both were conflicted and I described the Percona-preserving resolution per the conflict hints.\n\nThe response file was written to the requested path with a per-file breakdown and reviewer notes (including reminders about the sbom `tools`-section removal, Percona supplier URL, and regenerating `MODULE.bazel.lock` via bazel)."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260905_101021_238546.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.261 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "6bfc2af2dd869272e7802a8ec018dee84d9e2c95",
+    "short_sha": "6bfc2af2dd8",
+    "strategy": "huge_commit",
+    "summary": "This gives a coherent batch of 47 commits (within the ~50 target band) that ends on a self-contained, atomic commit: SERVER-134276 mechanically removes unnecessary copies of fromMigrate across 45 OpObserver files with no dependents right after it, making it easy to validate post-merge. Crucially, every revert pair that opens inside this range also closes inside it: profiling 110427 (7e534d63/d0dd4ab6 and 40fd447b/045fb567), the 134187 projection change (e730bacf/33e8b8c3), the add_shard_refurbish change (19f5c351/4af5793b), and the RHEL-7 package stabilization (d93fafce revert 33ed9bb4 reapply 21162476) all cancel/settle before the cut. The very next commit (211004153811, SERVER-132553) begins a new revert pair that only resolves later at c9fad322, and fbd71c0a (SERVER-134155) is reverted at f7ed2607 and reapplied further out \u2014 so stopping here leaves that unsettled back-and-forth for the next batch to import as a resolved unit rather than splitting a revert from its original.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/33959765857"
+  }
+}
