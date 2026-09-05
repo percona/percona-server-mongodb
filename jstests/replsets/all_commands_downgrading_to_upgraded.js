@@ -27,7 +27,6 @@ const fullNs = dbName + "." + collName;
 
 // Pre-written reasons for skipping a test.
 const isAnInternalCommand = "internal command";
-const isTestOnlyCommand = "test-only command";
 const isDeprecated = "deprecated command";
 const commandIsDisabledOnLastLTS = "skip command on downgrading fcv";
 const requiresParallelShell = "requires parallel shell";
@@ -220,6 +219,9 @@ const allCommands = {
     streams_writeCheckpoint: {skip: isAnInternalCommand},
     streams_sendEvent: {skip: isAnInternalCommand},
     streams_updateConnection: {skip: "internal command"},
+    streams_previewStream: {skip: "internal command"},
+    streams_getMorePreview: {skip: "internal command"},
+    streams_stopPreview: {skip: "internal command"},
     _transferMods: {skip: isAnInternalCommand},
     abortMoveCollection: {
         // Skipping command because it requires testing through a parallel shell.
@@ -909,6 +911,14 @@ const allCommands = {
         isAdminCommand: true,
         command: {getLog: "global"},
     },
+    getMetricsFilteringAllowlist: {
+        isAdminCommand: true,
+        command: {getMetricsFilteringAllowlist: 1, category: "serverStatus"},
+        // The metrics filtering feature flags are not enabled in tests by default, so this
+        // command is expected to fail with IllegalOperation.
+        expectFailure: true,
+        expectedErrorCode: ErrorCodes.IllegalOperation,
+    },
     getMore: {
         fullScenario: function (conn) {
             const db = conn.getDB(dbName);
@@ -1103,7 +1113,6 @@ const allCommands = {
             assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName}));
         },
     },
-    listMetricsFilteringAllowlist: {skip: isTestOnlyCommand},
     listSearchIndexes: {
         // Skipping command as it requires additional Mongot mock setup (and is an enterprise
         // feature).

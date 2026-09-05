@@ -352,12 +352,15 @@ const skippedAuthTestingCommands = [
     "startTransitionToDedicatedConfigServer",
     "stopTransitionToDedicatedConfigServer",
     "streams_getMetrics",
+    "streams_getMorePreview",
     "streams_getMoreStreamSample",
     "streams_getStats",
     "streams_listStreamProcessors",
+    "streams_previewStream",
     "streams_sendEvent",
     "streams_startStreamProcessor",
     "streams_startStreamSample",
+    "streams_stopPreview",
     "streams_stopStreamProcessor",
     "streams_testOnlyGetFeatureFlags",
     "streams_testOnlyInsert",
@@ -6051,6 +6054,20 @@ export const authCommandsLib = {
                 },
                 {runOnDb: firstDbName, roles: {}},
                 {runOnDb: secondDbName, roles: {}},
+            ],
+        },
+        {
+            testname: "getMetricsFilteringAllowlist",
+            command: {getMetricsFilteringAllowlist: 1, category: "serverStatus"},
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: {__system: 1},
+                    privileges: [{resource: {cluster: true}, actions: ["manageMetricsFiltering"]}],
+                    // The metrics filtering feature flags are not enabled in tests by default, so this
+                    // command is expected to fail with IllegalOperation.
+                    expectFailWithErrorCodes: [ErrorCodes.IllegalOperation],
+                },
             ],
         },
         {

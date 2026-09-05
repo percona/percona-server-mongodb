@@ -31,10 +31,11 @@ a notice will be included in
 | [bzip2]                                              | bzip2-1.0.6                                    | 1.0.8                                    |                      | ✗                               |
 | [c-ares]                                             | MIT                                            | 1.27.0                                   |                      | ✗                               |
 | [cpptrace]                                           | MIT                                            | 1.0.3                                    |                      |                                 |
-| [CRoaring]                                           | Apache-2.0 OR MIT                              | 3.0.1                                    |                      | ✗                               |
+| [CRoaring]                                           | MIT [3]                                        | 3.0.1                                    |                      | ✗                               |
+| [Cyrus SASL]                                         | BSD-Attribution-HPND-disclaimer                | 2.1.28                                   |                      |                                 |
 | [fmt]                                                | MIT                                            | 11.2.0                                   |                      | ✗                               |
 | [folly]                                              | Apache-2.0                                     | 2025.04.21.00                            |                      | ✗                               |
-| [fuzztest]                                           | BSD-3-Clause, Apache-2.0, HPND                 | 2025-07-28                               |                      |                                 |
+| [fuzztest]                                           | Apache-2.0, BSD-3-Clause, HPND                 | 2025-07-28                               |                      |                                 |
 | [googletest]                                         | BSD-3-Clause                                   | 1.17.0                                   |                      |                                 |
 | [gperftools]                                         | BSD-3-Clause                                   | 2.9.1                                    |                      | ✗                               |
 | [gRPC (C++)]                                         | Apache-2.0                                     | 1.74.1                                   |                      | ✗                               |
@@ -44,25 +45,31 @@ a notice will be included in
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [json-c]                                             | MIT                                            | 0.17                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
+<<<<<<< HEAD
 | [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
 | [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
 | [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
+||||||| 54618137aca
+| [libdwarf]                                           | LGPL-2.1-or-later, BSD-3-Clause, Public Domain | 2.1.0                                    |                      |                                 |
+=======
+| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
+>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
 | [libunwind]                                          | MIT                                            | 1.8.1                                    |                      | ✗                               |
 | [linenoise]                                          | BSD-2-Clause                                   | 6cdc775807e57b2c3fd64bd207814f8ee1fe35f3 |                      | ✗                               |
 | [Mozilla Firefox ESR]                                | MPL-2.0                                        | 140.11.0esr                              |                      | ✗                               |
-| [MurmurHash3]                                        | Public Domain                                  | a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb |                      | ✗                               |
+| [MurmurHash3]                                        | Public-Domain [1]                              | a6bd3ce7be8ad147ea820a7cf6229a975c0c96bb |                      | ✗                               |
 | [nlohmann/json]                                      | MIT                                            | 3.11.3                                   | ✗                    |                                 |
-| [node]                                               | ISC                                            | 22.1.0                                   |                      |                                 |
+| [node GetStringWidth function]                       | MIT                                            | 22.1.0                                   |                      | ✗                               |
 | [opentelemetry-cpp]                                  | Apache-2.0                                     | 1.24.0                                   | ✗                    |                                 |
 | [opentelemetry-proto]                                | Apache-2.0                                     | 1.3.2                                    | ✗                    |                                 |
 | [PCRE2 - Perl-Compatible Regular Expressions]        | BSD-3-Clause WITH PCRE2-exception              | 10.40                                    |                      | ✗                               |
-| [Prometheus Client Library for Modern C++]           | MIT                                            | 1.2.2                                    |                      |                                 |
+| [Prometheus Client Library for Modern C++]           | MIT                                            | 1.2.2                                    |                      | ✗                               |
 | [Protobuf]                                           | BSD-3-Clause                                   | 6.31.1                                   |                      | ✗                               |
 | [pypi/ocspbuilder]                                   | MIT                                            | 0.10.2                                   |                      |                                 |
-| [pypi/ocspresponder]                                 | Apache-2.0                                     | 0.5.0                                    |                      |                                 |
-| [re2]                                                | BSD-3-Clause                                   | 2025-08-05                               |                      | ✗                               |
-| [rnp]                                                | BSD-2-Clause, Apache-2.0, MIT                  | 0.18.1                                   |                      | ✗                               |
+| [pypi/ocspresponder]                                 | Apache-2.0, OTHER                              | 0.5.0                                    |                      |                                 |
+| [re2]                                                | BSD-3-Clause                                   | 2025-08-12                               |                      | ✗                               |
+| [rnp]                                                | Apache-2.0, BSD-2-Clause, MIT                  | 0.18.1                                   |                      | ✗                               |
 | [S2 Geometry Library]                                | Apache-2.0                                     | a25c502bda9d7e0274b9e2b7825fbddf13cc0306 | ✗                    | ✗                               |
 | [s2n-tls TLS library]                                | Apache-2.0                                     | 1.7.3                                    |                      | ✗                               |
 | [SafeInt]                                            | MIT                                            | 3.0.28a                                  |                      | ✗                               |
@@ -76,13 +83,23 @@ a notice will be included in
 | [xxHash]                                             | BSD-2-Clause                                   | 0.8.3                                    | ✗                    | ✗                               |
 | [yaml-cpp]                                           | MIT                                            | 0.6.3                                    |                      | ✗                               |
 | [zlib]                                               | Zlib                                           | 1.3.2                                    | ✗                    | ✗                               |
-| [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only                   | 1.5.5                                    | ✗                    | ✗                               |
+| [Zstandard (zstd)]                                   | BSD-3-Clause [2]                               | 1.5.5                                    | ✗                    | ✗                               |
+
+
+Footnotes on the License column above, where the concluded license (determined via automated
+SPDX resolution) differs from the license as originally declared by the component:
+
+[1]: Declared as Public Domain; concluded via automated SPDX resolution.
+[2]: Declared as BSD-3-Clause OR GPL-2.0-only; concluded via automated SPDX resolution.
+[3]: Declared as Apache-2.0 OR MIT; concluded via automated SPDX resolution.
+
 
 [AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
 [CRoaring]: https://github.com/roaringbitmap/croaring.git
+[Cyrus SASL]: https://github.com/cyrusimap/cyrus-sasl.git
 [ICU4C - International Components for Unicode C/C++]: https://github.com/unicode-org/icu.git
 [Intel® Decimal Floating-Point Math Library]: https://www.netlib.org/misc/intel/
 [JSON Schema Store]: https://github.com/schemastore/schemastore.git
@@ -116,7 +133,7 @@ a notice will be included in
 [libunwind]: https://github.com/libunwind/libunwind.git
 [linenoise]: https://github.com/antirez/linenoise
 [nlohmann/json]: https://github.com/nlohmann/json.git
-[node]: https://nodejs.org/
+[node GetStringWidth function]: https://nodejs.org/
 [opentelemetry-cpp]: https://github.com/open-telemetry/opentelemetry-cpp.git
 [opentelemetry-proto]: https://github.com/open-telemetry/opentelemetry-proto
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
@@ -125,7 +142,7 @@ a notice will be included in
 [rnp]: https://github.com/rnpgp/rnp
 [s2n-tls TLS library]: https://github.com/aws/s2n-tls.git
 [siphash]: https://github.com/veorq/siphash/
-[snappy]: https://github.com/google/tcmalloc.git
+[snappy]: https://github.com/google/snappy.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
 [timelib]: https://github.com/derickr/timelib.git
 [valgrind.h]: https://sourceware.org/git/valgrind.git
@@ -146,6 +163,7 @@ here.
 
 Percona Server for MongoDB directly links the following dynamic libraries:
 
+<<<<<<< HEAD
 | Name                  | Typical Linked Library Filename(s)               |
 | --------------------- | ------------------------------------------------ |
 | GNU C Library         | `libc.so.6`, `libm.so.6`, `libresolv.so.2`, etc. |
@@ -158,6 +176,23 @@ Percona Server for MongoDB directly links the following dynamic libraries:
 
 Note. Version numbers in library filenames (e.g. `6` in `libc.so.6`) are just
 examples and can differ from platform to platform.
+||||||| 54618137aca
+| Name       | Enterprise Only |                    Has Windows DLLs                     |
+| :--------- | :-------------: | :-----------------------------------------------------: |
+| Cyrus SASL |       Yes       |                           Yes                           |
+| libldap    |       Yes       |                           No                            |
+| net-snmp   |       Yes       |                           Yes                           |
+| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">3</a>]</sup> |
+| libcurl    |       No        |                           No                            |
+=======
+| Name       | Enterprise Only |                    Has Windows DLLs                     |
+| :--------- | :-------------: | :-----------------------------------------------------: |
+| Cyrus SASL |       Yes       |                           Yes                           |
+| libldap    |       Yes       |                           No                            |
+| net-snmp   |       Yes       |                           Yes                           |
+| OpenSSL    |       No        | Yes<sup>\[<a href="#note_ssl" id="ref_ssl">2</a>]</sup> |
+| libcurl    |       No        |                           No                            |
+>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
 
 ## Notes:
 
@@ -166,6 +201,20 @@ examples and can differ from platform to platform.
    header file which is licensed under a BSD license. This BSD licensed header is the only
    file from Valgrind which is vendored and consumed by MongoDB.
 
+<<<<<<< HEAD
 2. <a id="note_wt" href="#ref_wt">^</a>
    WiredTiger is maintained by MongoDB in a separate repository. As a part of our
    development process, we periodically ingest the latest snapshot of that repository.
+||||||| 54618137aca
+2. <a id="note_wt" href="#ref_wt">^</a>
+   WiredTiger is maintained by MongoDB in a separate repository. As a part of our
+   development process, we periodically ingest the latest snapshot of that repository.
+
+3. <a id="note_ssl" href="#ref_ssl">^</a>
+   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
+   shell and server binaries use Windows' cryptography APIs.
+=======
+2. <a id="note_ssl" href="#ref_ssl">^</a>
+   OpenSSL is only shipped as a dependency of the MongoDB tools written in Go. The MongoDB
+   shell and server binaries use Windows' cryptography APIs.
+>>>>>>> 6bfc2af2dd869272e7802a8ec018dee84d9e2c95
