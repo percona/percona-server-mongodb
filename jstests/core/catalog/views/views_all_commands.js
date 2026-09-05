@@ -259,6 +259,9 @@ let viewsCommandTests = {
     streams_sendEvent: {skip: isAnInternalCommand},
     streams_writeCheckpoint: {skip: isAnInternalCommand},
     streams_updateConnection: {skip: isAnInternalCommand},
+    streams_previewStream: {skip: isAnInternalCommand},
+    streams_getMorePreview: {skip: isAnInternalCommand},
+    streams_stopPreview: {skip: isAnInternalCommand},
     _transferMods: {skip: isAnInternalCommand},
     abortMoveCollection: {skip: isUnrelated},
     abortRewriteCollection: {skip: isUnrelated},
@@ -466,6 +469,7 @@ let viewsCommandTests = {
     getESECMKIdentifierListStatus: {skip: isUnrelated},
     getESERotateActiveKEKStatus: {skip: isUnrelated},
     getLog: {skip: isUnrelated},
+    getMetricsFilteringAllowlist: {skip: isUnrelated},
     getMore: {
         setup: function (conn) {
             assert.commandWorked(conn.collection.remove({}));
@@ -571,7 +575,6 @@ let viewsCommandTests = {
     listDatabases: {skip: isUnrelated},
     listDatabasesForAllTenants: {skip: isUnrelated},
     listIndexes: {command: {listIndexes: "view"}, expectFailure: true},
-    listMetricsFilteringAllowlist: {skip: isUnrelated},
     listSearchIndexes: {skip: isUnrelated},
     listShards: {skip: isUnrelated},
     lockInfo: {skip: isUnrelated},
