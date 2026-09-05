@@ -15,6 +15,7 @@
 #include "mongo/db/global_catalog/ddl/sharding_coordinator_gen.h"
 #include "mongo/db/global_catalog/ddl/sharding_coordinator_service.h"
 #include "mongo/db/global_catalog/ddl/sharding_ddl_util.h"
+#include "mongo/db/global_catalog/ddl/sharding_util.h"
 #include "mongo/db/global_catalog/ddl/shardsvr_join_ddl_coordinators_request_gen.h"
 #include "mongo/db/global_catalog/index_on_config.h"
 #include "mongo/db/global_catalog/type_database_gen.h"
@@ -489,14 +490,10 @@ private:
         // Create the replicated size and count stores and start the background metadata checkpoint
         // thread when upgrading to an FCV that enables the feature. This handles the case where a
         // shard starts at lastLTS FCV and is upgraded by the config server during addShard.
-        // This hook runs while the FCV is still in the transitional upgrading state, where
-        // fcv-gated feature flags evaluate as disabled. Pass the requested FCV so the
-        // container-vs-collection store decision matches the mode the node will run in once the
-        // upgrade completes.
         if (gFeatureFlagReplicatedFastCount.isEnabledOnTargetFCVButDisabledOnOriginalFCV(
                 requestedVersion, originalVersion) &&
             repl::ReplicationCoordinator::get(opCtx)->getSettings().isReplSet()) {
-            setUpReplicatedFastCount(opCtx, requestedVersion);
+            setUpReplicatedFastCount(opCtx);
         }
     }
 
@@ -754,7 +751,14 @@ private:
             // Create the shard catalog collections and their indexes before transitioning to
             // kUpgrading, since authoritative metadata writes can begin as soon as this shard
             // enters kUpgrading and those writes do not create the required indexes themselves.
-            uassertStatusOK(ensureShardLocalCatalogIndexes(opCtx));
+            uassertStatusOK(sharding_util::createIndexesOnCollectionForWritablePrimary(
+                opCtx,
+                NamespaceString::kConfigShardCatalogCollectionsNamespace,
+                {IndexSpec_ForCatalog{BSON("_id" << 1), true}}));
+            uassertStatusOK(sharding_util::createIndexesOnCollectionForWritablePrimary(
+                opCtx,
+                NamespaceString::kConfigShardCatalogChunksNamespace,
+                getChunkCollectionIndexSpecs()));
         }
 
         // TODO (SERVER-98118): remove once 9.0 becomes last LTS.

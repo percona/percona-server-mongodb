@@ -510,7 +510,6 @@ public:
     Status dropIdent(RecoveryUnit& ru,
                      std::string_view ident,
                      bool identHasSizeInfo,
-                     const StorageEngine::DropIdentCallback& onDrop,
                      boost::optional<uint64_t> schemaEpoch,
                      bool waitForLocks) override;
 
@@ -847,6 +846,7 @@ public:
     }
 
 private:
+<<<<<<< HEAD
     class DataAtRestEncryption;
 
     struct IdentToDrop {
@@ -865,6 +865,14 @@ private:
         tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t>
             FileTuple;
 
+||||||| 6bfc2af2dd8
+    struct IdentToDrop {
+        std::string uri;
+        StorageEngine::DropIdentCallback callback;
+    };
+
+=======
+>>>>>>> 40a624b8e02075d780f72b7142f437f8df3a2f40
     Status _reconfigureAutoCompact(RecoveryUnit& ru, const AutoCompactOptions& options);
 
 
