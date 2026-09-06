@@ -1,0 +1,227 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4b1070056dffffcd5c3150bc1ab9849368bfef91",
+    "merge_commit": "33b79a4120a735a468e44144a0dbad2facc26a74"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "4b1070056dffffcd5c3150bc1ab9849368bfef91",
+    "theirs_commit": "33b79a4120a735a468e44144a0dbad2facc26a74",
+    "base_commit": "40a624b8e02075d780f72b7142f437f8df3a2f40",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\nindex 27ecbea5f4f,82498795af2..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n@@@ -49,1 -37,1 +49,6 @@@\n++<<<<<<< HEAD\n +#include \"mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h\"\n++||||||| 40a624b8e02\n++=======\n+ #include \"mongo/db/storage/wiredtiger/wiredtiger_error_util.h\"\n++>>>>>>> 33b79a4120a735a468e44144a0dbad2facc26a74"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": [
+        "33b79a4120a735a468e44144a0dbad2facc26a74"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "33b79a4120a735a468e44144a0dbad2facc26a74",
+    "merged_commits": [
+      "33b79a4120a735a468e44144a0dbad2facc26a74",
+      "ea022ff109f0afd6e3cea05ca2d3ddad75a83e32",
+      "f28c816e97d1d647a26c0e727c41ec232e7e40b2",
+      "a6574c5ff91fb270bd281ce4d9e6c235517b963b",
+      "1bab3197dcbefd911590b9b53d6001b2abedc211",
+      "cd9bdc1f72574eb3c8fc73898a7c0c6a50aea271",
+      "45f2cd48d9b75bd9bc8b2d206b87641ce7f1f9c2",
+      "4e6227ea38ff8dac98423f32b3708f4f94958611",
+      "c289eaaa88abd1c73338ab92e74028ef39c837a7",
+      "5a88d0e513fcff38efddf263d393d35b7200b3cc",
+      "2ff19d9e586c7ddce285ac38f8be25f863aa0870",
+      "3d4b1b5a5df69e22554ef57bf689553c07c79f88",
+      "825a129de17d98dc4aec3d1f2398b0db2e8df035",
+      "d34203d42cf36f271d994413d62d66bae7130192",
+      "40817687a2becb9e9eb8f74100a3723b10f7f6ba",
+      "b61ba9f7c18e32a232be5089d34b8cd6ae91c76c",
+      "ddd05862fd78c55ce6161b81fc5bfce6c8dbe21a",
+      "62744c7545dd9d673168ac77421e54e736afac0d",
+      "0c7ad29c05a6a1e574b9eb5fadaa66c95938091f",
+      "918b8e12469c2604e7028fb52d4ccc64f84215e0",
+      "fbb565e84807b65e7d8e5f7f8274309d27d26ff3",
+      "a81b17e72e53619b9ed0f7e1f70f8ea7e39c32d9",
+      "18b98aacc12021309cbe3a457f9e5aad5fc4201a",
+      "a918d312944399aa4c3055c3a7bb769c4a196a20",
+      "8ed0e2f08776fc4ec2fb2272ccb25696104dfe96",
+      "6459a73d1f6b3ff905f04e7ba1cac9b268297a1b",
+      "caf3764813080e9323ce6b9ceed84b6517bd4245",
+      "67ee0fa0fed0263185b4d2eed3fbfbe61cb763eb",
+      "a4b6f9993766c5a8861b23cc7dc01f9adce933d8"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "README.third_party.md",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "sbom.json",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/util/stacktrace_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 53976,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.24808624999999998,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 3753,
+        "cacheReadInputTokens": 62582,
+        "cacheCreationInputTokens": 19501,
+        "webSearchRequests": 0,
+        "costUSD": 0.24703725,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 717,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001049
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 3753,
+            "cache_read": 62582,
+            "cache_creation": 19501
+          },
+          "cost_usd": 0.24703725
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. \n\nSummary of what this merge (upstream `33b79a4120a7` into PSMDB `master`) pulls in:\n\n- **WiredTiger stepdown/schema-epoch race fix** (the core change): `wiredtiger_kv_engine.cpp/.h` split `publishIdent` into a code-returning `_publishIdent`, make `dropIdent` return a `WriteConflict` when a stepdown races the reserved drop timestamp, add `getStepDownEpoch()`, and switch `_stepDownTimestamp` from `Atomic<uint64_t>` to `synchronized_value<Timestamp>`. `wiredtiger_util.cpp` threads a `StepdownState` into `onCreateTable`.\n- **Test/doc/metadata**: a stacktrace test gains `missedThreadIds` accounting, a downgrade jstest rewrites its `checkShardingIndex` scenario, and `README.third_party.md` / `sbom.json` / `MODULE.bazel.lock` get generator-comment, ordering, and lockfile refreshes.\n\nThe one conflict was a single include line in `wiredtiger_kv_engine.cpp`. I flagged in the review notes that the resolution must keep **both** the Percona `wiredtiger_encryption_hooks.h` include and upstream's new `wiredtiger_error_util.h` include, since the upstream side alone only carries the latter.",
+    "response": {
+      "summary": "Merges upstream MongoDB commit 33b79a4120a7 into the PSMDB master fork. The main functional change is in the WiredTiger storage engine: it hardens dropIdent/publishIdent and table creation against races with replica-set stepdowns when schema epochs are in use, and switches the cached step-down timestamp from an Atomic<uint64_t> to a synchronized_value<Timestamp>. Supporting changes update a stacktrace unit test, a downgrade jstest, and regenerate/re-order documentation and SBOM metadata. The single conflict was a one-line include block in wiredtiger_kv_engine.cpp.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Bazel lock file regenerated as part of the merge; no manually meaningful content to review.",
+        "README.third_party.md": "Only the leading generator comment changed: the 'DO NOT MODIFY' header now says the file is generated by the update_sbom_<branch> Evergreen task instead of by src/third_party/scripts/gen_thirdpartyreadme.py. No dependency content changed.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Rewrites the checkShardingIndex test entry: replaces the separate setUp/command/teardown (with isShardSvrOnly) by a single fullScenario function that enableSharding on a 'testDB' with an explicit primaryShard, creates the collection and a {x:1,y:1} index, runs checkShardingIndex against shard0, then drops the database. isShardedOnly is kept.",
+        "sbom.json": "Only reorders the two evidence occurrence locations for the linenoise component (linenoise.h and linenoise.cpp swap order). No other SBOM content changed in this diff.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Adds #include wiredtiger_error_util.h (the merge conflict was HEAD's wiredtiger_encryption_hooks.h include vs upstream's wiredtiger_error_util.h include). Splits publishIdent into a new private _publishIdent that returns the raw WT return code (returning 0 when schema epochs are disabled), with publishIdent wrapping it via invariantWTOK. dropIdent now calls _publishIdent and, if it returns EINVAL and getStepDownEpoch() is greater than the reserved schemaEpoch, returns a WriteConflict Status (a stepdown started after the drop timestamp was reserved); otherwise invariantWTOK on the return code. Adds getStepDownEpoch() which maps the step-down timestamp to a schema epoch (boost::none when null). Changes the step-down timestamp storage to synchronized_value<Timestamp>: setStepDownTimestamp sets the WT timestamp and updates the value under a synchronize() guard, demoteToFollower resets it to Timestamp{}, and getStepDownTimestamp returns _stepDownTimestamp.get().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Declares boost::optional<uint64_t> getStepDownEpoch() and the private int _publishIdent(...) helper, and changes the _stepDownTimestamp member type from Atomic<std::uint64_t> to synchronized_value<Timestamp>.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Adds #include wiredtiger_recovery_unit.h. WiredTigerUtil::createTable now captures the step-down timestamp before session.create() when the KV engine uses schema epochs and the feature flag is enabled, returns early on failure, then computes a WiredTigerRecoveryUnit::StepdownState (invalid if the step-down timestamp changed during create, after if a non-null step-down timestamp was already set, else before) and passes it to ru.onCreateTable(uri, state) instead of the previous parameterless onCreateTable(uri).",
+        "src/mongo/util/stacktrace_test.cpp": "Extends the stacktrace dump assertions: collects a missedThreadIds set from the JSON, then classifies each spawned worker tid into lost (neither seen nor missed) or missed-worker sets, asserting lostTids and missedWorkerTids are empty before re-asserting each worker tid was seen. Adds a TODO(SERVER-134299) note about possible flakiness when worker threads exit before being dumped."
+      },
+      "review_notes": "The only textual conflict was in wiredtiger_kv_engine.cpp at the include block: HEAD carried #include wiredtiger_encryption_hooks.h (Percona) while upstream added #include wiredtiger_error_util.h. Verify the final resolution keeps BOTH includes \u2014 the merge_commit side alone contains only wiredtiger_error_util.h, so the Percona encryption_hooks.h include must be preserved from the fork side. The core logic change is a stepdown/schema-epoch race fix in dropIdent/createTable and a step-down timestamp type change to synchronized_value<Timestamp>; confirm no other PSMDB customization referenced _stepDownTimestamp as an Atomic. All other files are documentation/test/SBOM adjustments with no Percona-specific impact."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each file in the changeset."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me verify the conflict resolution in the merge commit for the wiredtiger include."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe the merge. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. \n\nSummary of what this merge (upstream `33b79a4120a7` into PSMDB `master`) pulls in:\n\n- **WiredTiger stepdown/schema-epoch race fix** (the core change): `wiredtiger_kv_engine.cpp/.h` split `publishIdent` into a code-returning `_publishIdent`, make `dropIdent` return a `WriteConflict` when a stepdown races the reserved drop timestamp, add `getStepDownEpoch()`, and switch `_stepDownTimestamp` from `Atomic<uint64_t>` to `synchronized_value<Timestamp>`. `wiredtiger_util.cpp` threads a `StepdownState` into `onCreateTable`.\n- **Test/doc/metadata**: a stacktrace test gains `missedThreadIds` accounting, a downgrade jstest rewrites its `checkShardingIndex` scenario, and `README.third_party.md` / `sbom.json` / `MODULE.bazel.lock` get generator-comment, ordering, and lockfile refreshes.\n\nThe one conflict was a single include line in `wiredtiger_kv_engine.cpp`. I flagged in the review notes that the resolution must keep **both** the Percona `wiredtiger_encryption_hooks.h` include and upstream's new `wiredtiger_error_util.h` include, since the upstream side alone only carries the latter."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260906_171952_983160.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.263 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "33b79a4120a735a468e44144a0dbad2facc26a74",
+    "short_sha": "33b79a4120a",
+    "strategy": "conflict",
+    "summary": "The gate opened on force:conflict, and this SERVER-133843 commit is exactly that conflicting commit, so including it lets the existing resolve flow handle the conflict now rather than deferring it. It sits at position 29 of the 30-commit window, giving a batch of 29 commits - essentially the full window while still leaving the very newest commit (50ea5882, a self-contained CI/build-config change unrelated to this storage race fix) for the next batch, satisfying the 'stop short of unsettled commits' and 'don't end on the newest candidate' rules. The cut is clean because 50ea5882 does not depend on this change, and no revert/stacked-series pairing is split by cutting here.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/34048085419"
+  }
+}
