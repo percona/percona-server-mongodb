@@ -377,12 +377,11 @@ static void copy_keydb_files(const boost::filesystem::path& from,
                              std::vector<boost::filesystem::path>& emptyDirs,
                              std::vector<boost::filesystem::path>& copiedFiles,
                              bool* parent_empty = nullptr) {
-    namespace fs = boost::filesystem;
     bool checkTo = true;
     bool empty = true;
 
-    for (auto& p : fs::directory_iterator(from)) {
-        if (fs::is_directory(p.status())) {
+    for (auto& p : boost::filesystem::directory_iterator(from)) {
+        if (boost::filesystem::is_directory(p.status())) {
             copy_keydb_files(p.path(), to / p.path().filename(), emptyDirs, copiedFiles, &empty);
         } else {
             static std::regex rex{"/(collection|index)[-/][^/]+\\.wt$"};
@@ -394,10 +393,11 @@ static void copy_keydb_files(const boost::filesystem::path& from,
             } else {
                 if (checkTo) {
                     checkTo = false;
-                    if (!fs::exists(to))
-                        fs::create_directories(to);
+                    if (!boost::filesystem::exists(to))
+                        boost::filesystem::create_directories(to);
                 }
-                fs::copy_file(p.path(), to / p.path().filename(), fs::copy_options::none);
+                boost::filesystem::copy_file(
+                    p.path(), to / p.path().filename(), boost::filesystem::copy_options::none);
                 copiedFiles.push_back(p.path());
             }
         }
