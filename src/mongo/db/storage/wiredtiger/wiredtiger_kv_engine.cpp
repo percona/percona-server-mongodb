@@ -46,12 +46,8 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_cursor_helpers.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_customization_hooks.h"
-<<<<<<< HEAD
 #include "mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h"
-||||||| 40a624b8e02
-=======
 #include "mongo/db/storage/wiredtiger/wiredtiger_error_util.h"
->>>>>>> 33b79a4120a735a468e44144a0dbad2facc26a74
 #include "mongo/db/storage/wiredtiger/wiredtiger_extensions.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_global_options_gen.h"
