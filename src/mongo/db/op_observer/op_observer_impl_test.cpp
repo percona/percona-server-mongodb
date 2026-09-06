@@ -298,6 +298,13 @@ protected:
                 if (nss == clusteredNss) {
                     opts.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
                 }
+                if (nss == timeseriesNss) {
+                    opts.timeseries = TimeseriesOptions("t");
+                    opts.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
+                }
+                if (nss == implicitlyReplicatedClusteredNss || nss == tempReshardingNss) {
+                    opts.clusteredIndex = clustered_util::makeDefaultClusteredIdIndex();
+                }
                 invariant(db->createCollection(opCtx, nss, opts));
             }
             wunit.commit();
@@ -571,6 +578,19 @@ protected:
     const UUID uuid3{UUID::gen()};
     const NamespaceString clusteredNss = NamespaceString::createNamespaceString_forTest(
         TenantId(OID::gen()), "testDB", "clusteredColl");
+    // Viewless time-series has no separate buckets namespace: the collection itself holds the
+    // bucket documents, clustered on their OID '_id'.
+    const NamespaceString timeseriesNss =
+        NamespaceString::createNamespaceString_forTest(TenantId(OID::gen()), "testDB", "ts");
+    // Resharding's temporary collection. It is renamed onto the source namespace keeping its UUID,
+    // so its writes must still be hashed or the resharded collection loses hash coverage.
+    const NamespaceString tempReshardingNss = NamespaceString::createNamespaceString_forTest(
+        TenantId(OID::gen()), "testDB", "system.resharding.deadbeef-dead-beef-dead-beefdeadbeef");
+    // An implicitly replicated collection that is also clustered on _id. config.transactions takes
+    // the same shape under featureFlagClusteredConfigTransactions.
+    const NamespaceString implicitlyReplicatedClusteredNss =
+        NamespaceString::createNamespaceString_forTest(
+            TenantId(OID::gen()), "config", "system.preimages");
 
     const TenantId kTenantId = TenantId(OID::gen());
     const NamespaceString kNssUnderTenantId = NamespaceString::createNamespaceString_forTest(
@@ -2013,6 +2033,177 @@ TEST_F(OpObserverTest, CheckHashDoesNotExistOnDeleteWithoutFlag) {
     OperationContext* opCtx = opCtxWrapper.get();
     const BSONObj doc = BSON("_id" << 0 << "data" << "x");
     EXPECT_FALSE(deleteAndGetSizeMetadata(opCtx, nss, doc, RecordId(1), {}).has_value());
+}
+
+// A clustered collection has no replicated record ids, but the applier can derive its record ids
+// from the documents themselves, so its writes carry a hash all the same.
+TEST_F(OpObserverTest, CheckHashExistsOnInsertToClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, clusteredNss);
+
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata = insertAndGetSizeMetadata(opCtx, clusteredNss, doc, /*recordIds=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeDocValidationHash(doc));
+}
+
+TEST_F(OpObserverTest, CheckHashExistsOnMultiDocumentInsertToClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, clusteredNss);
+
+    const std::vector<BSONObj> docs = {BSON("_id" << 0 << "data" << "x"),
+                                       BSON("_id" << 1 << "data" << "yy")};
+    const auto sizeMetadata =
+        insertManyAndGetSizeMetadata(opCtx, clusteredNss, docs, /*recordIds=*/{});
+    ASSERT_EQ(sizeMetadata.size(), docs.size());
+    for (size_t i = 0; i < docs.size(); i++) {
+        ASSERT(sizeMetadata[i]) << "no size metadata for document " << i;
+        ASSERT(sizeMetadata[i]->getH()) << "no hash for document " << i;
+        EXPECT_EQ(*sizeMetadata[i]->getH(), repl::computeDocValidationHash(docs[i]));
+    }
+}
+
+TEST_F(OpObserverTest, CheckHashExistsOnUpdateToClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, clusteredNss);
+
+    const auto sizeMetadata = updateAndGetSizeMetadata(opCtx,
+                                                       clusteredNss,
+                                                       kPreImageDoc,
+                                                       kUpdate,
+                                                       kUpdatedDoc,
+                                                       RecordId{},
+                                                       /*replicatedSizeDelta=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeUpdateValidationHash(kPreImageDoc, kUpdatedDoc));
+}
+
+TEST_F(OpObserverTest, CheckHashExistsOnDeleteFromClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, clusteredNss);
+
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata =
+        deleteAndGetSizeMetadata(opCtx, clusteredNss, doc, RecordId{}, /*replicatedSizeDelta=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeDocValidationHash(doc));
+}
+
+// A time-series collection is clustered on its bucket documents' OID '_id', so the writes the
+// bucket catalog makes on its behalf carry a hash like any other clustered collection's.
+TEST_F(OpObserverTest, CheckHashExistsOnInsertToTimeseriesBucketCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, timeseriesNss);
+
+    const BSONObj bucket = BSON("_id" << OID::gen() << "control" << BSON("version" << 1) << "data"
+                                      << BSON("t" << BSON("0" << Date_t())));
+    const auto sizeMetadata =
+        insertAndGetSizeMetadata(opCtx, timeseriesNss, bucket, /*recordIds=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeDocValidationHash(bucket));
+}
+
+// Appending a measurement to an open bucket is an update, and its hash covers both images.
+TEST_F(OpObserverTest, CheckHashExistsOnUpdateToTimeseriesBucketCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, timeseriesNss);
+
+    const OID bucketId = OID::gen();
+    const BSONObj preImage = BSON("_id" << bucketId << "data" << BSON("x" << BSON("0" << 10)));
+    const BSONObj postImage =
+        BSON("_id" << bucketId << "data" << BSON("x" << BSON("0" << 10 << "1" << 20)));
+    const auto sizeMetadata = updateAndGetSizeMetadata(opCtx,
+                                                       timeseriesNss,
+                                                       preImage,
+                                                       kUpdate,
+                                                       postImage,
+                                                       RecordId{},
+                                                       /*replicatedSizeDelta=*/{});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeUpdateValidationHash(preImage, postImage));
+}
+
+// An implicitly replicated collection replicates only a subset of its writes and each node derives
+// the rest for itself, so its documents are allowed to differ between nodes.
+TEST_F(OpObserverTest, CheckHashDoesNotExistForImplicitlyReplicatedClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, implicitlyReplicatedClusteredNss);
+
+    // Otherwise the exclusion under test would be doing nothing.
+    ASSERT_TRUE(implicitlyReplicatedClusteredNss.isImplicitlyReplicated());
+    {
+        AutoGetCollection autoColl(opCtx, implicitlyReplicatedClusteredNss, MODE_IS);
+        ASSERT_TRUE(clustered_util::isClusteredOnId(autoColl->getClusteredInfo()));
+    }
+
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    EXPECT_FALSE(
+        insertAndGetSizeMetadata(opCtx, implicitlyReplicatedClusteredNss, doc, /*recordIds=*/{})
+            .has_value());
+}
+
+// A replicated delete on such a collection is the case that would actually fassert a secondary:
+// config.transactions writes its records unreplicated but replicates its reaping deletes.
+TEST_F(OpObserverTest, CheckHashDoesNotExistOnDeleteFromImplicitlyReplicatedClusteredCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, implicitlyReplicatedClusteredNss);
+
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    EXPECT_FALSE(deleteAndGetSizeMetadata(opCtx,
+                                          implicitlyReplicatedClusteredNss,
+                                          doc,
+                                          RecordId{},
+                                          /*replicatedSizeDelta=*/{})
+                     .has_value());
+}
+
+// Resharding's temporary collection keeps its UUID through the rename onto the source namespace,
+// and the fast count store is keyed by UUID, so suppressing its hashes would leave every resharded
+// collection permanently without one. The applier skips verifying it; emission must not skip it.
+TEST_F(OpObserverTest, CheckHashExistsForTemporaryReshardingCollection) {
+    unittest::ServerParameterGuard continuousInternodeScope{
+        "featureFlagContinuousInternodeValidationPerDocument", true};
+    auto opCtxWrapper = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxWrapper.get();
+    reset(opCtx, tempReshardingNss);
+
+    ASSERT_TRUE(tempReshardingNss.isTemporaryReshardingCollection());
+
+    const BSONObj doc = BSON("_id" << 0 << "data" << "x");
+    const auto sizeMetadata =
+        insertAndGetSizeMetadata(opCtx, tempReshardingNss, doc, {RecordId(1)});
+    ASSERT(sizeMetadata);
+    ASSERT(sizeMetadata->getH());
+    EXPECT_EQ(*sizeMetadata->getH(), repl::computeDocValidationHash(doc));
 }
 
 TEST_F(OpObserverTest, CheckSizeExistsWithoutHashOnInsert) {
@@ -5258,6 +5449,115 @@ TEST_F(BatchedWriteOutputsTest, RetryableSessionAtomicBatchWithoutStatementIdsIs
     ASSERT_EQ(2u, innerEntries.size());
     EXPECT_EQ(0, innerEntries[0].getStatementIds().size());
     EXPECT_EQ(0, innerEntries[1].getStatementIds().size());
+}
+
+TEST_F(BatchedWriteOutputsTest, NonRetryableSingleOpAtomicBatchDoesNotWriteTxnRecord) {
+    // The fast path is selected purely by operation count, so every grouping mode reaches it.
+    // Which mode a plain WUOW is promoted to depends on whether the enclosing operation carries a
+    // txnNumber, so cover all of them.
+    for (auto groupType : {WriteUnitOfWork::kGroupForTransaction,
+                           WriteUnitOfWork::kGroupForRetryableAtomicWrite,
+                           WriteUnitOfWork::kGroupForPossiblyRetryableOperations}) {
+        auto opCtxRaii = cc().makeOperationContext();
+        OperationContext* opCtx = opCtxRaii.get();
+        reset(opCtx, _nss);
+        resetOplogAndTransactions(opCtx);
+
+        std::unique_ptr<MongoDSessionCatalog::Session> contextSession;
+        beginRetryableWriteWithTxnNumber(opCtx, 0 /*txnNumber*/, contextSession);
+        const auto sessionId = *opCtx->getLogicalSessionId();
+
+        const auto doc = BSON("_id" << 0);
+        {
+            AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+            WriteUnitOfWork wuow(opCtx, groupType);
+            const auto& documentKey = getDocumentKey(*autoColl, doc);
+            OplogDeleteEntryArgs args;
+            opCtx->getServiceContext()->getOpObserver()->onDelete(
+                opCtx, *autoColl, kUninitializedStmtId, doc, documentKey, args);
+            wuow.commit();
+        }
+
+        std::vector<BSONObj> oplogs = getNOplogEntries(opCtx, 1);
+        auto entry = assertGet(OplogEntry::parse(oplogs.back()));
+        ASSERT_EQ(entry.getOpType(), repl::OpTypeEnum::kDelete);
+
+        // setInitializedStatementIds() dropped kUninitializedStmtId, so the entry reaches
+        // onBatchedWriteCommit with an empty statement id list.
+        EXPECT_EQ(0, entry.getStatementIds().size());
+
+        // Carrying no transaction chain info is correct for a non-retryable write.
+        EXPECT_FALSE(entry.getPrevWriteOpTimeInTransaction().has_value());
+        EXPECT_FALSE(entry.getSessionId().has_value());
+        EXPECT_FALSE(entry.getTxnNumber().has_value());
+
+        auto configTransactions = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest(NamespaceString::kSessionTransactionsTableNamespace,
+                                         PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                                         repl::ReadConcernArgs::get(opCtx),
+                                         AcquisitionPrerequisites::kRead),
+            MODE_IS);
+        auto txnRecord = Helpers::findOneForTesting(opCtx,
+                                                    configTransactions,
+                                                    BSON("_id" << sessionId.toBSON()),
+                                                    /*invariantOnError=*/false);
+        EXPECT_TRUE(txnRecord.isEmpty())
+            << "a non-retryable grouped write recorded a session lastWriteOpTime referencing an "
+               "oplog entry with no prevOpTime (groupType "
+            << static_cast<int>(groupType) << "): " << txnRecord;
+    }
+}
+
+TEST_F(BatchedWriteOutputsTest, NonRetryableMultiOpBatchDoesNotWriteTxnRecord) {
+    for (auto groupType : {WriteUnitOfWork::kGroupForTransaction,
+                           WriteUnitOfWork::kGroupForRetryableAtomicWrite,
+                           WriteUnitOfWork::kGroupForPossiblyRetryableOperations}) {
+        auto opCtxRaii = cc().makeOperationContext();
+        OperationContext* opCtx = opCtxRaii.get();
+        reset(opCtx, _nss);
+        resetOplogAndTransactions(opCtx);
+
+        std::unique_ptr<MongoDSessionCatalog::Session> contextSession;
+        beginRetryableWriteWithTxnNumber(opCtx, 0 /*txnNumber*/, contextSession);
+        const auto sessionId = *opCtx->getLogicalSessionId();
+
+        std::vector<InsertStatement> toInsert;
+        toInsert.emplace_back(kUninitializedStmtId, BSON("_id" << 0));
+        toInsert.emplace_back(kUninitializedStmtId, BSON("_id" << 1));
+        {
+            AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+            WriteUnitOfWork wuow(opCtx, groupType);
+            opCtx->getServiceContext()->getOpObserver()->onInserts(
+                opCtx,
+                *autoColl,
+                toInsert.begin(),
+                toInsert.end(),
+                /*recordIds=*/{},
+                /*fromMigrate=*/std::vector<bool>(toInsert.size(), false),
+                /*defaultFromMigrate=*/false);
+            wuow.commit();
+        }
+
+        std::vector<BSONObj> oplogs = getNOplogEntries(opCtx, 1);
+        auto entry = assertGet(OplogEntry::parse(oplogs.back()));
+        ASSERT_EQ(entry.getCommandType(), OplogEntry::CommandType::kApplyOps);
+        EXPECT_FALSE(entry.getPrevWriteOpTimeInTransaction().has_value());
+
+        auto configTransactions = acquireCollection(
+            opCtx,
+            CollectionAcquisitionRequest(NamespaceString::kSessionTransactionsTableNamespace,
+                                         PlacementConcern{boost::none, ShardVersion::UNTRACKED()},
+                                         repl::ReadConcernArgs::get(opCtx),
+                                         AcquisitionPrerequisites::kRead),
+            MODE_IS);
+        auto txnRecord = Helpers::findOneForTesting(opCtx,
+                                                    configTransactions,
+                                                    BSON("_id" << sessionId.toBSON()),
+                                                    /*invariantOnError=*/false);
+        EXPECT_TRUE(txnRecord.isEmpty())
+            << "multi-op groupType " << static_cast<int>(groupType) << ": " << txnRecord;
+    }
 }
 
 // Test to make sure vectored inserts work if the vectored inserts don't fit into an applyOps.  This
