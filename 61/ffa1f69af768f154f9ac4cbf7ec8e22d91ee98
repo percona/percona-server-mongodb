@@ -1,0 +1,140 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4b1070056dffffcd5c3150bc1ab9849368bfef91",
+    "merge_commit": "33b79a4120a735a468e44144a0dbad2facc26a74"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 24102,
+      "num_turns": 5,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.142976,
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 979,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001049,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-4-8": {
+          "inputTokens": 10,
+          "outputTokens": 1463,
+          "cacheReadInputTokens": 64454,
+          "cacheCreationInputTokens": 11692,
+          "webSearchRequests": 0,
+          "costUSD": 0.141927,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 105,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-haiku-4-5-20251001": {
+            "tokens": {
+              "input": 979,
+              "output": 14,
+              "cache_read": 0,
+              "cache_creation": 0
+            },
+            "cost_usd": 0.001049
+          },
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 10,
+              "output": 1463,
+              "cache_read": 64454,
+              "cache_creation": 11692
+            },
+            "cost_usd": 0.141927
+          }
+        }
+      },
+      "text_result": "Resolved the conflict. It was a simple non-overlapping include addition: the Percona side (HEAD) added `wiredtiger_encryption_hooks.h` and upstream added `wiredtiger_error_util.h`. I kept both headers in their proper alphabetical position within the surrounding wiredtiger include block and removed all conflict markers. The JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved an include-list conflict in wiredtiger_kv_engine.cpp by keeping both includes. The Percona side (HEAD) added the encryption hooks header, while upstream added the wiredtiger_error_util.h header. Both are needed, so both were retained in alphabetical order.",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Kept the Percona-specific '#include \"mongo/db/storage/wiredtiger/wiredtiger_encryption_hooks.h\"' and upstream's '#include \"mongo/db/storage/wiredtiger/wiredtiger_error_util.h\"'. Placed them in alphabetical order among the surrounding wiredtiger includes and removed all conflict markers."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The conflict was a non-overlapping addition of two different include lines. Both were kept; encryption_hooks.h is the Percona enhancement (encryption at rest) and error_util.h is upstream's new header. Ordering matches the existing alphabetical include grouping."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides added includes. Keep both, in alphabetical order (`encryption_hooks` before `error_util`)."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict. It was a simple non-overlapping include addition: the Percona side (HEAD) added `wiredtiger_encryption_hooks.h` and upstream added `wiredtiger_error_util.h`. I kept both headers in their proper alphabetical position within the surrounding wiredtiger include block and removed all conflict markers. The JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260906_172050_234880.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.263 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
