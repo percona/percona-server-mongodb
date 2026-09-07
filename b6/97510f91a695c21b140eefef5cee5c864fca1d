@@ -1,0 +1,165 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d60daf9af00addb7b0376f1946386a125fd476f6",
+    "merge_commit": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+    "merged_commits": [
+      "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+      "50ea5882e8953aea5ff3ed39ebbaaee596ff860a"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 49274,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.24013949999999998,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 17,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001064,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 3333,
+        "cacheReadInputTokens": 90556,
+        "cacheCreationInputTokens": 17666,
+        "webSearchRequests": 0,
+        "costUSD": 0.2390755,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 751,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 17,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001064
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 3333,
+            "cache_read": 90556,
+            "cache_creation": 17666
+          },
+          "cost_usd": 0.2390755
+        }
+      }
+    },
+    "text_result": "I analyzed the merge and wrote the JSON response.\n\n**What this merge pulls in:**\n- A WiredTiger library import (`61270897bab` from `mongodb-master`, #62345)\n- SERVER-134579: native-build fallback when Linux container services are unusable (#62323)\n\n**The only auto-merged file** \u2014 `src/third_party/wiredtiger/src/include/wiredtiger.h.in` \u2014 is a generated header. Its `diff base \u2192 merge commit` diff (verified with `git diff 33b79a4120a 81bb03c23d4`) is purely a statistics-macro update:\n- Four new counters added (CONN + DSRC variants of `CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL` and `LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE`)\n- Downstream `WT_STAT_*` IDs renumbered accordingly\n- No symbols removed, no executable code, no Percona customizations touched\n\nResponse written to `.cache/mergai/response_20260907_124747_645511.json`.",
+    "response": {
+      "summary": "Merges upstream MongoDB commit 81bb03c23d4 into the Percona fork's master branch. The merge pulls in a WiredTiger library import (WiredTiger 61270897bab from branch mongodb-master, #62345) and SERVER-134579, which makes the Linux container build tooling fall back to native builds when container services are unusable (#62323). The only file that required a three-way (auto) merge was the generated WiredTiger public header src/third_party/wiredtiger/src/include/wiredtiger.h.in; its diff is a mechanical statistics-constant update.",
+      "auto_merged": {
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated-file change from the WiredTiger import: statistics ID macros are renumbered and four new statistics constants are added. New connection-level (CONN) and data-source-level (DSRC) counters WT_STAT_*_CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL (checkpoint-cleanup: internal pages whose deleted children were all still visible to some reader) and WT_STAT_*_LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE (layered: Layered table cursor stable open raced a checkpoint pickup) are inserted, each with a new doc-comment. Because these constants are inserted mid-block, the numeric values of the following WT_STAT_CONN_* and WT_STAT_DSRC_* macros are shifted upward by one/two. No symbols are removed; the diff is entirely macro definitions and their comments, not executable code."
+      },
+      "review_notes": "The wiredtiger.h.in change is a generated header from the WiredTiger third-party import and contains only statistics macro (WT_STAT_CONN_*/WT_STAT_DSRC_*) renumbering plus two new counter categories; no API functions, structs, or behavior in this header change. It should stay consistent with the companion generated sources in the same import (dist/stat_data.py, support/stat.c, etc.). This merge introduces no Percona-specific conflicts and no Percona customizations were affected; the auto (ort) merge kept the fork's existing lines. Verification was done by diffing the authoritative base 33b79a4120a against the merge commit 81bb03c23d4 for this file and confirming only the four listed new symbols were added and no stat symbols were removed."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I analyzed the merge and wrote the JSON response.\n\n**What this merge pulls in:**\n- A WiredTiger library import (`61270897bab` from `mongodb-master`, #62345)\n- SERVER-134579: native-build fallback when Linux container services are unusable (#62323)\n\n**The only auto-merged file** \u2014 `src/third_party/wiredtiger/src/include/wiredtiger.h.in` \u2014 is a generated header. Its `diff base \u2192 merge commit` diff (verified with `git diff 33b79a4120a 81bb03c23d4`) is purely a statistics-macro update:\n- Four new counters added (CONN + DSRC variants of `CHECKPOINT_CLEANUP_PAGES_DELETED_NOT_VISIBLE_ALL` and `LAYERED_CURS_OPEN_STABLE_CKPT_PICKUP_RACE`)\n- Downstream `WT_STAT_*` IDs renumbered accordingly\n- No symbols removed, no executable code, no Percona customizations touched\n\nResponse written to `.cache/mergai/response_20260907_124747_645511.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260907_124747_645375.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.263 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+    "short_sha": "81bb03c23d4",
+    "strategy": "huge_commit",
+    "summary": "The window is small (7 commits, age-triggered gate) and contains no coherent multi-commit series - just independent SERVER-* fixes plus one vendored WiredTiger import. The WiredTiger import (81bb03c2) is the ideal merge boundary: a large, self-contained third-party vendored artifact that touches a well-isolated file set, does not depend on the small server fixes that follow it, and is easy to validate post-merge. Cutting here pulls in the preceding native-build fix plus the atomic WT drop as a clean cut point. The five commits after it are unrelated small fixes/test tweaks (some very fresh, dated the same day) that are better left to settle and batch together next time rather than splitting them onto an arbitrary mid-stream boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/34123526395"
+  }
+}
