@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 30,
+    "commits_behind": 33,
     "days_behind": 2,
-    "unmerged_oldest_age_days": 2.2288545585532407,
-    "files_affected": 105,
-    "total_additions": 3337,
-    "total_deletions": 1391,
+    "unmerged_oldest_age_days": 2.7700005905555556,
+    "files_affected": 151,
+    "total_additions": 5461,
+    "total_deletions": 2551,
     "date_range": {
       "first": "2026-09-04T11:45:37+00:00",
-      "last": "2026-09-05T04:34:00+00:00"
+      "last": "2026-09-07T03:03:39+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,36 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "b7ecd92c2aa0c488a2c9c3dade88938296e8b272",
+      "short_sha": "b7ecd92c2aa",
+      "date": "2026-09-07T03:03:39+00:00",
+      "author": {
+        "name": "Jasmine",
+        "email": "82012560+bzm-jas@users.noreply.github.com"
+      },
+      "summary": "SERVER-134112 Integrate repair fix btree size (#62196)"
+    },
+    {
+      "sha": "3c488c6047539862a17ed5b7c7b0711ffd35d8ba",
+      "short_sha": "3c488c60475",
+      "date": "2026-09-07T00:30:56+00:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-134586 Retry failed stepdown attempts in stepdown_doesnt_block.js (#62348)"
+    },
+    {
+      "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+      "short_sha": "81bb03c23d4",
+      "date": "2026-09-07T00:01:02+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 61270897bab14b5cf6a762f645018d81a289d044 from branch mongodb-master (#62345)"
+    },
     {
       "sha": "50ea5882e8953aea5ff3ed39ebbaaee596ff860a",
       "short_sha": "50ea5882e89",
@@ -383,10 +413,33 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+        "short_sha": "81bb03c23d4",
+        "date": "2026-09-07T00:01:02+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 61270897bab14b5cf6a762f645018d81a289d044 from branch mongodb-master (#62345)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 42,
+          "num_of_lines": 3147,
+          "lines_added": 2006,
+          "lines_deleted": 1141,
+          "num_of_dirs": 16
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-06 17:14:55",
+  "generated_at": "2026-09-07 06:13:59",
   "branch_name": "master",
   "display_name": "master"
 }
