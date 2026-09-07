@@ -5,42 +5,52 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 7,
-    "days_behind": 2,
-    "unmerged_oldest_age_days": 2.340577441273148,
-    "files_affected": 53,
-    "total_additions": 2270,
-    "total_deletions": 1220,
+    "commits_behind": 6,
+    "days_behind": 0,
+    "unmerged_oldest_age_days": 0.6624470191550926,
+    "files_affected": 22,
+    "total_additions": 675,
+    "total_deletions": 34,
     "date_range": {
-      "first": "2026-09-05T04:34:00+00:00",
-      "last": "2026-09-07T08:03:21+00:00"
+      "first": "2026-09-07T00:30:56+00:00",
+      "last": "2026-09-07T12:17:41+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "33b79a4120a735a468e44144a0dbad2facc26a74",
-    "short_sha": "33b79a4120a",
-    "date": "2026-09-05T02:06:25+00:00",
+    "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+    "short_sha": "81bb03c23d4",
+    "date": "2026-09-07T00:01:02+00:00",
     "author": {
-      "name": "Thomas Goyne",
-      "email": "thomas.goyne@mongodb.com"
+      "name": "wt-vendoring-bot[bot]",
+      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-133843 Fix a race condition between table create/drop and stepdown (#62242)"
+    "summary": "Import wiredtiger: 61270897bab14b5cf6a762f645018d81a289d044 from branch mongodb-master (#62345)"
   },
   "first_unmerged_commit": {
-    "sha": "50ea5882e8953aea5ff3ed39ebbaaee596ff860a",
-    "short_sha": "50ea5882e89",
-    "date": "2026-09-05T04:34:00+00:00",
+    "sha": "3c488c6047539862a17ed5b7c7b0711ffd35d8ba",
+    "short_sha": "3c488c60475",
+    "date": "2026-09-07T00:30:56+00:00",
     "author": {
-      "name": "Daniel Moody",
-      "email": "dmoody256@gmail.com"
+      "name": "Gregory Wlodarek",
+      "email": "gregory.wlodarek@mongodb.com"
     },
-    "summary": "SERVER-134579: Fall back to native builds when Linux container services are unusable (#62323)"
+    "summary": "SERVER-134586 Retry failed stepdown attempts in stepdown_doesnt_block.js (#62348)"
   },
   "gate": {
-    "open": true,
-    "reason": "max_age (2.3d >= 2d)"
+    "open": false,
+    "reason": "wait (6 < 50 commits; oldest 0.7d < 2d)"
   },
   "unmerged_commits": [
+    {
+      "sha": "28ef381046a75be03615216fab2d0cfcdbec099a",
+      "short_sha": "28ef381046a",
+      "date": "2026-09-07T12:17:41+00:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-133947 Restore the previous RSWB allowDeletions configuration when an in-place update rolls back (#61726)"
+    },
     {
       "sha": "41cc88c60b520498d78f25b045c753c0126400db",
       "short_sha": "41cc88c60b5",
@@ -90,55 +100,28 @@
         "email": "gregory.wlodarek@mongodb.com"
       },
       "summary": "SERVER-134586 Retry failed stepdown attempts in stepdown_doesnt_block.js (#62348)"
-    },
-    {
-      "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
-      "short_sha": "81bb03c23d4",
-      "date": "2026-09-07T00:01:02+00:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 61270897bab14b5cf6a762f645018d81a289d044 from branch mongodb-master (#62345)"
-    },
-    {
-      "sha": "50ea5882e8953aea5ff3ed39ebbaaee596ff860a",
-      "short_sha": "50ea5882e89",
-      "date": "2026-09-05T04:34:00+00:00",
-      "author": {
-        "name": "Daniel Moody",
-        "email": "dmoody256@gmail.com"
-      },
-      "summary": "SERVER-134579: Fall back to native builds when Linux container services are unusable (#62323)"
     }
   ],
   "merge_picks": [
     {
       "commit": {
-        "sha": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
-        "short_sha": "81bb03c23d4",
-        "date": "2026-09-07T00:01:02+00:00",
+        "sha": "28ef381046a75be03615216fab2d0cfcdbec099a",
+        "short_sha": "28ef381046a",
+        "date": "2026-09-07T12:17:41+00:00",
         "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+          "name": "Anna Maria Nestorov",
+          "email": "annamaria.nestorov@gmail.com"
         },
-        "summary": "Import wiredtiger: 61270897bab14b5cf6a762f645018d81a289d044 from branch mongodb-master (#62345)"
+        "summary": "SERVER-133947 Restore the previous RSWB allowDeletions configuration when an in-place update rolls back (#61726)"
       },
-      "strategy_name": "huge_commit",
+      "strategy_name": "most_recent",
       "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 42,
-          "num_of_lines": 3147,
-          "lines_added": 2006,
-          "lines_deleted": 1141,
-          "num_of_dirs": 16
-        }
+        "fallback": true
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-07 12:44:20",
+  "generated_at": "2026-09-07 16:24:46",
   "branch_name": "master",
   "display_name": "master"
 }
