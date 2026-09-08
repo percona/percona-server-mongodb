@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 6,
-    "days_behind": 0,
-    "unmerged_oldest_age_days": 0.6624470191550926,
-    "files_affected": 22,
-    "total_additions": 675,
-    "total_deletions": 34,
+    "commits_behind": 7,
+    "days_behind": 1,
+    "unmerged_oldest_age_days": 1.2363841170833332,
+    "files_affected": 52,
+    "total_additions": 2136,
+    "total_deletions": 474,
     "date_range": {
       "first": "2026-09-07T00:30:56+00:00",
-      "last": "2026-09-07T12:17:41+00:00"
+      "last": "2026-09-08T01:09:22+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,19 @@
   },
   "gate": {
     "open": false,
-    "reason": "wait (6 < 50 commits; oldest 0.7d < 2d)"
+    "reason": "wait (7 < 50 commits; oldest 1.2d < 2d)"
   },
   "unmerged_commits": [
+    {
+      "sha": "7d030afab11255b85b1dc32fb47bdc9c886a8f6b",
+      "short_sha": "7d030afab11",
+      "date": "2026-09-08T01:09:22+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 8a33b297a9dfc2a14fff20a013817cf7df567c05 from branch mongodb-master (#62362)"
+    },
     {
       "sha": "28ef381046a75be03615216fab2d0cfcdbec099a",
       "short_sha": "28ef381046a",
@@ -105,23 +115,30 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "28ef381046a75be03615216fab2d0cfcdbec099a",
-        "short_sha": "28ef381046a",
-        "date": "2026-09-07T12:17:41+00:00",
+        "sha": "7d030afab11255b85b1dc32fb47bdc9c886a8f6b",
+        "short_sha": "7d030afab11",
+        "date": "2026-09-08T01:09:22+00:00",
         "author": {
-          "name": "Anna Maria Nestorov",
-          "email": "annamaria.nestorov@gmail.com"
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
         },
-        "summary": "SERVER-133947 Restore the previous RSWB allowDeletions configuration when an in-place update rolls back (#61726)"
+        "summary": "Import wiredtiger: 8a33b297a9dfc2a14fff20a013817cf7df567c05 from branch mongodb-master (#62362)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "huge_commit",
       "result": {
-        "fallback": true
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 30,
+          "num_of_lines": 1901,
+          "lines_added": 1461,
+          "lines_deleted": 440,
+          "num_of_dirs": 16
+        }
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-07 16:24:46",
+  "generated_at": "2026-09-08 06:11:13",
   "branch_name": "master",
   "display_name": "master"
 }
