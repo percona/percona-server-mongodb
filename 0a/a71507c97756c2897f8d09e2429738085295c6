@@ -1,0 +1,219 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b697510f91a695c21b140eefef5cee5c864fca1d",
+    "merge_commit": "a3dd048d16a978f1687d2165a32c3ea702d0b273"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "b697510f91a695c21b140eefef5cee5c864fca1d",
+    "theirs_commit": "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+    "base_commit": "81bb03c23d46f0dbbefab02dedfb6fbd17576cf8",
+    "files": [
+      "MODULE.bazel.lock"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex f9219e168c1,8700b2d540c..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,1 -356,1 +356,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"OcKo2XiEt7W09S7VOonrc+GDVhq2VyyjGDL9ZJ3/CUE=\",\n++||||||| 81bb03c23d4\n++        \"bzlTransitiveDigest\": \"1RvThyJfUctyCX7Fv5jZ8MBnns904kg1r+v8FFPYgFg=\",\n++=======\n+         \"bzlTransitiveDigest\": \"OO0j1LkAHzbR6IrUDjehesWPNexSPMOftG1uDfuArJ0=\",\n++>>>>>>> a3dd048d16a978f1687d2165a32c3ea702d0b273"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "262e96bd9bd314dceb485e5e5f99ebb635e1e89c"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+    "merged_commits": [
+      "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+      "fba703e522962dda02773ee6fd60297ab22308ca",
+      "590e60fcfb2d80506afce4a573fa3257a93d8948",
+      "ac1417a0ee0b6a57b8f967af63cae07fdc8e1744",
+      "57b949aaf20fcfe0216b3fe11188aa42936408fb",
+      "0f3a8e176b3951fbe899d57bb5f70f53ef04100d",
+      "b6f375e932c38de9308b6999669fa7b319788e38",
+      "10f51d1058a005a67c4275010c207014e7e8087c",
+      "34e1d42103c5b4298c5138eb465d464357981550",
+      "8d8493cdf7c2cc7d52bf07d41f92ae5f6df5c9e1",
+      "f40a11162f0897278a398f54729c54e62589cdea",
+      "e9e735ff8650c3d19cdba2c3743858466c2a625c",
+      "69c12f9cba86f771c124cda5422dead46e7305e2",
+      "2641f95a33cf9d028c54fd026493a76c365a9bb4",
+      "9cfd2ac212862227bff786f2fa6101e15641ced0",
+      "2f2c4b7b70a5136672a566b0148cff9ce91525b7",
+      "ea8837989c960235e6249e16e5a81f3f859c910e",
+      "d9680f2c54db61b54cf7bc59a1028d1cfc1590ed",
+      "4b6ade8e693427d87e4aacd7fbf378dc49032dfa",
+      "8bf29a10a931d3c39a5821c5f8cf6e86a4fd8ac9",
+      "6aa46e5239a46b4fb67d2dc22e320c9b8071848c",
+      "d964a90b12b116cdf398d33c7c3b5be0319ae559",
+      "268a6706a3b4cc0573511dd0a2e0932221f9f284",
+      "0bc309c8b074820510aee1cc8d32ce6323f07c83",
+      "9ecc85c9a4fc7ce1e266f2044359d9b47af764a7",
+      "262e96bd9bd314dceb485e5e5f99ebb635e1e89c",
+      "6a2b85a87f198cdbdc1e216d44a2da6a35acb906",
+      "1ab80417bad073034373a94e4583b722c29f7fbc",
+      "7d030afab11255b85b1dc32fb47bdc9c886a8f6b",
+      "28ef381046a75be03615216fab2d0cfcdbec099a",
+      "41cc88c60b520498d78f25b045c753c0126400db",
+      "7effcd1980a6a3c600903ba9dd3e8eb5cd731ca9",
+      "46014702c278725b51753661622b2d59d1263df0",
+      "b7ecd92c2aa0c488a2c9c3dade88938296e8b272",
+      "3c488c6047539862a17ed5b7c7b0711ffd35d8ba"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "bazel/mongo_src_rules.bzl",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 41882,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.23782749999999997,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 14,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001049,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3077,
+        "cacheReadInputTokens": 47147,
+        "cacheCreationInputTokens": 21800,
+        "webSearchRequests": 0,
+        "costUSD": 0.23677849999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 144,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 14,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001049
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3077,
+            "cache_read": 47147,
+            "cache_creation": 21800
+          },
+          "cost_usd": 0.23677849999999995
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Here's a summary of what this merge introduces (upstream mongodb-master \u2192 fork):\n\n**Key functional changes:**\n- **WiredTiger stats session** (`wiredtiger_util.cpp`): switches from `cache_max_wait_ms=1` to `ignore_cache_size=true` to keep statistics fetching from blocking on cache eviction.\n- **WiredTiger core** (`conn_api.c`): disaggregated storage now verifies its metadata URI during startup cleanup; the `wiredtiger_open` metadata-verify path is simplified.\n- **WiredTiger header** (`wiredtiger.h.in`): docs updated to reflect that `ignore_cache_size` can now be reconfigured mid-transaction; adds a new eviction stat, which renumbers subsequent `WT_STAT_CONN_*` constants.\n- **FTDC** (`ftdc_system_stats_linux.cpp`): safer parsing of fixed-length ethtool stat names via `string_view` + NUL truncation.\n- **Resmoke** (`replicaset.py`): tolerates legacy timeseries views (error 166) during FCV-downgrade collection scans.\n- **Build/test cleanup**: build-id hash now includes compile task type; removal of `rank_fusion_util` deps and feature-flag `skipTest` guards (flags apparently graduated upstream).\n\n**On conflicts:** Only `MODULE.bazel.lock` was in conflict (digest change), resolved via regeneration. None of the PSMDB-tagged seams from the conflict hints were touched by this merge.",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the fork. The main functional changes are in WiredTiger: the session used for statistics fetching now sets ignore_cache_size=true instead of cache_max_wait_ms=1 (matching the new WiredTiger semantics that allow reconfiguring ignore_cache_size while a transaction is running), disaggregated storage now verifies its metadata URI during startup cleanup, and a new eviction statistic is added. Other changes include a build-id hash that now incorporates the compile task type, more robust FTDC ethtool network-stat name parsing, resmoke handling of legacy timeseries views during FCV downgrade, and removal of feature-flag skip guards and a rank_fusion_util dependency in build/test files.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Lockfile bzlTransitiveDigest updated to the merged value. Conflict resolved by regenerating the lock file; no manual semantic content to merge.",
+        "bazel/mongo_src_rules.bzl": "The @evergreen_variables load now also imports UNSAFE_COMPILE_TASK_TYPE. In mongo_cc_library and _mongo_cc_binary_and_test, the simple build-id hash now includes str(UNSAFE_COMPILE_TASK_TYPE) alongside UNSAFE_VERSION_ID and UNSAFE_COMPILE_VARIANT, so the generated --build-id differs per compile task type.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Adds a _COMMAND_NOT_SUPPORTED_ON_VIEW = 166 constant and wraps the list_indexes() call in the FCV-downgrade collection scan with a try/except. When list_indexes fails with code 166 on a collection whose type is 'timeseries', the error is swallowed (legacy timeseries collections are views that don't support listIndexes on older versions); otherwise it re-raises.",
+        "jstests/auth/lib/commands_lib.js": "Removes three skipTest guards that skipped test cases unless featureFlagRankFusionBasic / featureFlagSearchHybridScoringFull was enabled, so those authorization test cases now always run.",
+        "src/mongo/db/BUILD.bazel": "Removes the //src/mongo/db/query/util:rank_fusion_util dependency from a mongo_cc_library target's deps.",
+        "src/mongo/db/ftdc/ftdc_system_stats_linux.cpp": "Changes how ethtool GSTRINGS names are read: instead of constructing a std::string directly from the raw pointer, it builds a std::string_view of length ETH_GSTRING_LEN and pushes the substring up to the first NUL, avoiding reads past the fixed-length field.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Removes the //src/mongo/db/query/util:rank_fusion_util dependency from a mongo_cc_library target's deps.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::getStatisticsSession, the statistics session is now configured with ignore_cache_size=true (reset to false) instead of cache_max_wait_ms=1 (reset to 0) to keep stat fetching from blocking on cache eviction.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In __conn_startup_cleanup_and_verify, when the connection is disaggregated (__wt_conn_is_disagg), it now calls session->verify on WT_DISAGG_METADATA_URI. In wiredtiger_open, the metadata-verify path is simplified to WT_ERR(wt_session->verify(...)) without the intermediate ret variable.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Documentation for ignore_cache_size (session/connection open and begin_transaction configs) is updated to state that ignore_cache_size may now be reconfigured while a transaction is running (taking precedence over the transaction-level setting) rather than returning EINVAL. Adds a new statistic WT_STAT_CONN_EVICTION_DISAGG_PUBLISH_CLEARED (1135), which renumbers the subsequent WT_STAT_CONN_* eviction statistic constants by one."
+      },
+      "review_notes": "Most of the wiredtiger.h.in diff is mechanical renumbering of WT_STAT_CONN_* constants caused by inserting one new eviction stat; verify the numbering stays consistent with the generated stat sources. The wiredtiger_util.cpp change pairs with the WiredTiger semantics change (ignore_cache_size now reconfigurable mid-transaction) documented in wiredtiger.h.in. The rank_fusion_util dependency removals and the commands_lib.js skipTest removals suggest the RankFusion/SearchHybridScoring feature flags were graduated upstream. The MODULE.bazel.lock conflict was resolved by regenerating the file. No Percona-specific (PSMDB) lines appeared in these diffs; the conflict-hint targets (mongo_cc_integration_test, integration-test fixture attributes) were not touched by this merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each file. Let me start with the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough context. Now let me write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Here's a summary of what this merge introduces (upstream mongodb-master \u2192 fork):\n\n**Key functional changes:**\n- **WiredTiger stats session** (`wiredtiger_util.cpp`): switches from `cache_max_wait_ms=1` to `ignore_cache_size=true` to keep statistics fetching from blocking on cache eviction.\n- **WiredTiger core** (`conn_api.c`): disaggregated storage now verifies its metadata URI during startup cleanup; the `wiredtiger_open` metadata-verify path is simplified.\n- **WiredTiger header** (`wiredtiger.h.in`): docs updated to reflect that `ignore_cache_size` can now be reconfigured mid-transaction; adds a new eviction stat, which renumbers subsequent `WT_STAT_CONN_*` constants.\n- **FTDC** (`ftdc_system_stats_linux.cpp`): safer parsing of fixed-length ethtool stat names via `string_view` + NUL truncation.\n- **Resmoke** (`replicaset.py`): tolerates legacy timeseries views (error 166) during FCV-downgrade collection scans.\n- **Build/test cleanup**: build-id hash now includes compile task type; removal of `rank_fusion_util` deps and feature-flag `skipTest` guards (flags apparently graduated upstream).\n\n**On conflicts:** Only `MODULE.bazel.lock` was in conflict (digest change), resolved via regeneration. None of the PSMDB-tagged seams from the conflict hints were touched by this merge."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260909_051327_236379.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.266 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+    "short_sha": "a3dd048d16a",
+    "strategy": "huge_commit",
+    "summary": "This is a vendored WiredTiger import (huge_commit) sitting 35 commits into the 37-commit window, which lands the batch squarely in the ~30-65 target band. Third-party vendored imports are ideal merge boundaries: they touch a well-isolated set of files, rarely depend on the commits after them, and are easy to validate post-merge. Cutting here also leaves the freshest 2 candidates (9e2b8a6 and e978a90) for the next batch, honoring the 'stop short of unsettled commits' rule rather than merging to the very newest candidate. The earlier WT import (7d030afab) would yield only a 7-commit batch, too small given the gate is already open. Picking past the conflict/huge_commit signals in between is fine since the resolve flow handles any conflicts, and this WT import is a cleaner stopping point than the mid-stream feature commits around it.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/34313817542"
+  }
+}
