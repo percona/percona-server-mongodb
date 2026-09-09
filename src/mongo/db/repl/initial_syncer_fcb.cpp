@@ -1599,6 +1599,19 @@ Status InitialSyncerFCB::_switchStorageLocation(
                 "newLocation"_attr = newLocation,
                 "error"_attr = e);
     return e.toStatus();
+} catch (...) {
+    // Catches non-DBException failures, notably mongo::encryption::Error thrown while
+    // reinitializing the storage engine against just-downloaded data (e.g. a KMIP/Vault
+    // master-key mismatch). This function is invoked from noexcept callbacks; previously
+    // such an exception escaped every catch clause here and caused an uncontrolled
+    // std::terminate() instead of a clean initial sync failure. PSMDB-2253.
+    auto status = exceptionToStatus();
+    LOGV2_DEBUG(128499,
+                1,
+                "Failed to switch storage location",
+                "newLocation"_attr = newLocation,
+                "error"_attr = status);
+    return status;
 }
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<Latch>& lock,
@@ -2177,6 +2190,17 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         // _restoreStorageLocation will not be called in this case
         _inStorageChange = false;
         _inStorageChangeCondition.notify_all();
+        // Failing to switch storage to the downloaded data means the just-cloned files are
+        // unusable with this node's configuration (e.g. a KMIP/Vault master-key mismatch,
+        // PSMDB-2253). Denylist this sync source so a retry picks a different one instead of
+        // deterministically repeating the same failure against it.
+        status = _invalidSyncSource_inlock(
+            _syncSource,
+            kDenylistPersistent,
+            str::stream() << "Failed to switch storage location to downloaded initial sync "
+                             "data; sync source may have provided incompatible or "
+                             "improperly-encrypted data: "
+                          << status.toString());
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
@@ -2246,8 +2270,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     }
 
     storageGuard.dismiss();
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
@@ -2308,8 +2334,10 @@ void InitialSyncerFCB::_executeRecovery(
     }
 
     storageGuard.dismiss();
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
@@ -2386,8 +2414,14 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
+    //
+    // Only callbacks that call directly into storage-engine open/reinit (this one and the
+    // two preceding it) need this wide a catch; _finalizeAndCompleteCallback below runs
+    // after the engine is already up and only needs the narrower DBException handling.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
