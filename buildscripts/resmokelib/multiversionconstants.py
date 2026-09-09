@@ -58,17 +58,10 @@ def generate_mongo_version_file():
             f"Failed to read version from {BAZELRC_DEFAULT_MONGO_VERSION}"
         ) from exp
 
-    # Remove a tag prefix
-    UPSTREAM_TAG_PREFIX = "r"  # e.g. res = 'r5.1.0-alpha-597-g8c345c6693\n'
-    PERCONA_TAG_PREFIX = "psmdb-"  # e.g. res = 'psmdb-7.0.22-12-44-g80c7fa9d709'
-    for p in [UPSTREAM_TAG_PREFIX, PERCONA_TAG_PREFIX]:
-        if res.startswith(p):
-            res = res[len(p):]
-            break
-
     # Write the current MONGO_VERSION to a data file.
     with open(MONGO_VERSION_YAML, "w", encoding="utf-8") as mongo_version_fh:
-        mongo_version_fh.write("mongo_version: " + res + "\n")
+        # E.g. version = '8.2.2'
+        mongo_version_fh.write("mongo_version: " + version + "\n")
 
 
 @retry(tries=5, delay=3)
