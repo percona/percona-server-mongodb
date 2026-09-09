@@ -1,4 +1,4 @@
-name: mergai bot
+name: mergai
 
 on:
   # Manual entry point: start a new merge of an upstream commit.

@@ -26,7 +26,7 @@
 #     and resolves that status to success/failure.
 #
 # Commit statuses are published with the default GITHUB_TOKEN (github-actions[bot])
-# so the "Fast-Forward Merge" check shares the same icon as the mergai bot checks.
+# so the "Fast-Forward Merge" check shares the same icon as the mergai checks.
 # The App token is used only where it is actually needed: reading the PR /
 # commenter permission, posting comments, and pushing to the protected base ref.
 # =============================================================================

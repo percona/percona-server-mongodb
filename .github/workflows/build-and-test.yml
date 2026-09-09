@@ -191,7 +191,7 @@ env:
 # Trust model: same-repo PRs (head repo == base repo) route to the ungated
 # `rbe` environment; forks/external PRs route to `rbe-approve` and pay the
 # approval cost. A branch can only exist in this repo if someone with write
-# access pushed it, so same-repo is the trust signal -- mergai bot PRs
+# access pushed it, so same-repo is the trust signal -- mergai PRs
 # (mergai/** on this repo) and maintainers' own branches skip the approval,
 # forks do not. author_association is intentionally NOT used (spoofable in some
 # contexts); same-repo is the reliable signal. Non-PR events

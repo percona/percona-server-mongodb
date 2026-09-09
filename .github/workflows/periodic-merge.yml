@@ -1,7 +1,7 @@
 name: mergai periodic merge
 
 # Drive the merge-from-upstream loop: pick the next upstream commit to merge and,
-# unless a merge is already in progress, dispatch the `mergai bot` `trigger-merge`
+# unless a merge is already in progress, dispatch the `mergai` `trigger-merge`
 # job for it. This replaces a human watching the Fork Status page and dispatching
 # mergai.yml by hand.
 #

@@ -14,7 +14,7 @@ by hand. Both workflows are tuned through GitHub Actions
 
 1. **Check available commits**: Visit the
    [Fork Status page](https://percona.github.io/percona-server-mongodb/)
-2. **Trigger merge**: Go to Actions → "mergai bot" → "Run workflow", or use CLI:
+2. **Trigger merge**: Go to Actions → "mergai" → "Run workflow", or use CLI:
 
    ```bash
    gh workflow run .github/workflows/mergai.yml -f merge-pick=<SHA>
@@ -29,7 +29,7 @@ by hand. Both workflows are tuned through GitHub Actions
 
 ## Workflows
 
-### `mergai.yml` ("mergai bot")
+### `mergai.yml` ("mergai")
 
 | Job               | Trigger                          | Purpose                                                                  |
 | ----------------- | -------------------------------- | ------------------------------------------------------------------------ |
