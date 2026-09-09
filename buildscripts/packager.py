@@ -47,6 +47,24 @@ ARCH_CHOICES = ["x86_64", "arm64", "aarch64", "s390x"]
 DISTROS = ["suse", "debian", "redhat", "ubuntu", "amazon", "amazon2", "amazon2023"]
 
 
+def rhel_major_version(build_os: str) -> str:
+    """Return the RHEL major version encoded in a build_os name.
+
+    Names for RHEL 9 and earlier are a single-digit major version followed by an
+    optional single-digit minor version ("rhel93" -> "9", "rhel9" -> "9"). RHEL 10
+    and later are major-only ("rhel10" -> "10").
+
+    Any other name is rejected rather than guessed at, so that a new naming scheme
+    (such as a "rhel101" that would be ambiguous here) has to be handled
+    deliberately instead of silently producing a mislabeled package.
+    """
+
+    match = re.fullmatch(r"rhel(?:(1\d)|([5-9])\d?)", build_os)
+    if not match:
+        raise Exception("unsupported build_os: %s" % build_os)
+    return match.group(1) or match.group(2)
+
+
 class Spec(object):
     """Spec class."""
 
@@ -284,7 +302,7 @@ class Distro(object):
         if self.dname == 'suse':
             return re.sub(r'^suse(\d+)$', r'\1', build_os)
         if self.dname == 'redhat':
-            return re.sub(r'^rhel(\d).*$', r'\1', build_os)
+            return rhel_major_version(build_os)
         if self.dname == 'amazon':
             return "2013.03"
         elif self.dname == 'amazon2':
@@ -345,6 +363,7 @@ class Distro(object):
             return ["suse11", "suse12", "suse15"]
         elif re.search("(redhat|fedora|centos)", self.dname):
             return [
+                "rhel10",
                 "rhel90",
                 "rhel82",
                 "rhel80",
@@ -374,9 +393,9 @@ class Distro(object):
     def release_dist(self, build_os):
         """Return the release distribution to use in the rpm.
 
-        "el5" for rhel 5.x,
-        "el6" for rhel 6.x,
-        return anything else unchanged.
+        "amzn1", "amzn2" or "amzn2023" for the amazon distros,
+        "el" plus the major version for rhel ("el6" for rhel 6.x, "el10" for rhel 10.x),
+        and anything else unchanged.
         """
 
         if self.dname == 'amazon':
@@ -385,7 +404,10 @@ class Distro(object):
             return 'amzn2'
         elif self.dname == 'amazon2023':
             return 'amzn2023'
-        return re.sub(r'^rh(el\d).*$', r'\1', build_os)
+        elif build_os.startswith("rhel"):
+            return "el" + rhel_major_version(build_os)
+        else:
+            return build_os
 
 
 def get_args(distros, arch_choices):
@@ -831,6 +853,16 @@ def make_rpm(distro, build_os, arch, spec, srcdir):
         "-D",
         f"dynamic_release {spec.prelease()}",
     ]
+
+    # Some build environments may not define a `pathfix` RPM macro even though our spec files
+    # reference it during %prep. Define it here if available so rpmbuild can expand `%{pathfix}`.
+    pathfix = None
+    for candidate in ("/usr/bin/pathfix.py", "/usr/lib/rpm/redhat/pathfix.py"):
+        if os.path.exists(candidate):
+            pathfix = candidate
+            break
+    if pathfix:
+        flags.extend(["-D", f"pathfix {pathfix}"])
 
     # Versions of RPM after 4.4 ignore our BuildRoot tag so we need to
     # specify it on the command line args to rpmbuild

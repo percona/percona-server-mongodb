@@ -21,6 +21,12 @@
 #
 last-continuous:
   all:
+  - test_file: jstests/aggregation/expressions/regex_backslash_c.js
+    ticket: SERVER-127985
+  - test_file: jstests/noPassthrough/regex_utf8_boundary_flag_disabled.js
+    ticket: SERVER-127985
+  - test_file: jstests/replsets/arbiter_afterClusterTime_read_concern.js
+    ticket: SERVER-130759
   - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
     ticket: SERVER-130139
   - test_file: jstests/aggregation/accumulators/percentiles_syntax.js
@@ -697,9 +703,23 @@ last-continuous:
     ticket: SERVER-111406
   - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
     ticket: SERVER-128433
+  - test_file: jstests/sharding/change_stream_update_lookup_sharded_insert_update.js
+    ticket: SERVER-131202
+  - test_file: jstests/core/write/write_command_duplicate_stmt_ids_validation.js
+    ticket: SERVER-131326
+  - test_file: jstests/sharding/internal_txns/retryable_writes_oplog_entries.js
+    ticket: SERVER-131326
+  - test_file: jstests/noPassthrough/min_wait_streaming_hello_mongos.js
+    ticket: SERVER-132650
   suites: null
 last-lts:
   all:
+  - test_file: jstests/aggregation/expressions/regex_backslash_c.js
+    ticket: SERVER-127985
+  - test_file: jstests/noPassthrough/regex_utf8_boundary_flag_disabled.js
+    ticket: SERVER-127985
+  - test_file: jstests/replsets/arbiter_afterClusterTime_read_concern.js
+    ticket: SERVER-130759
   - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
     ticket: SERVER-130139
   - test_file: jstests/aggregation/accumulators/percentiles_syntax.js
@@ -1446,4 +1466,12 @@ last-lts:
     ticket: SERVER-111406
   - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
     ticket: SERVER-128433
+  - test_file: jstests/sharding/change_stream_update_lookup_sharded_insert_update.js
+    ticket: SERVER-131202
+  - test_file: jstests/core/write/write_command_duplicate_stmt_ids_validation.js
+    ticket: SERVER-131326
+  - test_file: jstests/sharding/internal_txns/retryable_writes_oplog_entries.js
+    ticket: SERVER-131326
+  - test_file: jstests/noPassthrough/min_wait_streaming_hello_mongos.js
+    ticket: SERVER-132650
   suites: null

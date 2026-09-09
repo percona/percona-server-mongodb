@@ -39,7 +39,11 @@
 #include "mongo/db/ftdc/util.h"
 #include "mongo/db/jsobj.h"
 #include "mongo/db/operation_context.h"
+#include "mongo/logv2/log.h"
+#include "mongo/util/assert_util.h"
 #include "mongo/util/time_support.h"
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kFTDC
 
 namespace mongo {
 
@@ -48,7 +52,8 @@ void FTDCCollectorCollection::add(std::unique_ptr<FTDCCollectorInterface> collec
     _collectors.emplace_back(std::move(collector));
 }
 
-std::tuple<BSONObj, Date_t> FTDCCollectorCollection::collect(Client* client) {
+std::tuple<BSONObj, Date_t> FTDCCollectorCollection::collect(
+    Client* client, std::vector<std::pair<std::string, int>>& sectionSizes) {
     // If there are no collectors, just return an empty BSONObj so that that are caller knows we did
     // not collect anything
     if (_collectors.empty()) {
@@ -76,24 +81,35 @@ std::tuple<BSONObj, Date_t> FTDCCollectorCollection::collect(Client* client) {
             continue;
         }
 
-        BSONObjBuilder subObjBuilder(builder.subobjStart(collector->name()));
+        try {
+            BSONObjBuilder subObjBuilder(builder.subobjStart(collector->name()));
 
-        // Add a Date_t before and after each BSON is collected so that we can track timing of the
-        // collector.
-        Date_t now = start;
+            // Add a Date_t before and after each BSON is collected so that we can track timing of
+            // the collector.
+            Date_t now = start;
 
-        if (!firstLoop) {
-            now = client->getServiceContext()->getPreciseClockSource()->now();
+            if (!firstLoop) {
+                now = client->getServiceContext()->getPreciseClockSource()->now();
+            }
+
+            firstLoop = false;
+
+            subObjBuilder.appendDate(kFTDCCollectStartField, now);
+
+            collector->collect(opCtx.get(), subObjBuilder);
+
+            end = client->getServiceContext()->getPreciseClockSource()->now();
+            subObjBuilder.appendDate(kFTDCCollectEndField, end);
+            sectionSizes.emplace_back(collector->name(), subObjBuilder.len());
+        } catch (...) {
+            LOGV2_ERROR(9761500,
+                        "Collector threw an error",
+                        "error"_attr = exceptionToStatus(),
+                        "collector"_attr = collector->name(),
+                        "size"_attr = builder.len());
+            sectionSizes.emplace_back(collector->name(), builder.len());
+            throw;
         }
-
-        firstLoop = false;
-
-        subObjBuilder.appendDate(kFTDCCollectStartField, now);
-
-        collector->collect(opCtx.get(), subObjBuilder);
-
-        end = client->getServiceContext()->getPreciseClockSource()->now();
-        subObjBuilder.appendDate(kFTDCCollectEndField, end);
 
         // Ensure the collector did not set a read timestamp.
         invariant(opCtx->recoveryUnit()->getTimestampReadSource() ==

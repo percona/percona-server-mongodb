@@ -455,6 +455,26 @@ StatusWith<int64_t> WiredTigerUtil::checkApplicationMetadataFormatVersion(Operat
 }
 
 // static
+Status WiredTigerUtil::checkConfigStringBannedKeys(StringData config) {
+    WiredTigerConfigParser parser(config);
+    WT_CONFIG_ITEM importEnabled;
+    if (parser.get("import.enabled", &importEnabled) == 0 && importEnabled.val != 0) {
+        return {ErrorCodes::BadValue,
+                "Enabling the WiredTiger 'import' option is not allowed in a configString"};
+    }
+
+    // Collections and indexes are always created as type=file objects and mongod never sets
+    // 'source' itself, so the only value that should ever appear here is empty.
+    WT_CONFIG_ITEM source;
+    if (parser.get("source", &source) == 0 && source.len != 0) {
+        return {ErrorCodes::BadValue,
+                "The WiredTiger 'source' option is not allowed in a configString"};
+    }
+
+    return Status::OK();
+}
+
+// static
 Status WiredTigerUtil::checkTableCreationOptions(const BSONElement& configElem) {
     invariant(configElem.fieldNameStringData() == WiredTigerUtil::kConfigStringField);
 
@@ -471,10 +491,6 @@ Status WiredTigerUtil::checkTableCreationOptions(const BSONElement& configElem) 
         return {ErrorCodes::FailedToParse, "malformed 'configString' value."};
     }
 
-    if (config.find("type=lsm") != std::string::npos) {
-        return {ErrorCodes::Error(6627201), "Configuration 'type=lsm' is not supported."};
-    }
-
     Status status = wtRCToStatus(
         wiredtiger_config_validate(nullptr, &eventHandler, "WT_SESSION.create", config.rawData()),
         nullptr);
@@ -487,6 +503,21 @@ Status WiredTigerUtil::checkTableCreationOptions(const BSONElement& configElem) 
         errorMsg << ".";
         return status.withReason(errorMsg.stringData());
     }
+
+    // Only allow type=file (the default), which must also be unquoted.
+    WiredTigerConfigParser parser(config);
+    WT_CONFIG_ITEM typeItem;
+    if (parser.get("type", &typeItem) == 0 &&
+        !(typeItem.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID &&
+          std::string_view(typeItem.str, typeItem.len) == "file")) {
+        return {ErrorCodes::IllegalOperation,
+                "Configuration of the WiredTiger 'type' option is not supported."};
+    }
+
+    if (auto bannedKeyStatus = checkConfigStringBannedKeys(config); !bannedKeyStatus.isOK()) {
+        return bannedKeyStatus;
+    }
+
     return Status::OK();
 }
 

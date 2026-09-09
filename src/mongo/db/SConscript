@@ -429,6 +429,17 @@ env.Library(
     ],
 )
 
+env.CppUnitTest(
+    target='mongod_options_test',
+    source=[
+        'mongod_options_test.cpp',
+    ],
+    LIBDEPS=[
+        '$BUILD_DIR/mongo/util/options_parser/options_parser',
+        'mongod_options',
+    ],
+)
+
 env.Library(
     target='read_write_concern_provenance',
     source=[
@@ -1742,6 +1753,7 @@ env.Library(
         '$BUILD_DIR/mongo/scripting/scripting',
         '$BUILD_DIR/mongo/scripting/scripting_common',
         '$BUILD_DIR/mongo/util/intrusive_counter',
+        '$BUILD_DIR/mongo/util/pcre_params',
         '$BUILD_DIR/mongo/util/pcre_util',
         '$BUILD_DIR/mongo/util/pcre_wrapper',
         '$BUILD_DIR/mongo/util/summation',
