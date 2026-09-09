@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 7,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.2363841170833332,
-    "files_affected": 52,
-    "total_additions": 2136,
-    "total_deletions": 474,
+    "commits_behind": 38,
+    "days_behind": 2,
+    "unmerged_oldest_age_days": 2.2368138800578703,
+    "files_affected": 316,
+    "total_additions": 8840,
+    "total_deletions": 4769,
     "date_range": {
       "first": "2026-09-07T00:30:56+00:00",
-      "last": "2026-09-08T01:09:22+00:00"
+      "last": "2026-09-09T04:58:13+00:00"
     }
   },
   "last_merged_commit": {
@@ -37,10 +37,320 @@
     "summary": "SERVER-134586 Retry failed stepdown attempts in stepdown_doesnt_block.js (#62348)"
   },
   "gate": {
-    "open": false,
-    "reason": "wait (7 < 50 commits; oldest 1.2d < 2d)"
+    "open": true,
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "e68bd0da1f721bc39d691ee1f72b15df733360f6",
+      "short_sha": "e68bd0da1f7",
+      "date": "2026-09-09T04:58:13+00:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-128706 Migrate the PALI chaos tests onto the SLS multi-cell compose stack (#62274)"
+    },
+    {
+      "sha": "e978a90552ec4ba0c85e3846de0c61b166372417",
+      "short_sha": "e978a90552e",
+      "date": "2026-09-09T01:01:10+00:00",
+      "author": {
+        "name": "Nic",
+        "email": "nic.hollingum@mongodb.com"
+      },
+      "summary": "SERVER-131860: Filter config strings for wt create options (#59144)"
+    },
+    {
+      "sha": "9e2b8a609367ba697e31494379f6b091e971d7b7",
+      "short_sha": "9e2b8a60936",
+      "date": "2026-09-08T23:15:26+00:00",
+      "author": {
+        "name": "Zack Winter",
+        "email": "3457246+zackwintermdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134698: Deliver custom builds to version-addressed paths with a manifest (#62189)"
+    },
+    {
+      "sha": "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+      "short_sha": "a3dd048d16a",
+      "date": "2026-09-08T22:42:55+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: c184fb04a620a3cb2543f822b7d0ef06ec628cd8 from branch mongodb-master (#62393)"
+    },
+    {
+      "sha": "fba703e522962dda02773ee6fd60297ab22308ca",
+      "short_sha": "fba703e5229",
+      "date": "2026-09-08T22:33:16+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-85426 Remove hybrid search feature flags (#61985)"
+    },
+    {
+      "sha": "590e60fcfb2d80506afce4a573fa3257a93d8948",
+      "short_sha": "590e60fcfb2",
+      "date": "2026-09-08T21:31:39+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-134569: Guard failed-unittest gathering against no core files (#62334)"
+    },
+    {
+      "sha": "ac1417a0ee0b6a57b8f967af63cae07fdc8e1744",
+      "short_sha": "ac1417a0ee0",
+      "date": "2026-09-08T20:09:22+00:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-134659 Handle non-nul-terminated ethtool strings (#62420)"
+    },
+    {
+      "sha": "57b949aaf20fcfe0216b3fe11188aa42936408fb",
+      "short_sha": "57b949aaf20",
+      "date": "2026-09-08T19:58:11+00:00",
+      "author": {
+        "name": "Rustam Gusein-zade",
+        "email": "rustam.guseinzade@mongodb.com"
+      },
+      "summary": "SERVER-134605 Handle errors in validate hook when older binaries are running list indexes on timeseries collections (#62365)"
+    },
+    {
+      "sha": "0f3a8e176b3951fbe899d57bb5f70f53ef04100d",
+      "short_sha": "0f3a8e176b3",
+      "date": "2026-09-08T19:40:29+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-133744 Tolerate file shrinkage in SimulateCrash hook's copy_file (#61356)"
+    },
+    {
+      "sha": "b6f375e932c38de9308b6999669fa7b319788e38",
+      "short_sha": "b6f375e932c",
+      "date": "2026-09-08T18:50:22+00:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-134531 - createIndex can fail with ConflictingOperationInProgress if the collection is concurrently dropped/renamed or re-created (#62307)"
+    },
+    {
+      "sha": "10f51d1058a005a67c4275010c207014e7e8087c",
+      "short_sha": "10f51d1058a",
+      "date": "2026-09-08T18:32:44+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-132835 Anonymize query shape for $search on router (#60314)"
+    },
+    {
+      "sha": "34e1d42103c5b4298c5138eb465d464357981550",
+      "short_sha": "34e1d42103c",
+      "date": "2026-09-08T18:28:49+00:00",
+      "author": {
+        "name": "Evelyn Wu",
+        "email": "32441547+evelynwu88@users.noreply.github.com"
+      },
+      "summary": "SERVER-133522 waitForKeys in DisaggReplSetTest (#62272)"
+    },
+    {
+      "sha": "8d8493cdf7c2cc7d52bf07d41f92ae5f6df5c9e1",
+      "short_sha": "8d8493cdf7c",
+      "date": "2026-09-08T18:03:43+00:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-133882: Delete dead batched estimateCardinality (#61473)"
+    },
+    {
+      "sha": "f40a11162f0897278a398f54729c54e62589cdea",
+      "short_sha": "f40a11162f0",
+      "date": "2026-09-08T17:59:10+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-133974 Clear the timeseries bucket catalog when a range deletion task becomes ready (#61997)"
+    },
+    {
+      "sha": "e9e735ff8650c3d19cdba2c3743858466c2a625c",
+      "short_sha": "e9e735ff865",
+      "date": "2026-09-08T17:53:09+00:00",
+      "author": {
+        "name": "Evelyn Wu",
+        "email": "32441547+evelynwu88@users.noreply.github.com"
+      },
+      "summary": "SERVER-120205 Clamp kLastApplied oplog reads to the oplog visibility timestamp (#61763)"
+    },
+    {
+      "sha": "69c12f9cba86f771c124cda5422dead46e7305e2",
+      "short_sha": "69c12f9cba8",
+      "date": "2026-09-08T17:51:51+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134421: Add metric definition for retryable write latency metric (#62276)"
+    },
+    {
+      "sha": "2641f95a33cf9d028c54fd026493a76c365a9bb4",
+      "short_sha": "2641f95a33c",
+      "date": "2026-09-08T16:50:26+00:00",
+      "author": {
+        "name": "adriangzz",
+        "email": "adriangonzalezmontemayor@gmail.com"
+      },
+      "summary": "SERVER-134026 Trigger Antithesis run from mongo project (#62176)"
+    },
+    {
+      "sha": "9cfd2ac212862227bff786f2fa6101e15641ced0",
+      "short_sha": "9cfd2ac2128",
+      "date": "2026-09-08T16:23:24+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-134577: Harden task-scoped Podman lifecycle handling and add teardown cleanup (#62337)"
+    },
+    {
+      "sha": "2f2c4b7b70a5136672a566b0148cff9ce91525b7",
+      "short_sha": "2f2c4b7b70a",
+      "date": "2026-09-08T16:20:32+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134302 Prevent race conditions due to unprotected members in TransactionCoordinator (#62058)"
+    },
+    {
+      "sha": "ea8837989c960235e6249e16e5a81f3f859c910e",
+      "short_sha": "ea8837989c9",
+      "date": "2026-09-08T15:50:21+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-134584: Add back Windows support for Copybara sync task generation and unit tests (#62335)"
+    },
+    {
+      "sha": "d9680f2c54db61b54cf7bc59a1028d1cfc1590ed",
+      "short_sha": "d9680f2c54d",
+      "date": "2026-09-08T15:31:08+00:00",
+      "author": {
+        "name": "nandinibhartiyaMDB",
+        "email": "104035932+nandinibhartiyaMDB@users.noreply.github.com"
+      },
+      "summary": "SERVER-134544 Skip metadata consistency check in add_shard_refurbish.js (#62383)"
+    },
+    {
+      "sha": "4b6ade8e693427d87e4aacd7fbf378dc49032dfa",
+      "short_sha": "4b6ade8e693",
+      "date": "2026-09-08T15:11:48+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-133549 Enable db-contrib-tool symbolization for remote-executed resmoke tests (#62241)"
+    },
+    {
+      "sha": "8bf29a10a931d3c39a5821c5f8cf6e86a4fd8ac9",
+      "short_sha": "8bf29a10a93",
+      "date": "2026-09-08T15:05:02+00:00",
+      "author": {
+        "name": "Kaitlin Mahar",
+        "email": "kaitlin.mahar@mongodb.com"
+      },
+      "summary": "SERVER-133328 enable disagg elegant stepdown feature flag (#62273)"
+    },
+    {
+      "sha": "6aa46e5239a46b4fb67d2dc22e320c9b8071848c",
+      "short_sha": "6aa46e5239a",
+      "date": "2026-09-08T14:55:49+00:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-134481 Allow FCV mismatch error in MoveUnshardedPolicy (#62249)"
+    },
+    {
+      "sha": "d964a90b12b116cdf398d33c7c3b5be0319ae559",
+      "short_sha": "d964a90b12b",
+      "date": "2026-09-08T14:55:32+00:00",
+      "author": {
+        "name": "Allison Easton",
+        "email": "allison.easton@mongodb.com"
+      },
+      "summary": "SERVER-134613 Exclude mongos_unsharded_commands_interface_parity_with_replica_set.js from stepdown suites (#62375)"
+    },
+    {
+      "sha": "268a6706a3b4cc0573511dd0a2e0932221f9f284",
+      "short_sha": "268a6706a3b",
+      "date": "2026-09-08T14:55:16+00:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-133268. Migrate TODOs (#62381)"
+    },
+    {
+      "sha": "0bc309c8b074820510aee1cc8d32ce6323f07c83",
+      "short_sha": "0bc309c8b07",
+      "date": "2026-09-08T14:42:33+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134477: Add metric for total number of retryable writes (#62268)"
+    },
+    {
+      "sha": "9ecc85c9a4fc7ce1e266f2044359d9b47af764a7",
+      "short_sha": "9ecc85c9a4f",
+      "date": "2026-09-08T14:24:23+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-134257: Fix sporadic failure in plan_cache_stochastic_test.js (#61999)"
+    },
+    {
+      "sha": "262e96bd9bd314dceb485e5e5f99ebb635e1e89c",
+      "short_sha": "262e96bd9bd",
+      "date": "2026-09-08T13:16:18+00:00",
+      "author": {
+        "name": "winstonzmdb",
+        "email": "103599738+winstonzmdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134159 Build remote execution containers in Evergreen and publish to ECR Public (Revert Fix) (#62332)"
+    },
+    {
+      "sha": "6a2b85a87f198cdbdc1e216d44a2da6a35acb906",
+      "short_sha": "6a2b85a87f1",
+      "date": "2026-09-08T09:59:38+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62369)"
+    },
+    {
+      "sha": "1ab80417bad073034373a94e4583b722c29f7fbc",
+      "short_sha": "1ab80417bad",
+      "date": "2026-09-08T06:07:13+00:00",
+      "author": {
+        "name": "Nic",
+        "email": "nic.hollingum@mongodb.com"
+      },
+      "summary": "SERVER-134283: Prefer ignore cache to max wait ms for wiredtiger sessions (#62202)"
+    },
     {
       "sha": "7d030afab11255b85b1dc32fb47bdc9c886a8f6b",
       "short_sha": "7d030afab11",
@@ -135,10 +445,74 @@
           "num_of_dirs": 16
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "262e96bd9bd314dceb485e5e5f99ebb635e1e89c",
+        "short_sha": "262e96bd9bd",
+        "date": "2026-09-08T13:16:18+00:00",
+        "author": {
+          "name": "winstonzmdb",
+          "email": "103599738+winstonzmdb@users.noreply.github.com"
+        },
+        "summary": "SERVER-134159 Build remote execution containers in Evergreen and publish to ECR Public (Revert Fix) (#62332)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "MODULE.bazel.lock"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "fba703e522962dda02773ee6fd60297ab22308ca",
+        "short_sha": "fba703e5229",
+        "date": "2026-09-08T22:33:16+00:00",
+        "author": {
+          "name": "Daniel Segel",
+          "email": "71151509+dhsegel@users.noreply.github.com"
+        },
+        "summary": "SERVER-85426 Remove hybrid search feature flags (#61985)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 139,
+          "num_of_lines": 2796,
+          "lines_added": 331,
+          "lines_deleted": 2465,
+          "num_of_dirs": 38
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "a3dd048d16a978f1687d2165a32c3ea702d0b273",
+        "short_sha": "a3dd048d16a",
+        "date": "2026-09-08T22:42:55+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: c184fb04a620a3cb2543f822b7d0ef06ec628cd8 from branch mongodb-master (#62393)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 36,
+          "num_of_lines": 3391,
+          "lines_added": 2193,
+          "lines_deleted": 1198,
+          "num_of_dirs": 17
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-08 06:11:13",
+  "generated_at": "2026-09-09 06:11:41",
   "branch_name": "master",
   "display_name": "master"
 }
