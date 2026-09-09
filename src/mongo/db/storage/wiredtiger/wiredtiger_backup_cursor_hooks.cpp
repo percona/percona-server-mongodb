@@ -32,6 +32,8 @@ Copyright (C) 2021-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/db/storage/wiredtiger/wiredtiger_backup_cursor_hooks.h"
 
+#include <boost/filesystem.hpp>
+
 #include "mongo/db/concurrency/lock_manager_defs.h"
 #include "mongo/db/concurrency/replication_state_transition_lock_guard.h"
 #include "mongo/db/dbhelpers.h"
@@ -183,6 +185,33 @@ BackupCursorState WiredTigerBackupCursorHooks::openBackupCursor(
     if (encHooks->enabled()) {
         eseBackupBlocks =
             uassertStatusOK(encHooks->beginNonBlockingBackup(opCtx, checkpointTimestamp, options));
+    }
+
+    // The storage engine metadata file ('storage.bson') records which KMIP/Vault key
+    // identifier encrypts 'key.db'. It is a plain file that no WiredTiger backup cursor
+    // (neither the main data cursor above nor key.db's own cursor inside
+    // EncryptionHooks::beginNonBlockingBackup) has any knowledge of, so it must be added
+    // explicitly here. Without it, a consumer of $backupCursor that clones a node's files
+    // onto an empty destination (e.g. File Copy Based Initial Sync) has no way to learn
+    // which key identifier decrypts the cloned key.db. Included unconditionally (not gated
+    // on encHooks->enabled()) so the local pre-clean file list and the remote fetch list
+    // built from this same function stay symmetric regardless of either side's encryption
+    // state. Mirrors WiredTigerKVEngine::_hotBackupPopulateLists()'s handling of the same
+    // file for the unrelated 'createBackup' hot-backup command. PSMDB-2253.
+    {
+        boost::filesystem::path storageMetadataPath =
+            boost::filesystem::path(storageGlobalParams.dbpath) / "storage.bson";
+        boost::system::error_code ec;
+        auto fsize = boost::filesystem::file_size(storageMetadataPath, ec);
+        if (!ec) {
+            eseBackupBlocks.emplace_back(
+                opCtx, boost::none, boost::none, storageMetadataPath.string(), 0, fsize, fsize);
+        } else {
+            LOGV2_WARNING(29104,
+                          "Storage engine metadata file is missing; backup cursor will not "
+                          "include it",
+                          "path"_attr = storageMetadataPath.string());
+        }
     }
 
     BSONObjBuilder builder;
