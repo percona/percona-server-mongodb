@@ -134,7 +134,7 @@ fi
 # to 3/4 of the cores for the archive_dist_test and package tasks. Using all the CPUs
 # causes us to bottleneck on RAM and cause nondeterministic failures which sometimes
 # corrupts binaries
-if [[ ("${task_name:-}" == "archive_dist_test" || "${task_name:-}" == "package") && "${distro_id:-}" == "amazon2023.3-arm64-xxxlarge" ]]; then
+if [[ ("${task_name:-}" == "archive_dist_test" || "${task_name:-}" == "package") && "${distro_id:-}" == *"amazon2023.3-arm64-xxxlarge"* ]]; then
   task_compile_flags="${task_compile_flags:-} --local_resources=cpu=HOST_CPUS*.75"
 fi
 
@@ -156,15 +156,60 @@ RELEASE_FLAG="$(bazel_evergreen_shutils::maybe_release_flag)"
 bazel_evergreen_shutils::ensure_server_and_print_pid "$BAZEL_BINARY"
 
 # Build flags line
-ALL_FLAGS="--verbose_failures ${LOCAL_ARG} ${bazel_args:-} ${bazel_compile_flags:-} ${task_compile_flags:-} --define=MONGO_VERSION=${version} $RELEASE_FLAG ${patch_compile_flags:-}"
+BEP_FULL="build_events_full.json"
+BEP_OUT="build_events.json"
+BASE_FLAGS="--verbose_failures ${LOCAL_ARG} ${bazel_args:-} ${bazel_compile_flags:-} ${task_compile_flags:-}"
+BASE_FLAGS+=" --define=MONGO_VERSION=${version} ${RELEASE_FLAG} ${patch_compile_flags:-}"
+RELEASE_EXECUTION_LOG_FLAGS=""
+RELEASE_LOCAL_SAFETY_FLAGS=""
+SHOULD_ENFORCE_RELEASE_LOCAL_BUILD=false
+if [[ "${is_patch:-}" != "true" || "${is_release:-false}" != "false" ]]; then
+  SHOULD_ENFORCE_RELEASE_LOCAL_BUILD=true
+fi
+echo "Release-local build enforcement: ${SHOULD_ENFORCE_RELEASE_LOCAL_BUILD} (is_patch=${is_patch:-}, is_release=${is_release:-false})"
+IS_SERVER_RELEASE_PROJECT=false
+if [[ "${project:-}" == mongo-release* ]]; then
+  IS_SERVER_RELEASE_PROJECT=true
+fi
+
+if [[ "${SHOULD_ENFORCE_RELEASE_LOCAL_BUILD}" == "true" ]]; then
+  if [[ " ${BASE_FLAGS} " == *" --config=public-release "* ||
+    " ${BASE_FLAGS} " == *" --config public-release "* ||
+    " ${BASE_FLAGS} " == *" --config=public-release-local "* ||
+    " ${BASE_FLAGS} " == *" --config public-release-local "* ]]; then
+    if [[ "${IS_SERVER_RELEASE_PROJECT}" == "true" && "${task_name:-}" == "package" ]]; then
+      RELEASE_EXECUTION_LOG_FLAGS="--execution_log_compact_file=release_execution_log.binpb.zst"
+    elif [[ "${task_name:-}" == "crypt_create_lib" ]]; then
+      RELEASE_EXECUTION_LOG_FLAGS="--execution_log_compact_file=release_execution_log.binpb.zst"
+    elif [[ "${IS_SERVER_RELEASE_PROJECT}" == "false" && "${task_name:-}" == "archive_dist_test" ]]; then
+      RELEASE_EXECUTION_LOG_FLAGS="--execution_log_compact_file=.bazel_release_execution_log.binpb.zst"
+    fi
+    RELEASE_LOCAL_SAFETY_FLAGS="--remote_executor= --noremote_accept_cached"
+    RELEASE_LOCAL_SAFETY_FLAGS+=" --remote_upload_local_results=false"
+    RELEASE_LOCAL_SAFETY_FLAGS+=" --modify_execution_info=.*=+no-cache"
+  fi
+fi
+
+ALL_FLAGS="${BASE_FLAGS}"
+ALL_FLAGS+=" --build_event_json_file=${BEP_FULL}"
+ALL_FLAGS+=" ${RELEASE_EXECUTION_LOG_FLAGS}"
 echo "${ALL_FLAGS}" > .bazel_build_flags
+
+# Save the entire bazel build invocation to attach to the task for re-running locally
+echo "bazel build ${ALL_FLAGS} ${targets} ${RELEASE_LOCAL_SAFETY_FLAGS}" > .bazel_build_invocation
 
 set +o errexit
 
 bazel_evergreen_shutils::retry_bazel_cmd 3 "$BAZEL_BINARY" \
-  build ${ALL_FLAGS} ${targets}
+  build ${ALL_FLAGS} ${targets} ${RELEASE_LOCAL_SAFETY_FLAGS}
 RET=$?
 
+# Extract just the optionsParsed event from the full BEP JSON.
+# This keeps the uploaded compile BEP artifact small while preserving existing BEP consumers.
+if [[ -f "${BEP_FULL}" ]]; then
+  grep '"optionsParsed"' "${BEP_FULL}" > "${BEP_OUT}" || true
+  rm -f "${BEP_FULL}"
+fi
 set -o errexit
 
 if [[ "$RET" -eq 124 ]]; then

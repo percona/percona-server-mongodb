@@ -66,6 +66,7 @@
 #include "mongo/db/catalog/local_oplog_info.h"
 #include "mongo/db/catalog/uncommitted_catalog_updates.h"
 #include "mongo/db/catalog_raii.h"
+#include "mongo/db/client.h"
 #include "mongo/db/cluster_role.h"
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/concurrency/d_concurrency.h"
@@ -125,6 +126,7 @@
 #include "mongo/logv2/log_component.h"
 #include "mongo/platform/atomic_word.h"
 #include "mongo/platform/compiler.h"
+#include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/s/database_version.h"
 #include "mongo/s/shard_version.h"
 #include "mongo/s/would_change_owning_shard_exception.h"
@@ -875,6 +877,24 @@ bool TransactionParticipant::Participant::_shouldRestartTransactionOnReuseActive
 
         return true;
     } else if (o().txnState.isInSet(TransactionState::kAbortedWithoutPrepare)) {
+        // Only startTransaction (kStart) may restart an aborted transaction in place. A
+        // startOrContinueTransaction (sub-router) must not: it would silently drop the prior
+        // attempt's writes, and could resurrect a participant that coordinateCommitTransaction
+        // recovery already aborted. NoSuchTransaction carries TransientTransactionError, so the
+        // whole transaction retries at a new txnNumber.
+        uassert(ErrorCodes::NoSuchTransaction,
+                str::stream() << "Cannot restart transaction "
+                              << o().activeTxnNumberAndRetryCounter.getTxnNumber() << " on session "
+                              << _sessionId()
+                              << " because it was aborted and only startTransaction may restart it",
+                action == TransactionActions::kStart);
+        LOGV2_DEBUG(
+            11362501,
+            3,
+            "Restarting transaction and reusing active txnNumber because transaction was aborted "
+            "and not part of a two phase transaction.",
+            "sessionId"_attr = _sessionId(),
+            "txnNumber"_attr = o().activeTxnNumberAndRetryCounter.getTxnNumber());
         return true;
     } else if (_isInternalSessionForRetryableWrite() &&
                o().txnState.isInSet(TransactionState::kCommitted)) {
@@ -1010,6 +1030,20 @@ void TransactionParticipant::Participant::_continueMultiDocumentTransaction(
 
 void TransactionParticipant::Participant::_beginMultiDocumentTransaction(
     OperationContext* opCtx, const TxnNumberAndRetryCounter& txnNumberAndRetryCounter) {
+    auto limit = gMaxConcurrentMultiDocumentTransactions.load();
+    auto* client = opCtx->getClient();
+    bool isProcessInternal = client->isInDirectClient() || !client->session();
+    if (limit > 0 && !isProcessInternal) {
+        auto currentOpen =
+            ServerTransactionsMetrics::get(opCtx->getServiceContext())->getCurrentOpen();
+        uassert(ErrorCodes::TooManyOpenTransactions,
+                str::stream() << "cannot start a new multi-document transaction; there are already "
+                              << currentOpen
+                              << " open transactions, which meets or exceeds the limit of "
+                              << limit,
+                currentOpen < static_cast<decltype(currentOpen)>(limit));
+    }
+
     // Aborts any in-progress txns.
     _setNewTxnNumberAndRetryCounter(opCtx, txnNumberAndRetryCounter);
     p().autoCommit = false;
@@ -2031,10 +2065,20 @@ TransactionOperations* TransactionParticipant::Participant::retrieveCompletedTra
     return &(p().transactionOperations);
 }
 
-BSONObj TransactionParticipant::Participant::getResponseMetadata() {
-    return BSON(TxnResponseMetadata::kReadOnlyFieldName
-                << (o().txnState.isInSet(TransactionState::kInProgress) &&
-                    p().transactionOperations.isEmpty()));
+BSONObj TransactionParticipant::Participant::getResponseMetadata(OperationContext* opCtx) {
+    BSONObjBuilder bob;
+    bob.append(TxnResponseMetadata::kReadOnlyFieldName,
+               o().txnState.isInSet(TransactionState::kInProgress) &&
+                   p().transactionOperations.isEmpty());
+    // Attach the participant's current replication term so the originating router can detect a
+    // participant that changed primaries mid-transaction.
+    // TODO SERVER-130332: Replace '$replData.term' with a dedicated 'participantTerm' field.
+    if (opCtx->inMultiDocumentTransaction()) {
+        if (auto* replCoord = repl::ReplicationCoordinator::get(opCtx)) {
+            rpc::ReplSetMetadata::appendTermOnly(&bob, replCoord->getTerm());
+        }
+    }
+    return bob.obj();
 }
 
 void TransactionParticipant::Participant::clearOperationsInMemory(OperationContext* opCtx) {

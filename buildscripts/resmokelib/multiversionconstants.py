@@ -3,7 +3,7 @@
 import http
 import os
 import shutil
-from subprocess import DEVNULL, STDOUT, CalledProcessError, call, check_output
+from subprocess import DEVNULL, STDOUT, call, check_output
 
 import requests
 import structlog
@@ -30,18 +30,32 @@ RELEASES_LOCAL_FILE = os.path.join(
 # We use the "releases.yml" file from "master" because it is guaranteed to be up-to-date
 # with the latest EOL versions. If a "last-continuous" version is EOL, we don't include
 # it in the multiversion config and therefore don't test against it.
-MASTER_RELEASES_REMOTE_FILE = "https://raw.githubusercontent.com/mongodb/mongo/master/src/mongo/util/version/releases.yml"
+MASTER_RELEASES_REMOTE_FILE = (
+    "https://raw.githubusercontent.com/mongodb/mongo/master/src/mongo/util/version/releases.yml"
+)
 
 LOGGER = structlog.getLogger(__name__)
 
 
+BAZELRC_DEFAULT_MONGO_VERSION = ".bazelrc.target_mongo_version"
+
+
 def generate_mongo_version_file():
     """Generate the mongo version data file. Should only be called in the root of the mongo directory."""
+    # Read the MONGO_VERSION from .bazelrc.target_mongo_version
+    # The file contains a line like: common --define=MONGO_VERSION=8.2.2
     try:
-        res = check_output("git describe", shell=True, text=True)
-    except CalledProcessError as exp:
-        raise ChildProcessError(
-            "Failed to run git describe to get the latest tag"
+        with open(BAZELRC_DEFAULT_MONGO_VERSION, "r") as f:
+            for line in f:
+                if "MONGO_VERSION=" in line:
+                    # Extract the version after "MONGO_VERSION="
+                    version = line.split("MONGO_VERSION=")[1].strip()
+                    break
+            else:
+                raise ValueError(f"MONGO_VERSION not found in {BAZELRC_DEFAULT_MONGO_VERSION}")
+    except FileNotFoundError as exp:
+        raise FileNotFoundError(
+            f"Failed to read version from {BAZELRC_DEFAULT_MONGO_VERSION}"
         ) from exp
 
     # Remove a tag prefix
@@ -53,8 +67,8 @@ def generate_mongo_version_file():
             break
 
     # Write the current MONGO_VERSION to a data file.
-    with open(MONGO_VERSION_YAML, "w") as mongo_version_fh:
-        mongo_version_fh.write("mongo_version: " + res)
+    with open(MONGO_VERSION_YAML, "w", encoding="utf-8") as mongo_version_fh:
+        mongo_version_fh.write("mongo_version: " + res + "\n")
 
 
 @retry(tries=5, delay=3)
@@ -71,9 +85,7 @@ def get_releases_file_from_remote():
             file.write(response.content)
         LOGGER.info(f"Got releases.yml file remotely: {MASTER_RELEASES_REMOTE_FILE}")
     except Exception as exc:
-        LOGGER.warning(
-            f"Could not get releases.yml file remotely: {MASTER_RELEASES_REMOTE_FILE}"
-        )
+        LOGGER.warning(f"Could not get releases.yml file remotely: {MASTER_RELEASES_REMOTE_FILE}")
         raise exc
 
 
@@ -83,9 +95,7 @@ def get_releases_file_locally_or_fallback_to_remote():
         LOGGER.info(f"Found releases.yml file locally: {RELEASES_LOCAL_FILE}")
         shutil.copyfile(RELEASES_LOCAL_FILE, RELEASES_YAML)
     else:
-        LOGGER.warning(
-            f"Could not find releases.yml file locally: {RELEASES_LOCAL_FILE}"
-        )
+        LOGGER.warning(f"Could not find releases.yml file locally: {RELEASES_LOCAL_FILE}")
         get_releases_file_from_remote()
 
 
@@ -113,9 +123,7 @@ def in_git_root_dir():
 if in_git_root_dir():
     generate_mongo_version_file()
 else:
-    LOGGER.info(
-        "Skipping generating mongo version file since we're not in the root of a git repo"
-    )
+    LOGGER.info("Skipping generating mongo version file since we're not in the root of a git repo")
 
 # Avoiding regenerating the releases file if this flag is set. Should only be set if there are
 # multiple processes attempting to set up multiversion concurrently.
@@ -164,14 +172,11 @@ REQUIRES_FCV_TAGS_LESS_THAN_LATEST = version_constants.get_fcv_tags_less_than_la
 
 # Generate evergreen project names for all FCVs less than latest.
 EVERGREEN_PROJECTS = ["mongodb-mongo-master"]
-EVERGREEN_PROJECTS.extend(
-    [evg_project_str(fcv) for fcv in version_constants.fcvs_less_than_latest]
-)
+EVERGREEN_PROJECTS.extend([evg_project_str(fcv) for fcv in version_constants.fcvs_less_than_latest])
 
 OLD_VERSIONS = (
     [LAST_LTS]
-    if LAST_CONTINUOUS_FCV == LAST_LTS_FCV
-    or LAST_CONTINUOUS_FCV in version_constants.get_eols()
+    if LAST_CONTINUOUS_FCV == LAST_LTS_FCV or LAST_CONTINUOUS_FCV in version_constants.get_eols()
     else [LAST_LTS, LAST_CONTINUOUS]
 )
 

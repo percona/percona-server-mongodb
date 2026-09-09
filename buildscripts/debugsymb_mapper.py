@@ -181,6 +181,14 @@ class Mapper:
     default_client_credentials_user_name = "client-user"
     default_creds_file_path = os.path.join(os.getcwd(), ".symbolizer_credentials.json")
 
+    # The Evergreen API serves artifact lists from a secondary node
+    # (DEVPROD-32223), so artifacts attached by a recently-finished compile
+    # task can be missing from the response due to replication lag. Retry the
+    # lookup with backoff before giving up.
+    num_url_retries = 8
+    url_retry_initial_delay_secs = 15
+    url_retry_max_delay_secs = 120
+
     def __init__(
         self,
         evg_version: str,
@@ -208,9 +216,7 @@ class Mapper:
         self.evg_variant = evg_variant
         self.is_san_variant = is_san_variant
         self.cache_dir = cache_dir or self.default_cache_dir
-        self.web_service_base_url = (
-            web_service_base_url or self.default_web_service_base_url
-        )
+        self.web_service_base_url = web_service_base_url or self.default_web_service_base_url
 
         if not logger:
             logging.basicConfig()
@@ -254,17 +260,13 @@ class Mapper:
                 )
                 if time.time() < expire_time:
                     # credentials haven't expired yet
-                    self.http_client.headers.update(
-                        {"Authorization": f"Bearer {access_token}"}
-                    )
+                    self.http_client.headers.update({"Authorization": f"Bearer {access_token}"})
                     return
 
         credentials = get_client_cred_oauth_credentials(
             self.client_id, self.client_secret, configs=self.configs
         )
-        self.http_client.headers.update(
-            {"Authorization": f"Bearer {credentials.access_token}"}
-        )
+        self.http_client.headers.update({"Authorization": f"Bearer {credentials.access_token}"})
 
         # write credentials to local file for further usage
         with open(self.default_creds_file_path, "w") as cfile:
@@ -306,18 +308,40 @@ class Mapper:
     def setup_urls(self):
         """Set up URLs using multiversion."""
 
-        urlinfo = self.multiversion_setup.get_urls(self.evg_version, self.evg_variant)
+        urlinfo = None
+        for attempt in range(self.num_url_retries):
+            urlinfo = self.multiversion_setup.get_urls(self.evg_version, self.evg_variant)
 
-        binaries_url = urlinfo.urls.get("Binaries", "")
-        if self.is_san_variant:
-            # Sanitizer builds are not stripped and contain debug symbols
-            download_symbols_url = binaries_url
-        else:
-            download_symbols_url = urlinfo.urls.get(
-                "mongo-debugsymbols.tgz"
-            ) or urlinfo.urls.get("mongo-debugsymbols.zip")
+            binaries_url = urlinfo.urls.get("Binaries", "")
+            if self.is_san_variant:
+                # Sanitizer builds are not stripped and contain debug symbols
+                download_symbols_url = binaries_url
+            else:
+                download_symbols_url = urlinfo.urls.get(
+                    "mongo-debugsymbols.tgz"
+                ) or urlinfo.urls.get("mongo-debugsymbols.zip")
 
-        if not download_symbols_url:
+            if binaries_url and download_symbols_url:
+                break
+
+            if attempt + 1 < self.num_url_retries:
+                delay = min(
+                    self.url_retry_initial_delay_secs * (2**attempt),
+                    self.url_retry_max_delay_secs,
+                )
+                self.logger.warning(
+                    "Couldn't find URL for binaries or debug symbols on attempt %d of %d. "
+                    "This can happen when the Evergreen API's secondary node lags behind on "
+                    "recently attached artifacts; retrying in %ds. Version: %s, URLs dict: %s",
+                    attempt + 1,
+                    self.num_url_retries,
+                    delay,
+                    self.evg_version,
+                    urlinfo.urls,
+                )
+                time.sleep(delay)
+
+        if not binaries_url or not download_symbols_url:
             self.logger.error(
                 "Couldn't find URL for debug symbols. Version: %s, URLs dict: %s",
                 self.evg_version,
@@ -398,9 +422,7 @@ class Mapper:
             )
             return
         else:
-            self.logger.info(
-                "Extracted mongodb version: %s", bin_version_output.mongodb_version
-            )
+            self.logger.info("Extracted mongodb version: %s", bin_version_output.mongodb_version)
 
         # start with main binary folder
         for binary in self.selected_binaries:

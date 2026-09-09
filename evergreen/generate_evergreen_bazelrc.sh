@@ -25,11 +25,22 @@ if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "win32" ]]; then
   echo "common --action_env=TMP=Z:/bazel_tmp" >> .bazelrc.evergreen
   echo "common --action_env=TEMP=Z:/bazel_tmp" >> .bazelrc.evergreen
   echo "BAZELISK_HOME=${abs_path}/bazelisk_home" >> .bazeliskrc
-  echo "common --define GIT_COMMIT_HASH=$(git rev-parse HEAD)" >> .bazelrc.git
+  GIT_REV=$(git rev-parse HEAD)
+  echo "common --define GIT_COMMIT_HASH=${GIT_REV}" >> .bazelrc.git
 else
   echo "startup --output_user_root=${TMPDIR}/bazel-output-root" > .bazelrc.evergreen
   echo "BAZELISK_HOME=${TMPDIR}/bazelisk_home" >> .bazeliskrc
-  echo "common --define GIT_COMMIT_HASH=$(git rev-parse HEAD)" >> .bazelrc.git
+  GIT_REV=$(git rev-parse HEAD)
+  echo "common --define GIT_COMMIT_HASH=${GIT_REV}" >> .bazelrc.git
+fi
+
+if [[ "${requester}" == "commit" ]]; then
+  mongo_version=$(awk -F'MONGO_VERSION=' '/MONGO_VERSION=/ { split($2, version, /[[:space:]]/); print version[1]; exit }' .bazelrc.target_mongo_version)
+  if [[ -z "${mongo_version}" ]]; then
+    echo "Unable to extract MONGO_VERSION from .bazelrc.target_mongo_version" >&2
+    exit 1
+  fi
+  echo "common --define MONGO_VERSION=${mongo_version}-${GIT_REV:0:8}" >> .bazelrc.git
 fi
 
 if [[ "${evergreen_remote_exec}" != "on" ]]; then
@@ -44,6 +55,8 @@ uri="https://spruce.mongodb.com/task/${task_id:?}?execution=${execution:?}"
 
 echo "common --tls_client_certificate=./engflow.cert" >> .bazelrc.evergreen
 echo "common --tls_client_key=./engflow.key" >> .bazelrc.evergreen
+echo "common:public-release --tls_client_certificate=./.tmp/engflow_release.cert" >> .bazelrc.evergreen
+echo "common:public-release --tls_client_key=./.tmp/engflow_release.key" >> .bazelrc.evergreen
 echo "common --bes_keywords=engflow:CiCdPipelineName=${build_variant:?}" >> .bazelrc.evergreen
 echo "common --bes_keywords=engflow:CiCdJobName=${task_name:?}" >> .bazelrc.evergreen
 echo "common --bes_keywords=engflow:CiCdUri=${uri:?}" >> .bazelrc.evergreen

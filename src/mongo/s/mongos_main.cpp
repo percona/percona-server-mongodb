@@ -99,6 +99,7 @@
 #include "mongo/db/shard_id.h"
 #include "mongo/db/startup_check_rseq.h"
 #include "mongo/db/startup_warnings_common.h"
+#include "mongo/db/stats/system_buckets_metrics.h"
 #include "mongo/db/telemetry/telemetry_thread.h"
 #include "mongo/db/wire_version.h"
 #include "mongo/executor/task_executor.h"
@@ -598,6 +599,31 @@ void cleanupTask(const ShutdownTaskArgs& shutdownArgs) {
 #endif
 }
 
+void initializeCommandHooks(ServiceContext* service) {
+    class MongosCommandInvocationHooks final : public CommandInvocationHooks {
+    public:
+        void onBeforeRun(OperationContext* opCtx,
+                         const OpMsgRequest& request,
+                         CommandInvocation* invocation) override {
+            _transportHook.onBeforeRun(opCtx, request, invocation);
+            _systemBucketsHook.onBeforeRun(opCtx, request, invocation);
+        }
+
+        void onAfterRun(OperationContext* opCtx,
+                        const OpMsgRequest& request,
+                        CommandInvocation* invocation,
+                        rpc::ReplyBuilderInterface* response) override {
+            _transportHook.onAfterRun(opCtx, request, invocation, response);
+            _systemBucketsHook.onAfterRun(opCtx, request, invocation, response);
+        }
+
+        transport::IngressHandshakeMetricsCommandHooks _transportHook{};
+        SystemBucketsMetricsCommandHooks _systemBucketsHook{};
+    };
+
+    CommandInvocationHooks::set(service, std::make_unique<MongosCommandInvocationHooks>());
+}
+
 Status initializeSharding(
     OperationContext* opCtx,
     std::shared_ptr<ReplicaSetChangeNotifier::Listener>* replicaSetChangeListener,
@@ -930,8 +956,7 @@ ExitCode runMongosServer(ServiceContext* serviceContext) {
                       "error"_attr = redact(ex));
     }
 
-    CommandInvocationHooks::set(serviceContext,
-                                std::make_unique<transport::IngressHandshakeMetricsCommandHooks>());
+    initializeCommandHooks(serviceContext);
 
     // Must happen before FTDC, because Periodic Metadata Collustion calls getClusterParameter
     ClusterServerParameterRefresher::start(serviceContext, opCtx);

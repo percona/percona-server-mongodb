@@ -49,6 +49,24 @@ ARCH_CHOICES = ["x86_64", "arm64", "aarch64", "s390x"]
 DISTROS = ["suse", "debian", "redhat", "ubuntu", "amazon", "amazon2", "amazon2023"]
 
 
+def rhel_major_version(build_os: str) -> str:
+    """Return the RHEL major version encoded in a build_os name.
+
+    Names for RHEL 9 and earlier are a single-digit major version followed by an
+    optional single-digit minor version ("rhel93" -> "9", "rhel9" -> "9"). RHEL 10
+    and later are major-only ("rhel10" -> "10").
+
+    Any other name is rejected rather than guessed at, so that a new naming scheme
+    (such as a "rhel101" that would be ambiguous here) has to be handled
+    deliberately instead of silently producing a mislabeled package.
+    """
+
+    match = re.fullmatch(r"rhel(?:(1\d)|([5-9])\d?)", build_os)
+    if not match:
+        raise Exception("unsupported build_os: %s" % build_os)
+    return match.group(1) or match.group(2)
+
+
 class Spec(object):
     """Spec class."""
 
@@ -180,18 +198,6 @@ class Distro(object):
         """Initialize Distro."""
         self.dname = string
 
-    @staticmethod
-    def _rhel_major_version(build_os):
-        """Return the Red Hat major version for build OS names like rhel88 or rhel10."""
-        match = re.match(r"^rhel(\d+)", build_os)
-        if not match:
-            return None
-
-        digits = match.group(1)
-        if len(digits) >= 2 and digits[0] == "1":
-            return digits[:2]
-        return digits[0]
-
     def name(self):
         """Return name."""
         return self.dname
@@ -311,10 +317,7 @@ class Distro(object):
         if self.dname == "suse":
             return re.sub(r"^suse(\d+)$", r"\1", build_os)
         if self.dname == "redhat":
-            rhel_major = self._rhel_major_version(build_os)
-            if rhel_major is None:
-                raise Exception("unsupported build_os: %s" % build_os)
-            return rhel_major
+            return rhel_major_version(build_os)
         if self.dname == "amazon":
             return "2013.03"
         elif self.dname == "amazon2":
@@ -411,10 +414,9 @@ class Distro(object):
     def release_dist(self, build_os):
         """Return the release distribution to use in the rpm.
 
-        "el5" for rhel 5.x,
-        "el6" for rhel 6.x,
-        "el10" for rhel 10.x,
-        return anything else unchanged.
+        "amzn1", "amzn2" or "amzn2023" for the amazon distros,
+        "el" plus the major version for rhel ("el6" for rhel 6.x, "el10" for rhel 10.x),
+        and anything else unchanged.
         """
 
         if self.dname == "amazon":
@@ -423,10 +425,10 @@ class Distro(object):
             return "amzn2"
         elif self.dname == "amazon2023":
             return "amzn2023"
-        rhel_major = self._rhel_major_version(build_os)
-        if rhel_major:
-            return "el%s" % rhel_major
-        return build_os
+        elif build_os.startswith("rhel"):
+            return "el" + rhel_major_version(build_os)
+        else:
+            return build_os
 
 
 def get_args(distros, arch_choices):
@@ -466,9 +468,7 @@ def get_args(distros, arch_choices):
         default=[],
         action="append",
     )
-    parser.add_argument(
-        "-p", "--prefix", help="Directory to build into", required=False
-    )
+    parser.add_argument("-p", "--prefix", help="Directory to build into", required=False)
     parser.add_argument(
         "-a",
         "--arches",
@@ -634,16 +634,13 @@ def make_package(distro, build_os, arch, spec, srcdir):
     # directory, so the debian directory is needed in all cases (and
     # innocuous in the debianoids' sdirs).
     for pkgdir in ["debian", "rpm"]:
-        print(
-            "Copying packaging files from %s to %s" % ("%s/%s" % (srcdir, pkgdir), sdir)
-        )
+        print("Copying packaging files from %s to %s" % ("%s/%s" % (srcdir, pkgdir), sdir))
         # FIXME: sh-dash-cee is bad. See if tarfile can do this.
         sysassert(
             [
                 "sh",
                 "-c",
-                '(cd "%s" && tar cf - %s ) | (cd "%s" && tar xvf -)'
-                % (srcdir, pkgdir, sdir),
+                '(cd "%s" && tar cf - %s ) | (cd "%s" && tar xvf -)' % (srcdir, pkgdir, sdir),
             ]
         )
     # Splat the binaries under sdir.  The "build" stages of the
@@ -909,9 +906,7 @@ def write_debian_changelog(path, spec, srcdir):
         lines[0],
     )
     # Rewrite every changelog entry starting in mongodb<space>
-    lines = [
-        re.sub("^mongodb ", "mongodb%s " % (spec.suffix()), line) for line in lines
-    ]
+    lines = [re.sub("^mongodb ", "mongodb%s " % (spec.suffix()), line) for line in lines]
     lines = [re.sub("^  --", " --", line) for line in lines]
     sb = "\n".join(lines)
     with open(path, "w") as fh:
@@ -963,8 +958,7 @@ def make_rpm(distro, build_os, arch, spec, srcdir):
             [
                 "tar",
                 "-cpzf",
-                topdir
-                + "SOURCES/mongodb%s-%s.tar.gz" % (suffix, spec.pversion(distro)),
+                topdir + "SOURCES/mongodb%s-%s.tar.gz" % (suffix, spec.pversion(distro)),
                 os.path.basename(os.path.dirname(sdir)),
             ]
         )
@@ -1015,9 +1009,7 @@ def make_rpm(distro, build_os, arch, spec, srcdir):
     ensure_dir(repo_dir)
     # FIXME: see if some combination of shutil.copy<hoohah> and glob
     # can do this without shelling out.
-    sysassert(
-        ["sh", "-c", 'cp -v "%s/RPMS/%s/"*.rpm "%s"' % (topdir, distro_arch, repo_dir)]
-    )
+    sysassert(["sh", "-c", 'cp -v "%s/RPMS/%s/"*.rpm "%s"' % (topdir, distro_arch, repo_dir)])
     return repo_dir
 
 

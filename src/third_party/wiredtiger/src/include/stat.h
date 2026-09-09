@@ -452,6 +452,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
+    int64_t cache_tolerance_level;
     int64_t cache_eviction_blocked_checkpoint;
     int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t eviction_server_evict_attempt;
@@ -472,6 +473,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;
+    int64_t cache_eviction_dhandle_complete_walk;
     int64_t cache_eviction_server_skip_dirty_pages_during_checkpoint;
     int64_t cache_eviction_server_skip_intl_page_with_active_child;
     int64_t cache_eviction_server_skip_metatdata_with_history;

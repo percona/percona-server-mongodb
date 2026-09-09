@@ -444,17 +444,19 @@ void appendAdditionalParticipants(OperationContext* opCtx, BSONObjBuilder* comma
 
     std::vector<BSONObj> participantArray;
     for (const auto& p : *additionalParticipants) {
-        auto shardId = ShardId(p.first);
-
+        BSONObjBuilder entry;
+        entry.append(AdditionalParticipantInfo::kShardIdFieldName, ShardId(p.first));
         // The "readOnly" value is set for participants upon a successful response. If an error
         // occurred before getting a response from a participant, it will not have a readOnly value
         // set.
-        auto readOnly = p.second;
-        if (readOnly) {
-            participantArray.emplace_back(BSON("shardId" << shardId << "readOnly" << *readOnly));
-        } else {
-            participantArray.emplace_back(BSON("shardId" << shardId));
+        if (p.second.readOnly) {
+            entry.append(AdditionalParticipantInfo::kReadOnlyFieldName, *p.second.readOnly);
         }
+        // Forward the replication term observed for this participant.
+        if (p.second.term) {
+            entry.append(AdditionalParticipantInfo::kTermFieldName, *p.second.term);
+        }
+        participantArray.emplace_back(entry.obj());
     }
 
     commandBodyFieldsBob->appendElements(
@@ -889,7 +891,7 @@ void CheckoutSessionAndInvokeCommand::run() {
             txnParticipant.handleWouldChangeOwningShardError(opCtx, wouldChangeOwningShardInfo);
             _stashTransaction(txnParticipant);
 
-            auto txnResponseMetadata = txnParticipant.getResponseMetadata();
+            auto txnResponseMetadata = txnParticipant.getResponseMetadata(opCtx);
             (_ecd->getExtraFieldsBuilder())->appendElements(txnResponseMetadata);
             return ex.toStatus();
         } catch (const DBException& ex) {
@@ -1184,7 +1186,7 @@ void CheckoutSessionAndInvokeCommand::_commitInvocation() {
 
         if (serverGlobalParams.clusterRole.has(ClusterRole::ShardServer) ||
             serverGlobalParams.clusterRole.has(ClusterRole::ConfigServer)) {
-            auto txnResponseMetadata = txnParticipant.getResponseMetadata();
+            auto txnResponseMetadata = txnParticipant.getResponseMetadata(execContext.getOpCtx());
             auto bodyBuilder = replyBuilder->getBodyBuilder();
             bodyBuilder.appendElements(txnResponseMetadata);
             appendAdditionalParticipants(execContext.getOpCtx(), &bodyBuilder);
@@ -1483,19 +1485,34 @@ StatusWith<repl::ReadConcernArgs> ExecCommandDatabase::_extractReadConcern(
             return readConcernParseStatus;
         }
     }
-    bool clientSuppliedReadConcern = !readConcernArgs.isEmpty();
+    // True only when the client set a level. Partial RCs (e.g. {afterClusterTime: T}) get the
+    // level filled in below, so provenance resolves to customDefault / implicitDefault.
+    bool clientSuppliedReadConcern = readConcernArgs.hasLevel();
     bool customDefaultWasApplied = false;
     auto readConcernSupport = _invocation->supportsReadConcern(readConcernArgs.getLevel(),
                                                                readConcernArgs.isImplicitDefault());
 
-    auto applyDefaultReadConcern = [&](const repl::ReadConcernArgs rcDefault) -> void {
+    auto applyReadConcernDefault = [&](repl::ReadConcernArgs rcDefault) {
         LOGV2_DEBUG(21955,
                     2,
                     "Applying default readConcern on command",
                     "readConcernDefault"_attr = rcDefault,
+                    "providedReadConcern"_attr = readConcernArgs,
+                    "isImplicit"_attr = !readConcernSupport.defaultReadConcernPermit.isOK(),
                     "command"_attr = _invocation->definition()->getName());
-        readConcernArgs = std::move(rcDefault);
-        // Update the readConcernSupport, since the default RC was applied.
+        if (readConcernArgs.isEmpty()) {
+            readConcernArgs = std::move(rcDefault);
+        } else if (rcDefault.getLevel() == repl::ReadConcernLevel::kAvailableReadConcern &&
+                   readConcernArgs.getArgsAfterClusterTime()) {
+            // A default level of "available" cannot be combined with afterClusterTime (see
+            // ReadConcernArgs::validate()). Promote to "local": afterClusterTime is honored
+            // and the level resolves as if no default were configured.
+            readConcernArgs.setLevel(repl::ReadConcernLevel::kLocalReadConcern);
+        } else {
+            readConcernArgs.setLevel(rcDefault.getLevel());
+        }
+        // Applying a default must never produce an invalid combination.
+        uassertStatusOK(readConcernArgs.validate());
         readConcernSupport =
             _invocation->supportsReadConcern(readConcernArgs.getLevel(), !customDefaultWasApplied);
     };
@@ -1524,34 +1541,29 @@ StatusWith<repl::ReadConcernArgs> ExecCommandDatabase::_extractReadConcern(
                 //       "command"_attr = _invocation->definition()->getName());
             }
 
-            // A member in a regular replica set.  Since these servers receive client queries, in
-            // this context empty RC (ie. readConcern: {}) means the same as if absent/unspecified,
-            // which is to apply the CWRWC defaults if present.  This means we just test isEmpty(),
-            // since this covers both isSpecified() && !isSpecified()
-            if (readConcernArgs.isEmpty()) {
-                const auto rwcDefaults =
-                    ReadWriteConcernDefaults::get(opCtx->getServiceContext()).getDefault(opCtx);
+            // Apply the CWRC default when the client did not set a level. Empty RC: replace
+            // whole; partial RC: merge level only to preserve afterClusterTime / opTime.
+            if (!readConcernArgs.hasLevel()) {
+                const auto rwcDefaults = ReadWriteConcernDefaults::get(opCtx).getDefault(opCtx);
                 const auto rcDefault = rwcDefaults.getDefaultReadConcern();
                 if (rcDefault) {
                     const auto readConcernSource = rwcDefaults.getDefaultReadConcernSource();
                     customDefaultWasApplied =
                         (readConcernSource &&
                          readConcernSource.value() == DefaultReadConcernSourceEnum::kGlobal);
-
-                    applyDefaultReadConcern(*rcDefault);
+                    applyReadConcernDefault(*rcDefault);
                 }
             }
         }
     }
 
-    // Apply the implicit default read concern even if the command does not support a cluster wide
-    // read concern.
+    // Apply the implicit default RC when the command does not support CWRC and the client did
+    // not set a level.
     if (!readConcernSupport.defaultReadConcernPermit.isOK() &&
         readConcernSupport.implicitDefaultReadConcernPermit.isOK() && shouldApplyDefaults &&
-        !_isInternalClient() && readConcernArgs.isEmpty()) {
-        auto rcDefault = ReadWriteConcernDefaults::get(opCtx->getServiceContext())
-                             .getImplicitDefaultReadConcern();
-        applyDefaultReadConcern(rcDefault);
+        !_isInternalClient() && !readConcernArgs.hasLevel()) {
+        applyReadConcernDefault(
+            ReadWriteConcernDefaults::get(opCtx).getImplicitDefaultReadConcern());
     }
 
     // It's fine for clients to provide any provenance value to mongod. But if they haven't, then an
