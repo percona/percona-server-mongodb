@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@
 #include <stdio.h>
 
 #include <bson/bson-keys.h>
-#include <bson/bson-string.h>
+#include <common-string-private.h>
+#include <common-cmp-private.h>
 
 
 static const char *gUint32Strs[] = {
@@ -141,5 +142,9 @@ bson_uint32_to_string (uint32_t value,      /* IN */
 
    *strptr = str;
 
-   return bson_snprintf (str, size, "%u", value);
+   int ret = bson_snprintf (str, size, "%u", value);
+   // Truncation is OK.
+   BSON_ASSERT (ret > 0);
+   BSON_ASSERT (mcommon_in_range_size_t_signed (ret));
+   return (size_t) ret;
 }

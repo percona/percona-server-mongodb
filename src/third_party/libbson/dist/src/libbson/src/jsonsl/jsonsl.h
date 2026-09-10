@@ -9,7 +9,7 @@
  * See included LICENSE file for license details.
  */
 
-#include "../bson/bson-prelude.h"
+#include <bson/bson-prelude.h>
 
 #ifndef JSONSL_H_
 #define JSONSL_H_
@@ -568,7 +568,7 @@ struct jsonsl_st {
      * nlevels argument passed to jsonsl_new. If you modify this structure,
      * make sure that this member is last.
      */
-    struct jsonsl_state_st stack[1];
+    struct jsonsl_state_st stack[];
 };
 
 

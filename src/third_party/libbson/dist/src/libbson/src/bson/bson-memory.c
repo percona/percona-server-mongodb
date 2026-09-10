@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,10 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <bson/bson-atomic.h>
 #include <bson/bson-config.h>
 #include <bson/bson-memory.h>
+
+#include <common-macros-private.h>
 
 
 // Ensure size of exported structs are stable.
@@ -32,10 +33,11 @@ BSON_STATIC_ASSERT2 (bson_mem_vtable_t, sizeof (bson_mem_vtable_t) == sizeof (vo
 // For compatibility with C standards prior to C11.
 static void *
 _aligned_alloc_impl (size_t alignment, size_t num_bytes)
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(_WIN32) && !defined(__ANDROID__) && \
-   !defined(_AIX)
+#if defined(BSON_HAVE_ALIGNED_ALLOC)
 {
+   MC_DISABLE_IMPLICIT_WARNING_BEGIN
    return aligned_alloc (alignment, num_bytes);
+   MC_DISABLE_IMPLICIT_WARNING_END
 }
 #elif defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
 {

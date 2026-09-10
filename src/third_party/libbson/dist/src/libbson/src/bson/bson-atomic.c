@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 
 
 #include <bson/bson-atomic.h>
+#include <common-macros-private.h>
+
+BEGIN_IGNORE_DEPRECATIONS
 
 #ifdef BSON_OS_UNIX
 /* For sched_yield() */
@@ -267,3 +270,5 @@ _bson_emul_atomic_ptr_exchange (void *volatile *p, void *n, enum bson_memory_ord
    _unlock_emul_atomic ();
    return ret;
 }
+
+END_IGNORE_DEPRECATIONS

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018-present MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-#if !defined(MONGOC_INSIDE) && !defined(MONGOC_COMPILATION) && !defined(BSON_COMPILATION) && !defined(BSON_INSIDE)
-#error "Only <mongoc/mongoc.h> or <bson/bson.h> can be included directly."
-#endif
+#include <common-prelude.h>
 
-#define COMMON_NAME_1(a, b) COMMON_NAME_2 (a, b)
-#define COMMON_NAME_2(a, b) a##_##b
+#ifndef MONGO_C_DRIVER_COMMON_OID_PRIVATE_H
+#define MONGO_C_DRIVER_COMMON_OID_PRIVATE_H
 
-#if defined(MCOMMON_NAME_PREFIX) && !defined(__INTELLISENSE__)
-#define COMMON_NAME(Name) COMMON_NAME_1 (MCOMMON_NAME_PREFIX, Name)
-#else
-#define COMMON_NAME(Name) COMMON_NAME_1 (mcommon, Name)
-#endif
+#include <bson/bson.h>
+
+BSON_BEGIN_DECLS
+
+extern const bson_oid_t kZeroObjectId;
+
+void
+mcommon_oid_set_zero (bson_oid_t *oid);
+
+bool
+mcommon_oid_is_zero (const bson_oid_t *oid);
+
+BSON_END_DECLS
+
+#endif /* MONGO_C_DRIVER_COMMON_OID_PRIVATE_H */

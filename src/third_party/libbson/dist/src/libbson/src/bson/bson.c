@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,74 +15,60 @@
  */
 
 
-#include "bson.h"
+#include <bson/validate-private.h>
+#include <bson/bson.h>
 #include <bson/bson-config.h>
 #include <bson/bson-private.h>
 #include <bson/bson-json-private.h>
-#include <bson/bson-string.h>
+#include <common-string-private.h>
+#include <common-json-private.h>
+#include <common-macros-private.h>
 #include <bson/bson-iso8601-private.h>
-
-#include "common-b64-private.h"
+#include <common-cmp-private.h>
 
 #include <string.h>
 #include <math.h>
 
-
-#ifndef BSON_MAX_RECURSION
-#define BSON_MAX_RECURSION 200
+#ifdef BSON_MEMCHECK
+#pragma message( \
+   "Do not define BSON_MEMCHECK. BSON_MEMCHECK changes the data layout of bson_t. BSON_MEMCHECK is deprecated may be removed in a future major release")
 #endif
 
-
-typedef enum {
-   BSON_VALIDATE_PHASE_START,
-   BSON_VALIDATE_PHASE_TOP,
-   BSON_VALIDATE_PHASE_LF_REF_KEY,
-   BSON_VALIDATE_PHASE_LF_REF_UTF8,
-   BSON_VALIDATE_PHASE_LF_ID_KEY,
-   BSON_VALIDATE_PHASE_LF_DB_KEY,
-   BSON_VALIDATE_PHASE_LF_DB_UTF8,
-   BSON_VALIDATE_PHASE_NOT_DBREF,
-} bson_validate_phase_t;
-
-
-/*
- * Structures.
- */
-typedef struct {
-   bson_validate_flags_t flags;
-   ssize_t err_offset;
-   bson_validate_phase_t phase;
-   bson_error_t error;
-} bson_validate_state_t;
-
-
-typedef struct {
-   uint32_t count;
-   bool keys;
-   ssize_t *err_offset;
-   uint32_t depth;
-   bson_string_t *str;
-   bson_json_mode_t mode;
-   int32_t max_len;
-   bool max_len_reached;
-} bson_json_state_t;
-
-
-/*
- * Forward declarations.
- */
-static bool
-_bson_as_json_visit_array (const bson_iter_t *iter, const char *key, const bson_t *v_array, void *data);
-static bool
-_bson_as_json_visit_document (const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data);
-static char *
-_bson_as_json_visit_all (
-   const bson_t *bson, size_t *length, bson_json_mode_t mode, int32_t max_len, bool is_outermost_array);
 
 /*
  * Globals.
  */
 static const uint8_t gZero;
+
+/*
+ *--------------------------------------------------------------------------
+ *
+ * _bson_round_up_alloc_size --
+ *
+ *       Given a potential allocation length in bytes, round up to the
+ *       next power of two without exceeding BSON_MAX_SIZE.
+ *
+ * Returns:
+ *       If the input is <= BSON_MAX_SIZE, returns a value >= the input
+ *       and still <= BSON_MAX_SIZE. If the input was greater than
+ *       BSON_MAX_SIZE, it is returned unmodified.
+ *
+ * Side effects:
+ *       None.
+ *
+ *--------------------------------------------------------------------------
+ */
+
+static BSON_INLINE size_t
+_bson_round_up_alloc_size (size_t size)
+{
+   if (size <= BSON_MAX_SIZE) {
+      size_t power_of_two = bson_next_power_of_two (size);
+      return BSON_MIN (power_of_two, BSON_MAX_SIZE);
+   } else {
+      return size;
+   }
+}
 
 /*
  *--------------------------------------------------------------------------
@@ -104,17 +90,20 @@ static const uint8_t gZero;
 
 static bool
 _bson_impl_inline_grow (bson_impl_inline_t *impl, /* IN */
-                        size_t size)              /* IN */
+                        uint32_t grow_size)       /* IN */
 {
    bson_impl_alloc_t *alloc = (bson_impl_alloc_t *) impl;
    uint8_t *data;
-   size_t req;
 
-   if (((size_t) impl->len + size) <= sizeof impl->data) {
+   MONGOC_DEBUG_ASSERT ((size_t) impl->len <= BSON_MAX_SIZE);
+   MONGOC_DEBUG_ASSERT ((size_t) grow_size <= BSON_MAX_SIZE);
+   size_t req = (size_t) impl->len + (size_t) grow_size;
+
+   if (req <= sizeof impl->data) {
       return true;
    }
 
-   req = bson_next_power_of_two (impl->len + size);
+   req = _bson_round_up_alloc_size (req);
 
    if (req <= BSON_MAX_SIZE) {
       data = bson_malloc (req);
@@ -146,11 +135,12 @@ _bson_impl_inline_grow (bson_impl_inline_t *impl, /* IN */
  *
  * _bson_impl_alloc_grow --
  *
- *       Document growth implementation for documents containing malloc
- *       based buffers.
+ *       Document growth implementation for non-inline documents, possibly
+ *       containing a reallocatable buffer.
  *
  * Returns:
- *       true if successful; otherwise false indicating BSON_MAX_SIZE overflow.
+ *       true if successful; otherwise false indicating BSON_MAX_SIZE overflow
+ *       or an attempt to grow a buffer with no realloc implementation.
  *
  * Side effects:
  *       None.
@@ -160,21 +150,26 @@ _bson_impl_inline_grow (bson_impl_inline_t *impl, /* IN */
 
 static bool
 _bson_impl_alloc_grow (bson_impl_alloc_t *impl, /* IN */
-                       size_t size)             /* IN */
+                       uint32_t grow_size)      /* IN */
 {
-   size_t req;
-
-   /*
-    * Determine how many bytes we need for this document in the buffer
+   /* Determine how many bytes we need for this document in the buffer
     * including necessary trailing bytes for parent documents.
+    *
+    * On size assumptions: the previous grow operation has already checked
+    * (len + offset + previous_depth) against BSON_MAX_SIZE. Current depth can be at most (previous_depth + 1). The
+    * caller has checked grow_size against BSON_MAX_SIZE. On the smallest (32-bit) supported size_t, we can still add
+    * these maximum values (2x BSON_MAX_SIZE, 1 additional byte of depth) without arithmetic overflow.
     */
-   req = (impl->offset + impl->len + size + impl->depth);
+   MONGOC_DEBUG_ASSERT ((uint64_t) impl->len + (uint64_t) impl->offset + (uint64_t) impl->depth <=
+                        (uint64_t) BSON_MAX_SIZE);
+   MONGOC_DEBUG_ASSERT ((size_t) grow_size <= BSON_MAX_SIZE);
+   size_t req = impl->offset + (size_t) impl->len + (size_t) grow_size + (size_t) impl->depth;
 
    if (req <= *impl->buflen) {
       return true;
    }
 
-   req = bson_next_power_of_two (req);
+   req = _bson_round_up_alloc_size (req);
 
    if ((req <= BSON_MAX_SIZE) && impl->realloc) {
       *impl->buf = impl->realloc (*impl->buf, req, impl->realloc_func_ctx);
@@ -191,11 +186,16 @@ _bson_impl_alloc_grow (bson_impl_alloc_t *impl, /* IN */
  *
  * _bson_grow --
  *
- *       Grows the bson_t structure to be large enough to contain @size
- *       bytes.
+ *       Grows the bson_t structure to be large enough to contain @grow_size
+ *       bytes in addition to its current content.
+ *
+ *       The caller is responsible for ensuring @grow_size itself is not
+ *       above BSON_MAX_SIZE, but a final determination of overflow status
+ *       can't be made until we are inside _bson_impl_*_grow().
  *
  * Returns:
- *       true if successful, false if the size would overflow.
+ *       true if successful, false if the size would overflow or the buffer
+ *       needs to grow but does not support reallocation.
  *
  * Side effects:
  *       None.
@@ -204,14 +204,16 @@ _bson_impl_alloc_grow (bson_impl_alloc_t *impl, /* IN */
  */
 
 static bool
-_bson_grow (bson_t *bson,  /* IN */
-            uint32_t size) /* IN */
+_bson_grow (bson_t *bson,       /* IN */
+            uint32_t grow_size) /* IN */
 {
+   BSON_ASSERT ((size_t) grow_size <= BSON_MAX_SIZE);
+
    if ((bson->flags & BSON_FLAG_INLINE)) {
-      return _bson_impl_inline_grow ((bson_impl_inline_t *) bson, size);
+      return _bson_impl_inline_grow ((bson_impl_inline_t *) bson, grow_size);
    }
 
-   return _bson_impl_alloc_grow ((bson_impl_alloc_t *) bson, size);
+   return _bson_impl_alloc_grow ((bson_impl_alloc_t *) bson, grow_size);
 }
 
 
@@ -274,172 +276,87 @@ _bson_encode_length (bson_t *bson) /* IN */
 }
 
 
-/*
- *--------------------------------------------------------------------------
- *
- * _bson_append_va --
- *
- *       Appends the length,buffer pairs to the bson_t. @n_bytes is an
- *       optimization to perform one array growth rather than many small
- *       growths.
- *
- *       @bson: A bson_t
- *       @n_bytes: The number of bytes to append to the document.
- *       @n_pairs: The number of length,buffer pairs.
- *       @first_len: Length of first buffer.
- *       @first_data: First buffer.
- *       @args: va_list of additional tuples.
- *
- * Returns:
- *       true if the bytes were appended successfully.
- *       false if it bson would overflow BSON_MAX_SIZE.
- *
- * Side effects:
- *       None.
- *
- *--------------------------------------------------------------------------
- */
+typedef struct _bson_append_bytes_arg {
+   const uint8_t *bytes; // Not null.
+   uint32_t length;      // > 0.
+} _bson_append_bytes_arg;
 
-static BSON_INLINE bool
-_bson_append_va (bson_t *bson,              /* IN */
-                 uint32_t n_bytes,          /* IN */
-                 uint32_t n_pairs,          /* IN */
-                 uint32_t first_len,        /* IN */
-                 const uint8_t *first_data, /* IN */
-                 va_list args)              /* IN */
-{
-   const uint8_t *data;
-   uint32_t data_len;
-   uint8_t *buf;
+typedef struct _bson_append_bytes_list {
+   _bson_append_bytes_arg args[8];  // Arbitrary length: just needs to be large enough.
+   _bson_append_bytes_arg *current; // "Insert"/"End" pointer.
+   uint32_t n_bytes;                // Total bytes to be appended.
+} _bson_append_bytes_list;
 
-   BSON_ASSERT (!(bson->flags & BSON_FLAG_IN_CHILD));
-   BSON_ASSERT (!(bson->flags & BSON_FLAG_RDONLY));
+// To support unchecked cast from non-negative `int` to `size_t`.
+BSON_STATIC_ASSERT2 (size_t_gte_int, SIZE_MAX >= INT_MAX);
 
-   if (BSON_UNLIKELY (!_bson_grow (bson, n_bytes))) {
-      return false;
-   }
+// To support unchecked cast from `uint32_t` to `size_t`.
+BSON_STATIC_ASSERT2 (size_t_gte_uint32_t, SIZE_MAX >= UINT32_MAX);
 
-   data = first_data;
-   data_len = first_len;
+// Support largest _bson_impl_alloc_grow on smallest size_t
+BSON_STATIC_ASSERT2 (max_alloc_grow_fits_min_sizet, (uint64_t) BSON_MAX_SIZE * 2u + 1u <= (uint64_t) UINT32_MAX);
 
-   buf = _bson_data (bson) + bson->len - 1;
+// Declare local state with the identifier `ident`.
+#define BSON_APPEND_BYTES_LIST_DECLARE(ident)                                \
+   _bson_append_bytes_list ident = {.current = (ident).args, .n_bytes = 0u}; \
+   ((void) 0)
 
-   /* Track running sum of bytes written in a uint64_t to detect possible overflow of `n_bytes`. */
-   uint64_t n_bytes_sum = 0;
-   do {
-      // Size of any individual data being appended should not exceed the total byte limit.
-      if (BSON_UNLIKELY (bson_cmp_less_uu (n_bytes, data_len))) {
-         return false;
-      }
-      // Total size of data being appended should not exceed the total byte limit.
-      if (BSON_UNLIKELY (bson_cmp_greater_uu (n_bytes_sum, n_bytes - data_len))) {
-         return false;
-      }
-      n_bytes_sum += data_len;
-      n_pairs--;
-      /* data may be NULL if data_len is 0. memcpy is not safe to call with
-       * NULL. */
-      if (BSON_LIKELY (data_len != 0 && data != NULL)) {
-         memcpy (buf, data, data_len);
-         bson->len += data_len;
-         buf += data_len;
-      } else if (BSON_UNLIKELY (data_len != 0 && data == NULL)) {
-         /* error, user appending NULL with non-zero length. */
-         return false;
-      }
+// Add a bytes+length pair only if `_length > 0`.
+// Append failure if `n_bytes` will exceed BSON max size.
+#define BSON_APPEND_BYTES_ADD_ARGUMENT(_list, _bytes, _length)        \
+   if (BSON_UNLIKELY ((_length) > BSON_MAX_SIZE - (_list).n_bytes)) { \
+      goto append_failure;                                            \
+   } else if ((_length) > 0) {                                        \
+      *(_list).current++ = (_bson_append_bytes_arg){                  \
+         .bytes = (const uint8_t *) (_bytes),                         \
+         .length = (_length),                                         \
+      };                                                              \
+      (_list).n_bytes += (_length);                                   \
+   } else                                                             \
+      ((void) 0)
 
-      if (n_pairs) {
-         data_len = va_arg (args, uint32_t);
-         data = va_arg (args, const uint8_t *);
-      }
-   } while (n_pairs);
+// Add a UTF-8 string only if no embedded null bytes are present.
+// Uses `strlen (_key)` when `_key_len < 0`, otherwise uses `_key_len`.
+#define BSON_APPEND_BYTES_ADD_CHECKED_STRING(_list, _key, _key_len)      \
+   uint32_t BSON_CONCAT (key_ulen_, __LINE__);                           \
+   if ((_key_len) < 0) {                                                 \
+      const size_t key_zulen = strlen ((_key));                          \
+      if (BSON_UNLIKELY (key_zulen > UINT32_MAX)) {                      \
+         goto append_failure;                                            \
+      }                                                                  \
+      BSON_CONCAT (key_ulen_, __LINE__) = (uint32_t) key_zulen;          \
+   } else {                                                              \
+      const size_t key_zulen = (size_t) (_key_len);                      \
+      if (BSON_UNLIKELY (key_zulen > UINT32_MAX)) {                      \
+         goto append_failure;                                            \
+      } /* Necessary to validate embedded NULL is not present in key. */ \
+      else if (memchr ((_key), '\0', key_zulen) != NULL) {               \
+         goto append_failure;                                            \
+      } else {                                                           \
+         BSON_CONCAT (key_ulen_, __LINE__) = (uint32_t) key_zulen;       \
+      }                                                                  \
+   }                                                                     \
+   BSON_APPEND_BYTES_ADD_ARGUMENT ((_list), (_key), BSON_CONCAT (key_ulen_, __LINE__))
 
-   _bson_encode_length (bson);
+// Apply the list of arguments to be appended to `_bson`.
+// Append failure if adding `_list.n_bytes` will exceed BSON max size.
+#define BSON_APPEND_BYTES_APPLY_ARGUMENTS(_bson, _list)                                       \
+   if (BSON_UNLIKELY ((_list).n_bytes > BSON_MAX_SIZE - (_bson)->len)) {                      \
+      goto append_failure;                                                                    \
+   } else if (BSON_UNLIKELY (!_bson_grow ((_bson), (_list).n_bytes))) {                       \
+      goto append_failure;                                                                    \
+   } else {                                                                                   \
+      uint8_t *data = _bson_data ((_bson)) + ((_bson)->len - 1u);                             \
+      for (const _bson_append_bytes_arg *arg = (_list).args; arg != (_list).current; ++arg) { \
+         memcpy (data, arg->bytes, arg->length);                                              \
+         (_bson)->len += arg->length;                                                         \
+         data += arg->length;                                                                 \
+      }                                                                                       \
+      _bson_encode_length ((_bson));                                                          \
+      data[0] = '\0';                                                                         \
+   }                                                                                          \
+   ((void) 0)
 
-   *buf = '\0';
-
-   return true;
-}
-
-
-/*
- *--------------------------------------------------------------------------
- *
- * _bson_append --
- *
- *       Variadic function to append length,buffer pairs to a bson_t. If the
- *       append would cause the bson_t to overflow a 32-bit length, it will
- *       return false and no append will have occurred.
- *
- * Parameters:
- *       @bson: A bson_t.
- *       @n_pairs: Number of length,buffer pairs.
- *       @n_bytes: the total number of bytes being appended.
- *       @first_len: Length of first buffer.
- *       @first_data: First buffer.
- *
- * Returns:
- *       true if successful; otherwise false indicating BSON_MAX_SIZE overflow.
- *
- * Side effects:
- *       None.
- *
- *--------------------------------------------------------------------------
- */
-
-static bool
-_bson_append (bson_t *bson,              /* IN */
-              uint32_t n_pairs,          /* IN */
-              uint32_t n_bytes,          /* IN */
-              uint32_t first_len,        /* IN */
-              const uint8_t *first_data, /* IN */
-              ...)
-{
-   va_list args;
-   bool ok;
-
-   BSON_ASSERT (n_pairs);
-   BSON_ASSERT (first_len);
-   BSON_ASSERT (first_data);
-
-   /*
-    * Check to see if this append would overflow 32-bit signed integer. I know
-    * what you're thinking. BSON uses a signed 32-bit length field? Yeah. It
-    * does.
-    */
-   if (BSON_UNLIKELY (n_bytes > (BSON_MAX_SIZE - bson->len))) {
-      return false;
-   }
-
-   va_start (args, first_data);
-   ok = _bson_append_va (bson, n_bytes, n_pairs, first_len, first_data, args);
-   va_end (args);
-
-   return ok;
-}
-
-static BSON_INLINE bool
-_string_contains_null (const char *str, size_t len)
-{
-   for (; len; ++str, --len) {
-      if (*str == 0) {
-         return true;
-      }
-   }
-   return false;
-}
-
-#define HANDLE_KEY_LENGTH(key, key_length)                                \
-   do {                                                                   \
-      if (key_length < 0) {                                               \
-         key_length = (int) strlen (key);                                 \
-      } else {                                                            \
-         /* Necessary to validate embedded NULL is not present in key. */ \
-         if (_string_contains_null (key, key_length)) {                   \
-            return false;                                                 \
-         }                                                                \
-      }                                                                   \
-   } while (0)
 
 /*
  *--------------------------------------------------------------------------
@@ -470,39 +387,54 @@ _bson_append_bson_begin (bson_t *bson,           /* IN */
                          bson_type_t child_type, /* IN */
                          bson_t *child)          /* OUT */
 {
-   const uint8_t type = child_type;
-   const uint8_t empty[5] = {5};
-   bson_impl_alloc_t *aparent = (bson_impl_alloc_t *) bson;
-   bson_impl_alloc_t *achild = (bson_impl_alloc_t *) child;
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (child);
 
    BSON_ASSERT (!(bson->flags & BSON_FLAG_RDONLY));
    BSON_ASSERT (!(bson->flags & BSON_FLAG_IN_CHILD));
-   BSON_ASSERT (key);
    BSON_ASSERT ((child_type == BSON_TYPE_DOCUMENT) || (child_type == BSON_TYPE_ARRAY));
-   BSON_ASSERT (child);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   {
+      BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   /*
-    * If the parent is an inline bson_t, then we need to convert
-    * it to a heap allocated buffer. This makes extending buffers
-    * of child bson documents much simpler logic, as they can just
-    * realloc the *buf pointer.
-    */
-   if ((bson->flags & BSON_FLAG_INLINE)) {
-      BSON_ASSERT (bson->len <= 120);
-      if (!_bson_grow (bson, 128 - bson->len)) {
-         return false;
+      const uint8_t type = (uint8_t) child_type;
+
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+      BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+      /*
+       * If the parent is an inline bson_t, then we need to convert
+       * it to a heap allocated buffer. This makes extending buffers
+       * of child bson documents much simpler logic, as they can just
+       * realloc the *buf pointer.
+       */
+      if ((bson->flags & BSON_FLAG_INLINE)) {
+         BSON_ASSERT (bson->len <= 120);
+         if (!_bson_grow (bson, 128 - bson->len)) {
+            return false;
+         }
+         BSON_ASSERT (!(bson->flags & BSON_FLAG_INLINE));
       }
-      BSON_ASSERT (!(bson->flags & BSON_FLAG_INLINE));
-   }
 
-   /*
-    * Append the type and key for the field.
-    */
-   if (!_bson_append (bson, 4, (1 + key_length + 1 + 5), 1, &type, key_length, key, 1, &gZero, 5, empty)) {
+      const uint8_t empty[5] = {5};
+
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &empty, sizeof (empty));
+
+      BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+      goto append_success;
+
+   append_failure:
       return false;
    }
+
+append_success:
+   ((void) 0);
+
+   bson_impl_alloc_t *aparent = (bson_impl_alloc_t *) bson;
+   bson_impl_alloc_t *achild = (bson_impl_alloc_t *) child;
 
    /*
     * Mark the document as working on a child document so that no
@@ -749,11 +681,15 @@ bson_append_array (bson_t *bson,        /* IN */
 {
    static const uint8_t type = BSON_TYPE_ARRAY;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (array);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (array);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
 
    /*
     * Let's be a bit pedantic and ensure the array has properly formatted key
@@ -773,8 +709,14 @@ bson_append_array (bson_t *bson,        /* IN */
       }
    }
 
-   return _bson_append (
-      bson, 4, (1 + key_length + 1 + array->len), 1, &type, key_length, key, 1, &gZero, array->len, _bson_data (array));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, _bson_data (array), array->len);
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -810,57 +752,50 @@ bson_append_binary (bson_t *bson,           /* IN */
                     uint32_t length)        /* IN */
 {
    static const uint8_t type = BSON_TYPE_BINARY;
-   uint32_t length_le;
-   uint32_t deprecated_length_le;
-   uint8_t subtype8 = 0;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   if (!binary && length > 0u) {
+      return false;
+   }
 
-   subtype8 = subtype;
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   const uint8_t subtype_arg = (uint8_t) subtype;
 
    if (subtype == BSON_SUBTYPE_BINARY_DEPRECATED) {
-      length_le = BSON_UINT32_TO_LE (length + 4);
-      deprecated_length_le = BSON_UINT32_TO_LE (length);
+      if (length > UINT32_MAX - 4u) {
+         return false;
+      }
 
-      return _bson_append (bson,
-                           7,
-                           (1 + key_length + 1 + 4 + 1 + 4 + length),
-                           1,
-                           &type,
-                           key_length,
-                           key,
-                           1,
-                           &gZero,
-                           4,
-                           &length_le,
-                           1,
-                           &subtype8,
-                           4,
-                           &deprecated_length_le,
-                           length,
-                           binary);
+      const uint32_t length_le = BSON_UINT32_TO_LE (length + 4u);
+      const uint32_t length_arg = BSON_UINT32_TO_LE (length);
+
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &length_le, sizeof (length_le));
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &subtype_arg, sizeof (subtype_arg));
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &length_arg, sizeof (length_arg));
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, binary, length);
+
+      BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
    } else {
-      length_le = BSON_UINT32_TO_LE (length);
+      const uint32_t length_arg = BSON_UINT32_TO_LE (length);
 
-      return _bson_append (bson,
-                           6,
-                           (1 + key_length + 1 + 4 + 1 + length),
-                           1,
-                           &type,
-                           key_length,
-                           key,
-                           1,
-                           &gZero,
-                           4,
-                           &length_le,
-                           1,
-                           &subtype8,
-                           length,
-                           binary);
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &length_arg, sizeof (length_arg));
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, &subtype_arg, sizeof (subtype_arg));
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, binary, length);
+
+      BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
    }
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -888,14 +823,26 @@ bson_append_bool (bson_t *bson,    /* IN */
                   bool value)      /* IN */
 {
    static const uint8_t type = BSON_TYPE_BOOL;
-   uint8_t abyte = !!value;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 1), 1, &type, key_length, key, 1, &gZero, 1, &abyte);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   const uint8_t byte_arg = value ? 1u : 0u;
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &byte_arg, sizeof (byte_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -928,31 +875,32 @@ bson_append_code (bson_t *bson,           /* IN */
                   const char *javascript) /* IN */
 {
    static const uint8_t type = BSON_TYPE_CODE;
-   uint32_t length;
-   uint32_t length_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (javascript);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (javascript);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const size_t zulength = strlen (javascript);
+   if (zulength > UINT32_MAX - 1u) {
+      return false;
+   }
+   const uint32_t length = (uint32_t) zulength + 1u;
+   const uint32_t length_arg = BSON_UINT32_TO_LE (length);
 
-   length = (int) strlen (javascript) + 1;
-   length_le = BSON_UINT32_TO_LE (length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson,
-                        5,
-                        (1 + key_length + 1 + 4 + length),
-                        1,
-                        &type,
-                        key_length,
-                        key,
-                        1,
-                        &gZero,
-                        4,
-                        &length_le,
-                        length,
-                        javascript);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &length_arg, sizeof (length_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, javascript, length);
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -981,44 +929,50 @@ bson_append_code_with_scope (bson_t *bson,           /* IN */
                              const bson_t *scope)    /* IN */
 {
    static const uint8_t type = BSON_TYPE_CODEWSCOPE;
-   uint32_t codews_length_le;
-   uint32_t codews_length;
-   uint32_t js_length_le;
-   uint32_t js_length;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (javascript);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (javascript);
 
-   if (scope == NULL) {
+   if (!scope) {
       return bson_append_code (bson, key, key_length, javascript);
    }
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const size_t zulength = strlen (javascript);
+   if (zulength > UINT32_MAX - 1u) {
+      return false;
+   }
 
-   js_length = (int) strlen (javascript) + 1;
-   js_length_le = BSON_UINT32_TO_LE (js_length);
+   const uint32_t js_length = (uint32_t) zulength + 1u;
+   const uint32_t js_length_arg = BSON_UINT32_TO_LE (js_length);
 
-   codews_length = 4 + 4 + js_length + scope->len;
-   codews_length_le = BSON_UINT32_TO_LE (codews_length);
+   if (js_length > UINT32_MAX - scope->len) {
+      return false;
+   }
 
-   return _bson_append (bson,
-                        7,
-                        (1 + key_length + 1 + 4 + 4 + js_length + scope->len),
-                        1,
-                        &type,
-                        key_length,
-                        key,
-                        1,
-                        &gZero,
-                        4,
-                        &codews_length_le,
-                        4,
-                        &js_length_le,
-                        js_length,
-                        javascript,
-                        scope->len,
-                        _bson_data (scope));
+   if (js_length + scope->len > UINT32_MAX - (2u * sizeof (uint32_t))) {
+      return false;
+   }
+
+   const uint32_t total_length = (uint32_t) (2u * sizeof (uint32_t)) + js_length + scope->len;
+   const uint32_t total_length_arg = BSON_UINT32_TO_LE (total_length);
+
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &total_length_arg, sizeof (total_length_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &js_length_arg, sizeof (js_length_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, javascript, js_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, _bson_data (scope), scope->len);
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1048,34 +1002,35 @@ bson_append_dbpointer (bson_t *bson,           /* IN */
                        const bson_oid_t *oid)
 {
    static const uint8_t type = BSON_TYPE_DBPOINTER;
-   uint32_t length;
-   uint32_t length_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (collection);
-   BSON_ASSERT (oid);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (collection);
+   BSON_ASSERT_PARAM (oid);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const size_t zulength = strlen (collection);
+   if (zulength > UINT32_MAX - 1u) {
+      return false;
+   }
 
-   length = (int) strlen (collection) + 1;
-   length_le = BSON_UINT32_TO_LE (length);
+   const uint32_t length = (uint32_t) zulength + 1u;
+   const uint32_t length_arg = BSON_UINT32_TO_LE (length);
 
-   return _bson_append (bson,
-                        6,
-                        (1 + key_length + 1 + 4 + length + 12),
-                        1,
-                        &type,
-                        key_length,
-                        key,
-                        1,
-                        &gZero,
-                        4,
-                        &length_le,
-                        length,
-                        collection,
-                        12,
-                        oid);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &length_arg, sizeof (length_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, collection, length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, oid->bytes, sizeof (oid->bytes));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1109,14 +1064,23 @@ bson_append_document (bson_t *bson,        /* IN */
 {
    static const uint8_t type = BSON_TYPE_DOCUMENT;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (value);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (value);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (
-      bson, 4, (1 + key_length + 1 + value->len), 1, &type, key_length, key, 1, &gZero, value->len, _bson_data (value));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, _bson_data (value), value->len);
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1125,16 +1089,24 @@ bson_append_double (bson_t *bson, const char *key, int key_length, double value)
 {
    static const uint8_t type = BSON_TYPE_DOUBLE;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const double value_arg = BSON_DOUBLE_TO_LE (value);
 
-#if BSON_BYTE_ORDER == BSON_BIG_ENDIAN
-   value = BSON_DOUBLE_TO_LE (value);
-#endif
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 8), 1, &type, key_length, key, 1, &gZero, 8, &value);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value_arg, sizeof (value_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1142,16 +1114,25 @@ bool
 bson_append_int32 (bson_t *bson, const char *key, int key_length, int32_t value)
 {
    static const uint8_t type = BSON_TYPE_INT32;
-   uint32_t value_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const uint32_t value_arg = BSON_UINT32_TO_LE (value);
 
-   value_le = BSON_UINT32_TO_LE (value);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 4), 1, &type, key_length, key, 1, &gZero, 4, &value_le);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value_arg, sizeof (value_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1159,16 +1140,25 @@ bool
 bson_append_int64 (bson_t *bson, const char *key, int key_length, int64_t value)
 {
    static const uint8_t type = BSON_TYPE_INT64;
-   uint64_t value_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const uint64_t value_arg = BSON_UINT64_TO_LE (value);
 
-   value_le = BSON_UINT64_TO_LE (value);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 8), 1, &type, key_length, key, 1, &gZero, 8, &value_le);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value_arg, sizeof (value_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1176,18 +1166,28 @@ bool
 bson_append_decimal128 (bson_t *bson, const char *key, int key_length, const bson_decimal128_t *value)
 {
    static const uint8_t type = BSON_TYPE_DECIMAL128;
-   uint64_t value_le[2];
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (value);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const uint64_t value_arg[] = {
+      BSON_UINT64_TO_LE (value->low),
+      BSON_UINT64_TO_LE (value->high),
+   };
 
-   value_le[0] = BSON_UINT64_TO_LE (value->low);
-   value_le[1] = BSON_UINT64_TO_LE (value->high);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 16), 1, &type, key_length, key, 1, &gZero, 16, value_le);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value_arg, sizeof (value_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1348,12 +1348,21 @@ bson_append_maxkey (bson_t *bson, const char *key, int key_length)
 {
    static const uint8_t type = BSON_TYPE_MAXKEY;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 3, (1 + key_length + 1), 1, &type, key_length, key, 1, &gZero);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1362,12 +1371,21 @@ bson_append_minkey (bson_t *bson, const char *key, int key_length)
 {
    static const uint8_t type = BSON_TYPE_MINKEY;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 3, (1 + key_length + 1), 1, &type, key_length, key, 1, &gZero);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1376,12 +1394,21 @@ bson_append_null (bson_t *bson, const char *key, int key_length)
 {
    static const uint8_t type = BSON_TYPE_NULL;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 3, (1 + key_length + 1), 1, &type, key_length, key, 1, &gZero);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1390,48 +1417,23 @@ bson_append_oid (bson_t *bson, const char *key, int key_length, const bson_oid_t
 {
    static const uint8_t type = BSON_TYPE_OID;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
-   BSON_ASSERT (value);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
+   BSON_ASSERT_PARAM (value);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 12), 1, &type, key_length, key, 1, &gZero, 12, value);
-}
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, value->bytes, sizeof (value->bytes));
 
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
 
-/*
- *--------------------------------------------------------------------------
- *
- * _bson_append_regex_options_sorted --
- *
- *       Helper to append regex options to a buffer in a sorted order.
- *       Any duplicate or unsupported options will be ignored.
- *
- * Parameters:
- *       @buffer: Buffer to which sorted options will be appended
- *       @options: Regex options
- *
- * Returns:
- *       None.
- *
- * Side effects:
- *       None.
- *
- *--------------------------------------------------------------------------
- */
+   return true;
 
-static BSON_INLINE void
-_bson_append_regex_options_sorted (bson_string_t *buffer, /* IN */
-                                   const char *options)   /* IN */
-{
-   const char *c;
-
-   for (c = BSON_REGEX_OPTIONS_SORTED; *c; c++) {
-      if (strchr (options, *c)) {
-         bson_string_append_c (buffer, *c);
-      }
-   }
+append_failure:
+   return false;
 }
 
 
@@ -1447,22 +1449,11 @@ bson_append_regex_w_len (
    bson_t *bson, const char *key, int key_length, const char *regex, int regex_length, const char *options)
 {
    static const uint8_t type = BSON_TYPE_REGEX;
-   bson_string_t *options_sorted;
-   bool r;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
-
-   if (regex_length < 0) {
-      regex_length = (int) strlen (regex);
-   } else {
-      /* Necessary to validate embedded NULL is not present in key. */
-      if (_string_contains_null (regex, regex_length)) {
-         return false;
-      }
-   }
+   bool ret = false;
 
    if (!regex) {
       regex = "";
@@ -1472,29 +1463,31 @@ bson_append_regex_w_len (
       options = "";
    }
 
-   options_sorted = bson_string_new (NULL);
+   size_t options_len = strlen (options);
+   mcommon_string_append_t options_sorted;
+   mcommon_string_new_with_capacity_as_append (&options_sorted, (uint32_t) options_len);
+   if (!mcommon_string_append_selected_chars (&options_sorted, BSON_REGEX_OPTIONS_SORTED, options, options_len)) {
+      goto append_failure;
+   }
 
-   _bson_append_regex_options_sorted (options_sorted, options);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   r = _bson_append (bson,
-                     6,
-                     (1 + key_length + 1 + regex_length + 1 + options_sorted->len + 1),
-                     1,
-                     &type,
-                     key_length,
-                     key,
-                     1,
-                     &gZero,
-                     regex_length,
-                     regex,
-                     1,
-                     &gZero,
-                     options_sorted->len + 1,
-                     options_sorted->str);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, regex, regex_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (
+      args, mcommon_str_from_append (&options_sorted), 1u + mcommon_strlen_from_append (&options_sorted));
 
-   bson_string_free (options_sorted, true);
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
 
-   return r;
+   ret = true;
+
+append_failure:
+   mcommon_string_from_append_destroy (&options_sorted);
+
+   return ret;
 }
 
 
@@ -1502,38 +1495,43 @@ bool
 bson_append_utf8 (bson_t *bson, const char *key, int key_length, const char *value, int length)
 {
    static const uint8_t type = BSON_TYPE_UTF8;
-   uint32_t length_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
    if (BSON_UNLIKELY (!value)) {
       return bson_append_null (bson, key, key_length);
    }
 
-   HANDLE_KEY_LENGTH (key, key_length);
-
+   size_t zulength;
    if (BSON_UNLIKELY (length < 0)) {
-      length = (int) strlen (value);
+      zulength = strlen (value);
+   } else {
+      zulength = (size_t) length;
    }
 
-   length_le = BSON_UINT32_TO_LE (length + 1);
+   if (zulength > UINT32_MAX - 1u) {
+      return false;
+   }
 
-   return _bson_append (bson,
-                        6,
-                        (1 + key_length + 1 + 4 + length + 1),
-                        1,
-                        &type,
-                        key_length,
-                        key,
-                        1,
-                        &gZero,
-                        4,
-                        &length_le,
-                        length,
-                        value,
-                        1,
-                        &gZero);
+   const uint32_t ulength = (uint32_t) zulength;
+   const uint32_t ulength_arg = BSON_UINT32_TO_LE (ulength + 1u);
+
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &ulength_arg, sizeof (ulength_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, value, ulength);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1541,38 +1539,43 @@ bool
 bson_append_symbol (bson_t *bson, const char *key, int key_length, const char *value, int length)
 {
    static const uint8_t type = BSON_TYPE_SYMBOL;
-   uint32_t length_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
    if (!value) {
       return bson_append_null (bson, key, key_length);
    }
 
-   HANDLE_KEY_LENGTH (key, key_length);
-
-   if (length < 0) {
-      length = (int) strlen (value);
+   size_t zulength;
+   if (BSON_UNLIKELY (length < 0)) {
+      zulength = strlen (value);
+   } else {
+      zulength = (size_t) length;
    }
 
-   length_le = BSON_UINT32_TO_LE (length + 1);
+   if (zulength > UINT32_MAX - 1u) {
+      return false;
+   }
 
-   return _bson_append (bson,
-                        6,
-                        (1 + key_length + 1 + 4 + length + 1),
-                        1,
-                        &type,
-                        key_length,
-                        key,
-                        1,
-                        &gZero,
-                        4,
-                        &length_le,
-                        length,
-                        value,
-                        1,
-                        &gZero);
+   const uint32_t ulength = (uint32_t) zulength;
+   const uint32_t ulength_arg = BSON_UINT32_TO_LE (ulength + 1u);
+
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &ulength_arg, sizeof (ulength_arg));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, value, ulength);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1596,17 +1599,25 @@ bool
 bson_append_timestamp (bson_t *bson, const char *key, int key_length, uint32_t timestamp, uint32_t increment)
 {
    static const uint8_t type = BSON_TYPE_TIMESTAMP;
-   uint64_t value;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const uint64_t value = BSON_UINT64_TO_LE (((((uint64_t) timestamp) << 32) | ((uint64_t) increment)));
 
-   value = ((((uint64_t) timestamp) << 32) | ((uint64_t) increment));
-   value = BSON_UINT64_TO_LE (value);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 8), 1, &type, key_length, key, 1, &gZero, 8, &value);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value, sizeof (value));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1625,16 +1636,25 @@ bool
 bson_append_date_time (bson_t *bson, const char *key, int key_length, int64_t value)
 {
    static const uint8_t type = BSON_TYPE_DATE_TIME;
-   uint64_t value_le;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   const uint64_t value_arg = BSON_UINT64_TO_LE (value);
 
-   value_le = BSON_UINT64_TO_LE (value);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 4, (1 + key_length + 1 + 8), 1, &type, key_length, key, 1, &gZero, 8, &value_le);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &value_arg, sizeof (value_arg));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1657,12 +1677,21 @@ bson_append_undefined (bson_t *bson, const char *key, int key_length)
 {
    static const uint8_t type = BSON_TYPE_UNDEFINED;
 
-   BSON_ASSERT (bson);
-   BSON_ASSERT (key);
+   BSON_ASSERT_PARAM (bson);
+   BSON_ASSERT_PARAM (key);
 
-   HANDLE_KEY_LENGTH (key, key_length);
+   BSON_APPEND_BYTES_LIST_DECLARE (args);
 
-   return _bson_append (bson, 3, (1 + key_length + 1), 1, &type, key_length, key, 1, &gZero);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &type, sizeof (type));
+   BSON_APPEND_BYTES_ADD_CHECKED_STRING (args, key, key_length);
+   BSON_APPEND_BYTES_ADD_ARGUMENT (args, &gZero, sizeof (gZero));
+
+   BSON_APPEND_BYTES_APPLY_ARGUMENTS (bson, args);
+
+   return true;
+
+append_failure:
+   return false;
 }
 
 
@@ -1965,6 +1994,10 @@ bson_new_from_buffer (uint8_t **buf, size_t *buf_len, bson_realloc_func realloc_
 
       memcpy (&len_le, *buf, sizeof (len_le));
       length = BSON_UINT32_FROM_LE (len_le);
+      if ((size_t) length > *buf_len) {
+         bson_free (bson);
+         return NULL;
+      }
    }
 
    if ((*buf)[length - 1]) {
@@ -2018,7 +2051,8 @@ bson_copy_to (const bson_t *src, bson_t *dst)
    }
 
    data = _bson_data (src);
-   len = bson_next_power_of_two ((size_t) src->len);
+   len = _bson_round_up_alloc_size ((size_t) src->len);
+   MONGOC_DEBUG_ASSERT (len <= BSON_MAX_SIZE);
 
    adst = (bson_impl_alloc_t *) dst;
    adst->flags = BSON_FLAG_STATIC;
@@ -2134,21 +2168,35 @@ bson_destroy (bson_t *bson)
 
 
 uint8_t *
-bson_reserve_buffer (bson_t *bson, uint32_t size)
+bson_reserve_buffer (bson_t *bson, uint32_t total_size)
 {
    if (bson->flags & (BSON_FLAG_CHILD | BSON_FLAG_IN_CHILD | BSON_FLAG_RDONLY)) {
       return NULL;
    }
 
-   if (!_bson_grow (bson, size)) {
-      return NULL;
+   if (total_size > bson->len) {
+      if ((size_t) total_size > BSON_MAX_SIZE) {
+         return NULL;
+      }
+
+      /* Note that the bson_t can also include space for parent or sibling documents (offset) and for trailing bytes
+       * (depth). These sizes will be considered by _bson_grow() but we can assume they are zero in documents without
+       * BSON_FLAG_CHILD or BSON_FLAG_IN_CHILD. If this is called on a document that's part of a bson_writer_t, it is
+       * correct to ignore offset: we set the size of the current document, leaving previous documents alone. */
+      if (!_bson_grow (bson, total_size - bson->len)) {
+         // Will fail due to overflow or when reallocation is needed on a buffer that does not support it.
+         return NULL;
+      }
    }
 
    if (bson->flags & BSON_FLAG_INLINE) {
       /* bson_grow didn't spill over */
-      ((bson_impl_inline_t *) bson)->len = size;
+      ((bson_impl_inline_t *) bson)->len = total_size;
+      BSON_ASSERT (total_size <= BSON_INLINE_DATA_SIZE);
    } else {
-      ((bson_impl_alloc_t *) bson)->len = size;
+      bson_impl_alloc_t *impl = (bson_impl_alloc_t *) bson;
+      impl->len = total_size;
+      BSON_ASSERT (impl->offset <= *impl->buflen && *impl->buflen - impl->offset >= (size_t) total_size);
    }
 
    return _bson_data (bson);
@@ -2322,739 +2370,40 @@ bson_equal (const bson_t *bson, const bson_t *other)
 }
 
 
-static bool
-_bson_as_json_visit_utf8 (const bson_iter_t *iter, const char *key, size_t v_utf8_len, const char *v_utf8, void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   escaped = bson_utf8_escape_for_json (v_utf8, v_utf8_len);
-
-   if (escaped) {
-      bson_string_append (state->str, "\"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\"");
-      bson_free (escaped);
-      return false;
-   }
-
-   return true;
-}
-
-
-static bool
-_bson_as_json_visit_int32 (const bson_iter_t *iter, const char *key, int32_t v_int32, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL) {
-      bson_string_append_printf (state->str, "{ \"$numberInt\" : \"%" PRId32 "\" }", v_int32);
-   } else {
-      bson_string_append_printf (state->str, "%" PRId32, v_int32);
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_int64 (const bson_iter_t *iter, const char *key, int64_t v_int64, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL) {
-      bson_string_append_printf (state->str, "{ \"$numberLong\" : \"%" PRId64 "\" }", v_int64);
-   } else {
-      bson_string_append_printf (state->str, "%" PRId64, v_int64);
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_decimal128 (const bson_iter_t *iter, const char *key, const bson_decimal128_t *value, void *data)
-{
-   bson_json_state_t *state = data;
-   char decimal128_string[BSON_DECIMAL128_STRING];
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_decimal128_to_string (value, decimal128_string);
-
-   bson_string_append (state->str, "{ \"$numberDecimal\" : \"");
-   bson_string_append (state->str, decimal128_string);
-   bson_string_append (state->str, "\" }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_double (const bson_iter_t *iter, const char *key, double v_double, void *data)
-{
-   bson_json_state_t *state = data;
-   bson_string_t *str = state->str;
-   uint32_t start_len;
-   bool legacy;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   /* Determine if legacy (i.e. unwrapped) output should be used. Relaxed mode
-    * will use this for nan and inf values, which we check manually since old
-    * platforms may not have isinf or isnan. */
-   legacy = state->mode == BSON_JSON_MODE_LEGACY ||
-            (state->mode == BSON_JSON_MODE_RELAXED && !(v_double != v_double || v_double * 0 != 0));
-
-   if (!legacy) {
-      bson_string_append (state->str, "{ \"$numberDouble\" : \"");
-   }
-
-   if (!legacy && v_double != v_double) {
-      bson_string_append (str, "NaN");
-   } else if (!legacy && v_double * 0 != 0) {
-      if (v_double > 0) {
-         bson_string_append (str, "Infinity");
-      } else {
-         bson_string_append (str, "-Infinity");
-      }
-   } else {
-      start_len = str->len;
-      bson_string_append_printf (str, "%.20g", v_double);
-
-      /* ensure trailing ".0" to distinguish "3" from "3.0" */
-      if (strspn (&str->str[start_len], "0123456789-") == str->len - start_len) {
-         bson_string_append (str, ".0");
-      }
-   }
-
-   if (!legacy) {
-      bson_string_append (state->str, "\" }");
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_undefined (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, "{ \"$undefined\" : true }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_null (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, "null");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_oid (const bson_iter_t *iter, const char *key, const bson_oid_t *oid, void *data)
-{
-   bson_json_state_t *state = data;
-   char str[25];
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_oid_to_string (oid, str);
-   bson_string_append (state->str, "{ \"$oid\" : \"");
-   bson_string_append (state->str, str);
-   bson_string_append (state->str, "\" }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_binary (const bson_iter_t *iter,
-                            const char *key,
-                            bson_subtype_t v_subtype,
-                            size_t v_binary_len,
-                            const uint8_t *v_binary,
-                            void *data)
-{
-   bson_json_state_t *state = data;
-   size_t b64_len;
-   char *b64;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   b64_len = mcommon_b64_ntop_calculate_target_size (v_binary_len);
-   b64 = bson_malloc0 (b64_len);
-   BSON_ASSERT (mcommon_b64_ntop (v_binary, v_binary_len, b64, b64_len) != -1);
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL || state->mode == BSON_JSON_MODE_RELAXED) {
-      bson_string_append (state->str, "{ \"$binary\" : { \"base64\" : \"");
-      bson_string_append (state->str, b64);
-      bson_string_append (state->str, "\", \"subType\" : \"");
-      bson_string_append_printf (state->str, "%02x", v_subtype);
-      bson_string_append (state->str, "\" } }");
-   } else {
-      bson_string_append (state->str, "{ \"$binary\" : \"");
-      bson_string_append (state->str, b64);
-      bson_string_append (state->str, "\", \"$type\" : \"");
-      bson_string_append_printf (state->str, "%02x", v_subtype);
-      bson_string_append (state->str, "\" }");
-   }
-
-   bson_free (b64);
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_bool (const bson_iter_t *iter, const char *key, bool v_bool, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, v_bool ? "true" : "false");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_date_time (const bson_iter_t *iter, const char *key, int64_t msec_since_epoch, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL || (state->mode == BSON_JSON_MODE_RELAXED && msec_since_epoch < 0)) {
-      bson_string_append (state->str, "{ \"$date\" : { \"$numberLong\" : \"");
-      bson_string_append_printf (state->str, "%" PRId64, msec_since_epoch);
-      bson_string_append (state->str, "\" } }");
-   } else if (state->mode == BSON_JSON_MODE_RELAXED) {
-      bson_string_append (state->str, "{ \"$date\" : \"");
-      _bson_iso8601_date_format (msec_since_epoch, state->str);
-      bson_string_append (state->str, "\" }");
-   } else {
-      bson_string_append (state->str, "{ \"$date\" : ");
-      bson_string_append_printf (state->str, "%" PRId64, msec_since_epoch);
-      bson_string_append (state->str, " }");
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_regex (
-   const bson_iter_t *iter, const char *key, const char *v_regex, const char *v_options, void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   escaped = bson_utf8_escape_for_json (v_regex, -1);
-   if (!escaped) {
-      return true;
-   }
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL || state->mode == BSON_JSON_MODE_RELAXED) {
-      bson_string_append (state->str, "{ \"$regularExpression\" : { \"pattern\" : \"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\", \"options\" : \"");
-      _bson_append_regex_options_sorted (state->str, v_options);
-      bson_string_append (state->str, "\" } }");
-   } else {
-      bson_string_append (state->str, "{ \"$regex\" : \"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\", \"$options\" : \"");
-      _bson_append_regex_options_sorted (state->str, v_options);
-      bson_string_append (state->str, "\" }");
-   }
-
-   bson_free (escaped);
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_timestamp (
-   const bson_iter_t *iter, const char *key, uint32_t v_timestamp, uint32_t v_increment, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, "{ \"$timestamp\" : { \"t\" : ");
-   bson_string_append_printf (state->str, "%u", v_timestamp);
-   bson_string_append (state->str, ", \"i\" : ");
-   bson_string_append_printf (state->str, "%u", v_increment);
-   bson_string_append (state->str, " } }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_dbpointer (const bson_iter_t *iter,
-                               const char *key,
-                               size_t v_collection_len,
-                               const char *v_collection,
-                               const bson_oid_t *v_oid,
-                               void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-   char str[25];
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-   BSON_UNUSED (v_collection_len);
-
-   escaped = bson_utf8_escape_for_json (v_collection, -1);
-   if (!escaped) {
-      return true;
-   }
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL || state->mode == BSON_JSON_MODE_RELAXED) {
-      bson_string_append (state->str, "{ \"$dbPointer\" : { \"$ref\" : \"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\"");
-
-      if (v_oid) {
-         bson_oid_to_string (v_oid, str);
-         bson_string_append (state->str, ", \"$id\" : { \"$oid\" : \"");
-         bson_string_append (state->str, str);
-         bson_string_append (state->str, "\" }");
-      }
-
-      bson_string_append (state->str, " } }");
-   } else {
-      bson_string_append (state->str, "{ \"$ref\" : \"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\"");
-
-      if (v_oid) {
-         bson_oid_to_string (v_oid, str);
-         bson_string_append (state->str, ", \"$id\" : \"");
-         bson_string_append (state->str, str);
-         bson_string_append (state->str, "\"");
-      }
-
-      bson_string_append (state->str, " }");
-   }
-
-   bson_free (escaped);
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_minkey (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, "{ \"$minKey\" : 1 }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_maxkey (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   bson_string_append (state->str, "{ \"$maxKey\" : 1 }");
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_before (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-
-   BSON_UNUSED (iter);
-
-   if (state->max_len_reached) {
-      return true;
-   }
-
-   if (state->count) {
-      bson_string_append (state->str, ", ");
-   }
-
-   if (state->keys) {
-      escaped = bson_utf8_escape_for_json (key, -1);
-      if (escaped) {
-         bson_string_append (state->str, "\"");
-         bson_string_append (state->str, escaped);
-         bson_string_append (state->str, "\" : ");
-         bson_free (escaped);
-      } else {
-         return true;
-      }
-   }
-
-   state->count++;
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_after (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_json_state_t *state = data;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->max_len == BSON_MAX_LEN_UNLIMITED) {
-      return false;
-   }
-
-   if (bson_cmp_greater_equal_us (state->str->len, state->max_len)) {
-      state->max_len_reached = true;
-
-      if (bson_cmp_greater_us (state->str->len, state->max_len)) {
-         BSON_ASSERT (bson_in_range_signed (uint32_t, state->max_len));
-         /* Truncate string to maximum length */
-         bson_string_truncate (state->str, (uint32_t) state->max_len);
-      }
-
-      return true;
-   }
-
-   return false;
-}
-
-
-static void
-_bson_as_json_visit_corrupt (const bson_iter_t *iter, void *data)
-{
-   *(((bson_json_state_t *) data)->err_offset) = iter->off;
-}
-
-
-static bool
-_bson_as_json_visit_code (const bson_iter_t *iter, const char *key, size_t v_code_len, const char *v_code, void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   escaped = bson_utf8_escape_for_json (v_code, v_code_len);
-   if (!escaped) {
-      return true;
-   }
-
-   bson_string_append (state->str, "{ \"$code\" : \"");
-   bson_string_append (state->str, escaped);
-   bson_string_append (state->str, "\" }");
-   bson_free (escaped);
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_symbol (
-   const bson_iter_t *iter, const char *key, size_t v_symbol_len, const char *v_symbol, void *data)
-{
-   bson_json_state_t *state = data;
-   char *escaped;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   escaped = bson_utf8_escape_for_json (v_symbol, v_symbol_len);
-   if (!escaped) {
-      return true;
-   }
-
-   if (state->mode == BSON_JSON_MODE_CANONICAL || state->mode == BSON_JSON_MODE_RELAXED) {
-      bson_string_append (state->str, "{ \"$symbol\" : \"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\" }");
-   } else {
-      bson_string_append (state->str, "\"");
-      bson_string_append (state->str, escaped);
-      bson_string_append (state->str, "\"");
-   }
-
-   bson_free (escaped);
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_codewscope (
-   const bson_iter_t *iter, const char *key, size_t v_code_len, const char *v_code, const bson_t *v_scope, void *data)
-{
-   bson_json_state_t *state = data;
-   char *code_escaped;
-   char *scope;
-   int32_t max_scope_len = BSON_MAX_LEN_UNLIMITED;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   code_escaped = bson_utf8_escape_for_json (v_code, v_code_len);
-   if (!code_escaped) {
-      return true;
-   }
-
-   bson_string_append (state->str, "{ \"$code\" : \"");
-   bson_string_append (state->str, code_escaped);
-   bson_string_append (state->str, "\", \"$scope\" : ");
-
-   bson_free (code_escaped);
-
-   /* Encode scope with the same mode */
-   if (state->max_len != BSON_MAX_LEN_UNLIMITED) {
-      BSON_ASSERT (bson_in_range_unsigned (int32_t, state->str->len));
-      max_scope_len = BSON_MAX (0, state->max_len - (int32_t) state->str->len);
-   }
-
-   scope = _bson_as_json_visit_all (v_scope, NULL, state->mode, max_scope_len, false);
-
-   if (!scope) {
-      return true;
-   }
-
-   bson_string_append (state->str, scope);
-   bson_string_append (state->str, " }");
-
-   bson_free (scope);
-
-   return false;
-}
-
-
-static const bson_visitor_t bson_as_json_visitors = {
-   _bson_as_json_visit_before,     _bson_as_json_visit_after,     _bson_as_json_visit_corrupt,
-   _bson_as_json_visit_double,     _bson_as_json_visit_utf8,      _bson_as_json_visit_document,
-   _bson_as_json_visit_array,      _bson_as_json_visit_binary,    _bson_as_json_visit_undefined,
-   _bson_as_json_visit_oid,        _bson_as_json_visit_bool,      _bson_as_json_visit_date_time,
-   _bson_as_json_visit_null,       _bson_as_json_visit_regex,     _bson_as_json_visit_dbpointer,
-   _bson_as_json_visit_code,       _bson_as_json_visit_symbol,    _bson_as_json_visit_codewscope,
-   _bson_as_json_visit_int32,      _bson_as_json_visit_timestamp, _bson_as_json_visit_int64,
-   _bson_as_json_visit_maxkey,     _bson_as_json_visit_minkey,    NULL, /* visit_unsupported_type */
-   _bson_as_json_visit_decimal128,
-};
-
-
-static bool
-_bson_as_json_visit_document (const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data)
-{
-   bson_json_state_t *state = data;
-   bson_json_state_t child_state = {0, true, state->err_offset};
-   bson_iter_t child;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->depth >= BSON_MAX_RECURSION) {
-      bson_string_append (state->str, "{ ... }");
-      return false;
-   }
-
-   if (bson_iter_init (&child, v_document)) {
-      child_state.str = bson_string_new ("{ ");
-      child_state.depth = state->depth + 1;
-      child_state.mode = state->mode;
-      child_state.max_len = BSON_MAX_LEN_UNLIMITED;
-      if (state->max_len != BSON_MAX_LEN_UNLIMITED) {
-         BSON_ASSERT (bson_in_range_unsigned (int32_t, state->str->len));
-         child_state.max_len = BSON_MAX (0, state->max_len - (int32_t) state->str->len);
-      }
-
-      child_state.max_len_reached = child_state.max_len == 0;
-
-      if (bson_iter_visit_all (&child, &bson_as_json_visitors, &child_state)) {
-         if (child_state.max_len_reached) {
-            bson_string_append (state->str, child_state.str->str);
-         }
-
-         bson_string_free (child_state.str, true);
-
-         /* If max_len was reached, we return a success state to ensure that
-          * VISIT_AFTER is still called
-          */
-         return !child_state.max_len_reached;
-      }
-
-      bson_string_append (child_state.str, " }");
-      bson_string_append (state->str, child_state.str->str);
-      bson_string_free (child_state.str, true);
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_as_json_visit_array (const bson_iter_t *iter, const char *key, const bson_t *v_array, void *data)
-{
-   bson_json_state_t *state = data;
-   bson_json_state_t child_state = {0, false, state->err_offset};
-   bson_iter_t child;
-
-   BSON_UNUSED (iter);
-   BSON_UNUSED (key);
-
-   if (state->depth >= BSON_MAX_RECURSION) {
-      bson_string_append (state->str, "{ ... }");
-      return false;
-   }
-
-   if (bson_iter_init (&child, v_array)) {
-      child_state.str = bson_string_new ("[ ");
-      child_state.depth = state->depth + 1;
-      child_state.mode = state->mode;
-      child_state.max_len = BSON_MAX_LEN_UNLIMITED;
-      if (state->max_len != BSON_MAX_LEN_UNLIMITED) {
-         BSON_ASSERT (bson_in_range_unsigned (int32_t, state->str->len));
-         child_state.max_len = BSON_MAX (0, state->max_len - (int32_t) state->str->len);
-      }
-
-      child_state.max_len_reached = child_state.max_len == 0;
-
-      if (bson_iter_visit_all (&child, &bson_as_json_visitors, &child_state)) {
-         if (child_state.max_len_reached) {
-            bson_string_append (state->str, child_state.str->str);
-         }
-
-         bson_string_free (child_state.str, true);
-
-         /* If max_len was reached, we return a success state to ensure that
-          * VISIT_AFTER is still called
-          */
-         return !child_state.max_len_reached;
-      }
-
-      bson_string_append (child_state.str, " ]");
-      bson_string_append (state->str, child_state.str->str);
-      bson_string_free (child_state.str, true);
-   }
-
-   return false;
-}
-
-
-static char *
-_bson_as_json_visit_all (
-   const bson_t *bson, size_t *length, bson_json_mode_t mode, int32_t max_len, bool is_outermost_array)
-{
-   bson_json_state_t state;
-   bson_iter_t iter;
-   ssize_t err_offset = -1;
-   int32_t remaining;
-
-   BSON_ASSERT (bson);
-
-   if (length) {
-      *length = 0;
-   }
-
-   if (bson_empty0 (bson)) {
-      if (length) {
-         *length = 3;
-      }
-
-      return bson_strdup (is_outermost_array ? "[ ]" : "{ }");
-   }
-
-   if (!bson_iter_init (&iter, bson)) {
-      return NULL;
-   }
-
-   state.count = 0;
-   state.keys = !is_outermost_array;
-   state.str = bson_string_new (is_outermost_array ? "[ " : "{ ");
-   state.depth = 0;
-   state.err_offset = &err_offset;
-   state.mode = mode;
-   state.max_len = max_len;
-   state.max_len_reached = false;
-
-   if ((bson_iter_visit_all (&iter, &bson_as_json_visitors, &state) || err_offset != -1) && !state.max_len_reached) {
-      /*
-       * We were prematurely exited due to corruption or failed visitor.
-       */
-      bson_string_free (state.str, true);
-      if (length) {
-         *length = 0;
-      }
-      return NULL;
-   }
-
-   /* Append closing space and } separately, in case we hit the max in between.
-    */
-   remaining = state.max_len - state.str->len;
-   if (state.max_len == BSON_MAX_LEN_UNLIMITED || remaining > 1) {
-      bson_string_append (state.str, is_outermost_array ? " ]" : " }");
-   } else if (remaining == 1) {
-      bson_string_append (state.str, " ");
-   }
-
-   if (length) {
-      *length = state.str->len;
-   }
-
-   return bson_string_free (state.str, false);
-}
-
-
 char *
 bson_as_json_with_opts (const bson_t *bson, size_t *length, const bson_json_opts_t *opts)
 {
-   return _bson_as_json_visit_all (bson, length, opts->mode, opts->max_len, opts->is_outermost_array);
+   BSON_ASSERT_PARAM (bson);
+   BSON_OPTIONAL_PARAM (length);
+   BSON_ASSERT_PARAM (opts);
+
+   // Convert the API-specified max length into a literal byte count; max length is transformed from a special value
+   // (-1) to the maximum representable size.
+   int32_t limit_i32 = opts->max_len;
+   uint32_t limit_u32 = 0;
+   if (limit_i32 == BSON_MAX_LEN_UNLIMITED) {
+      limit_u32 = UINT32_MAX - 1u;
+   } else if (limit_i32 > 0) {
+      limit_u32 = (uint32_t) limit_i32;
+   }
+
+   // Use the bson length as an initial buffer capacity guess
+   mcommon_string_append_t append;
+   mcommon_string_set_append_with_limit (mcommon_string_new_with_capacity ("", 0, bson->len), &append, limit_u32);
+
+   if (opts->is_outermost_array ? mcommon_json_append_bson_array (&append, bson, opts->mode, BSON_MAX_RECURSION)
+                                : mcommon_json_append_bson_document (&append, bson, opts->mode, BSON_MAX_RECURSION)) {
+      if (length) {
+         *length = (size_t) mcommon_strlen_from_append (&append);
+      }
+      return mcommon_string_from_append_destroy_with_steal (&append);
+   } else {
+      if (length) {
+         *length = 0;
+      }
+      mcommon_string_from_append_destroy (&append);
+      return NULL;
+   }
 }
 
 
@@ -3068,6 +2417,12 @@ bson_as_canonical_extended_json (const bson_t *bson, size_t *length)
 
 char *
 bson_as_json (const bson_t *bson, size_t *length)
+{
+   return bson_as_legacy_extended_json (bson, length);
+}
+
+char *
+bson_as_legacy_extended_json (const bson_t *bson, size_t *length)
 {
    const bson_json_opts_t opts = {BSON_JSON_MODE_LEGACY, BSON_MAX_LEN_UNLIMITED, false};
    return bson_as_json_with_opts (bson, length, &opts);
@@ -3084,6 +2439,12 @@ bson_as_relaxed_extended_json (const bson_t *bson, size_t *length)
 
 char *
 bson_array_as_json (const bson_t *bson, size_t *length)
+{
+   return bson_array_as_legacy_extended_json (bson, length);
+}
+
+char *
+bson_array_as_legacy_extended_json (const bson_t *bson, size_t *length)
 {
    const bson_json_opts_t opts = {BSON_JSON_MODE_LEGACY, BSON_MAX_LEN_UNLIMITED, true};
    return bson_as_json_with_opts (bson, length, &opts);
@@ -3106,225 +2467,39 @@ bson_array_as_canonical_extended_json (const bson_t *bson, size_t *length)
 }
 
 
-#define VALIDATION_ERR(_flag, _msg, ...) bson_set_error (&state->error, BSON_ERROR_INVALID, _flag, _msg, __VA_ARGS__)
-
-static bool
-_bson_iter_validate_utf8 (const bson_iter_t *iter, const char *key, size_t v_utf8_len, const char *v_utf8, void *data)
-{
-   bson_validate_state_t *state = data;
-   bool allow_null;
-
-   if ((state->flags & BSON_VALIDATE_UTF8)) {
-      allow_null = !!(state->flags & BSON_VALIDATE_UTF8_ALLOW_NULL);
-
-      if (!bson_utf8_validate (v_utf8, v_utf8_len, allow_null)) {
-         state->err_offset = iter->off;
-         VALIDATION_ERR (BSON_VALIDATE_UTF8, "invalid utf8 string for key \"%s\"", key);
-         return true;
-      }
-   }
-
-   if ((state->flags & BSON_VALIDATE_DOLLAR_KEYS)) {
-      if (state->phase == BSON_VALIDATE_PHASE_LF_REF_UTF8) {
-         state->phase = BSON_VALIDATE_PHASE_LF_ID_KEY;
-      } else if (state->phase == BSON_VALIDATE_PHASE_LF_DB_UTF8) {
-         state->phase = BSON_VALIDATE_PHASE_NOT_DBREF;
-      }
-   }
-
-   return false;
-}
-
-
-static void
-_bson_iter_validate_corrupt (const bson_iter_t *iter, void *data)
-{
-   bson_validate_state_t *state = data;
-
-   state->err_offset = iter->err_off;
-   VALIDATION_ERR (BSON_VALIDATE_NONE, "%s", "corrupt BSON");
-}
-
-
-static bool
-_bson_iter_validate_before (const bson_iter_t *iter, const char *key, void *data)
-{
-   bson_validate_state_t *state = data;
-
-   if ((state->flags & BSON_VALIDATE_EMPTY_KEYS)) {
-      if (key[0] == '\0') {
-         state->err_offset = iter->off;
-         VALIDATION_ERR (BSON_VALIDATE_EMPTY_KEYS, "%s", "empty key");
-         return true;
-      }
-   }
-
-   if ((state->flags & BSON_VALIDATE_DOLLAR_KEYS)) {
-      if (key[0] == '$') {
-         if (state->phase == BSON_VALIDATE_PHASE_LF_REF_KEY && strcmp (key, "$ref") == 0) {
-            state->phase = BSON_VALIDATE_PHASE_LF_REF_UTF8;
-         } else if (state->phase == BSON_VALIDATE_PHASE_LF_ID_KEY && strcmp (key, "$id") == 0) {
-            state->phase = BSON_VALIDATE_PHASE_LF_DB_KEY;
-         } else if (state->phase == BSON_VALIDATE_PHASE_LF_DB_KEY && strcmp (key, "$db") == 0) {
-            state->phase = BSON_VALIDATE_PHASE_LF_DB_UTF8;
-         } else {
-            state->err_offset = iter->off;
-            VALIDATION_ERR (BSON_VALIDATE_DOLLAR_KEYS, "keys cannot begin with \"$\": \"%s\"", key);
-            return true;
-         }
-      } else if (state->phase == BSON_VALIDATE_PHASE_LF_ID_KEY || state->phase == BSON_VALIDATE_PHASE_LF_REF_UTF8 ||
-                 state->phase == BSON_VALIDATE_PHASE_LF_DB_UTF8) {
-         state->err_offset = iter->off;
-         VALIDATION_ERR (BSON_VALIDATE_DOLLAR_KEYS, "invalid key within DBRef subdocument: \"%s\"", key);
-         return true;
-      } else {
-         state->phase = BSON_VALIDATE_PHASE_NOT_DBREF;
-      }
-   }
-
-   if ((state->flags & BSON_VALIDATE_DOT_KEYS)) {
-      if (strstr (key, ".")) {
-         state->err_offset = iter->off;
-         VALIDATION_ERR (BSON_VALIDATE_DOT_KEYS, "keys cannot contain \".\": \"%s\"", key);
-         return true;
-      }
-   }
-
-   return false;
-}
-
-
-static bool
-_bson_iter_validate_codewscope (
-   const bson_iter_t *iter, const char *key, size_t v_code_len, const char *v_code, const bson_t *v_scope, void *data)
-{
-   bson_validate_state_t *state = data;
-   size_t offset = 0;
-
-   BSON_UNUSED (key);
-   BSON_UNUSED (v_code_len);
-   BSON_UNUSED (v_code);
-
-   if (!bson_validate (v_scope, state->flags, &offset)) {
-      state->err_offset = iter->off + offset;
-      VALIDATION_ERR (BSON_VALIDATE_NONE, "%s", "corrupt code-with-scope");
-      return false;
-   }
-
-   return true;
-}
-
-
-static bool
-_bson_iter_validate_document (const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data);
-
-
-static const bson_visitor_t bson_validate_funcs = {
-   _bson_iter_validate_before,
-   NULL, /* visit_after */
-   _bson_iter_validate_corrupt,
-   NULL, /* visit_double */
-   _bson_iter_validate_utf8,
-   _bson_iter_validate_document,
-   _bson_iter_validate_document, /* visit_array */
-   NULL,                         /* visit_binary */
-   NULL,                         /* visit_undefined */
-   NULL,                         /* visit_oid */
-   NULL,                         /* visit_bool */
-   NULL,                         /* visit_date_time */
-   NULL,                         /* visit_null */
-   NULL,                         /* visit_regex */
-   NULL,                         /* visit_dbpoint */
-   NULL,                         /* visit_code */
-   NULL,                         /* visit_symbol */
-   _bson_iter_validate_codewscope,
-};
-
-
-static bool
-_bson_iter_validate_document (const bson_iter_t *iter, const char *key, const bson_t *v_document, void *data)
-{
-   bson_validate_state_t *state = data;
-   bson_iter_t child;
-   bson_validate_phase_t phase = state->phase;
-
-   BSON_UNUSED (key);
-
-   if (!bson_iter_init (&child, v_document)) {
-      state->err_offset = iter->off;
-      return true;
-   }
-
-   if (state->phase == BSON_VALIDATE_PHASE_START) {
-      state->phase = BSON_VALIDATE_PHASE_TOP;
-   } else {
-      state->phase = BSON_VALIDATE_PHASE_LF_REF_KEY;
-   }
-
-   (void) bson_iter_visit_all (&child, &bson_validate_funcs, state);
-
-   if (state->phase == BSON_VALIDATE_PHASE_LF_ID_KEY || state->phase == BSON_VALIDATE_PHASE_LF_REF_UTF8 ||
-       state->phase == BSON_VALIDATE_PHASE_LF_DB_UTF8) {
-      if (state->err_offset <= 0) {
-         state->err_offset = iter->off;
-      }
-
-      return true;
-   }
-
-   state->phase = phase;
-
-   return false;
-}
-
-
-static void
-_bson_validate_internal (const bson_t *bson, bson_validate_state_t *state)
-{
-   bson_iter_t iter;
-
-   state->err_offset = -1;
-   state->phase = BSON_VALIDATE_PHASE_START;
-   memset (&state->error, 0, sizeof state->error);
-
-   if (!bson_iter_init (&iter, bson)) {
-      state->err_offset = 0;
-      VALIDATION_ERR (BSON_VALIDATE_NONE, "%s", "corrupt BSON");
-   } else {
-      _bson_iter_validate_document (&iter, NULL, bson, state);
-   }
-}
-
-
 bool
 bson_validate (const bson_t *bson, bson_validate_flags_t flags, size_t *offset)
 {
-   bson_validate_state_t state;
-
-   state.flags = flags;
-   _bson_validate_internal (bson, &state);
-
-   if (state.err_offset > 0 && offset) {
-      *offset = (size_t) state.err_offset;
-   }
-
-   return state.err_offset < 0;
+   return bson_validate_with_error_and_offset (bson, flags, offset, NULL);
 }
 
 
 bool
 bson_validate_with_error (const bson_t *bson, bson_validate_flags_t flags, bson_error_t *error)
 {
-   bson_validate_state_t state;
+   return bson_validate_with_error_and_offset (bson, flags, NULL, error);
+}
 
-   state.flags = flags;
-   _bson_validate_internal (bson, &state);
+bool
+bson_validate_with_error_and_offset (const bson_t *bson,
+                                     bson_validate_flags_t flags,
+                                     size_t *offset,
+                                     bson_error_t *error)
+{
+   BSON_ASSERT_PARAM (bson);
+   BSON_OPTIONAL_PARAM (offset);
+   BSON_OPTIONAL_PARAM (error);
 
-   if (state.err_offset > 0 && error) {
-      memcpy (error, &state.error, sizeof *error);
+   size_t offset_local = 0;
+   if (!offset) {
+      offset = &offset_local;
+   }
+   bson_error_t error_local;
+   if (!error) {
+      error = &error_local;
    }
 
-   return state.err_offset < 0;
+   return _bson_validate_impl_v2 (bson, flags, offset, error);
 }
 
 
@@ -3335,10 +2510,17 @@ bson_concat (bson_t *dst, const bson_t *src)
    BSON_ASSERT (src);
 
    if (!bson_empty (src)) {
-      return _bson_append (dst, 1, src->len - 5, src->len - 5, _bson_data (src) + 4);
+      BSON_APPEND_BYTES_LIST_DECLARE (args);
+
+      BSON_APPEND_BYTES_ADD_ARGUMENT (args, _bson_data (src) + 4, src->len - 5u);
+
+      BSON_APPEND_BYTES_APPLY_ARGUMENTS (dst, args);
    }
 
    return true;
+
+append_failure:
+   return false;
 }
 
 struct _bson_array_builder_t {
@@ -3643,7 +2825,12 @@ bson_append_array_builder_begin (bson_t *bson, const char *key, int key_length, 
    BSON_ASSERT_PARAM (key);
    BSON_ASSERT_PARAM (child);
    *child = bson_array_builder_new ();
-   return bson_append_array_begin (bson, key, key_length, &(*child)->bson);
+   bool ok = bson_append_array_begin (bson, key, key_length, &(*child)->bson);
+   if (!ok) {
+      bson_array_builder_destroy (*child);
+      *child = NULL;
+   }
+   return ok;
 }
 
 bool

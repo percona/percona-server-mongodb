@@ -1,6 +1,6 @@
 
 /*
- * Copyright 2015 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <bson/bson-cmp.h>
 #include <bson/bson-decimal128.h>
 #include <bson/bson-types.h>
 #include <bson/bson-macros.h>
-#include <bson/bson-string.h>
+#include <common-string-private.h>
+#include <common-cmp-private.h>
 
 
 #define BSON_DECIMAL128_EXPONENT_MAX 6111
@@ -269,7 +269,9 @@ bson_decimal128_to_string (const bson_decimal128_t *dec, /* IN  */
       }
       /* Exponent */
       *(str_out++) = 'E';
-      bson_snprintf (str_out, 6, "%+d", scientific_exponent);
+      // Truncation is OK.
+      int req = bson_snprintf (str_out, 6, "%+d", scientific_exponent);
+      BSON_ASSERT (req > 0);
    } else {
       /* Regular format with no decimal place */
       if (exponent >= 0) {
@@ -280,8 +282,11 @@ bson_decimal128_to_string (const bson_decimal128_t *dec, /* IN  */
       } else {
          int32_t radix_position = significand_digits + exponent;
 
+         // Reserve space for null terminator.
+         const int available_bytes = BSON_DECIMAL128_STRING - 1;
+
          if (radix_position > 0) { /* non-zero digits before radix */
-            for (int32_t i = 0; i < radix_position && (str_out - str) < BSON_DECIMAL128_STRING; i++) {
+            for (int32_t i = 0; i < radix_position && (str_out - str) < available_bytes; i++) {
                *(str_out++) = *(significand_read++) + '0';
             }
          } else { /* leading zero before radix point */
@@ -293,8 +298,8 @@ bson_decimal128_to_string (const bson_decimal128_t *dec, /* IN  */
             *(str_out++) = '0';
          }
 
-         for (uint32_t i = 0; bson_cmp_greater_us (significand_digits - i, BSON_MAX (radix_position - 1, 0)) &&
-                              (str_out - str) < BSON_DECIMAL128_STRING;
+         for (uint32_t i = 0; mcommon_cmp_greater_us (significand_digits - i, BSON_MAX (radix_position - 1, 0)) &&
+                              (str_out - str) < available_bytes;
               i++) {
             *(str_out++) = *(significand_read++) + '0';
          }
@@ -577,7 +582,7 @@ bson_decimal128_from_string_w_len (const char *string,     /* IN */
       int read_exponent = SSCANF (++str_read, "%" SCNd64 "%n", &temp_exponent, &nread);
       str_read += nread;
 
-      if (!read_exponent || nread == 0 || !bson_in_range_int32_t_signed (temp_exponent)) {
+      if (!read_exponent || nread == 0 || !mcommon_in_range_int32_t_signed (temp_exponent)) {
          BSON_DECIMAL128_SET_NAN (*dec);
          return false;
       }
@@ -618,11 +623,11 @@ bson_decimal128_from_string_w_len (const char *string,     /* IN */
    /* to represent user input */
 
    /* Overflow prevention */
-   if (bson_cmp_less_equal_su (exponent, radix_position) &&
-       bson_cmp_greater_us (radix_position, exponent + (1 << 14))) {
+   if (mcommon_cmp_less_equal_su (exponent, radix_position) &&
+       mcommon_cmp_greater_us (radix_position, exponent + (1 << 14))) {
       exponent = BSON_DECIMAL128_EXPONENT_MIN;
    } else {
-      BSON_ASSERT (bson_in_range_unsigned (int32_t, radix_position));
+      BSON_ASSERT (mcommon_in_range_unsigned (int32_t, radix_position));
       exponent -= (int32_t) radix_position;
    }
 

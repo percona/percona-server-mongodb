@@ -14,25 +14,15 @@
  * limitations under the License.
  */
 
-#include <bson/bson-prelude.h>
+#if !defined(MONGOC_INSIDE) && !defined(MONGOC_COMPILATION) && !defined(BSON_COMPILATION) && !defined(BSON_INSIDE)
+#error "Only <mongoc/mongoc.h> or <bson/bson.h> can be included directly."
+#endif
 
+#define COMMON_NAME_1(a, b) COMMON_NAME_2 (a, b)
+#define COMMON_NAME_2(a, b) a##_##b
 
-#ifndef BSON_KEYS_H
-#define BSON_KEYS_H
-
-
-#include <bson/bson-macros.h>
-#include <bson/bson-types.h>
-
-
-BSON_BEGIN_DECLS
-
-
-BSON_EXPORT (size_t)
-bson_uint32_to_string (uint32_t value, const char **strptr, char *str, size_t size);
-
-
-BSON_END_DECLS
-
-
-#endif /* BSON_KEYS_H */
+#if defined(MCOMMON_NAME_PREFIX) && !defined(__INTELLISENSE__)
+#define COMMON_NAME(Name) COMMON_NAME_1 (MCOMMON_NAME_PREFIX, Name)
+#else
+#define COMMON_NAME(Name) COMMON_NAME_1 (mcommon, Name)
+#endif

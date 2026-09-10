@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,16 @@
 #include <sys/types.h>
 #include <math.h>
 
-#include "bson.h"
+#include <bson/bson.h>
 #include <bson/bson-config.h>
 #include <bson/bson-json.h>
 #include <bson/bson-json-private.h>
 #include <bson/bson-iso8601-private.h>
 
-#include "common-b64-private.h"
-#include "jsonsl/jsonsl.h"
+#include <common-b64-private.h>
+#include <jsonsl/jsonsl.h>
+#include <common-bits-private.h>
+#include <common-cmp-private.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -464,7 +466,7 @@ _bson_json_buf_ensure (bson_json_buf_t *buf, /* IN */
    if (buf->n_bytes < len) {
       bson_free (buf->buf);
 
-      buf->n_bytes = bson_next_power_of_two (len);
+      buf->n_bytes = mcommon_next_power_of_two_size_t (len);
       buf->buf = bson_malloc (buf->n_bytes);
    }
 }
@@ -473,7 +475,9 @@ _bson_json_buf_ensure (bson_json_buf_t *buf, /* IN */
 static void
 _bson_json_buf_set (bson_json_buf_t *buf, const void *from, size_t len)
 {
-   _bson_json_buf_ensure (buf, len + 1);
+   const size_t len_with_null = mcommon_assert_add_size_t (len, 1u);
+
+   _bson_json_buf_ensure (buf, len_with_null);
    memcpy (buf->buf, from, len);
    buf->buf[len] = '\0';
    buf->len = len;
@@ -483,13 +487,17 @@ _bson_json_buf_set (bson_json_buf_t *buf, const void *from, size_t len)
 static void
 _bson_json_buf_append (bson_json_buf_t *buf, const void *from, size_t len)
 {
-   size_t len_with_null = len + 1;
+   const size_t len_with_null = mcommon_assert_add_size_t (len, 1u);
 
    if (buf->len == 0) {
       _bson_json_buf_ensure (buf, len_with_null);
-   } else if (buf->n_bytes < buf->len + len_with_null) {
-      buf->n_bytes = bson_next_power_of_two (buf->len + len_with_null);
-      buf->buf = bson_realloc (buf->buf, buf->n_bytes);
+   } else {
+      const size_t needed = mcommon_assert_add_size_t (buf->len, len_with_null);
+
+      if (buf->n_bytes < needed) {
+         buf->n_bytes = mcommon_next_power_of_two_size_t (needed);
+         buf->buf = bson_realloc (buf->buf, buf->n_bytes);
+      }
    }
 
    memcpy (buf->buf + buf->len, from, len);
@@ -713,6 +721,11 @@ _bson_json_read_integer (bson_json_reader_t *reader, uint64_t val, int64_t sign)
 static bool
 _bson_json_parse_double (bson_json_reader_t *reader, const char *val, size_t vlen, double *d)
 {
+   if (!mcommon_in_range_unsigned (int, vlen)) {
+      _bson_json_read_corrupt (reader, "string length out of range");
+      return false;
+   }
+
    errno = 0;
    *d = strtod (val, NULL);
 
@@ -823,6 +836,11 @@ _bson_json_parse_binary_elem (bson_json_reader_t *reader, const char *val_w_null
    int binary_len;
 
    BASIC_CB_PREAMBLE;
+
+   if (!mcommon_in_range_unsigned (int, vlen)) {
+      _bson_json_read_corrupt (reader, "string length out of range");
+      return;
+   }
 
    bs = bson->bson_state;
    data = &bson->bson_type_data;
@@ -952,6 +970,11 @@ _bson_json_read_string (bson_json_reader_t *reader, /* IN */
 
    rs = bson->read_state;
    bs = bson->bson_state;
+
+   if (!mcommon_in_range_unsigned (int, vlen)) {
+      _bson_json_read_corrupt (reader, "string length out of range");
+      return;
+   }
 
    if (!bson_utf8_validate ((const char *) val, vlen, allow_null)) {
       _bson_json_read_corrupt (reader, "invalid bytes in UTF8 string");
@@ -1109,7 +1132,7 @@ _bson_json_read_start_map (bson_json_reader_t *reader) /* IN */
           * expected a legacy Binary format. now we see the second "{", so
           * backtrack and parse $type query operator. */
          bson->read_state = BSON_JSON_IN_START_MAP;
-         BSON_ASSERT (bson_in_range_unsigned (int, len));
+         BSON_ASSERT (mcommon_in_range_unsigned (int, len));
          STACK_PUSH_DOC (bson_append_document_begin (STACK_BSON_PARENT, key, (int) len, STACK_BSON_CHILD));
          _bson_json_save_map_key (bson, (const uint8_t *) "$type", 5);
          break;
@@ -2070,8 +2093,8 @@ bson_json_reader_read (bson_json_reader_t *reader, /* IN */
 
          /* accumulate a key or string value */
          if (reader->json_text_pos != -1) {
-            if (bson_cmp_less_su (reader->json_text_pos, reader->json->pos)) {
-               BSON_ASSERT (bson_in_range_unsigned (ssize_t, reader->json->pos));
+            if (mcommon_cmp_less_su (reader->json_text_pos, reader->json->pos)) {
+               BSON_ASSERT (mcommon_in_range_unsigned (ssize_t, reader->json->pos));
                accum = BSON_MIN ((ssize_t) reader->json->pos - reader->json_text_pos, r);
                /* if this chunk stopped mid-token, buf_offset is how far into
                 * our current chunk the token begins. */
