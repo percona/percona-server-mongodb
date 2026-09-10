@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 71,
+    "commits_behind": 74,
     "days_behind": 3,
-    "unmerged_oldest_age_days": 3.237198797627315,
-    "files_affected": 471,
-    "total_additions": 14644,
-    "total_deletions": 6753,
+    "unmerged_oldest_age_days": 3.418725863761574,
+    "files_affected": 474,
+    "total_additions": 14651,
+    "total_deletions": 6754,
     "date_range": {
       "first": "2026-09-07T00:30:56+00:00",
-      "last": "2026-09-10T04:44:06+00:00"
+      "last": "2026-09-10T09:09:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,36 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "ce75e9fd67804569dde7100c6ee35f7550c8e35d",
+      "short_sha": "ce75e9fd678",
+      "date": "2026-09-10T09:09:07+00:00",
+      "author": {
+        "name": "Serhii Lysenko",
+        "email": "serhii.lysenko@mongodb.com"
+      },
+      "summary": "SERVER-134604: Fix race in change_stream_all_databases_v2_white_box test (#62364)"
+    },
+    {
+      "sha": "b720cf48da8c9de4227595a1ad7e21495c8e58ae",
+      "short_sha": "b720cf48da8",
+      "date": "2026-09-10T09:08:34+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-134711 Exclude change_streams_establishment_finds_new_shards.js from sharding_last_continuous (#62450)"
+    },
+    {
+      "sha": "5f924fb183c5908906ca0be27f908be11dafda87",
+      "short_sha": "5f924fb183c",
+      "date": "2026-09-10T08:41:12+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62514)"
+    },
     {
       "sha": "64c92ef253a01b1a764f2da2cd264f9881b6a3e4",
       "short_sha": "64c92ef253a",
@@ -907,7 +937,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-10 06:12:15",
+  "generated_at": "2026-09-10 10:33:38",
   "branch_name": "master",
   "display_name": "master"
 }
