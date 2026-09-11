@@ -856,9 +856,14 @@ void InitialSyncerFCB::_rollbackCheckerResetCallback(
         return;
     }
 
-    // we will need shared data to clone files from sync source
+    // we will need shared data to clone files from sync source. The clean-shutdown check and
+    // beginApplyingTimestamp are only used by the logical cloner path, so the file-copy based
+    // initial sync disables the check and passes a null timestamp.
     _sharedData =
         std::make_unique<InitialSyncSharedData>(_rollbackChecker->getBaseRBID(),
+                                                false /* cleanShutdownCheckEnabled */,
+                                                kNoCleanShutdownId,
+                                                Timestamp(),
                                                 _allowedOutageDuration,
                                                 getGlobalServiceContext()->getFastClockSource());
     // schedule $backupCursor on the sync source
