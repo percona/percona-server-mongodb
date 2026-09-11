@@ -2154,6 +2154,26 @@ export const authCommandsLib = {
             ],
         },
         {
+            testname: "clearJoinPlanCache",
+            command: {clearJoinPlanCache: 1},
+            // 'clearJoinPlanCache' drops the node-global join plan cache. It is admin-only and
+            // collectionless, and is gated behind the internalEnableJoinOptimization/
+            // internalEnableJoinPlanCache knobs which are off by default -- so an authorized user
+            // still fails with QueryFeatureNotAllowed after the authorization check passes. This
+            // holds on both a standalone and a router, since the router applies the knob gate
+            // before broadcasting to the shards.
+            testcases: [
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_dbAdminAny,
+                    privileges: [
+                        {resource: {db: adminDbName, collection: ""}, actions: ["planCacheWrite"]},
+                    ],
+                    expectFailWithErrorCodes: [ErrorCodes.QueryFeatureNotAllowed],
+                },
+            ],
+        },
+        {
             testname: "aggregate_currentOp_allUsers_true",
             command: {aggregate: 1, pipeline: [{$currentOp: {allUsers: true}}], cursor: {}},
             testcases: [
@@ -10546,7 +10566,6 @@ export const authCommandsLib = {
             },
             skipSharded: false,
             disableSearch: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagRankFusionBasic"),
             // Expect this to fail since there's no mongot set up to execute the $search/vectorSearch.
             testcases: testcases_transformationOnlyExpectFail,
         },
@@ -10561,7 +10580,6 @@ export const authCommandsLib = {
                 db.createCollection("foo");
             },
             disableSearch: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagSearchHybridScoringFull"),
             testcases: testcases_transformationOnly,
         },
         {
@@ -10642,7 +10660,6 @@ export const authCommandsLib = {
             },
             skipSharded: false,
             disableSearch: true,
-            skipTest: (conn) => !isFeatureEnabled(conn, "featureFlagSearchHybridScoringFull"),
             testcases: testcases_transformationOnlyExpectFail,
         },
         {

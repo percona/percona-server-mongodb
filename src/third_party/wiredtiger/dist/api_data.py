@@ -1070,7 +1070,8 @@ connection_runtime_config = [
         stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_stash_free', 'aggressive_sweep', 'backup_rename', 'checkpoint_evict_page',
+        'aggressive_stash_free', 'aggressive_sweep', 'backup_blkmod_delay', 'backup_rename',
+        'checkpoint_evict_page',
         'checkpoint_handle', 'checkpoint_slow', 'checkpoint_stop', 'commit_transaction_slow',
         'compact_slow', 'conn_close_stress_log_printf', 'disagg_role_transition',
         'evict_reposition',
@@ -1399,11 +1400,10 @@ session_config = [
         min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size and are not blocked
-        when the cache is full. WT_SESSION::reconfigure returns \c EINVAL if this setting is
-        specified while a transaction is running; use the \c ignore_cache_size setting of
-        WT_SESSION::begin_transaction to configure a single transaction. Note that use of this
-        option for operations that create cache pressure can starve ordinary sessions that obey
-        the cache size.''',
+        when the cache is full. This setting may be reconfigured while a transaction is running,
+        in which case it takes precedence over the \c ignore_cache_size setting of
+        WT_SESSION::begin_transaction. Note that use of this option for operations that create
+        cache pressure can starve ordinary sessions that obey the cache size.''',
         type='boolean'),
     Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
@@ -2041,10 +2041,12 @@ methods = {
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this transaction ignore the cache size and are not
-        blocked when the cache is full. The setting applies until the transaction is resolved.
-        Setting it to \c false has no effect: it does not override a session configured with
-        \c ignore_cache_size. Note that use of this option for operations that create cache
-        pressure can starve ordinary transactions that obey the cache size.''',
+        blocked when the cache is full. The setting applies until the transaction is resolved,
+        unless WT_SESSION::reconfigure sets \c ignore_cache_size while the transaction is
+        running, which makes it session-wide. Setting it to \c false has no effect: it does not
+        override a session configured with \c ignore_cache_size. Note that use of this option
+        for operations that create cache pressure can starve ordinary transactions that obey the
+        cache size.''',
         type='boolean'),
     Config('ignore_prepare', 'false', r'''
         whether to ignore updates by other prepared transactions when doing of read operations
