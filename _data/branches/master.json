@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 74,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.418725863761574,
-    "files_affected": 474,
-    "total_additions": 14651,
-    "total_deletions": 6754,
+    "commits_behind": 86,
+    "days_behind": 4,
+    "unmerged_oldest_age_days": 4.238395591712964,
+    "files_affected": 559,
+    "total_additions": 20862,
+    "total_deletions": 7550,
     "date_range": {
       "first": "2026-09-07T00:30:56+00:00",
-      "last": "2026-09-10T09:09:07+00:00"
+      "last": "2026-09-10T15:26:42+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,126 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+      "short_sha": "6d990baca59",
+      "date": "2026-09-10T15:26:42+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-134703 Skip test-only verification of authorization for releaseMemory command (#62435)"
+    },
+    {
+      "sha": "5ffee52e24edb79e5d04179d7b67664ed7db05de",
+      "short_sha": "5ffee52e24e",
+      "date": "2026-09-10T15:23:09+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134422: add utility function to fetch statement executed optime without reading the oplog (#62428)"
+    },
+    {
+      "sha": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
+      "short_sha": "1f8f34e96ee",
+      "date": "2026-09-10T15:06:22+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-133809 Continue validation after encountering fast size/count mismatch (#62534)"
+    },
+    {
+      "sha": "fd3dace78d96893a8aaecf033b9f73fd68f37cf9",
+      "short_sha": "fd3dace78d9",
+      "date": "2026-09-10T15:05:36+00:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-130378 Pass targetNode's ExpCtx info when creating CanonicalQuery in predicate inference (#61162)"
+    },
+    {
+      "sha": "175329d84d8cd2350e5e7a2e816470ec21cdba6c",
+      "short_sha": "175329d84d8",
+      "date": "2026-09-10T15:04:54+00:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-132553 Rate limit the writes performed during the scan phase of primary-driven index builds (#62326)"
+    },
+    {
+      "sha": "cc2949ffe8df98c15016290d1feebbc1565c0400",
+      "short_sha": "cc2949ffe8d",
+      "date": "2026-09-10T14:51:21+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-134773: Set minimum version for parallel validation server parameters (#62464)"
+    },
+    {
+      "sha": "82fd3a906112e314b5482575a760ffc9d0a1335e",
+      "short_sha": "82fd3a90611",
+      "date": "2026-09-10T14:28:41+00:00",
+      "author": {
+        "name": "Athena",
+        "email": "74455146+athenawng@users.noreply.github.com"
+      },
+      "summary": "SERVER-131870: Fix heap use-after-free  (#59402)"
+    },
+    {
+      "sha": "42d1052567cad43c7f504a25a326e6cfaac0bfbf",
+      "short_sha": "42d1052567c",
+      "date": "2026-09-10T14:24:31+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-132946: Heap-use-after-free in $_internalApplyOplogUpdate stage when reading via getMore after aggregate Invocation is destroyed (#60416)"
+    },
+    {
+      "sha": "ca17d63e82b83b4f638eabaa2694b3992e38eb0b",
+      "short_sha": "ca17d63e82b",
+      "date": "2026-09-10T14:04:30+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-132855 Collapse SizeCountStore class hierarchy (#62485)"
+    },
+    {
+      "sha": "efed64d4fe5ac9d9d80257f02abdc2c3e8185b5a",
+      "short_sha": "efed64d4fe5",
+      "date": "2026-09-10T12:43:14+00:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-134546 Fix BloomFilterWithStringKeys test (#62409)"
+    },
+    {
+      "sha": "713abae72d2478e562a4c616d01b41fc44caf723",
+      "short_sha": "713abae72d2",
+      "date": "2026-09-10T12:35:28+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-133148 Avoid using semi-initialized opCtx when retrying getMores (#61294)"
+    },
+    {
+      "sha": "0115e8f372d27483cc3be3cb8c5fb0bcc1a2e950",
+      "short_sha": "0115e8f372d",
+      "date": "2026-09-10T11:59:25+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-134581 Harden updateLookup and $_internalSearchIdLookup enrichment testing with per-engine lookup metrics (#62347)"
+    },
     {
       "sha": "ce75e9fd67804569dde7100c6ee35f7550c8e35d",
       "short_sha": "ce75e9fd678",
@@ -934,10 +1054,33 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "0115e8f372d27483cc3be3cb8c5fb0bcc1a2e950",
+        "short_sha": "0115e8f372d",
+        "date": "2026-09-10T11:59:25+00:00",
+        "author": {
+          "name": "Denis Grebennicov",
+          "email": "denis.grebennicov@mongodb.com"
+        },
+        "summary": "SERVER-134581 Harden updateLookup and $_internalSearchIdLookup enrichment testing with per-engine lookup metrics (#62347)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 45,
+          "num_of_lines": 4103,
+          "lines_added": 3596,
+          "lines_deleted": 507,
+          "num_of_dirs": 17
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-10 10:33:38",
+  "generated_at": "2026-09-11 06:13:58",
   "branch_name": "master",
   "display_name": "master"
 }
