@@ -5,9 +5,11 @@
 
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
+#include "mongo/db/storage/ident.h"
 #include "mongo/unittest/death_test.h"
-#include "mongo/unittest/server_parameter_guard.h"
+#include "mongo/unittest/tassert_guard.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 
 #include <list>
@@ -212,13 +214,11 @@ TEST(SizeCountCheckpointBufferTest, ScanAfterAcknowledgementIsIndependent) {
 
 TEST(SizeCountCheckpointBufferTest, InternalOnlyScanProducesNoFlushableWork) {
     const UUID oplogUuid = UUID::gen();
-    const NsAndUUID internalColl{.nss = NamespaceString::makeGlobalConfigCollection(
-                                     NamespaceString::kReplicatedFastCountStore),
-                                 .uuid = UUID::gen()};
+    const repl::OplogEntry entry = test_helpers::makeContainerOplogEntry(
+        Timestamp(2, 1), ident::kFastCountMetadataStore, repl::OpTypeEnum::kContainerInsert);
 
     SizeCountCheckpointBuffer buffer(oplogUuid, boost::none);
-    OplogCursorMock cursor({makeOplogEntry(
-        Timestamp(2, 1), internalColl, repl::OpTypeEnum::kInsert, /*sizeDelta=*/9)});
+    OplogCursorMock cursor({entry});
     buffer.scanToNoHolesEOF(cursor);
 
     EXPECT_FALSE(buffer.checkoutForFlush().has_value());
@@ -390,6 +390,89 @@ TEST(SizeCountCheckpointBufferTest, SeekExactDoesNotDoubleCountLastBufferedRid) 
         .lastTimestamp = Timestamp(2, 3)};
 
     EXPECT_EQ(checkedOutBuffer, expectedCheckedOutBuffer);
+}
+
+TEST(SizeCountCheckpointBufferTest, LostLastBufferedRidResumesFromNextEntry) {
+    const UUID oplogUuid = UUID::gen();
+    const NsAndUUID coll{.nss = NamespaceString::createNamespaceString_forTest("collA"),
+                         .uuid = UUID::gen()};
+
+    const RecordId lastBufferedRid(Timestamp(2, 1).asULL());
+    SizeCountCheckpointBuffer buffer(oplogUuid, lastBufferedRid);
+
+    const std::list<repl::OplogEntry> entries{
+        makeOplogEntry(Timestamp(1, 1), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/100),
+        makeOplogEntry(Timestamp(5, 1), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/10),
+        makeOplogEntry(Timestamp(5, 2), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/20)};
+
+    {
+        OplogCursorMock cursor(entries);
+        ASSERT_TASSERT_CODE(buffer.scanToNoHolesEOF(cursor), 12101812);
+    }
+    {
+        OplogCursorMock cursor(entries);
+        ASSERT_NO_THROW(buffer.scanToNoHolesEOF(cursor));
+    }
+
+    const boost::optional<OplogScanResult> checkedOutBuffer = buffer.checkoutForFlush();
+    ASSERT_TRUE(checkedOutBuffer.has_value());
+
+    // The follow-up scan resumes at (5, 1) and consumes up through (5, 2).
+    const CollectionSizeCount expectedOplogSizeCount = calculateOplogSizeCount(
+        std::list<repl::OplogEntry>{*(std::next(entries.begin(), 1)), entries.back()});
+    const OplogScanResult expectedCheckedOutBuffer{
+        .deltas =
+            ReplicatedMetadataDeltas{
+                {coll.uuid,
+                 ReplicatedMetadataDelta{
+                     .metadata = {.sizeCount = CollectionSizeCount{.size = 30, .count = 2}}}},
+                {oplogUuid,
+                 ReplicatedMetadataDelta{.metadata = {.sizeCount = expectedOplogSizeCount}}}},
+        .lastTimestamp = Timestamp(5, 2)};
+
+    EXPECT_EQ(checkedOutBuffer, expectedCheckedOutBuffer);
+}
+
+TEST(SizeCountCheckpointBufferTest, RepeatedLostLastBufferedRidTassertsOncePerEpisode) {
+    const UUID oplogUuid = UUID::gen();
+    const NsAndUUID coll{.nss = NamespaceString::createNamespaceString_forTest("collA"),
+                         .uuid = UUID::gen()};
+
+    const RecordId lastBufferedRid(Timestamp(2, 1).asULL());
+    SizeCountCheckpointBuffer buffer(oplogUuid, lastBufferedRid);
+
+    const std::list<repl::OplogEntry> episodeOneEntries{
+        makeOplogEntry(Timestamp(5, 1), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/10),
+        makeOplogEntry(Timestamp(5, 2), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/20)};
+    const std::list<repl::OplogEntry> episodeTwoEntries{
+        makeOplogEntry(Timestamp(6, 1), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/30),
+        makeOplogEntry(Timestamp(6, 2), coll, repl::OpTypeEnum::kInsert, /*sizeDelta=*/40)};
+
+    // Episode one: the (2, 1) start point is lost.
+    {
+        OplogCursorMock cursor(episodeOneEntries);
+        ASSERT_TASSERT_CODE(buffer.scanToNoHolesEOF(cursor), 12101812);
+    }
+    {
+        OplogCursorMock cursor(episodeOneEntries);
+        ASSERT_NO_THROW(buffer.scanToNoHolesEOF(cursor));
+    }
+    // Episode two: the recovered start point (5, 2) is lost again.
+    {
+        OplogCursorMock cursor(episodeTwoEntries);
+        ASSERT_TASSERT_CODE(buffer.scanToNoHolesEOF(cursor), 12101812);
+    }
+    {
+        OplogCursorMock cursor(episodeTwoEntries);
+        ASSERT_NO_THROW(buffer.scanToNoHolesEOF(cursor));
+    }
+
+    const boost::optional<OplogScanResult> checkedOutBuffer = buffer.checkoutForFlush();
+    ASSERT_TRUE(checkedOutBuffer.has_value());
+    EXPECT_EQ(checkedOutBuffer->deltas.at(coll.uuid).metadata.sizeCount,
+              (CollectionSizeCount{.size = 100, .count = 4}));
+    ASSERT_TRUE(checkedOutBuffer->lastTimestamp.has_value());
+    EXPECT_EQ(*checkedOutBuffer->lastTimestamp, Timestamp(6, 2));
 }
 
 DEATH_TEST(SizeCountCheckpointBufferDeathTest, LastBufferedRidBeforeEntries, "12101812") {

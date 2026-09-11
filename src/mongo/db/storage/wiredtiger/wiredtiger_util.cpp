@@ -331,6 +331,26 @@ StatusWith<int64_t> WiredTigerUtil::checkApplicationMetadataFormatVersion(
 }
 
 // static
+Status WiredTigerUtil::checkConfigStringBannedKeys(std::string_view config) {
+    WiredTigerConfigParser parser(config);
+    WT_CONFIG_ITEM importEnabled;
+    if (parser.get("import.enabled", &importEnabled) == 0 && importEnabled.val != 0) {
+        return {ErrorCodes::BadValue,
+                "Enabling the WiredTiger 'import' option is not allowed in a configString"};
+    }
+
+    // Collections and indexes are always created as type=file objects and mongod never sets
+    // 'source' itself, so the only value that should ever appear here is empty.
+    WT_CONFIG_ITEM source;
+    if (parser.get("source", &source) == 0 && source.len != 0) {
+        return {ErrorCodes::BadValue,
+                "The WiredTiger 'source' option is not allowed in a configString"};
+    }
+
+    return Status::OK();
+}
+
+// static
 Status WiredTigerUtil::checkTableCreationOptions(const BSONElement& configElem) {
     invariant(configElem.fieldNameStringData() == WiredTigerUtil::kConfigStringField);
 
@@ -378,6 +398,10 @@ Status WiredTigerUtil::checkTableCreationOptions(const BSONElement& configElem) 
           std::string_view(typeItem.str, typeItem.len) == "file")) {
         return {ErrorCodes::IllegalOperation,
                 "Configuration of the WiredTiger 'type' option is not supported."};
+    }
+
+    if (auto bannedKeyStatus = checkConfigStringBannedKeys(config); !bannedKeyStatus.isOK()) {
+        return bannedKeyStatus;
     }
 
     return Status::OK();
@@ -1150,7 +1174,7 @@ std::unique_ptr<WiredTigerSession> WiredTigerUtil::getStatisticsSession(
     auto session = std::make_unique<WiredTigerSession>(&engine.getConnection(), handler, permit);
     // Configure the session to avoid being coopted into cache eviction. We never want to block stat
     // fetching on workload issues.
-    session->modifyConfiguration("cache_max_wait_ms=1", "cache_max_wait_ms=0");
+    session->modifyConfiguration("ignore_cache_size=true", "ignore_cache_size=false");
     return session;
 }
 

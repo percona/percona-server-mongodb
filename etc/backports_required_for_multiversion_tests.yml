@@ -67,6 +67,12 @@ last-patch:
       ticket: SERVER-131540
     - test_file: jstests/replsets/clean_shutdown_log.js
       ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
     - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
@@ -112,8 +118,14 @@ last-continuous:
       ticket: SERVER-128433
     - test_file: jstests/replsets/clean_shutdown_log.js
       ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
     - test_file: jstests/replsets/server_status_metrics.js
       ticket: SERVER-125964
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
     - test_file: jstests/sharding/index_commands_shard_targeting.js
@@ -171,8 +183,14 @@ last-lts:
       ticket: SERVER-128433
     - test_file: jstests/replsets/clean_shutdown_log.js
       ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
     - test_file: jstests/replsets/server_status_metrics.js
       ticket: SERVER-125964
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
     - test_file: jstests/sharding/index_commands_shard_targeting.js
