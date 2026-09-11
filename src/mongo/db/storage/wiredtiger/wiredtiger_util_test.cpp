@@ -484,7 +484,6 @@ TEST_F(WiredTigerUtilTest, RemoveEncryptionFromConfigString) {
     }
 }
 
-<<<<<<< HEAD
 TEST_F(WiredTigerUtilTest, GetEncryptionKeyId) {
     {  // No encryption clause -> none.
         auto out = WiredTigerUtil::getEncryptionKeyId(
@@ -529,8 +528,6 @@ TEST_F(WiredTigerUtilTest, GetEncryptionKeyId) {
     }
 }
 
-||||||| 81bb03c23d4
-=======
 TEST_F(WiredTigerUtilTest, CheckTableCreationOptionsRejectsManagedKeys) {
     auto check = [](const std::string& config) {
         return WiredTigerUtil::checkTableCreationOptions(
@@ -554,7 +551,6 @@ TEST_F(WiredTigerUtilTest, CheckTableCreationOptionsRejectsManagedKeys) {
     ASSERT_OK(check("app_metadata=\"source=file:example.wt\""));
 }
 
->>>>>>> 5f924fb183c5908906ca0be27f908be11dafda87
 TEST_F(WiredTigerUtilTest, GetSanitizedStorageOptionsForSecondaryReplication) {
     {  // Empty storage options.
         auto input = BSONObj();
