@@ -1,0 +1,163 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4dd8a674b2e42c5d65572e5094574be64d80c794",
+    "merge_commit": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
+    "merged_commits": [
+      "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
+      "fd3dace78d96893a8aaecf033b9f73fd68f37cf9",
+      "175329d84d8cd2350e5e7a2e816470ec21cdba6c",
+      "cc2949ffe8df98c15016290d1feebbc1565c0400",
+      "82fd3a906112e314b5482575a760ffc9d0a1335e",
+      "42d1052567cad43c7f504a25a326e6cfaac0bfbf",
+      "ca17d63e82b83b4f638eabaa2694b3992e38eb0b",
+      "efed64d4fe5ac9d9d80257f02abdc2c3e8185b5a",
+      "713abae72d2478e562a4c616d01b41fc44caf723",
+      "0115e8f372d27483cc3be3cb8c5fb0bcc1a2e950",
+      "ce75e9fd67804569dde7100c6ee35f7550c8e35d",
+      "b720cf48da8c9de4227595a1ad7e21495c8e58ae"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/core/programs.py",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/shell/mongo.js"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 39124,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.14389000000000002,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 13,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001044,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 2039,
+        "cacheReadInputTokens": 50537,
+        "cacheCreationInputTokens": 10650,
+        "webSearchRequests": 0,
+        "costUSD": 0.142846,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 34,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 13,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001044
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 2039,
+            "cache_read": 50537,
+            "cache_creation": 10650
+          },
+          "cost_usd": 0.142846
+        }
+      }
+    },
+    "text_result": "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diff for the three auto-merged files, and written the JSON response.\n\nSummary of what the merge introduces in the auto-merged files:\n\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 Two new `remove_set_parameter_if_before_version` calls that strip `validateParallelTargetRecordsPerSlice` and `validateParallelMaxRecordStoreSlices` for mongod binaries older than 9.1.0 (SERVER-134773).\n- **`src/mongo/db/pipeline/BUILD.bazel`** \u2014 Two additive dependencies: `batched_enrichment_stats` and `single_document_lookup_stats`.\n- **`src/mongo/shell/mongo.js`** \u2014 New `matchCollectionUUIDForUpdateLookup` change-stream option pass-through in `_extractChangeStreamOptions`.\n\nAll three merged cleanly with purely additive, non-Percona-specific changes. The response was written to `response_20260913_051223_638332.json`.",
+    "response": {
+      "summary": "Merges a batch of upstream MongoDB commits into the fork. The changes touching auto-merged files come from: SERVER-134773 (setting a minimum binary version for the parallel validation server parameters in the multiversion test tooling), the pipeline library dependency additions for batched enrichment / single-document lookup stats (related to SERVER-134581 and the update-lookup batching work), and a change-stream shell option (matchCollectionUUIDForUpdateLookup) added in mongo.js. Other merged commits (primary-driven index build write rate limiting, predicate inference ExpCtx, heap use-after-free fixes in oplog-update aggregation stages, getMore retry hardening, and several test fixes/exclusions) do not appear in the three auto-merged files.",
+      "auto_merged": {
+        "buildscripts/resmokelib/core/programs.py": "In mongod_program, adds two remove_set_parameter_if_before_version calls that strip the 'validateParallelTargetRecordsPerSlice' and 'validateParallelMaxRecordStoreSlices' set parameters when the mongod binary version is before 9.1.0. This matches the existing pattern of removing set parameters unsupported by older binaries during multiversion testing (SERVER-134773).",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two library dependencies to existing mongo_cc_library targets: '//src/mongo/db/exec/agg:batched_enrichment_stats' and '//src/mongo/db/exec/single_doc_lookup:single_document_lookup_stats'. These are additive deps supporting the per-engine lookup/enrichment metrics work; no existing deps were removed.",
+        "src/mongo/shell/mongo.js": "In Mongo.prototype._extractChangeStreamOptions, adds handling for a new 'matchCollectionUUIDForUpdateLookup' change-stream option: when present on opts it is copied into changeStreamOptions and deleted from the passed-in options object, following the same pattern used for the other extracted change-stream options."
+      },
+      "review_notes": "All three files auto-merged cleanly and the incoming changes are purely additive (new set-parameter version guards, new BUILD.bazel deps, and a new change-stream option pass-through); none of them contain Percona-specific customizations in the touched regions, so no conflict-resolution decisions were involved. The new BUILD.bazel dependency targets (batched_enrichment_stats, single_document_lookup_stats) come from other files in this merge that are not in the auto_merged list \u2014 verify those targets exist in the merged tree if a build is run."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have enough context. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the merge prompt, inspected the actual `diff base \u2192 merge commit` diff for the three auto-merged files, and written the JSON response.\n\nSummary of what the merge introduces in the auto-merged files:\n\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 Two new `remove_set_parameter_if_before_version` calls that strip `validateParallelTargetRecordsPerSlice` and `validateParallelMaxRecordStoreSlices` for mongod binaries older than 9.1.0 (SERVER-134773).\n- **`src/mongo/db/pipeline/BUILD.bazel`** \u2014 Two additive dependencies: `batched_enrichment_stats` and `single_document_lookup_stats`.\n- **`src/mongo/shell/mongo.js`** \u2014 New `matchCollectionUUIDForUpdateLookup` change-stream option pass-through in `_extractChangeStreamOptions`.\n\nAll three merged cleanly with purely additive, non-Percona-specific changes. The response was written to `response_20260913_051223_638332.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260913_051223_638184.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.270 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
+    "short_sha": "1f8f34e96ee",
+    "strategy": null,
+    "summary": "The entire candidate window is only 14 commits (no omitted tail), so ~50 is unreachable; the gate opened purely on age, so the goal is a clean, coherent boundary rather than a big batch. SERVER-133809 'Continue validation after encountering fast size/count mismatch' is a small, self-contained validation fix (2 files, +43/-8) and is a natural stopping point that keeps the validation-related work (SERVER-134773 parallel-validation min version, SERVER-132855 SizeCountStore, SERVER-133809 continue-after-mismatch) together within this batch. Cutting here also honors the 'stop short of unsettled commits' rule: it leaves the freshest two commits (SERVER-134422 utility-function addition, which looks like a foundation likely to gain consumers later, and the SERVER-134703 test-only auth skip) for the next batch so any follow-ups can settle upstream first. No revert/original pairs are split by this cut.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/34739594465"
+  }
+}
