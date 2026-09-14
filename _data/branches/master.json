@@ -6,8 +6,8 @@
   "is_up_to_date": false,
   "divergence": {
     "commits_behind": 14,
-    "days_behind": 1,
-    "unmerged_oldest_age_days": 1.526173687349537,
+    "days_behind": 3,
+    "unmerged_oldest_age_days": 3.8793603054166668,
     "files_affected": 101,
     "total_additions": 6231,
     "total_deletions": 810,
@@ -37,8 +37,8 @@
     "summary": "SERVER-134711 Exclude change_streams_establishment_finds_new_shards.js from sharding_last_continuous (#62450)"
   },
   "gate": {
-    "open": false,
-    "reason": "wait (14 < 50 commits; oldest 1.5d < 2d)"
+    "open": true,
+    "reason": "max_age (3.9d >= 2d)"
   },
   "unmerged_commits": [
     {
@@ -205,10 +205,30 @@
           "num_of_dirs": 17
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
+        "short_sha": "1f8f34e96ee",
+        "date": "2026-09-10T15:06:22+00:00",
+        "author": {
+          "name": "Yuhong Zhang",
+          "email": "yuhong.zhang@mongodb.com"
+        },
+        "summary": "SERVER-133809 Continue validation after encountering fast size/count mismatch (#62534)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-1f8f34e96ee/main",
+          "mongodb"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-11 21:46:06",
+  "generated_at": "2026-09-14 06:14:33",
   "branch_name": "master",
   "display_name": "master"
 }
