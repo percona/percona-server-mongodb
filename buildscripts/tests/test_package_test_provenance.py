@@ -1,5 +1,6 @@
 import json
 import os
+import platform
 import tarfile
 import tempfile
 import types
@@ -68,6 +69,27 @@ def compact_log_with_spawns(*spawns: tuple[str, bool]) -> bytes:
 
 
 class PackageTestProvenanceTest(unittest.TestCase):
+    def test_release_branch_projects_are_detected(self) -> None:
+        for project in (
+            "mongodb-mongo-v9.0",
+            "mongodb-mongo-v9.0-staging",
+            "mongodb-mongo-v10.12",
+            "mongodb-mongo-v10.12-staging",
+        ):
+            with self.subTest(project=project):
+                self.assertTrue(under_test.is_release_branch_project(project))
+
+    def test_non_release_branch_projects_are_not_detected(self) -> None:
+        for project in (
+            None,
+            "",
+            "mongodb-mongo-master",
+            "mongodb-mongo-master-nightly",
+            "mongodb-mongo-v9.0-staging-extra",
+        ):
+            with self.subTest(project=project):
+                self.assertFalse(under_test.is_release_branch_project(project))
+
     def test_generator_bazel_version_matches_workspace_bazelversion(self):
         bazel_version = workspace_file_path(".bazelversion").read_text().strip()
         self.assertEqual(generate_bazel_spawn_pb2.MONGODB_BAZEL_VERSION, bazel_version)
@@ -240,6 +262,22 @@ class PackageTestProvenanceTest(unittest.TestCase):
         # A duplicate artifact is a configuration error, not secondary lag, so
         # it must fail fast without retrying or refetching.
         refetch_task.assert_not_called()
+
+    def test_compact_execution_log_file_uses_pyzstd(self):
+        if platform.machine() in {"s390x", "ppc64le"}:
+            self.skipTest("pyzstd is not available on IBM architectures")
+
+        from pyzstd import ZstdFile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            execution_log_path = Path(temp_dir) / "execution_log.binpb.zst"
+            with ZstdFile(execution_log_path, mode="wb") as stream:
+                stream.write(compact_log_with_spawns(("linux-sandbox", False)))
+
+            summary = under_test.validate_compact_execution_log_file(execution_log_path)
+
+        self.assertEqual(1, summary.spawn_count)
+        self.assertEqual({"linux-sandbox": 1}, summary.runner_counts)
 
     def test_compact_execution_log_with_local_runner_passes(self):
         summary = under_test.validate_compact_execution_log_bytes(
