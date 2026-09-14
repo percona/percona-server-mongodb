@@ -1,0 +1,138 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "820e732845d73b2a91b668e985d6c297db63161e",
+    "merge_commit": "6d990baca59ce7cdddded93409e0266d1ac6a45a"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "merged_commits": [
+      "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+      "5ffee52e24edb79e5d04179d7b67664ed7db05de"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 10621,
+    "num_turns": 2,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.07236375,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4,
+        "outputTokens": 623,
+        "cacheReadInputTokens": 39175,
+        "cacheCreationInputTokens": 5949,
+        "webSearchRequests": 0,
+        "costUSD": 0.07236375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 101,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 4,
+            "output": 623,
+            "cache_read": 39175,
+            "cache_creation": 5949
+          },
+          "cost_usd": 0.07236375
+        }
+      }
+    },
+    "text_result": "Fixed. The previous attempt failed because I described files that aren't in `merge_context.auto_merged.files` \u2014 that list is empty, meaning the merge had no conflicts and no auto-merged files to describe. The new response uses an empty `auto_merged` object and describes only the merge at a high level.",
+    "response": {
+      "summary": "This merge integrates upstream commits (merge commit 6d990baca59, including 5ffee52e24e) into the fork's master branch. The merge completed with the 'ort' strategy and reported no auto-merged (conflicted) files, so there were no conflicts to resolve. No Percona-specific customizations were affected.",
+      "auto_merged": {},
+      "review_notes": "The note lists an empty merge_context.auto_merged.files, so no files required conflict resolution and none are described here per the instructions. Reviewers who want the exact content pulled in can inspect it with: git diff 1f8f34e96ee9283f7395e67748e29f9ce496e1cd 6d990baca59ce7cdddded93409e0266d1ac6a45a"
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt and the actual diff (`diff base 1f8f34e96ee \u2192 merge commit 6d990baca59`), then wrote the JSON response.\n\nThe merge is clean (no conflicts) and pulls in two additive upstream changes:\n\n1. **releaseMemory command** \u2014 overrides `requiresAuthzChecks()` to return `false`, plus a new auth-test helper (`assertNonexistentCursorReported`) verifying nonexistent cursors are reported in `cursorsNotFound` for the `admin` and `userCluster` users.\n2. **TransactionParticipant** \u2014 a new `checkStatementExecutedAndGetOpTime()` method that returns an executed retryable-write statement's oplog opTime from the in-memory map (no oplog scan), with a new unit test.\n\nEvery claim in the response is backed by lines in the diff I read. The response is written to `response_20260914_091442_354931.json`."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The validation requires I only describe files in `merge_context.auto_merged.files`, which is empty. I'll write a response with an empty `auto_merged` object."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Fixed. The previous attempt failed because I described files that aren't in `merge_context.auto_merged.files` \u2014 that list is empty, meaning the merge had no conflicts and no auto-merged files to describe. The new response uses an empty `auto_merged` object and describes only the merge at a high level."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260914_091442_354791.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.270 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "short_sha": "6d990baca59",
+    "strategy": "most_recent",
+    "summary": "The window holds only two small, independent commits (different SERVER tickets and authors, no shared files, no conflict/important-files flags). Both are already well-settled (oldest is 3.7 days old, and the gate opened on max_age), so the usual 'stop short of the freshest commit' caution does not apply here - there is no active churn left to let resolve upstream. Cutting on the first commit would leave a trivial single-commit tail for the next batch with no benefit, whereas picking the newest candidate clears the entire divergence in one clean, coherent batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/34826622056"
+  }
+}
