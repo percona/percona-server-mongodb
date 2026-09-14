@@ -5,12 +5,16 @@ package(default_visibility = ["//visibility:public"])
 mongo_cc_library(
     name = "bson",
     srcs = [
-        "dist/src/common/common-b64.c",
-        "dist/src/common/common-md5.c",
-        "dist/src/common/common-thread.c",
+        "dist/src/common/src/common-atomic.c",
+        "dist/src/common/src/common-b64.c",
+        "dist/src/common/src/common-json.c",
+        "dist/src/common/src/common-md5.c",
+        "dist/src/common/src/common-oid.c",
+        "dist/src/common/src/common-string.c",
+        "dist/src/common/src/common-thread.c",
         "dist/src/libbson/src/bson/bcon.c",
-        "dist/src/libbson/src/bson/bson.c",
         "dist/src/libbson/src/bson/bson-atomic.c",
+        "dist/src/libbson/src/bson/bson.c",
         "dist/src/libbson/src/bson/bson-clock.c",
         "dist/src/libbson/src/bson/bson-context.c",
         "dist/src/libbson/src/bson/bson-decimal128.c",
@@ -29,10 +33,11 @@ mongo_cc_library(
         "dist/src/libbson/src/bson/bson-value.c",
         "dist/src/libbson/src/bson/bson-version-functions.c",
         "dist/src/libbson/src/bson/bson-writer.c",
+        "dist/src/libbson/src/bson/validate.c",
         "dist/src/libbson/src/jsonsl/jsonsl.c",
     ],
     hdrs = glob([
-        "dist/src/common/*.h",
+        "dist/src/common/src/*.h",
         "dist/src/libbson/src/bson/*.h",
         "dist/src/libbson/src/bson/forwarding/*.h",
         "dist/src/libbson/src/jsonsl/*.h",
@@ -41,7 +46,8 @@ mongo_cc_library(
         "//conditions:default": [],
     }),
     copts = [
-        "-Isrc/third_party/libbson/dist/src/common",
+        "-Isrc/third_party/libbson/dist/src/common/src",
+        "-Wno-deprecated-declarations",
     ] + select({
         "@platforms//os:linux": [
             "-Wno-sign-compare",
