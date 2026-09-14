@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@
 
 #include <bson/bson-macros.h>
 #include <bson/bson-config.h>
-#include <bson/bson-atomic.h>
-#include <bson/bson-cmp.h>
+#include <bson/bson-atomic.h> // Deprecated.
+#include <bson/bson-cmp.h>    // Deprecated.
 #include <bson/bson-context.h>
 #include <bson/bson-clock.h>
 #include <bson/bson-decimal128.h>
@@ -334,7 +334,7 @@ BSON_EXPORT (void)
 bson_destroy (bson_t *bson);
 
 BSON_EXPORT (uint8_t *)
-bson_reserve_buffer (bson_t *bson, uint32_t size);
+bson_reserve_buffer (bson_t *bson, uint32_t total_size);
 
 BSON_EXPORT (bool)
 bson_steal (bson_t *dst, bson_t *src);
@@ -455,6 +455,25 @@ bson_validate_with_error (const bson_t *bson, bson_validate_flags_t flags, bson_
 
 
 /**
+ * bson_validate_with_error_and_offset:
+ * @bson: A bson_t.
+ * @offset: A location for the error offset.
+ * @error: A location for the error info.
+ *
+ * Validates a BSON document by walking through the document and inspecting
+ * the fields for valid content.
+ *
+ * Returns: true if @bson is valid; otherwise false, @offset is set
+ * and @error is filled out.
+ */
+BSON_EXPORT (bool)
+bson_validate_with_error_and_offset (const bson_t *bson,
+                                     bson_validate_flags_t flags,
+                                     size_t *offset,
+                                     bson_error_t *error);
+
+
+/**
  * bson_as_json_with_opts:
  * @bson: A bson_t.
  * @length: A location for the string length, or NULL.
@@ -513,7 +532,11 @@ bson_as_canonical_extended_json (const bson_t *bson, size_t *length);
  * Returns: A newly allocated string that should be freed with bson_free().
  */
 BSON_EXPORT (char *)
-bson_as_json (const bson_t *bson, size_t *length);
+bson_as_json (const bson_t *bson, size_t *length) BSON_GNUC_DEPRECATED_FOR (bson_as_legacy_extended_json);
+
+// `bson_as_legacy_extended_json` is a non-deprecated form of `bson_as_json`.
+BSON_EXPORT (char *)
+bson_as_legacy_extended_json (const bson_t *bson, size_t *length);
 
 
 /**
@@ -539,7 +562,12 @@ bson_as_relaxed_extended_json (const bson_t *bson, size_t *length);
 
 
 /* like bson_as_json() but for outermost arrays. */
-BSON_EXPORT (char *) bson_array_as_json (const bson_t *bson, size_t *length);
+BSON_EXPORT (char *)
+bson_array_as_json (const bson_t *bson, size_t *length) BSON_GNUC_DEPRECATED_FOR (bson_array_as_legacy_extended_json);
+
+// `bson_array_as_legacy_extended_json` is a non-deprecated form of `bson_array_as_json`.
+BSON_EXPORT (char *)
+bson_array_as_legacy_extended_json (const bson_t *bson, size_t *length);
 
 
 /* like bson_as_relaxed_extended_json() but for outermost arrays. */

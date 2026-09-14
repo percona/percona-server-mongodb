@@ -196,22 +196,11 @@ if not use_system_version_of_library('icu'):
     }
 
 if not use_system_version_of_library('libbson'):
-
-    platform_directory = "build_linux"
-
-    if env['TARGET_ARCH'] == 's390x':
-        platform_directory = "build_linux_s390x"
-
-    if env.TargetOSIs('windows'):
-        platform_directory = "build_windows"
-    elif env.TargetOSIs('darwin'):
-        platform_directory = "build_osx"
-
     thirdPartyEnvironmentModifications['libbson'] = {
         'CPPPATH': [
             '#/src/third_party/libbson/dist/src/libbson/src',
-            '#/src/third_party/libbson/' + platform_directory,
-            '#/src/third_party/libbson/' + platform_directory + '/bson',
+            '#/src/third_party/libbson/build_linux',
+            '#/src/third_party/libbson/build_linux/bson',
         ],
         'CPPDEFINES': ['BSON_STATIC'],
     }

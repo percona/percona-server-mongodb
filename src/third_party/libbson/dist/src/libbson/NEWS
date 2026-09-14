@@ -1,3 +1,207 @@
+libbson 1.30.9
+==============
+
+No changes since 1.30.8. Version incremented to match the libmongoc version.
+
+
+libbson 1.30.8
+==============
+
+No changes since 1.30.7. Version incremented to match the libmongoc version.
+
+libbson 1.30.7
+==============
+
+No changes since 1.30.6. Version incremented to match the libmongoc version.
+
+libbson 1.30.6
+==============
+
+No changes since 1.30.5. Version incremented to match the libmongoc version.
+
+libbson 1.30.5
+==============
+
+Fixes:
+
+* Various fixes have been applied to the `bson_validate` family of functions,
+  with some minor behavioral changes.
+  * Previously accepted invalid UTF-8 will be rejected when `BSON_VALIDATE_UTF8`
+    is specified.
+  * The scope document in a deprecated "code with scope" element is now
+    validated with a fixed set of rules and is treated as an opaque JavaScript
+    object.
+  * A document nesting limit is now enforced during validation.
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Kevin Albertson
+  * Colby Pike
+
+
+libbson 1.30.4
+==============
+
+No changes since 1.30.3. Version incremented to match the libmongoc version.
+
+
+
+libbson 1.30.3
+==============
+
+Fixes:
+
+  * Fix CMake configure error on macOS with CMake 4.
+
+New Features:
+
+* In anticipation of the 2.0 release of mongo-c-driver, new CMake packages and
+  imported targets have been defined (for both `bson` and `mongoc`). To import
+  `bson` with the new names, call `find_package` for the `bson` package. The new
+  imported targets are named `bson::static`, `bson::shared`, and `bson::bson`
+  (which points to either the static or the shared library, depending on an
+  import-time configuration option).
+
+  The new package and target names will remain unchanged when upgrading to the
+  2.0 release, allowing consumers to support both major versions without
+  modifying their CMake project. The current imported target names will be
+  removed from the 2.0 release, and should not be used for
+  forward-compatibility.
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Kevin Albertson
+  * Colby Pike
+
+libbson 1.30.2
+==============
+
+Fixes:
+
+  * Fix `bson_new_from_buffer` behavior on malformed input.
+  * Fix allocation of large `bson_t`.
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Micah Scott
+  * Kevin Albertson
+
+libbson 1.30.1
+==============
+
+Fixes:
+  * Fix `BSON_NORETURN` macro for C23 standard
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Micah Scott
+
+
+libbson 1.30.0
+==============
+
+Deprecated:
+
+  * Support for Debian 9 and Debian 10.
+
+Fixes:
+
+  * Truncated output of `bson_as_json_with_opts` is changed to no longer split valid UTF-8 sequences.
+  * Changes were made to the generated JSON text in some cases:
+      * Previously, empty arrays and documents would serialize with either one or two spaces depending on whether it is nested. Empty arrays and documents now consistently serialize with just one space.
+      * Previously, an array omitted due to the maximum recursion limit would serialize to "{ ... }", as if it were a document. Omitted arrays now serialize to "[ ... ]".
+      * The maximum recursion limit now applies to legacy codewscope documents. Deeply nested scope documents will now be omitted like any other deeply nested document.
+  * Fix leak of output parameter on failed call to `bson_append_array_builder_begin`.
+
+Improvements:
+
+  * Improve performance of BSON-to-JSON serialization for nested documents.
+
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Kevin Albertson
+  * Ezra Chung
+  * Micah Scott
+  * Jeremy Mikola
+  * Colby Pike
+
+
+libbson 1.29.2
+==============
+
+No changes since 1.29.1. Version incremented to match the libmongoc version.
+
+
+
+libbson 1.29.1
+==============
+
+Fixes:
+
+  * Fix result of `bson_strerror_r` on macOS.
+  * Fix max length string handling `bson_value_copy`.
+
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Kevin Albertson
+
+
+
+libbson 1.29.0
+==============
+
+Deprecated:
+
+  * `bson_string_t` and associated functions are deprecated and planned for removal in a future major release.
+  * Compiling with `BSON_MEMCHECK` defined is deprecated.
+  * `bson_in_range_*` and `bson_cmp_*` functions.
+  * `bson_atomic_*` and `bson_thrd_yield` functions.
+  * `bson_as_json` and `bson_array_as_json` are deprecated due to producing non-portable Legacy Extended JSON. Prefer Canonical Extended JSON or Relaxed Extended JSON for portability. To continue using Legacy Extended JSON, use `bson_as_legacy_extended_json` and `bson_array_as_legacy_extended_json`.
+
+Fixes:
+
+  * Fix Relaxed Extended JSON encoding of dates after year 9999.
+
+Improvements:
+
+  * Improve performance of bson_utf8_escape_for_json
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Kevin Albertson
+  * Micah Scott @ MongoDB
+  * Ezra Chung
+  * Joshua Siegel
+
+libbson 1.28.1
+==============
+
+Fixes:
+
+  * Fix large string handling in `bson_string_truncate`.
+  * Fix possible crash in `bson_value_copy`.
+
+
+Thanks to everyone who contributed to the development of this release.
+
+  * Joshua Siegel
+  * Kevin Albertson
+
+libbson 1.28.0
+==============
+
+New features:
+
+  * Add `bson_validate_with_error_and_offset`.
+
+Build Configuration:
+
+  * Remove automatic ccache detection and usage (CCache.cmake).
+      * Set [`CMAKE_<LANG>_COMPILER_LAUNCHER`](https://cmake.org/cmake/help/latest/envvar/CMAKE_LANG_COMPILER_LAUNCHER.html) to build with ccache.
+  * Remove `MONGO_USE_CCACHE` (no longer applicable; see above).
+
 libbson 1.27.6
 ==============
 

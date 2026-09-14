@@ -3,10 +3,15 @@ Import("env")
 
 env = env.Clone()
 
+if env['TARGET_OS'] != 'linux':
+    env.FatalError(f"Unsupported OS: `{env['TARGET_OS']}`")
+if env['TARGET_ARCH'] not in ('x86_64', 'aarch64'):
+    env.FatalError(f"Unsupported CPU architecture: `{env['TARGET_ARCH']}`")
+
 env.Append(CPPDEFINES=[
     'BSON_COMPILATION',
 ])
-env.Append(CPPPATH=["dist/src/common"])
+env.Append(CPPPATH=["dist/src/common/src"])
 
 # Libbson is not warning clean
 env['CCFLAGS_WERROR'] = []
@@ -17,9 +22,13 @@ additional_sources = []
 env.Library(
     target="libbson",
     source=[
-        'dist/src/common/common-b64.c',
-        'dist/src/common/common-md5.c',
-        'dist/src/common/common-thread.c',
+        'dist/src/common/src/common-atomic.c',
+        'dist/src/common/src/common-b64.c',
+        'dist/src/common/src/common-json.c',
+        'dist/src/common/src/common-md5.c',
+        'dist/src/common/src/common-oid.c',
+        'dist/src/common/src/common-string.c',
+        'dist/src/common/src/common-thread.c',
         'dist/src/libbson/src/bson/bcon.c',
         'dist/src/libbson/src/bson/bson-atomic.c',
         'dist/src/libbson/src/bson/bson.c',
@@ -41,6 +50,7 @@ env.Library(
         'dist/src/libbson/src/bson/bson-value.c',
         'dist/src/libbson/src/bson/bson-version-functions.c',
         'dist/src/libbson/src/bson/bson-writer.c',
+        'dist/src/libbson/src/bson/validate.c',
         'dist/src/libbson/src/jsonsl/jsonsl.c',
     ] + additional_sources,
     LIBDEPS_TAGS=[
