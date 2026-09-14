@@ -37,6 +37,8 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <memory>
 #include <string>
 
+#include <boost/optional.hpp>
+
 namespace mongo {
 class BSONObj;
 class BSONObjBuilder;
@@ -304,6 +306,30 @@ public:
     /// configured key identifier.
     std::unique_ptr<KeyId> futureConfigured;
 
+    /// @brief Install a key identifier read from storage.bson for this dbpath.
+    ///
+    /// When `metadataKeyId` is non-null: sets `configured`, clears stale
+    /// `futureConfigured` (which may belong to a previous dbpath in the same
+    /// process, e.g. FCBIS empty-dir key generation), and copies the id into
+    /// KMIP/Vault fields of `encryptionGlobalParams` unless master-key rotation
+    /// is in effect. A field is filled if it is empty or still equal to the last
+    /// value this function adopted, so a later dbpath (FCBIS restore, or a retry
+    /// against a different source) can replace a previously adopted id.
+    /// Operator-set values are never overwritten.
+    ///
+    /// When `metadataKeyId` is null: no-op on `configured` / `futureConfigured`
+    /// and does not clear identifier fields of `encryptionGlobalParams`. FCBIS
+    /// uses a `.dummy` dbpath with no storage.bson; leftover adopted identifiers
+    /// must remain so the process does not mint a new KMIP key.
+    void adoptFromStorageMetadata(const KeyId* metadataKeyId);
+
+    /// @brief Forget identifiers previously written into `encryptionGlobalParams`.
+    ///
+    /// Unit tests call this from fixture setup so cases do not leak adopted
+    /// values into each other. Production code does not call it: a null
+    /// `metadataKeyId` must leave last-adopted state intact (dummy dbpath).
+    void resetLastAdoptedIdentifiers();
+
 private:
     ~WtKeyIds() = default;
     WtKeyIds() = default;
@@ -311,6 +337,10 @@ private:
     WtKeyIds(WtKeyIds&&) = delete;
     WtKeyIds& operator=(const WtKeyIds&) = delete;
     WtKeyIds& operator=(WtKeyIds&&) = delete;
+
+    std::string _lastAdoptedKmipKeyIdentifier;
+    std::string _lastAdoptedVaultSecret;
+    boost::optional<std::uint64_t> _lastAdoptedVaultSecretVersion;
 };
 }  // namespace encryption
 }  // namespace mongo

@@ -201,12 +201,11 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
     }
 
-    // copy the identifier of the configured key (if any) from the metadata to
-    // the special storage for further use during the `WiredTigerKVEngine`
-    // construction
-    if (auto keyId = metadata ? metadata->keyId() : nullptr; keyId) {
-        encryption::WtKeyIds::instance().configured = keyId->clone();
-    }
+    // Install this dbpath's key id (if any) and drop stale futureConfigured
+    // left over from a previous dbpath in this process (FCBIS / storage
+    // location switch). PSMDB-2253.
+    encryption::WtKeyIds::instance().adoptFromStorageMetadata(metadata ? metadata->keyId()
+                                                                       : nullptr);
 
     auto& lockFile = StorageEngineLockFile::get(service);
     auto createScopedTimer = [service, startupTimeElapsedBuilder]() {
