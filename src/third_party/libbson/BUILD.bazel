@@ -100,4 +100,9 @@ mongo_cc_library(
         "_XOPEN_SOURCE=700",
         "_BSD_SOURCE",
     ],
+    target_compatible_with = select({
+        "//bazel/config:linux_aarch64": [],
+        "//bazel/config:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )
