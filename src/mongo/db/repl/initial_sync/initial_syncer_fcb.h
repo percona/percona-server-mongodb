@@ -476,6 +476,15 @@ private:
     StatusWith<std::vector<std::string>> _getBackupFiles(OperationContext* opCtx);
 
     /**
+     * Explicitly fetches the sync source's storage engine metadata file ('storage.bson') via
+     * $_backupFile and stages it under '.initialsync', since $backupCursor's file enumeration
+     * does not include it. If this node uses KMIP or Vault, a missing file is an error; otherwise
+     * absence is tolerated (warning). Any other failure (connection, auth, transfer) is returned.
+     * - Callers must hold _mutex; temporarily unlocks and relocks the provided lock.
+     */
+    Status _fetchStorageMetadataFile(std::unique_lock<std::mutex>& lock);
+
+    /**
      * Switches the storage location to 'newLocation'.
      * - Callers must ensure that _mutex is NOT held.
      * - Caller must hold a GlobalLock (MODE_X) with LocalWrite intent while calling this method.
