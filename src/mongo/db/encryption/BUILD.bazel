@@ -16,6 +16,7 @@ mongo_cc_library(
         "key_id.cpp",
     ],
     deps = [
+        ":encryption_options",
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
     ],
@@ -83,8 +84,8 @@ mongo_cc_library(
         "master_key_provider.cpp",
     ],
     deps = [
-        ":encryption_options",
         ":encryption_key",
+        ":encryption_options",
         ":kmip_client",
         ":read_file_to_secure_string",
         ":vault_client",
@@ -114,6 +115,7 @@ mongo_cc_unit_test(
     tags = ["mongo_unittest_second_group"],
     deps = [
         ":encryption_key",
+        ":encryption_options",
     ],
 )
 

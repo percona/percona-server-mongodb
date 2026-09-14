@@ -33,8 +33,10 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/unittest/unittest.h"
 
+#include <memory>
 #include <ostream>
 #include <string>
 
@@ -118,6 +120,136 @@ TEST(KeyIdTest, SerializeToStorageEngineEncryptionOptions) {
     ASSERT_EQ(toJsonText(VaultSecretId("sierra/tango/uniform", 42)),
               R"json({"vault":{"path":"sierra/tango/uniform","version":"42"}})json");
     ASSERT_EQ(toJsonText(KmipKeyId("42")), R"json({"kmip":{"keyId":"42"}})json");
+}
+
+class WtKeyIdsAdoptTest : public unittest::Test {
+protected:
+    void setUp() override {
+        encryptionGlobalParams = EncryptionGlobalParams();
+        WtKeyIds::instance().configured.reset();
+        WtKeyIds::instance().decryption.reset();
+        WtKeyIds::instance().futureConfigured.reset();
+        WtKeyIds::instance().resetLastAdoptedIdentifiers();
+    }
+    void tearDown() override {
+        setUp();
+    }
+};
+
+TEST_F(WtKeyIdsAdoptTest, NullptrIsNoop) {
+    WtKeyIds::instance().futureConfigured = std::make_unique<KmipKeyId>("stale");
+    WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
+    ASSERT_TRUE(WtKeyIds::instance().futureConfigured);
+    ASSERT_FALSE(WtKeyIds::instance().configured);
+    ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
+}
+
+TEST_F(WtKeyIdsAdoptTest, KmipIdClearsStaleFutureConfiguredAndFillsEmptyParam) {
+    WtKeyIds::instance().futureConfigured = std::make_unique<KmipKeyId>("stale");
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_TRUE(WtKeyIds::instance().configured);
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(WtKeyIds::instance().configured.get()), source);
+    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "1");
+}
+
+TEST_F(WtKeyIdsAdoptTest, ReplacesPreviouslyAdoptedKmipKeyIdentifier) {
+    const KmipKeyId source("source");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "source");
+
+    const KmipKeyId local("local");
+    WtKeyIds::instance().adoptFromStorageMetadata(&local);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "local");
+}
+
+TEST_F(WtKeyIdsAdoptTest, DoesNotOverwriteNonEmptyKmipKeyIdentifier) {
+    encryptionGlobalParams.kmipKeyIdentifier = "operator-set";
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "operator-set");
+    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+}
+
+TEST_F(WtKeyIdsAdoptTest, NullptrPreservesPreviouslyAdoptedKmipKeyIdentifier) {
+    const KmipKeyId source("source");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "source");
+
+    WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
+    ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "source");
+    ASSERT_TRUE(WtKeyIds::instance().configured);
+}
+
+TEST_F(WtKeyIdsAdoptTest, SkipsParamFillDuringMasterKeyRotation) {
+    encryptionGlobalParams.kmipRotateMasterKey = true;
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_TRUE(WtKeyIds::instance().configured);
+    ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultFillsEmptyPathAndVersion) {
+    const VaultSecretId source("charlie/delta", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "charlie/delta");
+    ASSERT_TRUE(encryptionGlobalParams.vaultSecretVersion);
+    ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, 2u);
+}
+
+TEST_F(WtKeyIdsAdoptTest, ReplacesPreviouslyAdoptedVaultSecret) {
+    const VaultSecretId first("alpha/path", 1);
+    WtKeyIds::instance().adoptFromStorageMetadata(&first);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "alpha/path");
+    ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, 1u);
+
+    const VaultSecretId second("bravo/path", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&second);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "bravo/path");
+    ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, 2u);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultFillsVersionWhenPathAlreadyMatches) {
+    encryptionGlobalParams.vaultSecret = "charlie/delta";
+    const VaultSecretId source("charlie/delta", 7);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "charlie/delta");
+    ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, 7u);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultDoesNotOverwriteDifferentPath) {
+    encryptionGlobalParams.vaultSecret = "other/path";
+    const VaultSecretId source("charlie/delta", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "other/path");
+    ASSERT_FALSE(encryptionGlobalParams.vaultSecretVersion);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultDoesNotOverwriteOperatorSetPath) {
+    encryptionGlobalParams.vaultSecret = "operator/path";
+    const VaultSecretId source("bravo/path", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "operator/path");
+    ASSERT_FALSE(encryptionGlobalParams.vaultSecretVersion);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultDoesNotOverwriteExistingVersion) {
+    encryptionGlobalParams.vaultSecret = "charlie/delta";
+    encryptionGlobalParams.vaultSecretVersion = 3;
+    const VaultSecretId source("charlie/delta", 7);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_EQ(encryptionGlobalParams.vaultSecret, "charlie/delta");
+    ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, 3u);
+}
+
+TEST_F(WtKeyIdsAdoptTest, KeyFilePathDoesNotTouchEncryptionParams) {
+    const KeyFilePath path("/tmp/ekf");
+    WtKeyIds::instance().adoptFromStorageMetadata(&path);
+    ASSERT_TRUE(WtKeyIds::instance().configured);
+    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
+    ASSERT_TRUE(encryptionGlobalParams.vaultSecret.empty());
 }
 
 }  // namespace
