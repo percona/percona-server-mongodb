@@ -92,4 +92,9 @@ mongo_cc_library(
     local_defines = [
         "BSON_COMPILATION",
     ],
+    target_compatible_with = select({
+        "//bazel/config:linux_aarch64": [],
+        "//bazel/config:linux_x86_64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )
