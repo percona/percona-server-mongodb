@@ -12,6 +12,7 @@ env.Library(
     LIBDEPS_PRIVATE=[
         '$BUILD_DIR/mongo/base',
         '$BUILD_DIR/mongo/base/secure_allocator',
+        'encryption_options',
     ],
 )
 
@@ -21,6 +22,7 @@ env.CppUnitTest(
         'key_id_test.cpp',
     ],
     LIBDEPS=[
+        'encryption_options',
         'key',
     ],
 )
