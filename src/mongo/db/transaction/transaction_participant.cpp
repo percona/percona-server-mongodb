@@ -37,6 +37,7 @@
 #include "mongo/bson/util/builder.h"
 #include "mongo/db/client.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
+#include "mongo/db/commands.h"
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/curop_failpoint_helpers.h"
@@ -99,6 +100,7 @@
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
 #include "mongo/platform/compiler.h"
+#include "mongo/rpc/metadata/repl_set_metadata.h"
 #include "mongo/s/would_change_owning_shard_exception.h"
 #include "mongo/transport/session.h"
 #include "mongo/util/clock_source.h"
@@ -1028,6 +1030,7 @@ void TransactionParticipant::Participant::_continueMultiDocumentTransaction(
         {
             stdx::lock_guard<Client> lk(*opCtx->getClient());
             o(lk).transactionMetricsObserver.onUnstash(
+                opCtx,
                 ServerTransactionsMetrics::get(opCtx->getServiceContext()),
                 opCtx->getServiceContext()->getTickSource());
         }
@@ -1669,7 +1672,8 @@ void TransactionParticipant::Participant::_stashActiveTransaction(OperationConte
     ClientLock lk(opCtx->getClient());
     {
         auto tickSource = opCtx->getServiceContext()->getTickSource();
-        o(lk).transactionMetricsObserver.onStash(ServerTransactionsMetrics::get(opCtx), tickSource);
+        o(lk).transactionMetricsObserver.onStash(
+            opCtx, ServerTransactionsMetrics::get(opCtx), tickSource);
 
         auto curop = CurOp::get(opCtx);
         o(lk).transactionMetricsObserver.onTransactionOperation(opCtx,
@@ -1841,8 +1845,10 @@ void TransactionParticipant::Participant::unstashTransactionResources(
         }
 
         _releaseTransactionResourcesToOpCtx(opCtx, maxLockTimeout);
-        stdx::lock_guard<Client> lg(*opCtx->getClient());
-        o(lg).transactionMetricsObserver.onUnstash(ServerTransactionsMetrics::get(opCtx),
+
+        std::lock_guard<Client> lg(*opCtx->getClient());
+        o(lg).transactionMetricsObserver.onUnstash(opCtx,
+                                                   ServerTransactionsMetrics::get(opCtx),
                                                    opCtx->getServiceContext()->getTickSource());
         return;
     }
@@ -1917,8 +1923,9 @@ void TransactionParticipant::Participant::unstashTransactionResources(
     }
 
     {
-        stdx::lock_guard<Client> lg(*opCtx->getClient());
-        o(lg).transactionMetricsObserver.onUnstash(ServerTransactionsMetrics::get(opCtx),
+        std::lock_guard<Client> lg(*opCtx->getClient());
+        o(lg).transactionMetricsObserver.onUnstash(opCtx,
+                                                   ServerTransactionsMetrics::get(opCtx),
                                                    opCtx->getServiceContext()->getTickSource());
     }
 }
@@ -2215,10 +2222,20 @@ TransactionOperations* TransactionParticipant::Participant::retrieveCompletedTra
     return &(p().transactionOperations);
 }
 
-BSONObj TransactionParticipant::Participant::getResponseMetadata() {
-    return BSON(TxnResponseMetadata::kReadOnlyFieldName
-                << (o().txnState.isInSet(TransactionState::kInProgress) &&
-                    p().transactionOperations.isEmpty()));
+BSONObj TransactionParticipant::Participant::getResponseMetadata(OperationContext* opCtx) {
+    BSONObjBuilder bob;
+    bob.append(TxnResponseMetadata::kReadOnlyFieldName,
+               o().txnState.isInSet(TransactionState::kInProgress) &&
+                   p().transactionOperations.isEmpty());
+    // Attach the participant's current replication term so the originating router can detect a
+    // participant that changed primaries mid-transaction.
+    // TODO SERVER-130332: Replace '$replData.term' with a dedicated 'participantTerm' field.
+    if (opCtx->inMultiDocumentTransaction()) {
+        if (auto* replCoord = repl::ReplicationCoordinator::get(opCtx)) {
+            rpc::ReplSetMetadata::appendTermOnly(&bob, replCoord->getTerm());
+        }
+    }
+    return bob.obj();
 }
 
 void TransactionParticipant::Participant::clearOperationsInMemory(OperationContext* opCtx) {

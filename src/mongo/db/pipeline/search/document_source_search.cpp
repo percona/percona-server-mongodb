@@ -87,20 +87,24 @@ const char* DocumentSourceSearch::getSourceName() const {
 }
 
 Value DocumentSourceSearch::serialize(const SerializationOptions& opts) const {
-    // For re-parseable output, emit the user query — the full IDL form's internal routing
-    // fields would trip the internal-field check on re-parse.
-    if (opts.serializeForReparse) {
+    // Emits just the mongot query, dropping the spec's internal routing fields.
+    auto serializeUserQuery = [&] {
         return Value(DOC(getSourceName() << opts.serializeLiteral(_spec.getMongotQuery())));
+    };
+
+    // For re-parseable output, emit the user query — the full IDL form's internal routing
+    // fields would trip the internal-field check on re-parse. Query stats also emits the user
+    // query.
+    if (opts.serializeForReparse || opts.isSerializingForQueryStats()) {
+        return serializeUserQuery();
     }
 
-    // If we aren't serializing for query stats or explain, serialize the full spec.
-    // If we are in a router, serialize the full spec.
-    // Otherwise, just serialize the mongotQuery.
-    if ((!opts.isSerializingForQueryStats() && !opts.isSerializingForExplain()) ||
-        getExpCtx()->getInRouter()) {
+    // Otherwise emit the full spec so the internal routing fields reach the shards. This covers all
+    // non-explain serialization and explain when running on a router.
+    if (!opts.isSerializingForExplain() || getExpCtx()->getInRouter()) {
         return Value(Document{{getSourceName(), _spec.toBSON()}});
     }
-    return Value(DOC(getSourceName() << opts.serializeLiteral(_spec.getMongotQuery())));
+    return serializeUserQuery();
 }
 
 intrusive_ptr<DocumentSource> DocumentSourceSearch::createFromBson(
@@ -136,6 +140,14 @@ intrusive_ptr<DocumentSource> DocumentSourceSearch::createFromBson(
     if (auto view = spec.getView()) {
         search_helpers::validateMongotIndexedViewsFF(expCtx, view->getEffectivePipeline());
         search_index_view_validation::validate(*view);
+    }
+
+    // Disable operation memory tracking for $search queries with metadata cursors. On v8.3, there
+    // are no memory tracking stages present on the shard during normal operation, but kept here to
+    // protect against future changes.
+    if (!expCtx->getInRouter() && spec.getMetadataMergeProtocolVersion().has_value() &&
+        spec.getRequiresSearchMetaCursor()) {
+        search_helpers::excludeOperationMemoryTrackingForSecondaryMetadataCursor(expCtx);
     }
 
     return make_intrusive<DocumentSourceSearch>(expCtx, std::move(spec));

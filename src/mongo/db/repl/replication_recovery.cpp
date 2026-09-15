@@ -541,6 +541,16 @@ boost::optional<Timestamp> ReplicationRecoveryImpl::recoverFromOplog(
                          "keyValue"_attr = redact(info->getDuplicatedKeyValue()),
                          "error"_attr = redact(e.reason()));
     std::terminate();
+} catch (const DBException& e) {
+    // If we are shutting down, allow the startup process to continue without the fatal assertion so
+    // we can exit cleanly.
+    if (ErrorCodes::isShutdownError(e.code())) {
+        throw;
+    }
+    LOGV2_FATAL_CONTINUE(9687402,
+                         "Caught exception during replication recovery",
+                         "error"_attr = exceptionToStatus());
+    std::terminate();
 } catch (...) {
     LOGV2_FATAL_CONTINUE(
         21570, "Caught exception during replication recovery", "error"_attr = exceptionToStatus());
@@ -596,11 +606,20 @@ void ReplicationRecoveryImpl::_recoverFromStableTimestamp(OperationContext* opCt
         if (startupRecoveryForRestore) {
             LOGV2_WARNING(5576600,
                           "Replication startup parameter 'startupRecoveryForRestore' is set, "
-                          "recovering without preserving history before top of oplog.");
+                          "recovering without preserving history before top of oplog and taking "
+                          "stable checkpoints during recovery",
+                          "stableTimestamp"_attr = stableTimestamp);
+            // The batch loop advances the stable timestamp after each batch, so pinning the
+            // initial data timestamp to the recovery checkpoint's stable timestamp makes the
+            // checkpoints taken during recovery stable.
+            _storageInterface->setInitialDataTimestamp(opCtx->getServiceContext(), stableTimestamp);
+        } else {
+            // Take unstable checkpoints for file copy-based initial sync. A crash mid-FCBIS
+            // restarts initial sync from scratch instead of resuming from these checkpoints, so
+            // there is no benefit to making them stable.
+            _storageInterface->setInitialDataTimestamp(
+                opCtx->getServiceContext(), Timestamp::kAllowUnstableCheckpointsSentinel);
         }
-        // Take only unstable checkpoints during the recovery process.
-        _storageInterface->setInitialDataTimestamp(opCtx->getServiceContext(),
-                                                   Timestamp::kAllowUnstableCheckpointsSentinel);
     }
     auto startPoint = _adjustStartPointIfNecessary(opCtx, stableTimestamp);
     _applyToEndOfOplog(opCtx, startPoint, topOfOplog.getTimestamp(), recoveryMode);
@@ -648,9 +667,9 @@ void ReplicationRecoveryImpl::_recoverFromUnstableCheckpoint(OperationContext* o
             appliedThrough.getTimestamp(), false /*force*/);
 
         if (startupRecoveryForRestore) {
-            // When we're recovering for a restore, we may be recovering a large number of oplog
-            // entries, so we want to take unstable checkpoints to reduce cache pressure and allow
-            // resumption in case of a crash.
+            // This branch only runs when there is no stable checkpoint to recover from, so there is
+            // no stable timestamp to pin the initial data timestamp to like the way
+            // _recoverFromStableTimestamp does for restore. Keep the unstable-checkpoints sentinel.
             _storageInterface->setInitialDataTimestamp(
                 opCtx->getServiceContext(), Timestamp::kAllowUnstableCheckpointsSentinel);
         }
