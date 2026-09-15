@@ -57,29 +57,12 @@ bool isKeyIdLocal() {
     return !encryptionGlobalParams.encryptionKeyFile.empty();
 }
 
-// Return 'decryption' if it is set, otherwise 'futureConfigured'.
+// Return an owned copy of 'decryption' if it is set, otherwise 'futureConfigured'.
 // The 'decryption' field might not be set if the storage engine metadata was not yet stored.
 // The 'futureConfigured' field should be set in such case.
 // Returns nullptr if neither is available.
-//
-// Thread safety: Uses direct but safe access to the WtKeyIds singleton.
-// Based on the usage patterns, the risk is mitigated because:
-// 1. Key IDs are set once during initialization of the storage engine,
-// 2. Key rotation is executed during initialization and the process finishes after that,
-// 3. Server status is read-only operation.
-const KeyId* getKeyIdPtr() {
-    const auto& wtKeyIds = WtKeyIds::instance();
-
-    if (wtKeyIds.decryption) {
-        return wtKeyIds.decryption.get();
-    }
-
-    if (wtKeyIds.futureConfigured) {
-        return wtKeyIds.futureConfigured.get();
-    }
-
-    // Return nullptr if neither 'decryption' nor 'futureConfigured' is set.
-    return nullptr;
+std::unique_ptr<KeyId> getKeyId() {
+    return WtKeyIds::instance().cloneKeyIdForServerStatus();
 }
 
 class EncryptionSSS : public ServerStatusSection {
@@ -120,7 +103,7 @@ public:
         if (encryptionEnabled) {
             builder.append(kEncryptionCipherModeName, getCipherMode());
 
-            if (const KeyId* keyId = getKeyIdPtr(); keyId) {
+            if (auto keyId = getKeyId(); keyId) {
                 keyId->serializeToServerStatus(&builder, kEncryptionKeyIdName);
             } else if (isKeyIdLocal()) {
                 // When the encryption with key file is used for the first time, the keyId will be

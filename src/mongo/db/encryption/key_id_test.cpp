@@ -157,9 +157,7 @@ class WtKeyIdsAdoptTest : public unittest::Test {
 protected:
     void setUp() override {
         encryptionGlobalParams = EncryptionGlobalParams();
-        WtKeyIds::instance().configured.reset();
-        WtKeyIds::instance().decryption.reset();
-        WtKeyIds::instance().futureConfigured.reset();
+        WtKeyIds::instance().clear();
         WtKeyIds::instance().resetLastAdoptedIdentifiers();
     }
     void tearDown() override {
@@ -168,20 +166,21 @@ protected:
 };
 
 TEST_F(WtKeyIdsAdoptTest, NullptrIsNoop) {
-    WtKeyIds::instance().futureConfigured = std::make_unique<KmipKeyId>("stale");
+    WtKeyIds::instance().setFutureConfigured(std::make_unique<KmipKeyId>("stale"));
     WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
-    ASSERT_TRUE(WtKeyIds::instance().futureConfigured);
-    ASSERT_FALSE(WtKeyIds::instance().configured);
+    ASSERT_TRUE(WtKeyIds::instance().hasFutureConfigured());
+    ASSERT_FALSE(WtKeyIds::instance().hasConfigured());
     ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
 }
 
 TEST_F(WtKeyIdsAdoptTest, KmipIdClearsStaleFutureConfiguredAndFillsEmptyParam) {
-    WtKeyIds::instance().futureConfigured = std::make_unique<KmipKeyId>("stale");
+    WtKeyIds::instance().setFutureConfigured(std::make_unique<KmipKeyId>("stale"));
     const KmipKeyId source("1");
     WtKeyIds::instance().adoptFromStorageMetadata(&source);
-    ASSERT_TRUE(WtKeyIds::instance().configured);
-    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(WtKeyIds::instance().configured.get()), source);
-    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_TRUE(configured);
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(configured.get()), source);
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
     ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "1");
 }
 
@@ -200,7 +199,7 @@ TEST_F(WtKeyIdsAdoptTest, DoesNotOverwriteNonEmptyKmipKeyIdentifier) {
     const KmipKeyId source("1");
     WtKeyIds::instance().adoptFromStorageMetadata(&source);
     ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "operator-set");
-    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
 }
 
 TEST_F(WtKeyIdsAdoptTest, NullptrPreservesPreviouslyAdoptedKmipKeyIdentifier) {
@@ -210,14 +209,14 @@ TEST_F(WtKeyIdsAdoptTest, NullptrPreservesPreviouslyAdoptedKmipKeyIdentifier) {
 
     WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
     ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, "source");
-    ASSERT_TRUE(WtKeyIds::instance().configured);
+    ASSERT_TRUE(WtKeyIds::instance().hasConfigured());
 }
 
 TEST_F(WtKeyIdsAdoptTest, SkipsParamFillDuringMasterKeyRotation) {
     encryptionGlobalParams.kmipRotateMasterKey = true;
     const KmipKeyId source("1");
     WtKeyIds::instance().adoptFromStorageMetadata(&source);
-    ASSERT_TRUE(WtKeyIds::instance().configured);
+    ASSERT_TRUE(WtKeyIds::instance().hasConfigured());
     ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
 }
 
@@ -277,10 +276,21 @@ TEST_F(WtKeyIdsAdoptTest, VaultDoesNotOverwriteExistingVersion) {
 TEST_F(WtKeyIdsAdoptTest, KeyFilePathDoesNotTouchEncryptionParams) {
     const KeyFilePath path("/tmp/ekf");
     WtKeyIds::instance().adoptFromStorageMetadata(&path);
-    ASSERT_TRUE(WtKeyIds::instance().configured);
-    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    ASSERT_TRUE(WtKeyIds::instance().hasConfigured());
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
     ASSERT_TRUE(encryptionGlobalParams.kmipKeyIdentifier.empty());
     ASSERT_TRUE(encryptionGlobalParams.vaultSecret.empty());
+}
+
+TEST_F(WtKeyIdsAdoptTest, CloneKeyIdForServerStatusSurvivesLaterMutation) {
+    const KmipKeyId first("first");
+    WtKeyIds::instance().setDecryption(first.clone());
+    auto snapshot = WtKeyIds::instance().cloneKeyIdForServerStatus();
+    ASSERT_TRUE(snapshot);
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(snapshot.get()), first);
+
+    WtKeyIds::instance().setDecryption(std::make_unique<KmipKeyId>("second"));
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(snapshot.get()), first);
 }
 
 }  // namespace
