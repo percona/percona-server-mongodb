@@ -3,85 +3,9 @@
   "upstream_branch": "master",
   "fork_ref": "HEAD",
   "upstream_ref": "mongodb/master",
-  "is_up_to_date": false,
-  "divergence": {
-    "commits_behind": 2,
-    "days_behind": 3,
-    "unmerged_oldest_age_days": 3.742026113206019,
-    "files_affected": 5,
-    "total_additions": 71,
-    "total_deletions": 0,
-    "date_range": {
-      "first": "2026-09-10T15:23:09+00:00",
-      "last": "2026-09-10T15:26:42+00:00"
-    }
-  },
-  "last_merged_commit": {
-    "sha": "1f8f34e96ee9283f7395e67748e29f9ce496e1cd",
-    "short_sha": "1f8f34e96ee",
-    "date": "2026-09-10T15:06:22+00:00",
-    "author": {
-      "name": "Yuhong Zhang",
-      "email": "yuhong.zhang@mongodb.com"
-    },
-    "summary": "SERVER-133809 Continue validation after encountering fast size/count mismatch (#62534)"
-  },
-  "first_unmerged_commit": {
-    "sha": "5ffee52e24edb79e5d04179d7b67664ed7db05de",
-    "short_sha": "5ffee52e24e",
-    "date": "2026-09-10T15:23:09+00:00",
-    "author": {
-      "name": "Indy Prentice",
-      "email": "iprentic@users.noreply.github.com"
-    },
-    "summary": "SERVER-134422: add utility function to fetch statement executed optime without reading the oplog (#62428)"
-  },
-  "gate": {
-    "open": true,
-    "reason": "max_age (3.7d >= 2d)"
-  },
-  "unmerged_commits": [
-    {
-      "sha": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
-      "short_sha": "6d990baca59",
-      "date": "2026-09-10T15:26:42+00:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-134703 Skip test-only verification of authorization for releaseMemory command (#62435)"
-    },
-    {
-      "sha": "5ffee52e24edb79e5d04179d7b67664ed7db05de",
-      "short_sha": "5ffee52e24e",
-      "date": "2026-09-10T15:23:09+00:00",
-      "author": {
-        "name": "Indy Prentice",
-        "email": "iprentic@users.noreply.github.com"
-      },
-      "summary": "SERVER-134422: add utility function to fetch statement executed optime without reading the oplog (#62428)"
-    }
-  ],
-  "merge_picks": [
-    {
-      "commit": {
-        "sha": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
-        "short_sha": "6d990baca59",
-        "date": "2026-09-10T15:26:42+00:00",
-        "author": {
-          "name": "Evan Bergeron",
-          "email": "evanbergeron@users.noreply.github.com"
-        },
-        "summary": "SERVER-134703 Skip test-only verification of authorization for releaseMemory command (#62435)"
-      },
-      "strategy_name": "most_recent",
-      "result": {
-        "fallback": true
-      }
-    }
-  ],
+  "is_up_to_date": true,
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-14 09:11:36",
+  "generated_at": "2026-09-15 06:02:31",
   "branch_name": "master",
   "display_name": "master"
 }
