@@ -49,7 +49,6 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/database_name.h"
 #include "mongo/db/dbdirectclient.h"
 #include "mongo/db/dbhelpers.h"
-#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/db/feature_compatibility_version_parser.h"
 #include "mongo/db/global_settings.h"
 #include "mongo/db/index_builds/index_builds_coordinator.h"
@@ -1568,22 +1567,8 @@ Status InitialSyncerFCB::_fetchStorageMetadataFile(stdx::unique_lock<stdx::mutex
         LOGV2_DEBUG(128474, 1, "Fetched storage engine metadata file from sync source");
         return Status::OK();
     }
-    if (cloneStatus.code() == ErrorCodes::FileOpenFailed) {
-        const bool needsRemoteKeyId = !encryptionGlobalParams.kmipServerName.empty() ||
-            !encryptionGlobalParams.vaultServerName.empty();
-        if (needsRemoteKeyId) {
-            return cloneStatus.withContext(
-                "Failed to fetch storage engine metadata file required to decrypt "
-                "cloned key.db");
-        }
-        // Unencrypted / keyfile: behave as before this fetch existed.
-        LOGV2_WARNING(128475,
-                      "Sync source's storage engine metadata file is missing; continuing "
-                      "without it",
-                      "syncSource"_attr = _syncSource,
-                      "error"_attr = cloneStatus);
-        return Status::OK();
-    }
+    // An alive sync source has already written storage.bson at startup, so any clone
+    // error here is real and must fail the attempt.
     return cloneStatus.withContext("Failed to fetch storage engine metadata file");
 }
 
