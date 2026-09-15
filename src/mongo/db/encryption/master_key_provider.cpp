@@ -80,11 +80,7 @@ KeyEntry MasterKeyProvider::_readMasterKey(const ReadKey& read, bool updateKeyId
 
     KeyEntry keyEntry = std::move(std::get<0>(readResult));
     if (updateKeyIds) {
-        _wtKeyIds.decryption = keyEntry.keyId->clone();
-        if (!_wtKeyIds.configured &&
-            _wtKeyIds.decryption->needsSerializationToStorageEngineEncryptionOptions()) {
-            _wtKeyIds.futureConfigured = _wtKeyIds.decryption->clone();
-        }
+        _wtKeyIds.recordDecryptionKeyId(keyEntry.keyId->clone());
     }
     LOGV2_OPTIONS(29115,
                   logv2::LogOptions(_logComponent),
@@ -99,7 +95,7 @@ std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
     std::unique_ptr<KeyId> keyId = save(key);
     invariant(keyId);
     if (keyId->needsSerializationToStorageEngineEncryptionOptions()) {
-        _wtKeyIds.futureConfigured = keyId->clone();
+        _wtKeyIds.setFutureConfigured(keyId->clone());
     }
     LOGV2_OPTIONS(29116,
                   logv2::LogOptions(_logComponent),
@@ -110,14 +106,15 @@ std::unique_ptr<KeyId> MasterKeyProvider::_saveMasterKey(const SaveKey& save,
 }
 
 KeyEntry MasterKeyProvider::readMasterKey() const {
-    return _readMasterKey(*_factory->createRead(_wtKeyIds.configured.get()));
+    auto configured = _wtKeyIds.cloneConfigured();
+    return _readMasterKey(*_factory->createRead(configured.get()));
 }
 
 KeyEntry MasterKeyProvider::obtainMasterKey(bool saveKey) const {
     if (auto read = _factory->createProvidedRead(); read) {
         auto keyEntry = _readMasterKey(*read, false);
         if (keyEntry.keyId->needsSerializationToStorageEngineEncryptionOptions()) {
-            _wtKeyIds.futureConfigured = keyEntry.keyId->clone();
+            _wtKeyIds.setFutureConfigured(keyEntry.keyId->clone());
         }
         return keyEntry;
     }
@@ -125,13 +122,15 @@ KeyEntry MasterKeyProvider::obtainMasterKey(bool saveKey) const {
     Key key;
     std::unique_ptr<KeyId> keyId;
     if (saveKey) {
-        keyId = _saveMasterKey(*_factory->createSave(_wtKeyIds.configured.get()), key);
+        auto configured = _wtKeyIds.cloneConfigured();
+        keyId = _saveMasterKey(*_factory->createSave(configured.get()), key);
     }
     return {key, std::move(keyId)};
 }
 
 void MasterKeyProvider::saveMasterKey(const Key& key) const {
-    _saveMasterKey(*_factory->createSave(_wtKeyIds.configured.get()), key);
+    auto configured = _wtKeyIds.cloneConfigured();
+    _saveMasterKey(*_factory->createSave(configured.get()), key);
 }
 
 namespace {

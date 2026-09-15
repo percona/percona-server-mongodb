@@ -35,6 +35,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/encryption/encryption_options.h"
+#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/str.h"
 
@@ -260,12 +261,97 @@ private:
 };
 }  // namespace
 
+namespace {
+std::unique_ptr<KeyId> cloneNullable(const std::unique_ptr<KeyId>& id) {
+    return id ? id->clone() : nullptr;
+}
+}  // namespace
+
+std::unique_ptr<KeyId> WtKeyIds::cloneKeyIdForServerStatus() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    if (_decryption) {
+        return _decryption->clone();
+    }
+    if (_futureConfigured) {
+        return _futureConfigured->clone();
+    }
+    return nullptr;
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneConfigured() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return cloneNullable(_configured);
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneDecryption() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return cloneNullable(_decryption);
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneFutureConfigured() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return cloneNullable(_futureConfigured);
+}
+
+bool WtKeyIds::hasConfigured() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return static_cast<bool>(_configured);
+}
+
+bool WtKeyIds::hasDecryption() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return static_cast<bool>(_decryption);
+}
+
+bool WtKeyIds::hasFutureConfigured() const {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    return static_cast<bool>(_futureConfigured);
+}
+
+void WtKeyIds::setConfigured(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _configured = std::move(id);
+}
+
+void WtKeyIds::setDecryption(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _decryption = std::move(id);
+}
+
+void WtKeyIds::setFutureConfigured(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _futureConfigured = std::move(id);
+}
+
+void WtKeyIds::recordDecryptionKeyId(std::unique_ptr<KeyId> id) {
+    invariant(id);
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _decryption = std::move(id);
+    if (!_configured && _decryption->needsSerializationToStorageEngineEncryptionOptions()) {
+        _futureConfigured = _decryption->clone();
+    }
+}
+
+void WtKeyIds::promoteFutureConfigured() {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _configured = std::move(_futureConfigured);
+}
+
+void WtKeyIds::clear() {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _configured.reset();
+    _decryption.reset();
+    _futureConfigured.reset();
+}
+
 void WtKeyIds::adoptFromStorageMetadata(const KeyId* metadataKeyId) {
     if (!metadataKeyId) {
         return;
     }
-    configured = metadataKeyId->clone();
-    futureConfigured.reset();
+    auto cloned = metadataKeyId->clone();
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
+    _configured = std::move(cloned);
+    _futureConfigured.reset();
     if (encryptionGlobalParams.shouldRotateMasterKey()) {
         return;
     }
@@ -275,6 +361,7 @@ void WtKeyIds::adoptFromStorageMetadata(const KeyId* metadataKeyId) {
 }
 
 void WtKeyIds::resetLastAdoptedIdentifiers() {
+    stdx::lock_guard<stdx::mutex> lk(_mutex);
     _lastAdoptedKmipKeyIdentifier.clear();
     _lastAdoptedVaultSecret.clear();
     _lastAdoptedVaultSecretVersion.reset();
