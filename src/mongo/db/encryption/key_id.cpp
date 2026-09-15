@@ -37,6 +37,9 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/encryption/encryption_options.h"
+#include "mongo/platform/mutex.h"
+#include "mongo/stdx/mutex.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/str.h"
 
@@ -210,6 +213,159 @@ void VaultSecretId::accept(KeyIdConstVisitor& v) const {
 
 void KmipKeyId::accept(KeyIdConstVisitor& v) const {
     v.visit(*this);
+}
+
+namespace {
+bool canReplaceAdopted(const std::string& current, const std::string& lastAdopted) {
+    return current.empty() || current == lastAdopted;
+}
+
+bool canReplaceAdopted(const boost::optional<std::uint64_t>& current,
+                       const boost::optional<std::uint64_t>& lastAdopted) {
+    return !current || current == lastAdopted;
+}
+
+class AdoptIntoEncryptionParams : public KeyIdConstVisitor {
+public:
+    AdoptIntoEncryptionParams(std::string& lastKmip,
+                              std::string& lastVaultSecret,
+                              boost::optional<std::uint64_t>& lastVaultVersion)
+        : _lastKmip(lastKmip),
+          _lastVaultSecret(lastVaultSecret),
+          _lastVaultVersion(lastVaultVersion) {}
+
+    void visit(const KeyFilePath&) override {}
+    void visit(const VaultSecretId& id) override {
+        auto& p = encryptionGlobalParams;
+        if (canReplaceAdopted(p.vaultSecret, _lastVaultSecret)) {
+            p.vaultSecret = id.path();
+            _lastVaultSecret = id.path();
+        }
+        if (canReplaceAdopted(p.vaultSecretVersion, _lastVaultVersion) &&
+            p.vaultSecret == id.path()) {
+            p.vaultSecretVersion = id.version();
+            _lastVaultVersion = id.version();
+        }
+    }
+    void visit(const KmipKeyId& id) override {
+        auto& p = encryptionGlobalParams;
+        if (canReplaceAdopted(p.kmipKeyIdentifier, _lastKmip)) {
+            p.kmipKeyIdentifier = id.toString();
+            _lastKmip = id.toString();
+        }
+    }
+
+private:
+    std::string& _lastKmip;
+    std::string& _lastVaultSecret;
+    boost::optional<std::uint64_t>& _lastVaultVersion;
+};
+}  // namespace
+
+namespace {
+std::unique_ptr<KeyId> cloneNullable(const std::unique_ptr<KeyId>& id) {
+    return id ? id->clone() : nullptr;
+}
+}  // namespace
+
+std::unique_ptr<KeyId> WtKeyIds::cloneKeyIdForServerStatus() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    if (_decryption) {
+        return _decryption->clone();
+    }
+    if (_futureConfigured) {
+        return _futureConfigured->clone();
+    }
+    return nullptr;
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneConfigured() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return cloneNullable(_configured);
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneDecryption() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return cloneNullable(_decryption);
+}
+
+std::unique_ptr<KeyId> WtKeyIds::cloneFutureConfigured() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return cloneNullable(_futureConfigured);
+}
+
+bool WtKeyIds::hasConfigured() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return static_cast<bool>(_configured);
+}
+
+bool WtKeyIds::hasDecryption() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return static_cast<bool>(_decryption);
+}
+
+bool WtKeyIds::hasFutureConfigured() const {
+    stdx::lock_guard<Latch> lk(_mutex);
+    return static_cast<bool>(_futureConfigured);
+}
+
+void WtKeyIds::setConfigured(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _configured = std::move(id);
+}
+
+void WtKeyIds::setDecryption(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _decryption = std::move(id);
+}
+
+void WtKeyIds::setFutureConfigured(std::unique_ptr<KeyId> id) {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _futureConfigured = std::move(id);
+}
+
+void WtKeyIds::recordDecryptionKeyId(std::unique_ptr<KeyId> id) {
+    invariant(id);
+    stdx::lock_guard<Latch> lk(_mutex);
+    _decryption = std::move(id);
+    if (!_configured && _decryption->needsSerializationToStorageEngineEncryptionOptions()) {
+        _futureConfigured = _decryption->clone();
+    }
+}
+
+void WtKeyIds::promoteFutureConfigured() {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _configured = std::move(_futureConfigured);
+}
+
+void WtKeyIds::clear() {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _configured.reset();
+    _decryption.reset();
+    _futureConfigured.reset();
+}
+
+void WtKeyIds::adoptFromStorageMetadata(const KeyId* metadataKeyId) {
+    if (!metadataKeyId) {
+        return;
+    }
+    auto cloned = metadataKeyId->clone();
+    stdx::lock_guard<Latch> lk(_mutex);
+    _configured = std::move(cloned);
+    _futureConfigured.reset();
+    if (encryptionGlobalParams.shouldRotateMasterKey()) {
+        return;
+    }
+    AdoptIntoEncryptionParams visitor(
+        _lastAdoptedKmipKeyIdentifier, _lastAdoptedVaultSecret, _lastAdoptedVaultSecretVersion);
+    metadataKeyId->accept(visitor);
+}
+
+void WtKeyIds::resetLastAdoptedIdentifiers() {
+    stdx::lock_guard<Latch> lk(_mutex);
+    _lastAdoptedKmipKeyIdentifier.clear();
+    _lastAdoptedVaultSecret.clear();
+    _lastAdoptedVaultSecretVersion.reset();
 }
 
 WtKeyIds& WtKeyIds::instance() {

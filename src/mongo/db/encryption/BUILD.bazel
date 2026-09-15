@@ -29,6 +29,7 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
+        "//src/mongo/db/encryption:encryption_options",
     ],
 )
 
@@ -124,6 +125,7 @@ mongo_cc_unit_test(
     ],
     tags = ["mongo_unittest_second_group"],
     deps = [
+        "//src/mongo/db/encryption:encryption_options",
         "//src/mongo/db/encryption:key",
     ],
 )

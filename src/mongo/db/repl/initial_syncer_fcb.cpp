@@ -152,6 +152,7 @@ extern FailPoint initialSyncHangAfterResettingFCV;
 
 // Failpoint which causes the initial sync function to hang after cloning files.
 MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterCloningFiles);
+MONGO_FAIL_POINT_DEFINE(initialSyncHangAfterFetchingStorageMetadataFile);
 
 namespace {
 using namespace executor;
@@ -167,6 +168,12 @@ constexpr StringData kBackupIdFieldName = "backupId"_sd;
 constexpr StringData kDBPathFieldName = "dbpath"_sd;
 constexpr StringData kFileNameFieldName = "filename"_sd;
 constexpr StringData kFileSizeFieldName = "fileSize"_sd;
+
+// The storage engine metadata file, recording which KMIP/Vault key identifier decrypts
+// 'key.db'. $backupCursor's file enumeration only covers WiredTiger-managed files and
+// key.db's own backup blocks, not this plain file, so FCBIS fetches it explicitly via
+// $_backupFile instead. PSMDB-2253.
+constexpr StringData kStorageMetadataFileName = "storage.bson"_sd;
 
 // denylist duration for temporary issues
 constexpr Seconds kDenylistTemporary{5};
@@ -1532,6 +1539,47 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(Operation
     return files;
 }
 
+// Explicitly fetch the sync source's storage engine metadata file ('storage.bson') via
+// $_backupFile and stage it under '.initialsync', mirroring how each regular file is
+// downloaded in _transferFileCallback(). $backupCursor's file enumeration never includes
+// this plain file (it isn't WiredTiger-managed), yet it's the only record of which
+// KMIP/Vault key identifier decrypts the 'key.db' that was just cloned alongside it.
+// Without it, a node that started with an empty dbpath and no --kmipKeyIdentifier has no
+// way to learn which key identifier decrypts a key.db cloned from a differently-keyed sync
+// source. PSMDB-2253.
+Status InitialSyncerFCB::_fetchStorageMetadataFile(stdx::unique_lock<Latch>& lock) {
+    DBClientConnection syncSourceConn{true /* autoReconnect */};
+    syncSourceConn.connect(_syncSource, "File copy-based initial sync", boost::none);
+    auto status = replAuthenticate(&syncSourceConn)
+                      .withContext(str::stream() << "Failed to authenticate to " << _syncSource);
+    if (!status.isOK()) {
+        return status;
+    }
+
+    std::string remoteFileName = _remoteDBPath + "/" + std::string{kStorageMetadataFileName};
+    auto cloner = std::make_unique<FCBFileCloner>(
+        _backupId,
+        remoteFileName,
+        0 /* remoteFileSize: unknown here, only used for progress/stats */,
+        getPathRelativeTo(remoteFileName, _remoteDBPath),
+        _sharedData.get(),
+        _syncSource,
+        &syncSourceConn,
+        _storage,
+        _workerPool);
+    lock.unlock();
+    auto cloneStatus = cloner->run();
+    lock.lock();
+
+    if (cloneStatus.isOK()) {
+        LOGV2_DEBUG(128474, 1, "Fetched storage engine metadata file from sync source");
+        return Status::OK();
+    }
+    // An alive sync source has already written storage.bson at startup, so any clone
+    // error here is real and must fail the attempt.
+    return cloneStatus.withContext("Failed to fetch storage engine metadata file");
+}
+
 // Switch storage location
 Status InitialSyncerFCB::_switchStorageLocation(
     OperationContext* opCtx,
@@ -1599,6 +1647,19 @@ Status InitialSyncerFCB::_switchStorageLocation(
                 "newLocation"_attr = newLocation,
                 "error"_attr = e);
     return e.toStatus();
+} catch (...) {
+    // Catches non-DBException failures, notably mongo::encryption::Error thrown while
+    // reinitializing the storage engine against just-downloaded data (e.g. a KMIP/Vault
+    // master-key mismatch). This function is invoked from noexcept callbacks; previously
+    // such an exception escaped every catch clause here and caused an uncontrolled
+    // std::terminate() instead of a clean initial sync failure. PSMDB-2253.
+    auto status = exceptionToStatus();
+    LOGV2_DEBUG(128476,
+                1,
+                "Failed to switch storage location",
+                "newLocation"_attr = newLocation,
+                "error"_attr = status);
+    return status;
 }
 
 void InitialSyncerFCB::_restoreStorageLocation(stdx::unique_lock<Latch>& lock,
@@ -2152,6 +2213,27 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
         128406, 2, "Retrieved names of local files", "number"_attr = bfiles.getValue().size());
     _localFiles = bfiles.getValue();
 
+    // Fetch the sync source's storage engine metadata file before switching storage, so the
+    // storage engine can determine which KMIP/Vault key identifier decrypts the just-cloned
+    // key.db. PSMDB-2253.
+    status = _fetchStorageMetadataFile(lock);
+    if (!status.isOK()) {
+        onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
+        return;
+    }
+
+    if (MONGO_unlikely(initialSyncHangAfterFetchingStorageMetadataFile.shouldFail())) {
+        LOGV2(128477,
+              "initial sync - initialSyncHangAfterFetchingStorageMetadataFile fail point "
+              "enabled. Blocking until fail point is disabled.");
+        lock.unlock();
+        while (MONGO_unlikely(initialSyncHangAfterFetchingStorageMetadataFile.shouldFail()) &&
+               !_isShuttingDown()) {
+            mongo::sleepsecs(1);
+        }
+        lock.lock();
+    }
+
     Lock::GlobalLock lk(opCtx.get(), MODE_X);
     // retrieve the current on-disk replica set configuration
     auto* rs = repl::ReplicationCoordinator::get(opCtx->getServiceContext());
@@ -2246,8 +2328,10 @@ void InitialSyncerFCB::_switchToDownloadedCallback(
     }
 
     storageGuard.dismiss();
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
@@ -2308,8 +2392,10 @@ void InitialSyncerFCB::_executeRecovery(
     }
 
     storageGuard.dismiss();
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
@@ -2386,8 +2472,14 @@ void InitialSyncerFCB::_switchToDummyToDBPathCallback(
         onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, status);
         return;
     }
-} catch (const DBException&) {
-    // Report exception as an initial syncer failure.
+} catch (...) {
+    // Report exception as an initial syncer failure. Also catches non-DBException failures
+    // (notably mongo::encryption::Error) that could otherwise escape this noexcept callback
+    // and crash the process. PSMDB-2253.
+    //
+    // Only callbacks that call directly into storage-engine open/reinit (this one and the
+    // two preceding it) need this wide a catch; _finalizeAndCompleteCallback below runs
+    // after the engine is already up and only needs the narrower DBException handling.
     stdx::unique_lock<Latch> lock(_mutex);
     onCompletionGuard->setResultAndCancelRemainingWork_inlock(lock, exceptionToStatus());
 }
