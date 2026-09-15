@@ -215,27 +215,30 @@ StorageEngine::LastShutdownState initializeStorageEngine(
                 service, std::move(lk), std::move(storageEngine));
         }
     } catch (const MasterKeyRotationCompleted&) {
-        const encryption::WtKeyIds& keyIds = encryption::WtKeyIds::instance();
-        invariant(keyIds.decryption && keyIds.futureConfigured);
+        auto& keyIds = encryption::WtKeyIds::instance();
+        auto decryption = keyIds.cloneDecryption();
+        auto futureConfigured = keyIds.cloneFutureConfigured();
+        invariant(decryption && futureConfigured);
         // Write metadata because KMIP master key ID has been updated.
         writeMetadata(std::move(metadata),
                       factory,
                       storageGlobalParams,
-                      keyIds.futureConfigured.get(),
+                      futureConfigured.get(),
                       initFlags,
                       createScopedTimer);
         LOGV2(29111,
               "Rotated master encryption key",
-              "oldKeyIdentifier"_attr = *keyIds.decryption,
-              "newKeyIdentifier"_attr = *keyIds.futureConfigured);
+              "oldKeyIdentifier"_attr = *decryption,
+              "newKeyIdentifier"_attr = *futureConfigured);
         throw;
     }
 
     // Write a new metadata file if it is not present.
+    auto futureConfigured = encryption::WtKeyIds::instance().cloneFutureConfigured();
     writeMetadata(std::move(metadata),
                   factory,
                   storageGlobalParams,
-                  encryption::WtKeyIds::instance().futureConfigured.get(),
+                  futureConfigured.get(),
                   initFlags,
                   createScopedTimer);
 
