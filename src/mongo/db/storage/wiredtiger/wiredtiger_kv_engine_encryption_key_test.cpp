@@ -418,9 +418,7 @@ public:
         _key.reset();
         _tempDir.reset();
 
-        WtKeyIds::instance().configured.reset();
-        WtKeyIds::instance().decryption.reset();
-        WtKeyIds::instance().futureConfigured.reset();
+        WtKeyIds::instance().clear();
 
         encryptionGlobalParams = EncryptionGlobalParams();
     }
@@ -429,7 +427,7 @@ protected:
     virtual void _setUpPreconfiguredEngine() {
         _setUpEncryptionParams();
         _engine = _createWiredTigerKVEngine();
-        WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured);
+        WtKeyIds::instance().promoteFutureConfigured();
         _engine.reset();
         _runner = std::make_unique<FakePeriodicRunner>();
     }
@@ -527,7 +525,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KeyFileIsUsedIfItIsInParams
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_key);
-    ASSERT_FALSE(WtKeyIds::instance().futureConfigured);
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -556,7 +554,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, VaultSecretIsGeneratedIfVer
     // versions 1 and 2 are established in the `setUp` function
     VaultSecretId id("charlie/delta", 3);
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -567,7 +565,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, VaultSecretVersionIsUsedIfI
 
     _engine = _createWiredTigerKVEngine();
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -588,7 +586,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KmipKeyIsGeneratedIfNoIdInP
     // keys with IDs 1 and 2 are established in the `setUp` function
     KmipKeyId id("3");
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id));
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
@@ -607,7 +605,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KmipKeyIdIsUsedIfItIsInPara
 
     _engine = _createWiredTigerKVEngine();
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id));
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
@@ -632,7 +630,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, SameKeyFileIsOk) {
     encryptionGlobalParams = encryptionParamsKeyFile(*_keyFilePath);
     _engine = _createWiredTigerKVEngine();
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_key);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(*_keyFilePath));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(*_keyFilePath));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -641,7 +639,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, SameKeyInAnotherFileIsOk) {
     encryptionGlobalParams = encryptionParamsKeyFile(anotherKeyFilePath);
     _engine = _createWiredTigerKVEngine();
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_key);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(anotherKeyFilePath));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(anotherKeyFilePath));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -662,7 +660,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest,
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -683,7 +681,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, VaultSecretIdIsUsedIfItIsInParam
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -709,7 +707,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyFileTest, KmipKeyIdIsUsedIfItIsInParams) {
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));
 }
 
 class WiredTigerKVEngineEncryptionKeyVaultTest : public WiredTigerKVEngineEncryptionKeyTest {
@@ -729,7 +727,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, EncryptionKeyFileIsUsedIfItIsIn
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), key);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(path));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(path));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -750,7 +748,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfKmipInParams) {
 #define ASSERT_KEY_ID(id)                                                             \
     _engine = _createWiredTigerKVEngine();                                            \
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id)); \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));          \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));   \
     ASSERT_KEY_STATE_POLLING_DISABLED();
 
 TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ConfiguredSecretIdIsUsedIfNoSecretIdInParams) {
@@ -772,7 +770,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ConfiguredSecretIdIsUsedIfSameS
 TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest,
        UpgradeFromOlderMongodVersionWiththouSecretVersionUsesLatestKey) {
     // there can't be configured key id for the older `mongod` versions
-    WtKeyIds::instance().configured.reset();
+    WtKeyIds::instance().setConfigured(nullptr);
 
     encryptionGlobalParams = encryptionParamsVault("charlie/delta");
     ASSERT_KEY_ID(VaultSecretId("charlie/delta", 3));
@@ -808,16 +806,16 @@ TEST_F(WiredTigerKVEngineEncryptionKeyVaultTest, ErrorIfDifferentSecretPathWitho
 /// the engine uses new master key (i.e. Vault secret)
 ///
 /// @param id identifier of the expected Vault secret
-#define ASSERT_ROTATION_NEW_KEY_ID(id)                                                  \
-    ASSERT_THROWS(_createWiredTigerKVEngine(), MasterKeyRotationCompleted);             \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));      \
-    ASSERT_KEY_STATE_POLLING_DISABLED();                                                \
-                                                                                        \
-    WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured); \
-    encryptionGlobalParams = encryptionParamsVault();                                   \
-    _engine = _createWiredTigerKVEngine();                                              \
-    ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));   \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));            \
+#define ASSERT_ROTATION_NEW_KEY_ID(id)                                                    \
+    ASSERT_THROWS(_createWiredTigerKVEngine(), MasterKeyRotationCompleted);               \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id)); \
+    ASSERT_KEY_STATE_POLLING_DISABLED();                                                  \
+                                                                                          \
+    WtKeyIds::instance().promoteFutureConfigured();                                       \
+    encryptionGlobalParams = encryptionParamsVault();                                     \
+    _engine = _createWiredTigerKVEngine();                                                \
+    ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), *_vaultServer.readKey(id));     \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));       \
     ASSERT_KEY_STATE_POLLING_DISABLED();
 
 
@@ -893,7 +891,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, EncryptionKeyFileIsUsedIfItIsInP
     _engine = _createWiredTigerKVEngine();
 
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), key);
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(path));
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(path));
     ASSERT_KEY_STATE_POLLING_DISABLED();
 }
 
@@ -914,7 +912,7 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, ErrorIfVaultInParams) {
 #define ASSERT_KEY_ID(id)                                                                  \
     _engine = _createWiredTigerKVEngine();                                                 \
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first); \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));               \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));        \
     ASSERT_KEY_STATE_POLLING_ENABLED(id);
 
 
@@ -944,14 +942,14 @@ TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, ErrorIfDifferentKeyIdInParams) {
 /// @param id identifier of the expected KMIP key
 #define ASSERT_ROTATION_NEW_KEY_ID(id)                                                     \
     ASSERT_THROWS(_createWiredTigerKVEngine(), MasterKeyRotationCompleted);                \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().futureConfigured), toJsonText(id));         \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneFutureConfigured()), toJsonText(id));  \
     ASSERT_KEY_STATE_POLLING_DISABLED();                                                   \
                                                                                            \
-    WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured);    \
+    WtKeyIds::instance().promoteFutureConfigured();                                        \
     encryptionGlobalParams = encryptionParamsKmip();                                       \
     _engine = _createWiredTigerKVEngine();                                                 \
     ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first); \
-    ASSERT_EQ(toJsonText(*WtKeyIds::instance().decryption), toJsonText(id));               \
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));        \
     ASSERT_KEY_STATE_POLLING_ENABLED(id);
 
 TEST_F(WiredTigerKVEngineEncryptionKeyKmipTest, RotationCreatesKeyIdIfNoKeyIdInParams) {
@@ -1687,7 +1685,7 @@ protected:
     void _setUpPreconfiguredEngine() override {
         _setUpEncryptionParams();
         _engine = _createWiredTigerKVEngine();
-        WtKeyIds::instance().configured = std::move(WtKeyIds::instance().futureConfigured);
+        WtKeyIds::instance().promoteFutureConfigured();
         // Intentionally do NOT reset _engine here - tests need the live
         // engine to call into EncryptionKeyDB and findOrphanedEncryptionKeyIds.
     }
