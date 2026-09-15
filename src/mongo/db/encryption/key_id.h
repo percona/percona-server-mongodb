@@ -37,6 +37,7 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 #include <string>
 
 #include "mongo/base/string_data.h"
+#include "mongo/platform/mutex.h"
 
 namespace mongo {
 class BSONObj;
@@ -271,39 +272,39 @@ public:
 /// _ten_ arguments and adding even more is not an option. Thus, having to
 /// use some analog of a nasty global variable for now.
 ///
-/// @warning Thread Safety: This singleton is NOT fully thread-safe.
-/// The fields are set once during startup/initialization and
-/// then read during runtime operations like server status generation.
-/// Concurrent modifications may cause data races.
-/// Consider adding synchronization if concurrent access patterns change.
+/// All reads and writes of identifier pointers go through synchronized
+/// accessors. Callers that need an identifier after releasing the internal
+/// lock must use a clone; a raw pointer into this singleton is not valid
+/// once the accessor returns.
 ///
 /// @todo Refactor the code so that this singleton is eliminated.
 class WtKeyIds {
 public:
     static WtKeyIds& instance();
 
-    /// @brief The present configured key identifier, if any.
-    ///
-    /// It is read from the storage engine metadata, specifically from the
-    /// storage engine encryption options.
-    std::unique_ptr<KeyId> configured;
+    /// Owned copy of `decryption`, or of `futureConfigured` if decryption is unset.
+    std::unique_ptr<KeyId> cloneKeyIdForServerStatus() const;
 
-    /// @brief The identifier of the key the encryption key database is
-    /// decrypted with.
-    ///
-    /// It may either be equal to configured key identifier or read from the
-    /// mongod configuration.
-    std::unique_ptr<KeyId> decryption;
+    std::unique_ptr<KeyId> cloneConfigured() const;
+    std::unique_ptr<KeyId> cloneDecryption() const;
+    std::unique_ptr<KeyId> cloneFutureConfigured() const;
 
-    /// @brief The future configured key identifier, if any.
-    ///
-    /// It may either be read from the mongod configuration or initialized
-    /// during master key generation and subsequent saving to the key
-    /// management facility.
-    /// It is meant to be saved to the storage engine metadata (specifically,
-    /// to storage engine encryption options) if differs from the present
-    /// configured key identifier.
-    std::unique_ptr<KeyId> futureConfigured;
+    bool hasConfigured() const;
+    bool hasDecryption() const;
+    bool hasFutureConfigured() const;
+
+    void setConfigured(std::unique_ptr<KeyId> id);
+    void setDecryption(std::unique_ptr<KeyId> id);
+    void setFutureConfigured(std::unique_ptr<KeyId> id);
+
+    /// Sets `decryption` and, if `configured` is empty and the id must be
+    /// written to storage.bson, also sets `futureConfigured` to a clone.
+    void recordDecryptionKeyId(std::unique_ptr<KeyId> id);
+
+    /// Moves `futureConfigured` into `configured` (rotation / test fixtures).
+    void promoteFutureConfigured();
+
+    void clear();
 
     /// @brief Install a key identifier read from storage.bson for this dbpath.
     ///
@@ -336,6 +337,31 @@ private:
     WtKeyIds(WtKeyIds&&) = delete;
     WtKeyIds& operator=(const WtKeyIds&) = delete;
     WtKeyIds& operator=(WtKeyIds&&) = delete;
+
+    mutable Mutex _mutex = MONGO_MAKE_LATCH("encryption::WtKeyIds::_mutex");
+
+    /// @brief The present configured key identifier, if any.
+    ///
+    /// It is read from the storage engine metadata, specifically from the
+    /// storage engine encryption options.
+    std::unique_ptr<KeyId> _configured;
+
+    /// @brief The identifier of the key the encryption key database is
+    /// decrypted with.
+    ///
+    /// It may either be equal to configured key identifier or read from the
+    /// mongod configuration.
+    std::unique_ptr<KeyId> _decryption;
+
+    /// @brief The future configured key identifier, if any.
+    ///
+    /// It may either be read from the mongod configuration or initialized
+    /// during master key generation and subsequent saving to the key
+    /// management facility.
+    /// It is meant to be saved to the storage engine metadata (specifically,
+    /// to storage engine encryption options) if differs from the present
+    /// configured key identifier.
+    std::unique_ptr<KeyId> _futureConfigured;
 
     std::string _lastAdoptedKmipKeyIdentifier;
     std::string _lastAdoptedVaultSecret;
