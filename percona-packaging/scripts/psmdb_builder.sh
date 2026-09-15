@@ -282,7 +282,7 @@ get_sources(){
         sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || abort '`sed` failed'
     #fi
     go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 -dropreplace golang.org/x/text@v0.31.0 -dropreplace github.com/klauspost/compress@v1.17.8 || abort '`go mod edit` failed'
-    go get golang.org/x/crypto@v0.53.0 golang.org/x/net@v0.56.0 golang.org/x/text@v0.39.0 github.com/klauspost/compress@v1.18.7 || abort '`go get` failed'
+    go get golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/text@v0.41.0 github.com/klauspost/compress@v1.18.7 || abort '`go get` failed'
     go mod tidy || abort '`go mod tidy` failed'
     go mod vendor || abort '`go mod vendor` failed'
 
@@ -342,7 +342,7 @@ install_golang() {
         abort "Unsupported architecture: $ARCH"
     fi
 
-    GO_VERSION="1.26.6"
+    GO_VERSION="1.26.8"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
