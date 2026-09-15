@@ -85,9 +85,7 @@ public:
         encryptionGlobalParams.encryptionCipherMode = "";
         encryptionGlobalParams.encryptionKeyFile = "";
 
-        encryption::WtKeyIds::instance().configured.reset();
-        encryption::WtKeyIds::instance().decryption.reset();
-        encryption::WtKeyIds::instance().futureConfigured.reset();
+        encryption::WtKeyIds::instance().clear();
     }
 
     // Run the basic test:
@@ -117,21 +115,21 @@ public:
     // Run the test with setting the keyId in the 'decryption' field of the WtKeyIds instance.
     void runTest_decryption(std::unique_ptr<encryption::KeyId> keyId,
                             const BSONObj& expectedKeyId) {
-        encryption::WtKeyIds::instance().decryption = std::move(keyId);
+        encryption::WtKeyIds::instance().setDecryption(std::move(keyId));
         runTest(expectedKeyId);
     }
 
     // Run the test with setting the keyId in the 'configured' field of the WtKeyIds instance.
     void runTest_configured(std::unique_ptr<encryption::KeyId> keyId,
                             const BSONObj& expectedKeyId) {
-        encryption::WtKeyIds::instance().configured = std::move(keyId);
+        encryption::WtKeyIds::instance().setConfigured(std::move(keyId));
         runTest(expectedKeyId);
     }
 
     // Run the test with setting the keyId in the 'futureConfigured' field of the WtKeyIds instance.
     void runTest_futureConfigured(std::unique_ptr<encryption::KeyId> keyId,
                                   const BSONObj& expectedKeyId) {
-        encryption::WtKeyIds::instance().futureConfigured = std::move(keyId);
+        encryption::WtKeyIds::instance().setFutureConfigured(std::move(keyId));
         runTest(expectedKeyId);
     }
 
@@ -267,10 +265,10 @@ TEST_F(EncryptionStatusTest, encryptionEnabled_futureConfigured_KeyFilePath) {
 
 // Test that the 'decryption' field has a priority over the 'futureConfigured' field.
 TEST_F(EncryptionStatusTest, encryptionEnabled_decrytion_and_futureConfigured) {
-    encryption::WtKeyIds::instance().futureConfigured =
-        std::make_unique<encryption::KmipKeyId>(kTestKeyId);
-    encryption::WtKeyIds::instance().decryption =
-        std::make_unique<encryption::VaultSecretId>(kTestVaultSecretPath, kTestVaultSecretVersion);
+    encryption::WtKeyIds::instance().setFutureConfigured(
+        std::make_unique<encryption::KmipKeyId>(kTestKeyId));
+    encryption::WtKeyIds::instance().setDecryption(
+        std::make_unique<encryption::VaultSecretId>(kTestVaultSecretPath, kTestVaultSecretVersion));
     runTest(expectedKeyIdField_Vault);
 }
 
