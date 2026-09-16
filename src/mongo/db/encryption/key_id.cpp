@@ -33,7 +33,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
-#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/util/assert_util_core.h"
 #include "mongo/util/str.h"
 
@@ -217,53 +216,6 @@ void KmipKeyId::accept(KeyIdConstVisitor& v) const {
 }
 
 namespace {
-bool canReplaceAdopted(const std::string& current, const std::string& lastAdopted) {
-    return current.empty() || current == lastAdopted;
-}
-
-bool canReplaceAdopted(const boost::optional<std::uint64_t>& current,
-                       const boost::optional<std::uint64_t>& lastAdopted) {
-    return !current || current == lastAdopted;
-}
-
-class AdoptIntoEncryptionParams : public KeyIdConstVisitor {
-public:
-    AdoptIntoEncryptionParams(std::string& lastKmip,
-                              std::string& lastVaultSecret,
-                              boost::optional<std::uint64_t>& lastVaultVersion)
-        : _lastKmip(lastKmip),
-          _lastVaultSecret(lastVaultSecret),
-          _lastVaultVersion(lastVaultVersion) {}
-
-    void visit(const KeyFilePath&) override {}
-    void visit(const VaultSecretId& id) override {
-        auto& p = encryptionGlobalParams;
-        if (canReplaceAdopted(p.vaultSecret, _lastVaultSecret)) {
-            p.vaultSecret = id.path();
-            _lastVaultSecret = id.path();
-        }
-        if (canReplaceAdopted(p.vaultSecretVersion, _lastVaultVersion) &&
-            p.vaultSecret == id.path()) {
-            p.vaultSecretVersion = id.version();
-            _lastVaultVersion = id.version();
-        }
-    }
-    void visit(const KmipKeyId& id) override {
-        auto& p = encryptionGlobalParams;
-        if (canReplaceAdopted(p.kmipKeyIdentifier, _lastKmip)) {
-            p.kmipKeyIdentifier = id.toString();
-            _lastKmip = id.toString();
-        }
-    }
-
-private:
-    std::string& _lastKmip;
-    std::string& _lastVaultSecret;
-    boost::optional<std::uint64_t>& _lastVaultVersion;
-};
-}  // namespace
-
-namespace {
 std::unique_ptr<KeyId> cloneNullable(const std::unique_ptr<KeyId>& id) {
     return id ? id->clone() : nullptr;
 }
@@ -354,19 +306,6 @@ void WtKeyIds::adoptFromStorageMetadata(const KeyId* metadataKeyId) {
     std::lock_guard<std::mutex> lk(_mutex);
     _configured = std::move(cloned);
     _futureConfigured.reset();
-    if (encryptionGlobalParams.shouldRotateMasterKey()) {
-        return;
-    }
-    AdoptIntoEncryptionParams visitor(
-        _lastAdoptedKmipKeyIdentifier, _lastAdoptedVaultSecret, _lastAdoptedVaultSecretVersion);
-    metadataKeyId->accept(visitor);
-}
-
-void WtKeyIds::resetLastAdoptedIdentifiers() {
-    std::lock_guard<std::mutex> lk(_mutex);
-    _lastAdoptedKmipKeyIdentifier.clear();
-    _lastAdoptedVaultSecret.clear();
-    _lastAdoptedVaultSecretVersion.reset();
 }
 
 WtKeyIds& WtKeyIds::instance() {
