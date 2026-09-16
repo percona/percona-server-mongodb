@@ -634,8 +634,14 @@ std::pair<std::unique_ptr<EncryptionKeyDB>, std::unique_ptr<encryption::KeyId>> 
     keyDbDirHook(keyDbDir.string(), keyDbDirIsFresh);
 
     try {
+        // A missing key.db normally means "mint a new master key". If this process
+        // already adopted a key id from storage.bson (FCBIS dummy dbpath has no
+        // key.db but _configured still holds the sync source id), read that key
+        // instead of registering another KMIP/Vault identity. PSMDB-2253.
+        const bool mintNewMasterKey =
+            keyDbDirIsFresh && !encryption::WtKeyIds::instance().hasConfigured();
         auto [masterKey, masterKeyId] =
-            keyDbDirIsFresh ? keyProvider.obtainMasterKey() : keyProvider.readMasterKey();
+            mintNewMasterKey ? keyProvider.obtainMasterKey() : keyProvider.readMasterKey();
         auto keyDb = EncryptionKeyDB::create(keyDbDir.string(), masterKey);
         keyDbDirGuard.dismiss();
         return {std::move(keyDb), std::move(masterKeyId)};
