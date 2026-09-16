@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-present MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#include "common-prelude.h"
-#include "common-config.h"
-#include "common-macros-private.h"
+#include <common-prelude.h>
+#include <common-config.h>
+#include <common-macros-private.h>
 
-#ifndef COMMON_THREAD_PRIVATE_H
-#define COMMON_THREAD_PRIVATE_H
+#ifndef MONGO_C_DRIVER_COMMON_THREAD_PRIVATE_H
+#define MONGO_C_DRIVER_COMMON_THREAD_PRIVATE_H
 
 #define BSON_INSIDE
-#include "bson/bson-compat.h"
-#include "bson/bson-config.h"
-#include "bson/bson-macros.h"
+#include <bson/bson-compat.h>
+#include <bson/bson-config.h>
+#include <bson/bson-macros.h>
 #undef BSON_INSIDE
 
 BSON_BEGIN_DECLS
@@ -206,4 +206,4 @@ bson_shared_mutex_unlock_shared (bson_shared_mutex_t *mtx)
 
 BSON_END_DECLS
 
-#endif /* COMMON_THREAD_PRIVATE_H */
+#endif /* MONGO_C_DRIVER_COMMON_THREAD_PRIVATE_H */

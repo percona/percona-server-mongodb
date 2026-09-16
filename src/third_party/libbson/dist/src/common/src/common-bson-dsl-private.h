@@ -1,10 +1,10 @@
-#include "common-prelude.h"
+#include <common-prelude.h>
 
-#ifndef BSON_BSON_DSL_H_INCLUDED
-#define BSON_BSON_DSL_H_INCLUDED
+#ifndef MONGO_C_DRIVER_COMMON_BSON_DSL_PRIVATE_H
+#define MONGO_C_DRIVER_COMMON_BSON_DSL_PRIVATE_H
 
 /**
- * @file bson-dsl.h
+ * @file common-bson-dsl-private.h
  * @brief Define a C-preprocessor DSL for working with BSON objects
  *
  * This file defines an embedded DSL for working with BSON objects consisely and
@@ -13,7 +13,8 @@
  * For more information about using this DSL, refer to `bson-dsl.md`.
  */
 
-#include "bson/bson.h"
+#include <bson/bson.h>
+#include <common-cmp-private.h>
 
 enum {
    /// Toggle this value to enable/disable debug output for all bsonDSL
@@ -118,7 +119,7 @@ BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\""))
    _bsonDSL_begin ("\"%s\" => [%s]", String, _bsonDSL_strElide (30, Element)); \
    const char *_bbString = (String);                                           \
    const uint64_t length = (Len);                                              \
-   if (bson_in_range_unsigned (int, length)) {                                 \
+   if (mcommon_in_range_unsigned (int, length)) {                              \
       _bbCtx.key = _bbString;                                                  \
       _bbCtx.key_len = (int) length;                                           \
       _bsonValueOperation (Element);                                           \
@@ -244,6 +245,13 @@ BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\""))
       ((void) 0)
 #define _bsonArrayOperation_boolean(X) _bsonArrayAppendValue (boolean (X))
 #define _bsonValueOperation_boolean(b) _bsonValueOperation_bool (b)
+
+#define _bsonValueOperation_oid(o)                                        \
+   if (!bson_append_oid (_bsonBuildAppendArgs, (o))) {                    \
+      bsonBuildError = "Error while appending oid(" _bsonDSL_str (o) ")"; \
+   } else                                                                 \
+      ((void) 0)
+#define _bsonArrayOperation_oid(X) _bsonArrayAppendValue (oid (X))
 
 #define _bsonValueOperation_null                       \
    if (!bson_append_null (_bsonBuildAppendArgs)) {     \
@@ -733,8 +741,8 @@ BSON_IF_GNU_LIKE (_Pragma ("GCC diagnostic ignored \"-Wshadow\""))
 
 #define _bsonPredicate_Condition_1 1
 #define _bsonPredicate_Condition_0 0
-#define _bsonPredicate_Condition_true true
-#define _bsonPredicate_Condition_false false
+#define _bsonPredicate_Condition_always true
+#define _bsonPredicate_Condition_never false
 
 #define _bsonPredicate_Condition_isTrue (bson_iter_as_bool (&bsonVisitIter))
 #define _bsonPredicate_Condition_isFalse (!bson_iter_as_bool (&bsonVisitIter))
@@ -1273,4 +1281,4 @@ _bsonVisitIterAs_boolean (void)
 // clang-format on
 
 
-#endif // BSON_BSON_DSL_H_INCLUDED
+#endif // MONGO_C_DRIVER_COMMON_BSON_DSL_PRIVATE_H

@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,19 +38,19 @@ typedef struct {
 
 
 BSON_EXPORT (bson_string_t *)
-bson_string_new (const char *str);
+bson_string_new (const char *str) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (char *)
-bson_string_free (bson_string_t *string, bool free_segment);
+bson_string_free (bson_string_t *string, bool free_segment) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (void)
-bson_string_append (bson_string_t *string, const char *str);
+bson_string_append (bson_string_t *string, const char *str) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (void)
-bson_string_append_c (bson_string_t *string, char str);
+bson_string_append_c (bson_string_t *string, char str) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (void)
-bson_string_append_unichar (bson_string_t *string, bson_unichar_t unichar);
+bson_string_append_unichar (bson_string_t *string, bson_unichar_t unichar) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (void)
-bson_string_append_printf (bson_string_t *string, const char *format, ...) BSON_GNUC_PRINTF (2, 3);
+bson_string_append_printf (bson_string_t *string, const char *format, ...) BSON_GNUC_PRINTF (2, 3) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (void)
-bson_string_truncate (bson_string_t *string, uint32_t len);
+bson_string_truncate (bson_string_t *string, uint32_t len) BSON_GNUC_DEPRECATED;
 BSON_EXPORT (char *)
 bson_strdup (const char *str);
 BSON_EXPORT (char *)

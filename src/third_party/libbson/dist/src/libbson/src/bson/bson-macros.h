@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 MongoDB, Inc.
+ * Copyright 2009-present MongoDB, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 #include <algorithm>
@@ -190,24 +191,52 @@
 #define BSON_FUNC __func__
 #endif
 
-#define BSON_ASSERT(test)                                                                                 \
-   do {                                                                                                   \
-      if (!(BSON_LIKELY (test))) {                                                                        \
-         fprintf (stderr, "%s:%d %s(): precondition failed: %s\n", __FILE__, __LINE__, BSON_FUNC, #test); \
-         abort ();                                                                                        \
-      }                                                                                                   \
+
+#if defined(_MSC_VER)
+#define BSON_INLINE __inline
+#else
+#define BSON_INLINE __inline__
+#endif
+
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#define BSON_NORETURN [[noreturn]]
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define BSON_NORETURN _Noreturn
+#elif defined(__GNUC__) && 2 < __GNUC__ + (8 <= __GNUC_MINOR__)
+#define BSON_NORETURN __attribute__ ((__noreturn__))
+#else
+#define BSON_NORETURN
+#endif
+
+
+BSON_NORETURN static BSON_INLINE void
+_bson_assert_failed_on_line (const char *file, int line, const char *func, const char *test)
+{
+   fprintf (stderr, "%s:%d %s(): assertion failed: %s\n", file, line, func, test);
+   abort ();
+}
+
+BSON_NORETURN static BSON_INLINE void
+_bson_assert_failed_on_param (const char *param, const char *func)
+{
+   fprintf (stderr, "The parameter: %s, in function %s, cannot be NULL\n", param, func);
+   abort ();
+}
+
+#define BSON_ASSERT(test)                                                            \
+   do {                                                                              \
+      if (!(BSON_LIKELY (test))) {                                                   \
+         _bson_assert_failed_on_line (__FILE__, (int) (__LINE__), BSON_FUNC, #test); \
+      }                                                                              \
    } while (0)
 
 /**
  * @brief Assert the expression `Assertion`, and evaluates to `Value` on
  * success.
  */
-#define BSON_ASSERT_INLINE(Assertion, Value)                                                                         \
-   ((void) ((Assertion)                                                                                              \
-               ? (0)                                                                                                 \
-               : ((fprintf (stderr, "%s:%d %s(): Assertion '%s' failed", __FILE__, __LINE__, BSON_FUNC, #Assertion), \
-                   abort ()),                                                                                        \
-                  0)),                                                                                               \
+#define BSON_ASSERT_INLINE(Assertion, Value)                                                                           \
+   ((void) ((Assertion) ? (0) : (_bson_assert_failed_on_line (__FILE__, (int) (__LINE__), BSON_FUNC, #Assertion), 0)), \
     Value)
 
 /**
@@ -224,13 +253,16 @@
 #define BSON_ASSERT_PTR_INLINE(Pointer) BSON_ASSERT_INLINE ((Pointer) != NULL, (Pointer))
 
 /* Used for asserting parameters to provide a more precise error message */
-#define BSON_ASSERT_PARAM(param)                                                                     \
-   do {                                                                                              \
-      if ((BSON_UNLIKELY (param == NULL))) {                                                         \
-         fprintf (stderr, "The parameter: %s, in function %s, cannot be NULL\n", #param, BSON_FUNC); \
-         abort ();                                                                                   \
-      }                                                                                              \
+#define BSON_ASSERT_PARAM(param)                           \
+   do {                                                    \
+      if ((BSON_UNLIKELY (param == NULL))) {               \
+         _bson_assert_failed_on_param (#param, BSON_FUNC); \
+      }                                                    \
    } while (0)
+
+// `BSON_OPTIONAL_PARAM` is a documentation-only macro to document X may be NULL.
+// Useful in combination with `BSON_ASSERT_PARAM` to document and assert pointer parameters.
+#define BSON_OPTIONAL_PARAM(param) (void) 0
 
 /* obsolete macros, preserved for compatibility */
 #define BSON_STATIC_ASSERT(s) BSON_STATIC_ASSERT_ (s, __LINE__)
@@ -289,13 +321,6 @@
 #endif
 
 
-#if defined(_MSC_VER)
-#define BSON_INLINE __inline
-#else
-#define BSON_INLINE __inline__
-#endif
-
-
 #ifdef _MSC_VER
 #define BSON_ENSURE_ARRAY_PARAM_SIZE(_n)
 #define BSON_TYPEOF decltype
@@ -345,10 +370,10 @@
  * @param What A string to include in the error message if this point is ever
  * executed.
  */
-#define BSON_UNREACHABLE(What)                                                                             \
-   do {                                                                                                    \
-      fprintf (stderr, "%s:%d %s(): Unreachable code reached: %s\n", __FILE__, __LINE__, BSON_FUNC, What); \
-      abort ();                                                                                            \
+#define BSON_UNREACHABLE(What)                                                                                     \
+   do {                                                                                                            \
+      fprintf (stderr, "%s:%d %s(): Unreachable code reached: %s\n", __FILE__, (int) (__LINE__), BSON_FUNC, What); \
+      abort ();                                                                                                    \
    } while (0)
 
 /**
@@ -361,5 +386,18 @@
    do {                   \
       (void) (expr);      \
    } while (0)
+
+// Disable the -Wunsafe-buffer-usage warning.
+#define BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_BEGIN
+#define BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_END
+#if defined(__clang__)
+#if __has_warning("-Wunsafe-buffer-usage")
+#undef BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_BEGIN
+#undef BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_END
+#define BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_BEGIN \
+   _Pragma ("clang diagnostic push") _Pragma ("clang diagnostic ignored \"-Wunsafe-buffer-usage\"")
+#define BSON_DISABLE_UNSAFE_BUFFER_USAGE_WARNING_END _Pragma ("clang diagnostic pop")
+#endif // __has_warning("-Wunsafe-buffer-usage")
+#endif // defined(__clang__)
 
 #endif /* BSON_MACROS_H */

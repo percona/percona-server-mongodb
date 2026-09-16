@@ -5,7 +5,7 @@
 
 #include <bson/bson-prelude.h>
 
-/*    Copyright 2009-2013 MongoDB, Inc.
+/*    Copyright 2009-present MongoDB, Inc.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #ifndef BCON_H_
 #define BCON_H_
 
-#include "bson.h"
+#include <bson/bson.h>
 
 
 BSON_BEGIN_DECLS
