@@ -42,7 +42,6 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 namespace mongo {
 class BSONObj;
 class BSONObjBuilder;
-class EncryptionGlobalParams;
 
 namespace encryption {
 class KeyIdConstVisitor;
@@ -308,27 +307,15 @@ public:
 
     /// @brief Install a key identifier read from storage.bson for this dbpath.
     ///
-    /// When `metadataKeyId` is non-null: sets `configured`, clears stale
+    /// When `metadataKeyId` is non-null: sets `configured` and clears stale
     /// `futureConfigured` (which may belong to a previous dbpath in the same
-    /// process, e.g. FCBIS empty-dir key generation), and copies the id into
-    /// KMIP/Vault fields of `encryptionGlobalParams` unless master-key rotation
-    /// is in effect. A field is filled if it is empty or still equal to the last
-    /// value this function adopted, so a later dbpath (FCBIS restore, or a retry
-    /// against a different source) can replace a previously adopted id.
-    /// Operator-set values are never overwritten.
+    /// process, e.g. FCBIS empty-dir key generation). Does not modify
+    /// `encryptionGlobalParams`.
     ///
-    /// When `metadataKeyId` is null: no-op on `configured` / `futureConfigured`
-    /// and does not clear identifier fields of `encryptionGlobalParams`. FCBIS
-    /// uses a `.dummy` dbpath with no storage.bson; leftover adopted identifiers
-    /// must remain so the process does not mint a new KMIP key.
+    /// When `metadataKeyId` is null: no-op on `configured` / `futureConfigured`.
+    /// FCBIS uses a `.dummy` dbpath with no storage.bson; leftover `_configured`
+    /// must remain so `createKeyDb` reads that key instead of minting a new one.
     void adoptFromStorageMetadata(const KeyId* metadataKeyId);
-
-    /// @brief Forget identifiers previously written into `encryptionGlobalParams`.
-    ///
-    /// Unit tests call this from fixture setup so cases do not leak adopted
-    /// values into each other. Production code does not call it: a null
-    /// `metadataKeyId` must leave last-adopted state intact (dummy dbpath).
-    void resetLastAdoptedIdentifiers();
 
 private:
     ~WtKeyIds() = default;
@@ -362,10 +349,6 @@ private:
     /// to storage engine encryption options) if differs from the present
     /// configured key identifier.
     std::unique_ptr<KeyId> _futureConfigured;
-
-    std::string _lastAdoptedKmipKeyIdentifier;
-    std::string _lastAdoptedVaultSecret;
-    std::optional<std::uint64_t> _lastAdoptedVaultSecretVersion;
 };
 }  // namespace encryption
 }  // namespace mongo

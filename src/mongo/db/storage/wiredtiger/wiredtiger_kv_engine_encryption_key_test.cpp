@@ -596,6 +596,20 @@ TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest, KmipKeyIsGeneratedIfNoIdInP
 }
 
 TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
+       ConfiguredKmipKeyIdIsUsedIfKeyDbIsFreshAndNoIdInParams) {
+    // FCBIS dummy dbpath: no key.db, but WtKeyIds still holds the id adopted from
+    // the previous dbpath's storage.bson. Must read that key, not mint a new one.
+    const KmipKeyId id("2");
+    WtKeyIds::instance().setConfigured(id.clone());
+    encryptionGlobalParams = encryptionParamsKmip();
+
+    _engine = _createWiredTigerKVEngine();
+    ASSERT_EQ(_engine->getEncryptionKeyDB()->masterKey(), _kmipServer.readKey(id)->first);
+    ASSERT_EQ(toJsonText(*WtKeyIds::instance().cloneDecryption()), toJsonText(id));
+    ASSERT_FALSE(_kmipServer.readKey(KmipKeyId("3")));
+}
+
+TEST_F(WiredTigerKVEngineEncryptionKeyNewEngineTest,
        KeyStatePollingIsEnabledByDefaultForGeneratedKmipKey) {
     encryptionGlobalParams = encryptionParamsKmip();
 
