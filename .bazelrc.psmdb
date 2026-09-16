@@ -85,6 +85,7 @@ common:psmdb_clang_tidy --//bazel/config:compiler_type=clang
 common:psmdb_clang_tidy --keep_going
 common:psmdb_clang_tidy --aspects @bazel_clang_tidy//clang_tidy:clang_tidy.bzl%clang_tidy_aspect
 common:psmdb_clang_tidy --output_groups=report
+common:psmdb_clang_tidy --//bazel/config:use_diagnostic_latches=True
 
 # Profile for building the `install-mongo_fuzzer_test` target
 --config=psmdb_fuzzer
