@@ -29,7 +29,6 @@ mongo_cc_library(
     deps = [
         "//src/mongo:base",
         "//src/mongo/base:secure_allocator",
-        "//src/mongo/db/encryption:encryption_options",
     ],
 )
 
