@@ -14,24 +14,20 @@
  * limitations under the License.
  */
 
-#include <bson/bson-prelude.h>
+#include <common-oid-private.h>
 
+const bson_oid_t kZeroObjectId = {{0}};
 
-#ifndef BSON_ISO8601_PRIVATE_H
-#define BSON_ISO8601_PRIVATE_H
-
-
-#include <bson/bson-compat.h>
-#include <bson/bson-macros.h>
-#include <common-string-private.h>
-
-
-BSON_BEGIN_DECLS
+void
+mcommon_oid_set_zero (bson_oid_t *oid)
+{
+   BSON_ASSERT (oid);
+   memset (oid, 0, sizeof *oid);
+}
 
 bool
-_bson_iso8601_date_parse (const char *str, int32_t len, int64_t *out, bson_error_t *error);
-
-BSON_END_DECLS
-
-
-#endif /* BSON_ISO8601_PRIVATE_H */
+mcommon_oid_is_zero (const bson_oid_t *oid)
+{
+   BSON_ASSERT (oid);
+   return bson_oid_equal_unsafe (oid, &kZeroObjectId);
+}

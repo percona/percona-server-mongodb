@@ -14,24 +14,26 @@
  * limitations under the License.
  */
 
-#include <bson/bson-prelude.h>
+#include <common-prelude.h>
 
+#ifndef MONGO_C_DRIVER_COMMON_MD5_PRIVATE_H
+#define MONGO_C_DRIVER_COMMON_MD5_PRIVATE_H
 
-#ifndef BSON_ISO8601_PRIVATE_H
-#define BSON_ISO8601_PRIVATE_H
-
-
-#include <bson/bson-compat.h>
-#include <bson/bson-macros.h>
-#include <common-string-private.h>
-
+#include <bson/bson.h>
 
 BSON_BEGIN_DECLS
 
-bool
-_bson_iso8601_date_parse (const char *str, int32_t len, int64_t *out, bson_error_t *error);
+#define mcommon_md5_init COMMON_NAME (md5_init)
+#define mcommon_md5_append COMMON_NAME (md5_append)
+#define mcommon_md5_finish COMMON_NAME (md5_finish)
+
+void
+mcommon_md5_init (bson_md5_t *pms);
+void
+mcommon_md5_append (bson_md5_t *pms, const uint8_t *data, uint32_t nbytes);
+void
+mcommon_md5_finish (bson_md5_t *pms, uint8_t digest[16]);
 
 BSON_END_DECLS
 
-
-#endif /* BSON_ISO8601_PRIVATE_H */
+#endif /* MONGO_C_DRIVER_COMMON_MD5_PRIVATE_H */
