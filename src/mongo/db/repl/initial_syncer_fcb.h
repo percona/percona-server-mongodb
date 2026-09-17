@@ -477,6 +477,15 @@ private:
     StatusWith<std::vector<std::string>> _getBackupFiles(OperationContext* opCtx);
 
     /**
+     * Explicitly fetches the sync source's storage engine metadata file ('storage.bson') via
+     * $_backupFile and stages it under '.initialsync', since $backupCursor's file enumeration
+     * does not include it. Any clone failure is returned: production mongod always writes
+     * this file at startup, so a sync source that can run $_backupFile already has it.
+     * - Callers must hold _mutex; temporarily unlocks and relocks the provided lock.
+     */
+    Status _fetchStorageMetadataFile(stdx::unique_lock<Latch>& lock);
+
+    /**
      * Switches the storage location to 'newLocation'.
      * - Callers must ensure that _mutex is NOT held.
      * - Caller must hold a GlobalLock (MODE_X) while calling this method.
