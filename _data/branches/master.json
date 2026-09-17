@@ -5,7 +5,7 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": true,
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-16 06:11:16",
+  "generated_at": "2026-09-17 06:11:47",
   "branch_name": "master",
   "display_name": "master"
 }
