@@ -3,9 +3,263 @@
   "upstream_branch": "master",
   "fork_ref": "HEAD",
   "upstream_ref": "mongodb/master",
-  "is_up_to_date": true,
+  "is_up_to_date": false,
+  "divergence": {
+    "commits_behind": 15,
+    "days_behind": 7,
+    "unmerged_oldest_age_days": 7.5949528048379635,
+    "files_affected": 135,
+    "total_additions": 7739,
+    "total_deletions": 1952,
+    "date_range": {
+      "first": "2026-09-10T15:54:13+00:00",
+      "last": "2026-09-10T23:24:50+00:00"
+    }
+  },
+  "last_merged_commit": {
+    "sha": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "short_sha": "6d990baca59",
+    "date": "2026-09-10T15:26:42+00:00",
+    "author": {
+      "name": "Evan Bergeron",
+      "email": "evanbergeron@users.noreply.github.com"
+    },
+    "summary": "SERVER-134703 Skip test-only verification of authorization for releaseMemory command (#62435)"
+  },
+  "first_unmerged_commit": {
+    "sha": "fb63609c30663bb663e5353c7480b2bf486a58fe",
+    "short_sha": "fb63609c306",
+    "date": "2026-09-10T15:54:13+00:00",
+    "author": {
+      "name": "Daniel Moody",
+      "email": "dmoody256@gmail.com"
+    },
+    "summary": "SERVER-132779: Add seven-day delay to Copybara master sync (#60232)"
+  },
+  "gate": {
+    "open": true,
+    "reason": "force:conflict"
+  },
+  "unmerged_commits": [
+    {
+      "sha": "e3c6672520f0ba344048eb4abf76f8969e0b8aa5",
+      "short_sha": "e3c6672520f",
+      "date": "2026-09-10T23:24:50+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-127985 Reject regex matches that do not lay on UTF-8 character… (#54844)"
+    },
+    {
+      "sha": "87a7b9cfdba69b6b2960a10680892423d574c12a",
+      "short_sha": "87a7b9cfdba",
+      "date": "2026-09-10T23:14:05+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 7c3c4c32bd46f7c76c8cc191380c0f5d169bb90f from branch mongodb-master (#62536)"
+    },
+    {
+      "sha": "b7fa273abffa1294361f08a08d99ed613604d494",
+      "short_sha": "b7fa273abff",
+      "date": "2026-09-10T22:36:36+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129061 Auto-generated SBOM files [master] (#62352)"
+    },
+    {
+      "sha": "1a3b7c1f05d84cc4cd02b1e6aed168ac9ab3a0bc",
+      "short_sha": "1a3b7c1f05d",
+      "date": "2026-09-10T20:57:55+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-134439 Gate $_internalFromPipeline serialization on featureFlagExtensionsInsideHybridSearch (#62218)"
+    },
+    {
+      "sha": "94ce469e631b07923669f5ec8d5cd763e7428b44",
+      "short_sha": "94ce469e631",
+      "date": "2026-09-10T19:23:05+00:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134410 Fix quadratic document-stream generation in the timeseries write-path PBT arbitraries, and restore kCount coverage (#62496)"
+    },
+    {
+      "sha": "aa3a9f83696817b2f4e1d3ee7e01e03d47899086",
+      "short_sha": "aa3a9f83696",
+      "date": "2026-09-10T18:47:11+00:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-134246 Make initializing the fast count containers resilient to write conflicts (#62145)"
+    },
+    {
+      "sha": "976298316f71bf61336ff7b2b1bcfb68774f32b4",
+      "short_sha": "976298316f7",
+      "date": "2026-09-10T18:44:07+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-133538: Dynamically calculate DSC oplog truncate marker size (#61064)"
+    },
+    {
+      "sha": "d90198545570a396b3c677874173c4d914124645",
+      "short_sha": "d9019854557",
+      "date": "2026-09-10T18:39:05+00:00",
+      "author": {
+        "name": "Nathan Frank",
+        "email": "nathantfrank@users.noreply.github.com"
+      },
+      "summary": "SERVER-133845: add capture operators (#62217)"
+    },
+    {
+      "sha": "3bacc45f90699ce3a08ff4328ae2b2a3f663dc1b",
+      "short_sha": "3bacc45f906",
+      "date": "2026-09-10T18:03:31+00:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-134409 enable extensions integration tests on ppc & s390x (#62400)"
+    },
+    {
+      "sha": "0cba2741cfb2fdec30e1222b51b7b789d73efc19",
+      "short_sha": "0cba2741cfb",
+      "date": "2026-09-10T17:48:59+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-134810 Remove container writes guard in validate_state_test.cpp (#62544)"
+    },
+    {
+      "sha": "f8768c6320abeabd24567c0b9a8485b148beb4cb",
+      "short_sha": "f8768c6320a",
+      "date": "2026-09-10T17:35:19+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-132882 Consolidate and rename OplogEntryGroupType grouping modes (#60764)"
+    },
+    {
+      "sha": "fc15a90750ed7e7dfe3af01663af6ab43ea06f8e",
+      "short_sha": "fc15a90750e",
+      "date": "2026-09-10T17:29:00+00:00",
+      "author": {
+        "name": "Kyra Ramesh Krishna",
+        "email": "60921433+kyra-rk@users.noreply.github.com"
+      },
+      "summary": "SERVER-134779: Wait for priority port reconfig to replicate to all nodes before issuing writes in priority_port_replication_usage.js (#62504)"
+    },
+    {
+      "sha": "6b852847ff2643fb7873fa38ffdef5165f612e16",
+      "short_sha": "6b852847ff2",
+      "date": "2026-09-10T17:19:29+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-134375 Move pipelined oplog applier into the replication subdirectory (#62552)"
+    },
+    {
+      "sha": "ed5bce75aaed7c6ad4ce95ac41534a21b3f35070",
+      "short_sha": "ed5bce75aae",
+      "date": "2026-09-10T16:27:01+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-134239 Link retryable atomic batched writes into the session history chain (#62545)"
+    },
+    {
+      "sha": "fb63609c30663bb663e5353c7480b2bf486a58fe",
+      "short_sha": "fb63609c306",
+      "date": "2026-09-10T15:54:13+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-132779: Add seven-day delay to Copybara master sync (#60232)"
+    }
+  ],
+  "merge_picks": [
+    {
+      "commit": {
+        "sha": "f8768c6320abeabd24567c0b9a8485b148beb4cb",
+        "short_sha": "f8768c6320a",
+        "date": "2026-09-10T17:35:19+00:00",
+        "author": {
+          "name": "Shin Yee Tan",
+          "email": "shinyee.tan@mongodb.com"
+        },
+        "summary": "SERVER-132882 Consolidate and rename OplogEntryGroupType grouping modes (#60764)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 29,
+          "num_of_lines": 465,
+          "lines_added": 211,
+          "lines_deleted": 254,
+          "num_of_dirs": 14
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b7fa273abffa1294361f08a08d99ed613604d494",
+        "short_sha": "b7fa273abff",
+        "date": "2026-09-10T22:36:36+00:00",
+        "author": {
+          "name": "mongo-pr-bot[bot]",
+          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "SERVER-129061 Auto-generated SBOM files [master] (#62352)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "sbom.json"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "87a7b9cfdba69b6b2960a10680892423d574c12a",
+        "short_sha": "87a7b9cfdba",
+        "date": "2026-09-10T23:14:05+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 7c3c4c32bd46f7c76c8cc191380c0f5d169bb90f from branch mongodb-master (#62536)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 46,
+          "num_of_lines": 5095,
+          "lines_added": 3627,
+          "lines_deleted": 1468,
+          "num_of_dirs": 16
+        }
+      }
+    }
+  ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-17 06:11:47",
+  "generated_at": "2026-09-18 06:10:43",
   "branch_name": "master",
   "display_name": "master"
 }
