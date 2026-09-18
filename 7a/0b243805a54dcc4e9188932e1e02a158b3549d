@@ -1,0 +1,218 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8336ff707434420f9a9e90251ddd8ca761aabb58",
+    "merge_commit": "87a7b9cfdba69b6b2960a10680892423d574c12a"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "8336ff707434420f9a9e90251ddd8ca761aabb58",
+    "theirs_commit": "87a7b9cfdba69b6b2960a10680892423d574c12a",
+    "base_commit": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex 217e761d899,fd8ed9fee5c..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -14,0 -14,6 +14,16 @@@\n++<<<<<<< HEAD\n++||||||| 6d990baca59\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1133\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1141\"\n+       }\n+     ],\n++>>>>>>> 87a7b9cfdba69b6b2960a10680892423d574c12a"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "b7fa273abffa1294361f08a08d99ed613604d494"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "87a7b9cfdba69b6b2960a10680892423d574c12a",
+    "merged_commits": [
+      "87a7b9cfdba69b6b2960a10680892423d574c12a",
+      "b7fa273abffa1294361f08a08d99ed613604d494",
+      "1a3b7c1f05d84cc4cd02b1e6aed168ac9ab3a0bc",
+      "94ce469e631b07923669f5ec8d5cd763e7428b44",
+      "aa3a9f83696817b2f4e1d3ee7e01e03d47899086",
+      "976298316f71bf61336ff7b2b1bcfb68774f32b4",
+      "d90198545570a396b3c677874173c4d914124645",
+      "3bacc45f90699ce3a08ff4328ae2b2a3f663dc1b",
+      "0cba2741cfb2fdec30e1222b51b7b789d73efc19",
+      "f8768c6320abeabd24567c0b9a8485b148beb4cb",
+      "fc15a90750ed7e7dfe3af01663af6ab43ea06f8e",
+      "6b852847ff2643fb7873fa38ffdef5165f612e16",
+      "ed5bce75aaed7c6ad4ce95ac41534a21b3f35070",
+      "fb63609c30663bb663e5353c7480b2bf486a58fe"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 53654,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.21810525000000003,
+    "modelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 979,
+        "outputTokens": 15,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.001054,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "thinkingTokens": 0,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty",
+        "costBasis": "list"
+      },
+      "claude-opus-4-8": {
+        "inputTokens": 14,
+        "outputTokens": 3166,
+        "cacheReadInputTokens": 108775,
+        "cacheCreationInputTokens": 13351,
+        "webSearchRequests": 0,
+        "costUSD": 0.21705125000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 168,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-haiku-4-5-20251001": {
+          "tokens": {
+            "input": 979,
+            "output": 15,
+            "cache_read": 0,
+            "cache_creation": 0
+          },
+          "cost_usd": 0.001054
+        },
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 14,
+            "output": 3166,
+            "cache_read": 108775,
+            "cache_creation": 13351
+          },
+          "cost_usd": 0.21705125000000003
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge and written the JSON response.\n\nSummary of what the merge (`6d990baca59` \u2192 `87a7b9cfdba`) introduces:\n\n- **sbom.json** \u2014 the only real conflict (both modified). Upstream bumped the Endor Labs tool version and reordered two linenoise occurrence entries. Resolved per Percona policy by dropping the `metadata.tools` section and keeping the Percona supplier URL.\n- **error_codes.yml** \u2014 adds sequential error code 526 `StreamProcessorPreviewConnectTimeout`.\n- **conn_api.c** \u2014 adds a WiredTiger `cache_top` debug/verbose feature (`__wt_cache_top_report`, `WT_VERB_CACHE_TOP`).\n- **wiredtiger.h.in** \u2014 generated header updates for cache_top (new verbose category, config flag, and stat macros); the large line count is mechanical renumbering of `WT_STAT_*` constants.\n\nThe response file was validated as well-formed JSON.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commit 87a7b9cfdba into the Percona fork's master. The incoming changes add a new server error code (StreamProcessorPreviewConnectTimeout, 526), introduce a WiredTiger 'cache_top' debug/verbose feature that reports the tables consuming the most cache (with accompanying renumbering of WT_STAT_* constants in the generated header), and bump the Endor Labs tool version and reorder linenoise occurrence entries in sbom.json. The sbom.json conflict was resolved by dropping the metadata.tools section per Percona SBOM policy.",
+      "auto_merged": {
+        "sbom.json": "Upstream bumped the 'Endor Labs Inc' tool version from v1.7.1133 to v1.7.1141 and swapped the order of two 'occurrences' locations (src/mongo/shell/linenoise.h and linenoise.cpp). This file was in conflict ('both modified'): per Percona's SBOM policy the metadata.tools section (the Endor Labs entry) must be removed entirely, keeping Percona's supplier url; the tool-version bump therefore does not apply to the resolved file.",
+        "src/mongo/base/error_codes.yml": "Adds a new error code 526, StreamProcessorPreviewConnectTimeout, tagged with categories StreamProcessorUserError and StreamProcessorRetryableError, inserted after code 525 (BSONInternalError) and before the 'Add new codes' sentinel comment.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Adds a new 'cache_top' debug-info option: in __conn_debug_info a config lookup for 'cache_top' now calls __wt_cache_top_report(session) when set. Also registers a new verbose category 'cache_top' (WT_VERB_CACHE_TOP) in the verbtypes table of __wt_get_verbose_categories, placed before the 'checkpoint' entry.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated WiredTiger header updated for the new cache_top feature: adds the WT_VERB_CACHE_TOP verbose category ('Largest cache consumer messages.'), documents a new 'cache_top' @config boolean flag and adds it to the verbose category list, and defines new statistics macros (WT_STAT_CONN_CACHE_TOP_DIRTY_PCT, WT_STAT_CONN_CACHE_TOP5_DIRTY_PCT, WT_STAT_CONN_CACHE_TOP_UPDATES_PCT, WT_STAT_CONN_CACHE_TOP5_UPDATES_PCT, WT_STAT_CONN_CACHE_TOP_INUSE_PCT, WT_STAT_CONN_CACHE_TOP5_INUSE_PCT). The bulk of the ~762 insertions/737 deletions is the resulting sequential renumbering of the WT_STAT_* constant values."
+      },
+      "review_notes": "sbom.json was the only true conflict ('both modified') and was resolved per the Conflict Hints: the metadata.tools/Endor Labs section is removed and Percona's supplier url (https://percona.com) is preserved. The other three files auto-merged cleanly. The large line count in wiredtiger.h.in is a mechanical renumbering of WT_STAT_* stat constants caused by inserting the new cache_top statistics, not logic changes. Verify the WiredTiger conn_api.c change references a real __wt_cache_top_report symbol pulled in by this upstream update. The new error code 526 is a standard sequential addition."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The diff shows the wiredtiger.h.in changes are the new `cache_top` verbose category/config plus a large renumbering of `WT_STAT_*` constants. Now I'll write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I included a stray duplicate key. Let me fix the JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Edit"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge and written the JSON response.\n\nSummary of what the merge (`6d990baca59` \u2192 `87a7b9cfdba`) introduces:\n\n- **sbom.json** \u2014 the only real conflict (both modified). Upstream bumped the Endor Labs tool version and reordered two linenoise occurrence entries. Resolved per Percona policy by dropping the `metadata.tools` section and keeping the Percona supplier URL.\n- **error_codes.yml** \u2014 adds sequential error code 526 `StreamProcessorPreviewConnectTimeout`.\n- **conn_api.c** \u2014 adds a WiredTiger `cache_top` debug/verbose feature (`__wt_cache_top_report`, `WT_VERB_CACHE_TOP`).\n- **wiredtiger.h.in** \u2014 generated header updates for cache_top (new verbose category, config flag, and stat macros); the large line count is mechanical renumbering of `WT_STAT_*` constants.\n\nThe response file was validated as well-formed JSON."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260918_051628_047958.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.276 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "87a7b9cfdba69b6b2960a10680892423d574c12a",
+    "short_sha": "87a7b9cfdba",
+    "strategy": "huge_commit",
+    "summary": "The WiredTiger vendored import (87a7b9c) is an ideal merge boundary: a large, self-contained third-party import touching an isolated set of files that rarely depends on the commits after it and is easy to validate post-merge. Cutting here pulls in 14 of the 15 window commits, which includes the SBOM auto-generated commit (b7fa273) that triggered the conflict gate, so the conflict is resolved within this batch. It also leaves the freshest candidate (e3c6672, the regex/UTF-8 change) for the next batch per the 'stop short of unsettled commits' rule, rather than ending on the very newest commit. The commits in range are independent bug fixes and feature work with no split coherent unit or revert pair being broken across the boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/35309863918"
+  }
+}
