@@ -89,6 +89,18 @@ extensions_with_config(
     ],
 )
 
+# Extension .so's used by signature_validator_test and rnp_test to validate GPG signatures. Built
+# with extensions_transition so they share a configuration with load_extension_test_extensions
+# below (both wrap foo_mongo_extension_signed_lib and read_n_documents_mongo_extension_signed_lib)
+# instead of colliding with it in the install-mongo_unittest output tree.
+extensions_with_config(
+    name = "signature_test_extensions",
+    srcs = [
+        ":foo_mongo_extension_signed_lib",
+        ":read_n_documents_mongo_extension_signed_lib",
+    ],
+)
+
 # Extension .so's used by load_extension_test.cpp. Built with extensions_transition so they
 # are linked statically like jstest extensions.
 extensions_with_config(
