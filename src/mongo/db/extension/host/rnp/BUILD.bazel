@@ -33,8 +33,7 @@ mongo_cc_unit_test(
         "//src/mongo/db/extension/host:embed_mongot_key",
     ],
     data = [
-        "//src/mongo/db/extension/test_examples:foo_mongo_extension_signed_lib",
-        "//src/mongo/db/extension/test_examples:read_n_documents_mongo_extension_signed_lib",
+        "//src/mongo/db/extension/test_examples:signature_test_extensions",
         "//src/mongo/db/extension/test_examples/test_extensions_signing_keys:test_extensions_signing_public_key.asc",
     ],
     tags = ["mongo_unittest_fifth_group"],
