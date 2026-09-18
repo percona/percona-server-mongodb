@@ -11,6 +11,22 @@
         "phase": "pre-build"
       }
     ],
+<<<<<<< HEAD
+||||||| 6d990baca59
+    "tools": [
+      {
+        "name": "Endor Labs Inc",
+        "version": "v1.7.1133"
+      }
+    ],
+=======
+    "tools": [
+      {
+        "name": "Endor Labs Inc",
+        "version": "v1.7.1141"
+      }
+    ],
+>>>>>>> 87a7b9cfdba69b6b2960a10680892423d574c12a
     "component": {
       "type": "application",
       "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
@@ -260,10 +276,10 @@
       "evidence": {
         "occurrences": [
           {
-            "location": "src/mongo/shell/linenoise.h"
+            "location": "src/mongo/shell/linenoise.cpp"
           },
           {
-            "location": "src/mongo/shell/linenoise.cpp"
+            "location": "src/mongo/shell/linenoise.h"
           }
         ],
         "licenses": [
