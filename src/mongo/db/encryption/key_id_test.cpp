@@ -33,8 +33,10 @@ Copyright (C) 2023-present Percona and/or its affiliates. All rights reserved.
 
 #include "mongo/bson/bsonmisc.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/encryption/encryption_options.h"
 #include "mongo/unittest/unittest.h"
 
+#include <memory>
 #include <ostream>
 #include <string>
 
@@ -118,6 +120,148 @@ TEST(KeyIdTest, SerializeToStorageEngineEncryptionOptions) {
     ASSERT_EQ(toJsonText(VaultSecretId("sierra/tango/uniform", 42)),
               R"json({"vault":{"path":"sierra/tango/uniform","version":"42"}})json");
     ASSERT_EQ(toJsonText(KmipKeyId("42")), R"json({"kmip":{"keyId":"42"}})json");
+}
+
+class WtKeyIdsAdoptTest : public unittest::Test {
+protected:
+    void setUp() override {
+        encryptionGlobalParams = EncryptionGlobalParams();
+        WtKeyIds::instance().clear();
+    }
+    void tearDown() override {
+        setUp();
+    }
+
+    void assertParamsUnchanged(const EncryptionGlobalParams& before) const {
+        ASSERT_EQ(encryptionGlobalParams.kmipKeyIdentifier, before.kmipKeyIdentifier);
+        ASSERT_EQ(encryptionGlobalParams.vaultSecret, before.vaultSecret);
+        ASSERT_EQ(encryptionGlobalParams.vaultSecretVersion.has_value(),
+                  before.vaultSecretVersion.has_value());
+        if (before.vaultSecretVersion) {
+            ASSERT_EQ(*encryptionGlobalParams.vaultSecretVersion, *before.vaultSecretVersion);
+        }
+        ASSERT_EQ(encryptionGlobalParams.kmipRotateMasterKey, before.kmipRotateMasterKey);
+        ASSERT_EQ(encryptionGlobalParams.vaultRotateMasterKey, before.vaultRotateMasterKey);
+    }
+};
+
+TEST_F(WtKeyIdsAdoptTest, NullptrIsNoop) {
+    const auto before = encryptionGlobalParams;
+    WtKeyIds::instance().setFutureConfigured(std::make_unique<KmipKeyId>("stale"));
+    WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
+    ASSERT_TRUE(WtKeyIds::instance().hasFutureConfigured());
+    ASSERT_FALSE(WtKeyIds::instance().hasConfigured());
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, KmipIdClearsStaleFutureConfigured) {
+    const auto before = encryptionGlobalParams;
+    WtKeyIds::instance().setFutureConfigured(std::make_unique<KmipKeyId>("stale"));
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_TRUE(configured);
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(configured.get()), source);
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, ReplacesPreviouslyAdoptedConfiguredId) {
+    const auto before = encryptionGlobalParams;
+    const KmipKeyId source("source");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto first = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(first.get()), source);
+
+    const KmipKeyId local("local");
+    WtKeyIds::instance().adoptFromStorageMetadata(&local);
+    auto second = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(second.get()), local);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, DoesNotModifyOperatorSetKmipKeyIdentifier) {
+    encryptionGlobalParams.kmipKeyIdentifier = "operator-set";
+    const auto before = encryptionGlobalParams;
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(configured.get()), source);
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, NullptrPreservesConfigured) {
+    const auto before = encryptionGlobalParams;
+    const KmipKeyId source("source");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    ASSERT_TRUE(WtKeyIds::instance().hasConfigured());
+
+    WtKeyIds::instance().adoptFromStorageMetadata(nullptr);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(configured.get()), source);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, SetsConfiguredDuringMasterKeyRotation) {
+    encryptionGlobalParams.kmipRotateMasterKey = true;
+    const auto before = encryptionGlobalParams;
+    const KmipKeyId source("1");
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(configured.get()), source);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultAdoptSetsConfigured) {
+    const auto before = encryptionGlobalParams;
+    const VaultSecretId source("charlie/delta", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const VaultSecretId*>(configured.get()), source);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, VaultReplacesPreviouslyAdoptedConfigured) {
+    const auto before = encryptionGlobalParams;
+    const VaultSecretId first("alpha/path", 1);
+    WtKeyIds::instance().adoptFromStorageMetadata(&first);
+    const VaultSecretId second("bravo/path", 2);
+    WtKeyIds::instance().adoptFromStorageMetadata(&second);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const VaultSecretId*>(configured.get()), second);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, DoesNotModifyOperatorSetVaultParams) {
+    encryptionGlobalParams.vaultSecret = "operator/path";
+    encryptionGlobalParams.vaultSecretVersion = 3;
+    const auto before = encryptionGlobalParams;
+    const VaultSecretId source("charlie/delta", 7);
+    WtKeyIds::instance().adoptFromStorageMetadata(&source);
+    auto configured = WtKeyIds::instance().cloneConfigured();
+    ASSERT_EQ(*dynamic_cast<const VaultSecretId*>(configured.get()), source);
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, KeyFilePathDoesNotTouchEncryptionParams) {
+    const auto before = encryptionGlobalParams;
+    const KeyFilePath path("/tmp/ekf");
+    WtKeyIds::instance().adoptFromStorageMetadata(&path);
+    ASSERT_TRUE(WtKeyIds::instance().hasConfigured());
+    ASSERT_FALSE(WtKeyIds::instance().hasFutureConfigured());
+    assertParamsUnchanged(before);
+}
+
+TEST_F(WtKeyIdsAdoptTest, CloneKeyIdForServerStatusSurvivesLaterMutation) {
+    const KmipKeyId first("first");
+    WtKeyIds::instance().setDecryption(first.clone());
+    auto snapshot = WtKeyIds::instance().cloneKeyIdForServerStatus();
+    ASSERT_TRUE(snapshot);
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(snapshot.get()), first);
+
+    WtKeyIds::instance().setDecryption(std::make_unique<KmipKeyId>("second"));
+    ASSERT_EQ(*dynamic_cast<const KmipKeyId*>(snapshot.get()), first);
 }
 
 }  // namespace

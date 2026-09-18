@@ -33,13 +33,13 @@ Copyright (C) 2022-present Percona and/or its affiliates. All rights reserved.
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 
 namespace mongo {
 class BSONObj;
 class BSONObjBuilder;
-struct EncryptionGlobalParams;
 
 namespace encryption {
 class KeyIdConstVisitor;
@@ -269,29 +269,74 @@ public:
 /// _ten_ arguments and adding even more is not an option. Thus, having to
 /// use some analog of a nasty global variable for now.
 ///
-/// @warning Thread Safety: This singleton is NOT fully thread-safe.
-/// The fields are set once during startup/initialization and
-/// then read during runtime operations like server status generation.
-/// Concurrent modifications may cause data races.
-/// Consider adding synchronization if concurrent access patterns change.
+/// All reads and writes of identifier pointers go through synchronized
+/// accessors. Callers that need an identifier after releasing the internal
+/// lock must use a clone; a raw pointer into this singleton is not valid
+/// once the accessor returns.
 ///
 /// @todo Refactor the code so that this singleton is eliminated.
 class WtKeyIds {
 public:
     static WtKeyIds& instance();
 
+    /// Owned copy of `decryption`, or of `futureConfigured` if decryption is unset.
+    std::unique_ptr<KeyId> cloneKeyIdForServerStatus() const;
+
+    std::unique_ptr<KeyId> cloneConfigured() const;
+    std::unique_ptr<KeyId> cloneDecryption() const;
+    std::unique_ptr<KeyId> cloneFutureConfigured() const;
+
+    bool hasConfigured() const;
+    bool hasDecryption() const;
+    bool hasFutureConfigured() const;
+
+    void setConfigured(std::unique_ptr<KeyId> id);
+    void setDecryption(std::unique_ptr<KeyId> id);
+    void setFutureConfigured(std::unique_ptr<KeyId> id);
+
+    /// Sets `decryption` and, if `configured` is empty and the id must be
+    /// written to storage.bson, also sets `futureConfigured` to a clone.
+    void recordDecryptionKeyId(std::unique_ptr<KeyId> id);
+
+    /// Moves `futureConfigured` into `configured` (rotation / test fixtures).
+    void promoteFutureConfigured();
+
+    void clear();
+
+    /// @brief Install a key identifier read from storage.bson for this dbpath.
+    ///
+    /// When `metadataKeyId` is non-null: sets `configured` and clears stale
+    /// `futureConfigured` (which may belong to a previous dbpath in the same
+    /// process, e.g. FCBIS empty-dir key generation). Does not modify
+    /// `encryptionGlobalParams`.
+    ///
+    /// When `metadataKeyId` is null: no-op on `configured` / `futureConfigured`.
+    /// FCBIS uses a `.dummy` dbpath with no storage.bson; leftover `_configured`
+    /// must remain so `createKeyDb` reads that key instead of minting a new one.
+    void adoptFromStorageMetadata(const KeyId* metadataKeyId);
+
+private:
+    ~WtKeyIds() = default;
+    WtKeyIds() = default;
+    WtKeyIds(const WtKeyIds&) = delete;
+    WtKeyIds(WtKeyIds&&) = delete;
+    WtKeyIds& operator=(const WtKeyIds&) = delete;
+    WtKeyIds& operator=(WtKeyIds&&) = delete;
+
+    mutable std::mutex _mutex;
+
     /// @brief The present configured key identifier, if any.
     ///
     /// It is read from the storage engine metadata, specifically from the
     /// storage engine encryption options.
-    std::unique_ptr<KeyId> configured;
+    std::unique_ptr<KeyId> _configured;
 
     /// @brief The identifier of the key the encryption key database is
     /// decrypted with.
     ///
     /// It may either be equal to configured key identifier or read from the
     /// mongod configuration.
-    std::unique_ptr<KeyId> decryption;
+    std::unique_ptr<KeyId> _decryption;
 
     /// @brief The future configured key identifier, if any.
     ///
@@ -301,15 +346,7 @@ public:
     /// It is meant to be saved to the storage engine metadata (specifically,
     /// to storage engine encryption options) if differs from the present
     /// configured key identifier.
-    std::unique_ptr<KeyId> futureConfigured;
-
-private:
-    ~WtKeyIds() = default;
-    WtKeyIds() = default;
-    WtKeyIds(const WtKeyIds&) = delete;
-    WtKeyIds(WtKeyIds&&) = delete;
-    WtKeyIds& operator=(const WtKeyIds&) = delete;
-    WtKeyIds& operator=(WtKeyIds&&) = delete;
+    std::unique_ptr<KeyId> _futureConfigured;
 };
 }  // namespace encryption
 }  // namespace mongo
