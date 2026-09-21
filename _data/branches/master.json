@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 38,
+    "commits_behind": 43,
     "days_behind": 10,
-    "unmerged_oldest_age_days": 10.598084261215277,
-    "files_affected": 396,
-    "total_additions": 16644,
-    "total_deletions": 5160,
+    "unmerged_oldest_age_days": 10.819859460960648,
+    "files_affected": 418,
+    "total_additions": 17826,
+    "total_deletions": 5340,
     "date_range": {
       "first": "2026-09-10T15:54:13+00:00",
-      "last": "2026-09-14T01:12:46+00:00"
+      "last": "2026-09-14T08:45:13+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,56 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "429b75a5e4d4da90e8ee76a989e68a3c56d95bc9",
+      "short_sha": "429b75a5e4d",
+      "date": "2026-09-14T08:45:13+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62648)"
+    },
+    {
+      "sha": "7da6eca504c0bdccd683dfc3db64887217269a4b",
+      "short_sha": "7da6eca504c",
+      "date": "2026-09-14T08:34:20+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-130979 Add usedJoinOptimization to slow plan logs (#62524)"
+    },
+    {
+      "sha": "a6e783ae86903e51344ab4bfb5fc4893cf3861ce",
+      "short_sha": "a6e783ae869",
+      "date": "2026-09-14T08:33:02+00:00",
+      "author": {
+        "name": "cian-mdb",
+        "email": "cian.nugentmcgealy@mongodb.com"
+      },
+      "summary": "SERVER-134614: Soften PBRT count assertion in change_stream_response_deadline_sharded.js (BF-46072) (#62604)"
+    },
+    {
+      "sha": "2ace049eeacd3ecbd8fefb8779669c63a5367495",
+      "short_sha": "2ace049eeac",
+      "date": "2026-09-14T07:46:38+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-131213 Implement compact plan summary for join opt in slow query logs (#62385)"
+    },
+    {
+      "sha": "1269a90355d914d4593c80b50bb6228d19de1966",
+      "short_sha": "1269a90355d",
+      "date": "2026-09-14T07:22:41+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-131202 Escape dollar-prefixed shard key fields for use in updateLookup (#58373)"
+    },
     {
       "sha": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
       "short_sha": "ec7d1647e02",
@@ -558,7 +608,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-21 06:15:10",
+  "generated_at": "2026-09-21 11:34:28",
   "branch_name": "master",
   "display_name": "master"
 }
