@@ -3809,8 +3809,8 @@ const auto kRecordInSideCollection = RetryableFindAndModifyLocation::kSideCollec
 
 const std::vector<bool> kInMultiDocumentTransactionCases{false, true};
 
-const auto kDontGroup = WriteUnitOfWork::OplogEntryGroupType::kDontGroup;
-const auto kGroup = WriteUnitOfWork::OplogEntryGroupType::kGroupForPossiblyRetryableOperations;
+const auto noGroup = WriteUnitOfWork::OplogEntryGroupType::noGroup;
+const auto kGroup = WriteUnitOfWork::OplogEntryGroupType::nonAtomicGroup;
 
 }  // namespace
 
@@ -3962,26 +3962,26 @@ protected:
 
     std::vector<UpdateTestCase> _cases = {
         // Regular updates.
-        {kNonFaM, kChangeStreamImagesDisabled, kNotRetryable, kDontGroup, 1},
+        {kNonFaM, kChangeStreamImagesDisabled, kNotRetryable, noGroup, 1},
         {kNonFaM, kChangeStreamImagesDisabled, kNotRetryable, kGroup, 1},
-        {kNonFaM, kChangeStreamImagesEnabled, kNotRetryable, kDontGroup, 1},
+        {kNonFaM, kChangeStreamImagesEnabled, kNotRetryable, noGroup, 1},
         {kNonFaM, kChangeStreamImagesEnabled, kNotRetryable, kGroup, 1},
-        {kNonFaM, kChangeStreamImagesEnabled, kRecordInSideCollection, kDontGroup, 1},
+        {kNonFaM, kChangeStreamImagesEnabled, kRecordInSideCollection, noGroup, 1},
         {kNonFaM, kChangeStreamImagesEnabled, kRecordInSideCollection, kGroup, 1},
         // FindAndModify asking for a preImage.
-        {kFaMPre, kChangeStreamImagesDisabled, kNotRetryable, kDontGroup, 1},
+        {kFaMPre, kChangeStreamImagesDisabled, kNotRetryable, noGroup, 1},
         {kFaMPre, kChangeStreamImagesDisabled, kNotRetryable, kGroup, 1},
-        {kFaMPre, kChangeStreamImagesDisabled, kRecordInSideCollection, kDontGroup, 1},
-        {kFaMPre, kChangeStreamImagesEnabled, kNotRetryable, kDontGroup, 1},
+        {kFaMPre, kChangeStreamImagesDisabled, kRecordInSideCollection, noGroup, 1},
+        {kFaMPre, kChangeStreamImagesEnabled, kNotRetryable, noGroup, 1},
         {kFaMPre, kChangeStreamImagesEnabled, kNotRetryable, kGroup, 1},
-        {kFaMPre, kChangeStreamImagesEnabled, kRecordInSideCollection, kDontGroup, 1},
+        {kFaMPre, kChangeStreamImagesEnabled, kRecordInSideCollection, noGroup, 1},
         // FindAndModify asking for a postImage.
-        {kFaMPost, kChangeStreamImagesDisabled, kNotRetryable, kDontGroup, 1},
+        {kFaMPost, kChangeStreamImagesDisabled, kNotRetryable, noGroup, 1},
         {kFaMPost, kChangeStreamImagesDisabled, kNotRetryable, kGroup, 1},
-        {kFaMPost, kChangeStreamImagesDisabled, kRecordInSideCollection, kDontGroup, 1},
-        {kFaMPost, kChangeStreamImagesEnabled, kNotRetryable, kDontGroup, 1},
+        {kFaMPost, kChangeStreamImagesDisabled, kRecordInSideCollection, noGroup, 1},
+        {kFaMPost, kChangeStreamImagesEnabled, kNotRetryable, noGroup, 1},
         {kFaMPost, kChangeStreamImagesEnabled, kNotRetryable, kGroup, 1},
-        {kFaMPost, kChangeStreamImagesEnabled, kRecordInSideCollection, kDontGroup, 1}};
+        {kFaMPost, kChangeStreamImagesEnabled, kRecordInSideCollection, noGroup, 1}};
 
     const NamespaceString _nss =
         NamespaceString::createNamespaceString_forTest(boost::none, "test", "coll");
@@ -4270,7 +4270,7 @@ protected:
                                     const std::vector<RecordId>& recordIds) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
         std::vector<InsertStatement> inserts;
@@ -4309,7 +4309,7 @@ protected:
                                     const RecordId recordId2) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
 
@@ -4352,7 +4352,7 @@ protected:
                                     const RecordId& recordId2) {
         reset(opCtx, ns);
         reset(opCtx, NamespaceString::kRsOplogNamespace);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
         AutoGetCollection autoColl(opCtx, ns, MODE_IX);
 
@@ -4380,7 +4380,7 @@ protected:
     }
 };
 
-// Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction replicates its writes
+// Verifies that a WriteUnitOfWork with groupOplogEntries=atomicGroup replicates its writes
 // as a single applyOps. Tests WUOWs batching a range of 2 to 5 deletes (inclusive).
 TEST_F(BatchedWriteOutputsTest, TestApplyOpsGrouping) {
     const auto nDocsToDelete = 5;
@@ -4401,11 +4401,11 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsGrouping) {
     // Run the test with WUOW's grouping 2 to 5 deletions.
     for (size_t docsToBeBatched = 2; docsToBeBatched <= nDocsToDelete; docsToBeBatched++) {
 
-        // Start a WUOW with groupOplogEntries=kGroupForTransaction. Verify that initialises the
+        // Start a WUOW with groupOplogEntries=atomicGroup. Verify that initialises the
         // BatchedWriteContext.
         auto& bwc = BatchedWriteContext::get(opCtx);
         ASSERT(!bwc.writesAreBatched());
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         ASSERT(bwc.writesAreBatched());
 
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
@@ -4445,14 +4445,12 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsGrouping) {
     }
 }
 
-// getGroupType() converts a top-level WUOW created with kDontGroup to a batched mode when
-// primary-driven index builds are enabled: kGroupForRetryableAtomicWrite for a retryable write,
-// otherwise kGroupForTransaction. The following tests verify the conversion through the resulting
-// oplog output.
+// getGroupType() converts a top-level noGroup WUOW to atomicGroup when oplog entry grouping is
+// enabled. The following tests verify the conversion through the resulting oplog output.
 
 // A retryable write is grouped atomically: the batch replicates as an applyOps tagged
 // kApplyOpsAppliedAtomically and stamped with the session id and txnNumber, exactly as an explicit
-// kGroupForRetryableAtomicWrite would (see RetryableAtomicWriteEmitsAppliedAtomicallyTag).
+// retryable atomicGroup batch would (see RetryableAtomicWriteEmitsAppliedAtomicallyTag).
 TEST_F(BatchedWriteOutputsTest, RetryableWriteWithPdibGroupsAtomically) {
     // (Generic FCV reference): test requires an initialized FCV to enable the feature flag.
     serverGlobalParams.mutableFCV.setVersion(multiversion::GenericFCV::kLatest);
@@ -4474,7 +4472,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableWriteWithPdibGroupsAtomically) {
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        // Default grouping (kDontGroup); getGroupType performs the conversion.
+        // Default grouping (noGroup); getGroupType performs the conversion.
         WriteUnitOfWork wuow(opCtx);
         opCtx->getServiceContext()->getOpObserver()->onInserts(
             opCtx,
@@ -4530,7 +4528,7 @@ TEST_F(BatchedWriteOutputsTest, NonRetryableWriteWithPdibGroupsAsTransaction) {
     EXPECT_FALSE(entry.getTxnNumber());
 }
 
-// Without primary-driven index builds, kDontGroup is left as-is: writes are not batched, so each
+// Without primary-driven index builds, noGroup is left as-is: writes are not batched, so each
 // insert replicates as its own (non-applyOps) oplog entry.
 TEST_F(BatchedWriteOutputsTest, WriteWithoutPdibIsNotGrouped) {
     auto opCtxRaii = cc().makeOperationContext();
@@ -4564,7 +4562,7 @@ TEST_F(BatchedWriteOutputsTest, WriteWithoutPdibIsNotGrouped) {
     }
 }
 
-// Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForTransaction consisting of an
+// Verifies that a WriteUnitOfWork with groupOplogEntries=atomicGroup consisting of an
 // insert, an update and a delete replicates as a single applyOps.
 TEST_F(BatchedWriteOutputsTest, TestApplyOpsInsertDeleteUpdate) {
     // Setup.
@@ -4573,11 +4571,11 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsInsertDeleteUpdate) {
     reset(opCtx, _nss);
     reset(opCtx, NamespaceString::kRsOplogNamespace);
 
-    // Start a WUOW with groupOplogEntries=kGroupForTransaction. Verify that initialises the
+    // Start a WUOW with groupOplogEntries=atomicGroup. Verify that initialises the
     // BatchedWriteContext.
     auto& bwc = BatchedWriteContext::get(opCtx);
     ASSERT(!bwc.writesAreBatched());
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     ASSERT(bwc.writesAreBatched());
 
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
@@ -4679,7 +4677,7 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsInsertDeleteUpdateOnViewlessTimeseri
     AutoGetCollection autoColl(opCtx, curNss, MODE_IX);
     auto& bwc = BatchedWriteContext::get(opCtx);
     ASSERT(!bwc.writesAreBatched());
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     ASSERT(bwc.writesAreBatched());
 
     auto doc = BSON("_id" << 0 << "data"
@@ -4757,11 +4755,11 @@ TEST_F(BatchedWriteOutputsTest, TestApplyOpsInsertDeleteUpdateIncludesTenantId) 
     reset(opCtx, _nssWithTid);
     reset(opCtx, NamespaceString::kRsOplogNamespace);
 
-    // Start a WUOW with groupOplogEntries=kGroupForTransaction. Verify that initialises the
+    // Start a WUOW with groupOplogEntries=atomicGroup. Verify that initialises the
     // BatchedWriteContext.
     auto& bwc = BatchedWriteContext::get(opCtx);
     ASSERT(!bwc.writesAreBatched());
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     ASSERT(bwc.writesAreBatched());
 
     AutoGetCollection autoColl(opCtx, _nssWithTid, MODE_IX);
@@ -4862,7 +4860,7 @@ TEST_F(BatchedWriteOutputsTest, testEmptyWUOW) {
     reset(opCtx, NamespaceString::kRsOplogNamespace);
 
     // Start and commit an empty WUOW.
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     wuow.commit();
 
     // The getNOplogEntries call below asserts that the oplog is empty.
@@ -4878,7 +4876,7 @@ TEST_F(BatchedWriteOutputsTest, testWUOWLarge) {
     reset(opCtx, NamespaceString::kRsOplogNamespace);
 
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
 
     // Delete BatchedWriteOutputsTest::maxDeleteOpsInBatch documents in a single batch, which is the
     // maximum number of docs that can be batched while staying within 16MB of applyOps.
@@ -4914,7 +4912,7 @@ TEST_F(BatchedWriteOutputsTest, testWUOWLarge) {
     }
 }
 
-// Verifies a retryable kGroupForRetryableAtomicWrite batch emits an applyOps tagged
+// Verifies a retryable atomicGroup batch emits an applyOps tagged
 // kApplyOpsAppliedAtomically with the session metadata, and updates config.transactions.
 TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteEmitsAppliedAtomicallyTag) {
     auto opCtxRaii = cc().makeOperationContext();
@@ -4934,7 +4932,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteEmitsAppliedAtomicallyTag) {
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForRetryableAtomicWrite);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         opCtx->getServiceContext()->getOpObserver()->onInserts(
             opCtx,
             *autoColl,
@@ -4976,7 +4974,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteEmitsAppliedAtomicallyTag) {
     EXPECT_EQ(opCtx->getTxnNumber(), txnRecord.getTxnNum());
 }
 
-// Verifies an oversized kGroupForRetryableAtomicWrite batch replicates as a chain of applyOps
+// Verifies an oversized retryable atomicGroup batch replicates as a chain of applyOps
 // entries: every entry is tagged kApplyOpsAppliedAtomically and linked via prevOpTime, and
 // config.transactions is updated only once, pointing at the terminal entry. The per-applyOps
 // op-count limit is lowered so a small batch splits into multiple entries.
@@ -5004,7 +5002,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteChainTagsAndLinksEveryEntry)
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForRetryableAtomicWrite);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         opCtx->getServiceContext()->getOpObserver()->onInserts(
             opCtx,
             *autoColl,
@@ -5035,6 +5033,76 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteChainTagsAndLinksEveryEntry)
               txnRecord.getLastWriteOpTime().getTimestamp());
 }
 
+// Each statement of one retryable write stamps a link to the previous statement's terminal entry,
+// chaining them into a single session history. The second statement is oversized, so the link is
+// written on the first entry of a chain rather than on a lone entry.
+TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteChainLinksAcrossStatements) {
+    unittest::ServerParameterGuard largeBatch("featureFlagLargeBatchedOperations", true);
+    unittest::ServerParameterGuard countLimit("maxNumberOfBatchedOperationsInSingleOplogEntry", 2);
+
+    auto opCtxRaii = cc().makeOperationContext();
+    OperationContext* opCtx = opCtxRaii.get();
+    reset(opCtx, _nss);
+    resetOplogAndTransactions(opCtx);
+
+    std::unique_ptr<MongoDSessionCatalog::Session> contextSession;
+    beginRetryableWriteWithTxnNumber(opCtx, 0 /*txnNumber*/, contextSession);
+
+    // One statement's inserts in a WUOW; only the first carries a statement id, as a real
+    // retryable statement's internal ops would.
+    auto runStatement = [&](StmtId stmtId, int firstDocId, int numOps) {
+        std::vector<InsertStatement> toInsert;
+        toInsert.emplace_back(stmtId, BSON("_id" << firstDocId));
+        for (int i = 1; i < numOps; i++) {
+            toInsert.emplace_back(kUninitializedStmtId, BSON("_id" << (firstDocId + i)));
+        }
+        AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
+        opCtx->getServiceContext()->getOpObserver()->onInserts(
+            opCtx,
+            *autoColl,
+            toInsert.begin(),
+            toInsert.end(),
+            /*recordIds=*/{},
+            /*fromMigrate=*/std::vector<bool>(toInsert.size(), false),
+            /*defaultFromMigrate=*/false);
+        wuow.commit();
+    };
+
+    // Statement 0 fits in one applyOps entry; statement 1 needs two.
+    runStatement(StmtId(0), 0 /*firstDocId*/, 2 /*numOps*/);
+    runStatement(StmtId(1), 10 /*firstDocId*/, 4 /*numOps*/);
+
+    auto oplogs = getNOplogEntries(opCtx, 3);
+    auto stmt0 = assertGet(OplogEntry::parse(oplogs[0]));
+    auto stmt1First = assertGet(OplogEntry::parse(oplogs[1]));
+    auto stmt1Terminal = assertGet(OplogEntry::parse(oplogs[2]));
+
+    for (const auto& entry : {stmt0, stmt1First, stmt1Terminal}) {
+        EXPECT_EQ(entry.getCommandType(), OplogEntry::CommandType::kApplyOps);
+        EXPECT_EQ(entry.getMultiOpType(), repl::MultiOplogEntryType::kApplyOpsAppliedAtomically);
+        EXPECT_EQ(opCtx->getLogicalSessionId(), entry.getSessionId());
+        EXPECT_EQ(opCtx->getTxnNumber(), entry.getTxnNumber());
+    }
+
+    // The session's first write links to nothing, but the field must be present-and-null, not
+    // omitted: TransactionHistoryIterator rejects an entry with no prevOpTime field.
+    EXPECT_TRUE(oplogs[0].hasField(repl::OplogEntry::kPrevWriteOpTimeInTransactionFieldName));
+    ASSERT_TRUE(stmt0.getPrevWriteOpTimeInTransaction());
+    EXPECT_TRUE(stmt0.getPrevWriteOpTimeInTransaction()->isNull());
+
+    // Statement 1's first entry links back to statement 0's terminal rather than being severed;
+    // this is the cross-statement link the op observer must stamp.
+    EXPECT_EQ(stmt1First.getPrevWriteOpTimeInTransaction(), stmt0.getOpTime());
+
+    // Within statement 1 the link is the ordinary intra-batch one.
+    EXPECT_EQ(stmt1Terminal.getPrevWriteOpTimeInTransaction(), stmt1First.getOpTime());
+
+    // Only statement 1's terminal entry is recorded as the session's last write.
+    auto txnRecord = getTxnRecord(opCtx, *opCtx->getLogicalSessionId());
+    EXPECT_EQ(stmt1Terminal.getOpTime(), txnRecord.getLastWriteOpTime());
+}
+
 // Verifies a WUOW that would result in a an oplog entry >16MB fails with TransactionTooLarge.
 TEST_F(BatchedWriteOutputsTest, testWUOWTooLarge) {
     unittest::ServerParameterGuard featureFlagController("featureFlagLargeBatchedOperations",
@@ -5047,7 +5115,7 @@ TEST_F(BatchedWriteOutputsTest, testWUOWTooLarge) {
     reset(opCtx, NamespaceString::kRsOplogNamespace);
 
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
 
     // Attempt to delete more documents than allowed in a single applyOps batch because the
     // generated entry exceeds the limit of 16MB for an applyOps entry.
@@ -5087,7 +5155,7 @@ TEST_F(BatchedWriteOutputsTest, RuntimeOpCountLimitThrowsWithFeatureFlagOff) {
     reset(opCtx, _nss);
     reset(opCtx, NamespaceString::kRsOplogNamespace);
     {
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
         for (int docId = 0; docId < kDocsInBatch; docId++) {
             OplogDeleteEntryArgs args;
@@ -5106,7 +5174,7 @@ TEST_F(BatchedWriteOutputsTest, RuntimeOpCountLimitThrowsWithFeatureFlagOff) {
     reset(opCtx, NamespaceString::kRsOplogNamespace);
     unittest::ServerParameterGuard opCountLimit("maxNumberOfBatchedOperationsInSingleOplogEntry",
                                                 kOpLimitForTransactionTooLarge);
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
     for (int docId = 0; docId < kDocsInBatch; docId++) {
         OplogDeleteEntryArgs args;
@@ -5141,7 +5209,7 @@ TEST_F(BatchedWriteOutputsTest, RuntimeLimitsAffectApplyOpsBatchingWithFeatureFl
         unittest::ServerParameterGuard maxBytesController(
             "maxSizeOfBatchedOperationsInSingleOplogEntryBytes", maxBytes);
 
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
         for (int docId = 0; docId < kDocsInBatch; ++docId) {
             OplogDeleteEntryArgs args;
@@ -5175,7 +5243,7 @@ TEST_F(BatchedWriteOutputsTest, RuntimeLimitsAffectApplyOpsBatchingWithFeatureFl
                           /*expectedEntries=*/2);
 }
 
-// Verifies that a WriteUnitOfWork with groupOplogEntries=kGroupForPossiblyRetryableOperations
+// Verifies that a WriteUnitOfWork with groupOplogEntries=nonAtomicGroup
 // replicates its writes as a single applyOps. Tests WUOWs batching a range of 2 to 5 inserts
 // (inclusive).
 TEST_F(BatchedWriteOutputsTest, TestVectoredInsertApplyOpsGrouping) {
@@ -5196,11 +5264,11 @@ TEST_F(BatchedWriteOutputsTest, TestVectoredInsertApplyOpsGrouping) {
 
     // Run the test with WUOW's grouping 2 to 5 inserts.
     for (size_t docsToBeBatched = 2; docsToBeBatched <= nDocsToInsert; docsToBeBatched++) {
-        // Start a WUOW with groupOplogEntries=kGroupForPossiblyRetryableOperation.
+        // Start a WUOW with groupOplogEntries=nonAtomicGroup.
         // Verify that initialises the BatchedWriteContext.
         auto& bwc = BatchedWriteContext::get(opCtx);
         ASSERT(!bwc.writesAreBatched());
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::nonAtomicGroup);
         ASSERT(bwc.writesAreBatched());
 
         std::vector<InsertStatement> inserts;
@@ -5279,7 +5347,7 @@ TEST_F(BatchedWriteOutputsTest, TestRetryableVectoredInsertApplyOpsGrouping) {
         std::unique_ptr<MongoDSessionCatalog::Session> session;
         beginRetryableWriteWithTxnNumber(opCtx, TxnNumber(1), session);
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts0;
 
         for (size_t i = 0; i < nDocsToInsert0; i++) {
@@ -5295,7 +5363,7 @@ TEST_F(BatchedWriteOutputsTest, TestRetryableVectoredInsertApplyOpsGrouping) {
             /*defaultFromMigrate=*/false);
         wuow0.commit();
 
-        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts1;
 
         for (size_t i = 0; i < nDocsToInsert1; i++) {
@@ -5381,7 +5449,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteWithMultipleStatementBearing
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
 
     // Two separate inserts in one WUOW, each its own statement-bearing operation.
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForRetryableAtomicWrite);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     std::vector<InsertStatement> inserts;
     inserts.emplace_back(StmtId(0), BSON("_id" << 0));
     inserts.emplace_back(StmtId(1), BSON("_id" << 1));
@@ -5394,8 +5462,9 @@ TEST_F(BatchedWriteOutputsTest, RetryableAtomicWriteWithMultipleStatementBearing
         /*fromMigrate=*/std::vector<bool>(inserts.size(), false),
         /*defaultFromMigrate=*/false);
 
-    // Committing trips the kGroupForRetryableAtomicWrite assertion. tassert both throws and arms
-    // the tripwire; clear the tripwire so the test process doesn't abort at shutdown.
+    // Committing trips the assertion that an atomic batch carries at most one statement-bearing
+    // operation. tassert both throws and arms the tripwire; clear it so the test doesn't abort at
+    // shutdown.
     ASSERT_THROWS_WITH_CHECK(wuow.commit(), DBException, [](const DBException& ex) {
         EXPECT_EQ(ex.code(), 12782600);
         assertionCount.tripwire.subtractAndFetch(1);
@@ -5422,7 +5491,7 @@ TEST_F(BatchedWriteOutputsTest, RetryableSessionAtomicBatchWithoutStatementIdsIs
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForRetryableAtomicWrite);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         opCtx->getServiceContext()->getOpObserver()->onInserts(
             opCtx,
             *autoColl,
@@ -5455,9 +5524,7 @@ TEST_F(BatchedWriteOutputsTest, NonRetryableSingleOpAtomicBatchDoesNotWriteTxnRe
     // The fast path is selected purely by operation count, so every grouping mode reaches it.
     // Which mode a plain WUOW is promoted to depends on whether the enclosing operation carries a
     // txnNumber, so cover all of them.
-    for (auto groupType : {WriteUnitOfWork::kGroupForTransaction,
-                           WriteUnitOfWork::kGroupForRetryableAtomicWrite,
-                           WriteUnitOfWork::kGroupForPossiblyRetryableOperations}) {
+    for (auto groupType : {WriteUnitOfWork::atomicGroup, WriteUnitOfWork::nonAtomicGroup}) {
         auto opCtxRaii = cc().makeOperationContext();
         OperationContext* opCtx = opCtxRaii.get();
         reset(opCtx, _nss);
@@ -5510,9 +5577,7 @@ TEST_F(BatchedWriteOutputsTest, NonRetryableSingleOpAtomicBatchDoesNotWriteTxnRe
 }
 
 TEST_F(BatchedWriteOutputsTest, NonRetryableMultiOpBatchDoesNotWriteTxnRecord) {
-    for (auto groupType : {WriteUnitOfWork::kGroupForTransaction,
-                           WriteUnitOfWork::kGroupForRetryableAtomicWrite,
-                           WriteUnitOfWork::kGroupForPossiblyRetryableOperations}) {
+    for (auto groupType : {WriteUnitOfWork::atomicGroup, WriteUnitOfWork::nonAtomicGroup}) {
         auto opCtxRaii = cc().makeOperationContext();
         OperationContext* opCtx = opCtxRaii.get();
         reset(opCtx, _nss);
@@ -5593,7 +5658,7 @@ TEST_F(BatchedWriteOutputsTest, TestRetryableVectoredInsertMultiApplyOpsGrouping
         std::unique_ptr<MongoDSessionCatalog::Session> session;
         beginRetryableWriteWithTxnNumber(opCtx, TxnNumber(1), session);
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts0;
 
         for (size_t i = 0; i < nDocsToInsert0; i++) {
@@ -5609,7 +5674,7 @@ TEST_F(BatchedWriteOutputsTest, TestRetryableVectoredInsertMultiApplyOpsGrouping
             /*defaultFromMigrate=*/false);
         wuow0.commit();
 
-        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts1;
 
         for (size_t i = 0; i < nDocsToInsert1; i++) {
@@ -5744,7 +5809,7 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnMultiApplyOps) {
 
         {
             AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-            WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+            WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::nonAtomicGroup);
             std::vector<InsertStatement> inserts;
             for (int i = 0; i < 3; i++) {
                 // stmtIds only belong on the retryable path.
@@ -5772,7 +5837,7 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnMultiApplyOps) {
     runScenario(/*retryable=*/true);
 }
 
-// The metric increments once when an oversized kGroupForRetryableAtomicWrite batch is split into an
+// The metric increments once when an oversized retryable batched write is split into an
 // applyOps chain.
 TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnRetryableAtomicWriteChain) {
     otel::metrics::OtelMetricsCapturer capturer;
@@ -5795,8 +5860,8 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnRetryableAtomicW
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForRetryableAtomicWrite);
-        // Exactly one op carries a stmtId, as a kGroupForRetryableAtomicWrite batch requires.
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
+        // Exactly one op carries a stmtId, as a retryable batch requires.
         std::vector<InsertStatement> inserts;
         for (int i = 0; i < 3; i++) {
             inserts.emplace_back(i == 0 ? StmtId(0) : kUninitializedStmtId, BSON("_id" << i));
@@ -5815,8 +5880,8 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnRetryableAtomicW
     EXPECT_EQ(readApplyOpsChainsTotal(capturer), before + 1);
 }
 
-// The metric increments once when an oversized kGroupForTransaction batch (a non-retryable one-shot
-// batched write) is split into an applyOps chain.
+// The metric increments once when an oversized non-retryable one-shot batched write is split
+// into an applyOps chain.
 TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnTransactionBatch) {
     otel::metrics::OtelMetricsCapturer capturer;
     if (!capturer.canReadMetrics()) {
@@ -5835,8 +5900,8 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricIncrementsOnTransactionBatch
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
-        // kGroupForTransaction carries no session, so the inserts carry no stmtId.
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
+        // A non-retryable batch carries no session, so the inserts carry no stmtId.
         std::vector<InsertStatement> inserts;
         for (int i = 0; i < 3; i++) {
             inserts.emplace_back(BSON("_id" << i));
@@ -5874,7 +5939,7 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricDoesNotIncrementForSingleEnt
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts;
         for (int i = 0; i < 3; i++) {
             inserts.emplace_back(BSON("_id" << i));
@@ -5916,7 +5981,7 @@ TEST_F(BatchedWriteOutputsTest, ApplyOpsChainsMetricCountsContainerWrites) {
     const char kContainerValue[] = {'v'};
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::nonAtomicGroup);
         auto* opObserver = opCtx->getServiceContext()->getOpObserver();
         std::vector<InsertStatement> inserts{InsertStatement(BSON("_id" << 0)),
                                              InsertStatement(BSON("_id" << 1))};
@@ -5969,7 +6034,7 @@ TEST_F(BatchedWriteOutputsTest, TestNonRetryableVectoredInsertMultiApplyOpsGroup
 
     {
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow0(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts0;
 
         for (size_t i = 0; i < nDocsToInsert0; i++) {
@@ -5985,7 +6050,7 @@ TEST_F(BatchedWriteOutputsTest, TestNonRetryableVectoredInsertMultiApplyOpsGroup
             /*defaultFromMigrate=*/false);
         wuow0.commit();
 
-        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuow1(opCtx, WriteUnitOfWork::nonAtomicGroup);
         std::vector<InsertStatement> inserts1;
 
         for (size_t i = 0; i < nDocsToInsert1; i++) {
@@ -6109,7 +6174,7 @@ void BatchedWriteOutputsTest::testBatchedWriteSingleOplogEntryIsNotWrappedInAppl
 
         // Execute same operation but grouped.
         AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
-        WriteUnitOfWork wuowGrouped(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+        WriteUnitOfWork wuowGrouped(opCtx, WriteUnitOfWork::nonAtomicGroup);
         opLoggingFn(opCtx, autoColl, stmtId);
         wuowGrouped.commit();
     }
@@ -6209,7 +6274,7 @@ TEST_F(BatchedWriteOutputsTest, TestSingleContainerDeleteIsNotInApplyOps) {
 
 repl::OplogEntry BatchedWriteOutputsTest::commitBatchedInserts(
     OperationContext* opCtx, const CollectionPtr& coll, const std::vector<bool>& fromMigrateFlags) {
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForPossiblyRetryableOperations);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::nonAtomicGroup);
     ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
 
     std::vector<InsertStatement> inserts;
@@ -6302,7 +6367,7 @@ TEST_F(BatchedWriteOutputsTest, TestMultipleOpObserverCallsWithMixedFromMigrate)
     reset(opCtx, NamespaceString::kRsOplogNamespace);
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
 
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
 
     auto batchInsert = [&](std::vector<BSONObj> docs, bool fromMigrate) {
@@ -6341,7 +6406,7 @@ TEST_F(BatchedWriteOutputsTest, TestMixedOperationTypesWithMixedFromMigrate) {
     reset(opCtx, NamespaceString::kRsOplogNamespace);
     AutoGetCollection autoColl(opCtx, _nss, MODE_IX);
 
-    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+    WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
     ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
 
     // Insert with fromMigrate=true.
@@ -6444,7 +6509,7 @@ TEST_F(BatchedWriteOutputsTest, TestBatchedWritePreImagesWithMixedFromMigrate) {
     // Batched updates: doc0 is NOT fromMigrate, doc1 IS fromMigrate.
     {
         AutoGetCollection autoColl(opCtx, preImageNss, MODE_IX);
-        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::kGroupForTransaction);
+        WriteUnitOfWork wuow(opCtx, WriteUnitOfWork::atomicGroup);
         ASSERT(BatchedWriteContext::get(opCtx).writesAreBatched());
 
         batchUpdate(opCtx, *autoColl, 0, OperationSource::kStandard);
@@ -6717,12 +6782,12 @@ protected:
     }
 
     std::vector<DeleteTestCase> _cases{
-        {kChangeStreamImagesDisabled, kNotRetryable, kDontGroup, 1},
+        {kChangeStreamImagesDisabled, kNotRetryable, noGroup, 1},
         {kChangeStreamImagesDisabled, kNotRetryable, kGroup, 1},
-        {kChangeStreamImagesDisabled, kRecordInSideCollection, kDontGroup, 1},
-        {kChangeStreamImagesEnabled, kNotRetryable, kDontGroup, 1},
+        {kChangeStreamImagesDisabled, kRecordInSideCollection, noGroup, 1},
+        {kChangeStreamImagesEnabled, kNotRetryable, noGroup, 1},
         {kChangeStreamImagesEnabled, kNotRetryable, kGroup, 1},
-        {kChangeStreamImagesEnabled, kRecordInSideCollection, kDontGroup, 1},
+        {kChangeStreamImagesEnabled, kRecordInSideCollection, noGroup, 1},
     };
 
     const NamespaceString _nss =
@@ -8808,7 +8873,7 @@ TEST_F(OpObserverTest, onDropIdent) {
 TEST_F(BatchedWriteOutputsTest, OnContainerInsertBatched) {
     auto opCtx = cc().makeOperationContext();
     Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
-    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::kGroupForTransaction};
+    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::atomicGroup};
 
     auto ident = "ident";
     int64_t key1 = 100;
@@ -8866,7 +8931,7 @@ TEST_F(BatchedWriteOutputsTest, OnContainerInsertBatched) {
 TEST_F(BatchedWriteOutputsTest, OnContainerDeleteBatched) {
     auto opCtx = cc().makeOperationContext();
     Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
-    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::kGroupForTransaction};
+    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::atomicGroup};
 
     auto ident = "ident";
     int64_t key1 = 100;
@@ -8908,7 +8973,7 @@ TEST_F(BatchedWriteOutputsTest, OnContainerDeleteBatched) {
 TEST_F(BatchedWriteOutputsTest, OnContainerUpdateBatched) {
     auto opCtx = cc().makeOperationContext();
     Lock::GlobalLock lock{opCtx.get(), LockMode::MODE_IX};
-    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::kGroupForTransaction};
+    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::atomicGroup};
 
     auto ident = "ident";
     int64_t key1 = 100;
@@ -8970,7 +9035,7 @@ TEST_F(BatchedWriteOutputsTest, OnContainerInsertDeleteBatchedWithInsertDeleteUp
     reset(opCtx.get(), _nss);
     reset(opCtx.get(), NamespaceString::kRsOplogNamespace);
     AutoGetCollection coll{opCtx.get(), _nss, LockMode::MODE_IX};
-    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::kGroupForTransaction};
+    WriteUnitOfWork wuow{opCtx.get(), WriteUnitOfWork::OplogEntryGroupType::atomicGroup};
 
     auto ident = "ident";
     int64_t key1 = 100;
