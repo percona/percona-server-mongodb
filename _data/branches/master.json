@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 15,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.5949528048379635,
-    "files_affected": 135,
-    "total_additions": 7739,
-    "total_deletions": 1952,
+    "commits_behind": 38,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.598084261215277,
+    "files_affected": 396,
+    "total_additions": 16644,
+    "total_deletions": 5160,
     "date_range": {
       "first": "2026-09-10T15:54:13+00:00",
-      "last": "2026-09-10T23:24:50+00:00"
+      "last": "2026-09-14T01:12:46+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,236 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+      "short_sha": "ec7d1647e02",
+      "date": "2026-09-14T01:12:46+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 1e0bcde8b0cdf499430c7c83188dda75ef3c5a7d from branch mongodb-master (#62652)"
+    },
+    {
+      "sha": "ca590f746ab4d46144d4f2241227fe1b9fb31e0a",
+      "short_sha": "ca590f746ab",
+      "date": "2026-09-12T20:34:16+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-134745 Map dropped-database routing errors to a null updateLookup fullDocument (#62574)"
+    },
+    {
+      "sha": "654c1c4c375feaab6aaf36b8717d5dc40d39728a",
+      "short_sha": "654c1c4c375",
+      "date": "2026-09-12T09:16:13+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-134080 Support non-scalar _id lookups in SbeSingleDocumentLookupExecutor (#62368)"
+    },
+    {
+      "sha": "b7b629723a47d032b5e543905244276de58aee60",
+      "short_sha": "b7b629723a4",
+      "date": "2026-09-11T23:59:16+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134906: Remove redundant catches in KVDropPendingIdentReaper (#62641)"
+    },
+    {
+      "sha": "067827825f3acad2594a30034cfe843934f36450",
+      "short_sha": "067827825f3",
+      "date": "2026-09-11T22:11:23+00:00",
+      "author": {
+        "name": "Trevor Guidry",
+        "email": "trevor.guidry@mongodb.com"
+      },
+      "summary": "SERVER-134681: add 9.0 resmoke variant to mfp plugin (#62484)"
+    },
+    {
+      "sha": "25aaa2f44e8473d377ae0cfece7f8e77878a85ff",
+      "short_sha": "25aaa2f44e8",
+      "date": "2026-09-11T21:41:17+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-133606 Upgrade to bazel 9 (#62559)"
+    },
+    {
+      "sha": "36e85295dd429db7aa31bd4cef2470742f1b0c68",
+      "short_sha": "36e85295dd4",
+      "date": "2026-09-11T21:35:00+00:00",
+      "author": {
+        "name": "joe-mongodb",
+        "email": "joseph.shalabi@mongodb.com"
+      },
+      "summary": "SERVER-134846 Avoid duplicating includeQueryStatsMetrics on mongos co… (#62591)"
+    },
+    {
+      "sha": "11bd0b4e6c421f3b69d3b420694dc17dd740919f",
+      "short_sha": "11bd0b4e6c4",
+      "date": "2026-09-11T19:39:04+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-122926 Add jstest coverage for write command slow query logs (#62569)"
+    },
+    {
+      "sha": "23ee2b84e8c041489e20d12201df3ef255d6b715",
+      "short_sha": "23ee2b84e8c",
+      "date": "2026-09-11T19:22:16+00:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-126317 Mark fuzztests that crash as failing (#62639)"
+    },
+    {
+      "sha": "697d3ab29e85dfd57bddb55e830d6312c95708ed",
+      "short_sha": "697d3ab29e8",
+      "date": "2026-09-11T18:31:26+00:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-134841 Persistent samples passthrough persists join-sized sample if join knob is on (#62588)"
+    },
+    {
+      "sha": "b84dd17f672229d475620d37e8afa1c6ed6e66c2",
+      "short_sha": "b84dd17f672",
+      "date": "2026-09-11T18:25:06+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-133744 Reapply: Tolerate file shrinkage in SimulateCrash hook's copy_file (#62535)"
+    },
+    {
+      "sha": "23c278b5ad34ed75073624c57ea2442ffc976d23",
+      "short_sha": "23c278b5ad3",
+      "date": "2026-09-11T18:14:26+00:00",
+      "author": {
+        "name": "Samuel Mercier",
+        "email": "samontea@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134439 Gate $_internalFromPipeline serialization on featureFlagExtensionsInsideHybridSearch (#62218)\" (#62626)"
+    },
+    {
+      "sha": "578c32f532bca2945e5a434ef1a70c0ebe69b5fb",
+      "short_sha": "578c32f532b",
+      "date": "2026-09-11T17:24:06+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-133408: [Join Optimization] Introduce metric to track how often WT page counts are available (#62045)"
+    },
+    {
+      "sha": "14f3b26a003af7a2720f3bf193de653cbb33caef",
+      "short_sha": "14f3b26a003",
+      "date": "2026-09-11T17:00:02+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62597)"
+    },
+    {
+      "sha": "e683b35e9361f7a03f58cad357e2fb5cbdcb5120",
+      "short_sha": "e683b35e936",
+      "date": "2026-09-11T16:37:23+00:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-134814 Fix spillStats reporting in HHJ (#62556)"
+    },
+    {
+      "sha": "fec73998bf46aadd22da0ee8618e7a2820ce91f2",
+      "short_sha": "fec73998bf4",
+      "date": "2026-09-11T16:20:36+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-134866 Short-circuit task generation for auto-reverter patches (#62617)"
+    },
+    {
+      "sha": "ad07d03909fc58eb1dcaab8697c07c5e85772410",
+      "short_sha": "ad07d03909f",
+      "date": "2026-09-11T15:50:52+00:00",
+      "author": {
+        "name": "Abhik Ray",
+        "email": "abhikaboy@gmail.com"
+      },
+      "summary": "SERVER-134497: $throttle skeleton (#62146)"
+    },
+    {
+      "sha": "94a09a27a3ef16eda8e715d58d8ba184ba56cb79",
+      "short_sha": "94a09a27a3e",
+      "date": "2026-09-11T14:40:17+00:00",
+      "author": {
+        "name": "Projjal Chanda",
+        "email": "projjal.chanda@mongodb.com"
+      },
+      "summary": "SERVER-133808 Fix yielding in HHJ (#62226)"
+    },
+    {
+      "sha": "45ed615447b9a147f31b5080ed599916c1b71a2b",
+      "short_sha": "45ed615447b",
+      "date": "2026-09-11T14:21:07+00:00",
+      "author": {
+        "name": "erinzhu001",
+        "email": "erin.zhu@mongodb.com"
+      },
+      "summary": "SERVER-130907: Make operationMemoryUsageTracker into a shared pointer (#59356)"
+    },
+    {
+      "sha": "ed7b50584e7821a68fbd42723a8c7978a234fd45",
+      "short_sha": "ed7b50584e7",
+      "date": "2026-09-11T14:11:25+00:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-134768 Reduce buildSort stack frame size to reduce likelihood of stack overflow with some PGO profiles (#62589)"
+    },
+    {
+      "sha": "a47dc5bfd056e54e84a21570c557795a6f4da432",
+      "short_sha": "a47dc5bfd05",
+      "date": "2026-09-11T13:49:46+00:00",
+      "author": {
+        "name": "Daniel Gil",
+        "email": "137804741+mdb-dgil@users.noreply.github.com"
+      },
+      "summary": "SERVER-133473: Introduce delta semantics for materialized views (#61441)"
+    },
+    {
+      "sha": "ea3d11cc50440b6a918d31a3de0580afbae1f755",
+      "short_sha": "ea3d11cc504",
+      "date": "2026-09-11T13:38:47+00:00",
+      "author": {
+        "name": "Parker Felix",
+        "email": "68665637+parker-felix@users.noreply.github.com"
+      },
+      "summary": "SERVER-133838 Make $add/$mult left associative in the vectorizer (#61460)"
+    },
+    {
+      "sha": "aa0b12efe37558f0cdd6e9d04c995abbe8010062",
+      "short_sha": "aa0b12efe37",
+      "date": "2026-09-11T11:07:21+00:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-134091 Track index build durations by start phase and outcome (#62052)"
+    },
     {
       "sha": "e3c6672520f0ba344048eb4abf76f8969e0b8aa5",
       "short_sha": "e3c6672520f",
@@ -256,10 +486,79 @@
           "num_of_dirs": 16
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "45ed615447b9a147f31b5080ed599916c1b71a2b",
+        "short_sha": "45ed615447b",
+        "date": "2026-09-11T14:21:07+00:00",
+        "author": {
+          "name": "erinzhu001",
+          "email": "erin.zhu@mongodb.com"
+        },
+        "summary": "SERVER-130907: Make operationMemoryUsageTracker into a shared pointer (#59356)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 27,
+          "num_of_lines": 1429,
+          "lines_added": 1322,
+          "lines_deleted": 107,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "25aaa2f44e8473d377ae0cfece7f8e77878a85ff",
+        "short_sha": "25aaa2f44e8",
+        "date": "2026-09-11T21:41:17+00:00",
+        "author": {
+          "name": "Andrew Bradshaw",
+          "email": "andrew.bradshaw@mongodb.com"
+        },
+        "summary": "SERVER-133606 Upgrade to bazel 9 (#62559)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 46,
+          "num_of_lines": 4848,
+          "lines_added": 3168,
+          "lines_deleted": 1680,
+          "num_of_dirs": 26
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+        "short_sha": "ec7d1647e02",
+        "date": "2026-09-14T01:12:46+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 1e0bcde8b0cdf499430c7c83188dda75ef3c5a7d from branch mongodb-master (#62652)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 118,
+          "num_of_lines": 2511,
+          "lines_added": 1433,
+          "lines_deleted": 1078,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-18 06:10:43",
+  "generated_at": "2026-09-21 06:15:10",
   "branch_name": "master",
   "display_name": "master"
 }
