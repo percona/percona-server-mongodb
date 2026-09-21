@@ -18,7 +18,7 @@ if grep -q Microsoft /proc/version; then
 fi
 
 NAME=libbson
-VERSION=2.3.0
+VERSION=2.5.4
 
 if grep -q Microsoft /proc/version; then
     SRC_ROOT=$(wslpath -u $(powershell.exe -Command "Get-ChildItem Env:TEMP | Get-Content | Write-Host"))
@@ -61,15 +61,20 @@ cp -r $SRC_DIR/src/libbson $DEST_DIR/src
 stuff_to_remove=(
 src/common/CMakeLists.txt
 src/common/src/bson-dsl.md
-src/common/src/mlib/ckdint.test.cpp
+src/common/src/common-config.h.in
 src/common/src/mlib/ckdint.md
+src/common/src/mlib/ckdint.test.cpp
 src/common/tests
-src/libbson/CMakeLists.txt
 src/libbson/build
+src/libbson/CMakeLists.txt
 src/libbson/doc
 src/libbson/etc
 src/libbson/examples
 src/libbson/fuzz
+src/libbson/.gitattributes
+src/libbson/libbson.rc.in
+src/libbson/src/bson/config.h.in
+src/libbson/src/bson/version.h.in
 src/libbson/tests
 )
 
