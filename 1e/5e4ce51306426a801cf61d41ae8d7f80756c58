@@ -1,0 +1,221 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "9f5145c57e759aaa54a2660dcb58b7263737fdbe",
+    "merge_commit": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "9f5145c57e759aaa54a2660dcb58b7263737fdbe",
+    "theirs_commit": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+    "base_commit": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "files": [
+      "MODULE.bazel.lock",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex d7fcd630beb,2b15e95c92a..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,5 -388,6 +388,20 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"jKBwyZW3R7uAG43G4a4/0qR/4kR2tuRRmGWSpFtr7hk=\",\n +        \"usagesDigest\": \"bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=\",\n +        \"recordedFileInputs\": {},\n +        \"recordedDirentsInputs\": {},\n +        \"envVariables\": {},\n++||||||| 6d990baca59\n++        \"bzlTransitiveDigest\": \"OO0j1LkAHzbR6IrUDjehesWPNexSPMOftG1uDfuArJ0=\",\n++        \"usagesDigest\": \"bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=\",\n++        \"recordedFileInputs\": {},\n++        \"recordedDirentsInputs\": {},\n++        \"envVariables\": {},\n++=======\n+         \"bzlTransitiveDigest\": \"qc8Uo130XnXihY1h5xRMxjhBXtJrRBRRB78weNP3xBw=\",\n+         \"usagesDigest\": \"O6USfOJ8DQPD0n/I12XOSBR02kdpcMceoy4IGWv7Rus=\",\n+         \"recordedInputs\": [\n+           \"REPO_MAPPING:,bazel_features bazel_features+\",\n+           \"REPO_MAPPING:bazel_features+,bazel_tools bazel_tools\"\n+         ],\n++>>>>>>> ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+      "sbom.json": "diff --cc sbom.json\nindex 217e761d899,fd8ed9fee5c..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -14,0 -14,6 +14,16 @@@\n++<<<<<<< HEAD\n++||||||| 6d990baca59\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1133\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1141\"\n+       }\n+     ],\n++>>>>>>> ec7d1647e023bd42bbf2836d9162bb2d785c15ab"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "25aaa2f44e8473d377ae0cfece7f8e77878a85ff"
+      ],
+      "sbom.json": [
+        "b7fa273abffa1294361f08a08d99ed613604d494"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+    "merged_commits": [
+      "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+      "ca590f746ab4d46144d4f2241227fe1b9fb31e0a",
+      "654c1c4c375feaab6aaf36b8717d5dc40d39728a",
+      "b7b629723a47d032b5e543905244276de58aee60",
+      "067827825f3acad2594a30034cfe843934f36450",
+      "25aaa2f44e8473d377ae0cfece7f8e77878a85ff",
+      "36e85295dd429db7aa31bd4cef2470742f1b0c68",
+      "11bd0b4e6c421f3b69d3b420694dc17dd740919f",
+      "23ee2b84e8c041489e20d12201df3ef255d6b715",
+      "697d3ab29e85dfd57bddb55e830d6312c95708ed",
+      "b84dd17f672229d475620d37e8afa1c6ed6e66c2",
+      "23c278b5ad34ed75073624c57ea2442ffc976d23",
+      "578c32f532bca2945e5a434ef1a70c0ebe69b5fb",
+      "14f3b26a003af7a2720f3bf193de653cbb33caef",
+      "e683b35e9361f7a03f58cad357e2fb5cbdcb5120",
+      "fec73998bf46aadd22da0ee8618e7a2820ce91f2",
+      "ad07d03909fc58eb1dcaab8697c07c5e85772410",
+      "94a09a27a3ef16eda8e715d58d8ba184ba56cb79",
+      "45ed615447b9a147f31b5080ed599916c1b71a2b",
+      "ed7b50584e7821a68fbd42723a8c7978a234fd45",
+      "a47dc5bfd056e54e84a21570c557795a6f4da432",
+      "ea3d11cc50440b6a918d31a3de0580afbae1f755",
+      "aa0b12efe37558f0cdd6e9d04c995abbe8010062",
+      "e3c6672520f0ba344048eb4abf76f8969e0b8aa5",
+      "87a7b9cfdba69b6b2960a10680892423d574c12a",
+      "b7fa273abffa1294361f08a08d99ed613604d494",
+      "1a3b7c1f05d84cc4cd02b1e6aed168ac9ab3a0bc",
+      "94ce469e631b07923669f5ec8d5cd763e7428b44",
+      "aa3a9f83696817b2f4e1d3ee7e01e03d47899086",
+      "976298316f71bf61336ff7b2b1bcfb68774f32b4",
+      "d90198545570a396b3c677874173c4d914124645",
+      "3bacc45f90699ce3a08ff4328ae2b2a3f663dc1b",
+      "0cba2741cfb2fdec30e1222b51b7b789d73efc19",
+      "f8768c6320abeabd24567c0b9a8485b148beb4cb",
+      "fc15a90750ed7e7dfe3af01663af6ab43ea06f8e",
+      "6b852847ff2643fb7873fa38ffdef5165f612e16",
+      "ed5bce75aaed7c6ad4ce95ac41534a21b3f35070",
+      "fb63609c30663bb663e5353c7480b2bf486a58fe"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/utils.bzl",
+        "jstests/auth/lib/commands_lib.js",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 56964,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.302573,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 4318,
+        "cacheReadInputTokens": 78316,
+        "cacheCreationInputTokens": 24868,
+        "webSearchRequests": 0,
+        "costUSD": 0.302573,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 503,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 4318,
+            "cache_read": 78316,
+            "cache_creation": 24868
+          },
+          "cost_usd": 0.302573
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diffs for every file in the changeset and written the JSON description to the response file.\n\nSummary of what this merge pulls in from upstream:\n\n- **`.bazelrc`** \u2014 Bazel 9 config rework: broader external-rule autoloading, `--noincompatible_disallow_empty_glob`, new `system_include_paths` feature, platform target switched to `@internal_platforms_do_not_use//host`, removed two experimental flags, added a 40GB CppLink memory reservation and an `evg` dynamic-execution delay.\n- **`bazel/mongo_src_rules.bzl`** \u2014 third-party feature set now opts out of `system_include_paths`.\n- **`bazel/utils.bzl`** \u2014 pyc-cache helper drops `tempfile`, derives temp dir from env vars.\n- **`jstests/auth/lib/commands_lib.js`** \u2014 new `aggregate_$throttle` auth test.\n- **`src/mongo/base/error_codes.yml`** \u2014 two new StreamProcessor error codes (526, 527).\n- **`src/mongo/db/index_builds/BUILD.bazel`** \u2014 registers `index_builds_durations_histogram_test.cpp`.\n- **WiredTiger (`conn_api.c`, `wiredtiger.h.in`)** \u2014 new `cache_top` reporting/verbose category, `disagg_commit_ts_optional` debug flag, `WT_PAGE_LOG_CACHE_BYPASS` flag, six new cache_top stats plus mechanical renumbering of subsequent stat constants.\n\nTwo true conflicts were resolved: **MODULE.bazel.lock** (regenerated) and **sbom.json** (tool version bump + linenoise occurrence reorder; policy requires dropping `metadata.tools` and keeping the Percona supplier URL). I flagged both in the review notes and noted the large `wiredtiger.h.in` diff is mostly constant renumbering rather than functional change.",
+    "response": {
+      "summary": "Auto-merge of an upstream MongoDB batch into the PSMDB master fork. The incoming changes are mostly build/tooling and third-party (WiredTiger) updates: Bazel configuration is reworked for Bazel 9 (autoload of external rule sets, empty-glob and platform flag changes, a CppLink memory reservation), the Python pyc-cache prefix helper drops its tempfile dependency, two new StreamProcessor error codes are added, a new streams aggregation stage auth test and a new index-builds unit-test source are registered, and WiredTiger gains a new \"cache_top\" debug/verbose reporting feature plus a disagg_commit_ts_optional debug flag (with associated stat-constant renumbering in the generated header). Two files, MODULE.bazel.lock and sbom.json, came in as conflicts and were resolved.",
+      "auto_merged": {
+        ".bazelrc": "Reworks Bazel 9 configuration. Replaces the single `--incompatible_autoload_externally=+@rules_cc` line (and its long explanatory comment) with autoloading of `+@rules_cc,+@rules_shell,+@rules_java,+@rules_proto,+@com_google_protobuf,+PyInfo`; adds `--noincompatible_disallow_empty_glob` and the `system_include_paths` feature for build and host. Changes `build --platforms=//bazel/platforms:host` to `--platforms=@internal_platforms_do_not_use//host`. Removes the `--experimental_remote_merkle_tree_cache` and `--experimental_inprocess_symlink_creation` options. Adds `--modify_execution_info=CppLink=+resources:memory:40960` to reserve 40GB per C++ link action, and adds `--dynamic_local_execution_delay=20000` to the `evg` config.",
+        "MODULE.bazel.lock": "Conflicting file (both modified), resolved during the merge. Generated Bazel lock file regenerated to match the merged module graph; upstream updated recorded digests/inputs for module extensions. Not hand-mergeable \u2014 per project guidance it is regenerated via bazel rather than manually reconciled. No semantic source change to describe.",
+        "bazel/mongo_src_rules.bzl": "In `DISABLE_3RD_PARTY_FEATURES`, adds `-system_include_paths` to the clang and gcc compiler-type branches and changes the `//conditions:default` branch from an empty list to `[\"-system_include_paths\"]`, so third-party code opts out of the new `system_include_paths` feature.",
+        "bazel/utils.bzl": "In `write_python_pyc_cache_prefix_customization`, the generated customization no longer imports `tempfile`. The pycache prefix now derives the temp directory from the `TMPDIR`/`TEMP`/`TMP` environment variables (falling back to `/tmp`) instead of `tempfile.gettempdir()`, avoiding importing modules whose .pyc would land in the Bazel-managed tree. Only `os` and `sys` are imported.",
+        "jstests/auth/lib/commands_lib.js": "Adds a new authorization test case `aggregate_$throttle` for the `$throttle` aggregation stage. It runs an aggregate with pipeline `[{$throttle: {}}]`, is skipped unless `featureFlagStreams` is enabled and skipped on Windows / versions below 8.1, is skipped on sharded, and uses `testcases_transformationOnlyExpectFail`.",
+        "sbom.json": "Conflicting file (both modified), resolved during the merge. In the incoming diff, upstream bumped the generator tool version from `v1.7.1141` (Endor Labs Inc, in the `metadata.tools` section) and swapped the order of the two linenoise `evidence.occurrences` locations (`.cpp` and `.h`). Per project conflict guidance the `metadata.tools` section must not remain in Percona's SBOM and the Percona supplier URL is preserved.",
+        "src/mongo/base/error_codes.yml": "Adds two new error codes: 526 `StreamProcessorPreviewConnectTimeout` (categories StreamProcessorUserError, StreamProcessorRetryableError) and 527 `StreamProcessorMaterializeError` (category StreamProcessorUserError).",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds `index_builds_durations_histogram_test.cpp` to the srcs of the `mongo_cc_unit_test` target.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Adds a `cache_top` option to `__conn_debug_info` that calls `__wt_cache_top_report` when set. Adds a new `debug_mode.disagg_commit_ts_optional` config in `__wti_debug_mode_config` that sets/clears the `WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL` flag (internal testing only). Registers the new `{\"cache_top\", WT_VERB_CACHE_TOP}` verbose category in `__wt_get_verbose_categories`.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated WiredTiger header updated for the new cache_top feature: documents the `cache_top` debug_info config option and adds `cache_top` to the verbose-category option lists. Adds the `WT_PAGE_LOG_CACHE_BYPASS` (0x40u) page-log flag. Adds six new cache statistics constants (top/top5 dirty, updates and in-use percentages, WT_STAT_CONN_CACHE_TOP*_PCT 1352-1357) and renumbers all subsequent WT_STAT_CONN_* constants accordingly."
+      },
+      "review_notes": "Two files were true conflicts (both modified): MODULE.bazel.lock and sbom.json. MODULE.bazel.lock must be regenerated with bazel rather than hand-merged. For sbom.json, verify the merge kept Percona's supplier URL (https://percona.com) and removed the metadata.tools section (the Endor Labs entry) as required by project policy, keeping the JSON valid. The large wiredtiger.h.in diff is almost entirely mechanical renumbering of WT_STAT_CONN_* constants caused by inserting six new cache_top stats; the only functional additions are the cache_top stats/verbose category, the WT_PAGE_LOG_CACHE_BYPASS flag, and the disagg_commit_ts_optional debug flag. The new $throttle auth test and the two StreamProcessor error codes are gated to the streams feature. No Percona-specific customizations appear touched in the diff base -> merge diff for the non-conflict files."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each auto-merged file to describe the incoming changes accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me check the resolved conflict files (sbom.json and MODULE.bazel.lock) to describe them accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have enough to write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for every file in the changeset and written the JSON description to the response file.\n\nSummary of what this merge pulls in from upstream:\n\n- **`.bazelrc`** \u2014 Bazel 9 config rework: broader external-rule autoloading, `--noincompatible_disallow_empty_glob`, new `system_include_paths` feature, platform target switched to `@internal_platforms_do_not_use//host`, removed two experimental flags, added a 40GB CppLink memory reservation and an `evg` dynamic-execution delay.\n- **`bazel/mongo_src_rules.bzl`** \u2014 third-party feature set now opts out of `system_include_paths`.\n- **`bazel/utils.bzl`** \u2014 pyc-cache helper drops `tempfile`, derives temp dir from env vars.\n- **`jstests/auth/lib/commands_lib.js`** \u2014 new `aggregate_$throttle` auth test.\n- **`src/mongo/base/error_codes.yml`** \u2014 two new StreamProcessor error codes (526, 527).\n- **`src/mongo/db/index_builds/BUILD.bazel`** \u2014 registers `index_builds_durations_histogram_test.cpp`.\n- **WiredTiger (`conn_api.c`, `wiredtiger.h.in`)** \u2014 new `cache_top` reporting/verbose category, `disagg_commit_ts_optional` debug flag, `WT_PAGE_LOG_CACHE_BYPASS` flag, six new cache_top stats plus mechanical renumbering of subsequent stat constants.\n\nTwo true conflicts were resolved: **MODULE.bazel.lock** (regenerated) and **sbom.json** (tool version bump + linenoise occurrence reorder; policy requires dropping `metadata.tools` and keeping the Percona supplier URL). I flagged both in the review notes and noted the large `wiredtiger.h.in` diff is mostly constant renumbering rather than functional change."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260921_131559_385502.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.278 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+    "short_sha": "ec7d1647e02",
+    "strategy": "huge_commit",
+    "summary": "This is the WiredTiger vendored import (118 files, mongodb-master) - a self-contained, well-isolated boundary that is ideal to cut on. Taking it pulls in 38 commits (fork base through index 37), squarely in the ~30-65 target band. Critically, it keeps the SERVER-134439 gate commit (1a3b7c1) together with its revert (23c278b, #62626), so the feature and its undo cancel out within one batch instead of being imported then removed. Stopping here also leaves the freshest 5 commits (SERVER-131202/131213, two BF/soften test tweaks, and the newest auto-generated profiling-data regen) for the next batch, which honors stopping short of unsettled commits and not ending on the very newest candidate. The earlier WiredTiger import (87a7b9c) would be too small (14 commits) and would split the gate/revert pair.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/35604031010"
+  }
+}
