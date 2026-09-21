@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 43,
+    "commits_behind": 45,
     "days_behind": 10,
-    "unmerged_oldest_age_days": 10.819859460960648,
-    "files_affected": 418,
-    "total_additions": 17826,
-    "total_deletions": 5340,
+    "unmerged_oldest_age_days": 10.930012450034722,
+    "files_affected": 422,
+    "total_additions": 17842,
+    "total_deletions": 5347,
     "date_range": {
       "first": "2026-09-10T15:54:13+00:00",
-      "last": "2026-09-14T08:45:13+00:00"
+      "last": "2026-09-14T13:09:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "7b08e989c08f97e2c64f6db6fa03349265aa2ed5",
+      "short_sha": "7b08e989c08",
+      "date": "2026-09-14T13:09:07+00:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-134856: Fix tests that reference _id.pageNo (#62568)"
+    },
+    {
+      "sha": "0661b76e41a590d74e31ab47f500dda5c7be1d8c",
+      "short_sha": "0661b76e41a",
+      "date": "2026-09-14T10:03:01+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-134347: Halve numPipelines per file for aggregation_wildcard_fuzzer (#62106)"
+    },
     {
       "sha": "429b75a5e4d4da90e8ee76a989e68a3c56d95bc9",
       "short_sha": "429b75a5e4d",
@@ -608,7 +628,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-21 11:34:28",
+  "generated_at": "2026-09-21 14:12:58",
   "branch_name": "master",
   "display_name": "master"
 }
