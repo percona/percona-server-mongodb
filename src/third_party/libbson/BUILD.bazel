@@ -42,27 +42,12 @@ mongo_cc_library(
         "dist/src/libbson/src/bson/*.h",
         "dist/src/libbson/src/jsonsl/*.h",
     ]) + select({
-        "@platforms//os:windows": glob(["build_windows/**/*.h"]),
-        "@platforms//os:macos": glob(["build_osx/**/*.h"]),
         "@platforms//os:linux": glob(["build_linux/**/*.h"]),
-        "//bazel/config:linux_s390x": glob(["build_linux_s390x/**/*.h"]),
         "//conditions:default": [],
     }),
     copts = [
         "-Isrc/third_party/libbson/dist/src/common",
     ] + select({
-        "@platforms//os:windows": [
-            # msvc sign-compare warnings
-            "/wd4388",
-            "/wd4389",
-            "/wd4146",
-            "/wd4018",
-        ],
-        "@platforms//os:macos": [
-            "-Wno-sign-compare",
-            "-Wno-unguarded-availability-new",
-            "-Wno-implicit-fallthrough",
-        ],
         "@platforms//os:linux": [
             "-Wno-sign-compare",
             "-Wno-implicit-fallthrough",
@@ -76,21 +61,9 @@ mongo_cc_library(
         "dist/src/common/src",
         "dist/src/libbson/src",
     ] + select({
-        "@platforms//os:windows": [
-            "build_windows",
-            "build_windows/bson",
-        ],
-        "@platforms//os:macos": [
-            "build_osx",
-            "build_osx/bson",
-        ],
         "@platforms//os:linux": [
             "build_linux",
             "build_linux/bson",
-        ],
-        "//bazel/config:linux_s390x": [
-            "build_linux_s390x",
-            "build_linux_s390x/bson",
         ],
         "//conditions:default": [],
     }),
