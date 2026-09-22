@@ -1,0 +1,220 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "23e4dec4e384067eaf76e6fee7f7b9fbd2384065",
+    "merge_commit": "64fcc66e7c6abd6f6351a097833dd1877d184f2a"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "23e4dec4e384067eaf76e6fee7f7b9fbd2384065",
+    "theirs_commit": "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+    "base_commit": "6d990baca59ce7cdddded93409e0266d1ac6a45a",
+    "files": [
+      "MODULE.bazel.lock",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex d7fcd630beb,2b15e95c92a..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -356,5 -388,6 +388,20 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"jKBwyZW3R7uAG43G4a4/0qR/4kR2tuRRmGWSpFtr7hk=\",\n +        \"usagesDigest\": \"bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=\",\n +        \"recordedFileInputs\": {},\n +        \"recordedDirentsInputs\": {},\n +        \"envVariables\": {},\n++||||||| 6d990baca59\n++        \"bzlTransitiveDigest\": \"OO0j1LkAHzbR6IrUDjehesWPNexSPMOftG1uDfuArJ0=\",\n++        \"usagesDigest\": \"bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=\",\n++        \"recordedFileInputs\": {},\n++        \"recordedDirentsInputs\": {},\n++        \"envVariables\": {},\n++=======\n+         \"bzlTransitiveDigest\": \"qc8Uo130XnXihY1h5xRMxjhBXtJrRBRRB78weNP3xBw=\",\n+         \"usagesDigest\": \"O6USfOJ8DQPD0n/I12XOSBR02kdpcMceoy4IGWv7Rus=\",\n+         \"recordedInputs\": [\n+           \"REPO_MAPPING:,bazel_features bazel_features+\",\n+           \"REPO_MAPPING:bazel_features+,bazel_tools bazel_tools\"\n+         ],\n++>>>>>>> 64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+      "sbom.json": "diff --cc sbom.json\nindex 217e761d899,71f4ea79256..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -14,0 -14,6 +14,16 @@@\n++<<<<<<< HEAD\n++||||||| 6d990baca59\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1133\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1149\"\n+       }\n+     ],\n++>>>>>>> 64fcc66e7c6abd6f6351a097833dd1877d184f2a"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "25aaa2f44e8473d377ae0cfece7f8e77878a85ff"
+      ],
+      "sbom.json": [
+        "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+        "b7fa273abffa1294361f08a08d99ed613604d494"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+    "merged_commits": [
+      "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+      "e2e0702473acea414e3cca73cc512649325024e0",
+      "0080ff197965bd7af50489785f21ffc17aa6b516",
+      "92b0c9cfec899c8969ca479d222fa07c4202a6b8",
+      "7b08e989c08f97e2c64f6db6fa03349265aa2ed5",
+      "0661b76e41a590d74e31ab47f500dda5c7be1d8c",
+      "429b75a5e4d4da90e8ee76a989e68a3c56d95bc9",
+      "7da6eca504c0bdccd683dfc3db64887217269a4b",
+      "a6e783ae86903e51344ab4bfb5fc4893cf3861ce",
+      "2ace049eeacd3ecbd8fefb8779669c63a5367495",
+      "1269a90355d914d4593c80b50bb6228d19de1966",
+      "ec7d1647e023bd42bbf2836d9162bb2d785c15ab",
+      "ca590f746ab4d46144d4f2241227fe1b9fb31e0a",
+      "654c1c4c375feaab6aaf36b8717d5dc40d39728a",
+      "b7b629723a47d032b5e543905244276de58aee60",
+      "067827825f3acad2594a30034cfe843934f36450",
+      "25aaa2f44e8473d377ae0cfece7f8e77878a85ff",
+      "36e85295dd429db7aa31bd4cef2470742f1b0c68",
+      "11bd0b4e6c421f3b69d3b420694dc17dd740919f",
+      "23ee2b84e8c041489e20d12201df3ef255d6b715",
+      "697d3ab29e85dfd57bddb55e830d6312c95708ed",
+      "b84dd17f672229d475620d37e8afa1c6ed6e66c2",
+      "23c278b5ad34ed75073624c57ea2442ffc976d23",
+      "578c32f532bca2945e5a434ef1a70c0ebe69b5fb",
+      "14f3b26a003af7a2720f3bf193de653cbb33caef",
+      "e683b35e9361f7a03f58cad357e2fb5cbdcb5120",
+      "fec73998bf46aadd22da0ee8618e7a2820ce91f2",
+      "ad07d03909fc58eb1dcaab8697c07c5e85772410",
+      "94a09a27a3ef16eda8e715d58d8ba184ba56cb79",
+      "45ed615447b9a147f31b5080ed599916c1b71a2b",
+      "ed7b50584e7821a68fbd42723a8c7978a234fd45",
+      "a47dc5bfd056e54e84a21570c557795a6f4da432",
+      "ea3d11cc50440b6a918d31a3de0580afbae1f755",
+      "aa0b12efe37558f0cdd6e9d04c995abbe8010062",
+      "e3c6672520f0ba344048eb4abf76f8969e0b8aa5",
+      "87a7b9cfdba69b6b2960a10680892423d574c12a",
+      "b7fa273abffa1294361f08a08d99ed613604d494",
+      "1a3b7c1f05d84cc4cd02b1e6aed168ac9ab3a0bc",
+      "94ce469e631b07923669f5ec8d5cd763e7428b44",
+      "aa3a9f83696817b2f4e1d3ee7e01e03d47899086",
+      "976298316f71bf61336ff7b2b1bcfb68774f32b4",
+      "d90198545570a396b3c677874173c4d914124645",
+      "3bacc45f90699ce3a08ff4328ae2b2a3f663dc1b",
+      "0cba2741cfb2fdec30e1222b51b7b789d73efc19",
+      "f8768c6320abeabd24567c0b9a8485b148beb4cb",
+      "fc15a90750ed7e7dfe3af01663af6ab43ea06f8e",
+      "6b852847ff2643fb7873fa38ffdef5165f612e16",
+      "ed5bce75aaed7c6ad4ce95ac41534a21b3f35070",
+      "fb63609c30663bb663e5353c7480b2bf486a58fe"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/mongo_src_rules.bzl",
+        "bazel/utils.bzl",
+        "jstests/auth/lib/commands_lib.js",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/op_debug.cpp",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 48036,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.29053325,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3600,
+        "cacheReadInputTokens": 54344,
+        "cacheCreationInputTokens": 27733,
+        "webSearchRequests": 0,
+        "costUSD": 0.29053325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 140,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3600,
+            "cache_read": 54344,
+            "cache_creation": 27733
+          },
+          "cost_usd": 0.29053325
+        }
+      }
+    },
+    "text_result": "I've inspected the actual `diff base \u2192 merge commit` diffs for all auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **`usedJoinOptimization`** \u2014 a new boolean surfaced through `OpDebug` (profiler `append`, slow-query `report`, and staged profile-filter output), OR-accumulated in `setPlanSummaryMetrics`, with two new tests in `curop_test.cpp`.\n- **Two new error codes** \u2014 `StreamProcessorPreviewConnectTimeout` (526) and `StreamProcessorMaterializeError` (527).\n- **`$throttle` auth test** in `commands_lib.js` (gated on `featureFlagStreams`, non-Windows, \u2265 8.1).\n- **WiredTiger `cache_top`** debug/verbose feature (`conn_api.c`, `wiredtiger.h.in`), which adds six new cache-top stat constants and renumbers the following `WT_STAT_CONN_*` block, plus a `WT_PAGE_LOG_CACHE_BYPASS` flag and a `disagg_commit_ts_optional` debug toggle.\n- **Bazel 9 build config** changes (`.bazelrc`, `mongo_src_rules.bzl`, `utils.bzl`): broader external-rule autoload, `system_include_paths` feature, CppLink memory reservation, pycache-prefix without `tempfile`.\n- **Conflict files** `MODULE.bazel.lock` and `sbom.json` \u2014 handled per the conflict hints (lock regenerated via bazel; `tools` section dropped, Percona supplier URL kept).\n\nThe response file is written to `.cache/mergai/response_20260922_100813_944797.json`, and I made no changes to any source files.",
+    "response": {
+      "summary": "Merges upstream MongoDB changes into the PSMDB master fork. The functional highlights are: a new 'usedJoinOptimization' boolean surfaced through OpDebug (profiler output, slow-query log, and staged profile-filter output) with matching unit tests; two new server error codes (StreamProcessorPreviewConnectTimeout=526 and StreamProcessorMaterializeError=527); a new $throttle aggregation stage auth test; and a WiredTiger 'cache_top' debug/verbose feature reporting the tables consuming the most cache, which renumbers a large block of connection cache statistics constants. The build configuration (.bazelrc, mongo_src_rules.bzl, utils.bzl) is updated for Bazel 9 (autoload of additional external rules, system_include_paths feature, CppLink memory reservation, pycache prefix handling). The two conflicting files (MODULE.bazel.lock and sbom.json) are metadata/lock files.",
+      "auto_merged": {
+        ".bazelrc": "Bazel configuration updates from upstream: replaces the '+@rules_cc' autoload with a broader list (+@rules_cc,+@rules_shell,+@rules_java,+@rules_proto,+@com_google_protobuf,+PyInfo), adds --noincompatible_disallow_empty_glob, and adds the 'system_include_paths' feature for build and host. Switches --platforms from //bazel/platforms:host to @internal_platforms_do_not_use//host. Removes the experimental_remote_merkle_tree_cache and experimental_inprocess_symlink_creation flags. Adds a CppLink action memory reservation (--modify_execution_info=CppLink=+resources:memory:40960) and, for the evg config, --dynamic_local_execution_delay=20000.",
+        "bazel/mongo_src_rules.bzl": "In the DISABLE_3RD_PARTY_FEATURES select(), adds '-system_include_paths' to the clang and gcc branches and changes the //conditions:default branch from an empty list to ['-system_include_paths'], disabling the newly-added system_include_paths feature for first-party code.",
+        "bazel/utils.bzl": "In write_python_pyc_cache_prefix_customization, drops the 'import tempfile' and instead computes the temp directory from TMPDIR/TEMP/TMP environment variables (defaulting to /tmp) when setting sys.pycache_prefix, so that importing tempfile no longer causes .pyc files to land in the Bazel-managed tree. Comments updated accordingly.",
+        "jstests/auth/lib/commands_lib.js": "Adds an authorization test case 'aggregate_$throttle' for a pipeline using the {$throttle: {}} stage, skipped unless featureFlagStreams is enabled, on non-Windows, and version >= 8.1; skipSharded true, using testcases_transformationOnlyExpectFail.",
+        "sbom.json": "Conflict file (both modified). Per the conflict hints the metadata.tools section (Endor Labs entry) is dropped and Percona's supplier url is kept; serialNumber/version are release-time concerns. No functional source change.",
+        "src/mongo/base/error_codes.yml": "Adds two new error codes: 526 StreamProcessorPreviewConnectTimeout (categories StreamProcessorUserError, StreamProcessorRetryableError) and 527 StreamProcessorMaterializeError (category StreamProcessorUserError).",
+        "src/mongo/db/curop_test.cpp": "Adds an include of plan_summary_stats.h and two new tests. UsedJoinOptimizationExposedInAllOutputs verifies the 'usedJoinOptimization' field is omitted from profiler append, slow-query report, and staged profile-filter output when unset, and present when OpDebug::usedJoinOptimization is true. UsedJoinOptimizationPropagatedFromPlanSummaryStats verifies setPlanSummaryMetrics OR-accumulates the flag from PlanSummaryStats::usedJoinOptimization and never clears it once set.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds 'index_builds_durations_histogram_test.cpp' to the sources of the mongo_cc_unit_test target.",
+        "src/mongo/db/op_debug.cpp": "Adds reporting of a new 'usedJoinOptimization' boolean. In OpDebug::report and OpDebug::append it emits the field via the BOOL helper macros; OpDebug::appendStaged registers an addIfNeeded handler for it; and OpDebug::setPlanSummaryMetrics OR-combines usedJoinOptimization with PlanSummaryStats::usedJoinOptimization so the flag is not cleared by a later plan.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger upstream changes: __conn_debug_info handles a new 'cache_top' config that calls __wt_cache_top_report; __wti_debug_mode_config adds handling of 'debug_mode.disagg_commit_ts_optional' toggling WT_CONN_DEBUG_DISAGG_COMMIT_TS_OPTIONAL (internal testing only); and __wt_get_verbose_categories registers a new 'cache_top' verbose category (WT_VERB_CACHE_TOP).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger generated header updates: documents the new debug_info 'cache_top' boolean config and adds 'cache_top' to the verbose category lists; adds a WT_PAGE_LOG_CACHE_BYPASS (0x40u) flag; adds six new WT_STAT_CONN_CACHE_TOP*/TOP5* dirty/updates/inuse percentage statistics constants and renumbers the subsequent block of connection cache statistic constants accordingly."
+      },
+      "review_notes": "MODULE.bazel.lock and sbom.json are the two conflicting files (both modified). MODULE.bazel.lock should be regenerated via bazel per the conflict hints rather than hand-merged; sbom.json should have its metadata.tools section removed and Percona's supplier url preserved. The bulk of the wiredtiger.h.in diff is mechanical renumbering of WT_STAT_CONN_* constants caused by inserting six new cache_top statistics; verify no MongoDB-side stat consumers rely on the old numeric values. The 'usedJoinOptimization' plumbing spans op_debug.cpp, curop_test.cpp and depends on PlanSummaryStats::usedJoinOptimization existing. No Percona-specific code appears removed or altered in the diff-base-to-merge-commit diff for these files."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each auto-merged file before describing them."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have enough to write an accurate description."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've inspected the actual `diff base \u2192 merge commit` diffs for all auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **`usedJoinOptimization`** \u2014 a new boolean surfaced through `OpDebug` (profiler `append`, slow-query `report`, and staged profile-filter output), OR-accumulated in `setPlanSummaryMetrics`, with two new tests in `curop_test.cpp`.\n- **Two new error codes** \u2014 `StreamProcessorPreviewConnectTimeout` (526) and `StreamProcessorMaterializeError` (527).\n- **`$throttle` auth test** in `commands_lib.js` (gated on `featureFlagStreams`, non-Windows, \u2265 8.1).\n- **WiredTiger `cache_top`** debug/verbose feature (`conn_api.c`, `wiredtiger.h.in`), which adds six new cache-top stat constants and renumbers the following `WT_STAT_CONN_*` block, plus a `WT_PAGE_LOG_CACHE_BYPASS` flag and a `disagg_commit_ts_optional` debug toggle.\n- **Bazel 9 build config** changes (`.bazelrc`, `mongo_src_rules.bzl`, `utils.bzl`): broader external-rule autoload, `system_include_paths` feature, CppLink memory reservation, pycache-prefix without `tempfile`.\n- **Conflict files** `MODULE.bazel.lock` and `sbom.json` \u2014 handled per the conflict hints (lock regenerated via bazel; `tools` section dropped, Percona supplier URL kept).\n\nThe response file is written to `.cache/mergai/response_20260922_100813_944797.json`, and I made no changes to any source files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260922_100813_944680.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.278 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+    "short_sha": "64fcc66e7c6",
+    "strategy": null,
+    "summary": "This SBOM auto-generated artifact commit (SERVER-129061) is an ideal merge boundary: it touches a well-isolated, easy-to-validate set of files and does not depend on the commits after it. It lands at ~49 commits into the window, squarely in the target ~30-65 band. Crucially, it sits right before SERVER-134534 (20381587), which is reverted later within this same window by #62719 (3f5aa1d5). Cutting here leaves that original+revert pair together for the next batch instead of importing a change that upstream undoes shortly after. The earlier SERVER-134439 gate commit and its revert (23c278b5) both fall inside this batch, so that pair cancels out cleanly. Larger wiredtiger imports earlier in the window (ec7d1647 at ~38) would cut too small, and pushing further would drag in the unsettled reverts near the window tail.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/35714003880"
+  }
+}
