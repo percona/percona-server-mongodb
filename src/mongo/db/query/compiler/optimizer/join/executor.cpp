@@ -715,6 +715,8 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     // Set iff 'useJoinPlanCache' is true.
     boost::optional<JoinPlanCacheKey> cacheKey;
+    // Set iff 'useJoinPlanCache' is true and the lookup missed.
+    boost::optional<std::vector<CollectionTag>> collectionTags;
 
     const auto eligibleIdxs = extractINLJEligibleIndexes(model.getGraph(), mca);
 
@@ -727,6 +729,9 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
             return JoinReorderedExecutorResult{.executor = std::move(exec),
                                                .model = std::move(model)};
         }
+        // Capture the tags before sampling: a yield re-acquires collections from the latest
+        // catalog, which would tag the entry with a newer state than the plan is built from.
+        collectionTags = makeCollectionTags(mca);
         joinPlanCacheMisses.increment(1);
         LOGV2_DEBUG(11083907, 5, "Join plan cache miss, running optimization");
     }
@@ -768,6 +773,16 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                               .uniqueFieldInfo = std::move(uniqueFieldInfo),
                               .samplingEstimators = &samplingEstimators,
                               .explain = expCtx->getExplain().has_value()};
+
+    // Count the distinct join-graph namespaces whose storage-engine approximate leaf page count is
+    // unavailable, forcing cost estimation onto the size-based fallback. 'collStats' covers every
+    // collection in 'mca', a superset of the join-graph namespaces; collections referenced only by
+    // the unoptimized suffix are never costed, so they are not counted.
+    const auto& graphNamespaces = model.getDistinctNamespaces();
+    peMetrics.numApproxLeafPagesUnavailable = static_cast<int>(
+        std::count_if(graphNamespaces.begin(), graphNamespaces.end(), [&](const auto& nss) {
+            return !ctx.catStats.collStats.at(nss).hasApproxNumLeafPages();
+        }));
 
     JoinCardinalityEstimator cardEstimator(
         JoinCardinalityEstimator::make(ctx, samplingEstimators, peMetrics));
@@ -828,12 +843,13 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // Store the winning plan in the join plan cache for future queries with the same shape.
     if (cacheWinningPlan && reordered.cachedJoinPlan) {
         tassert(13036804,
-                "Join plan cache key must be set when the join plan cache is in use",
-                cacheKey.has_value());
+                "Join plan cache key and collection tags must be set when the join plan cache is "
+                "in use",
+                cacheKey.has_value() && collectionTags.has_value());
 
         auto fingerprints = makeNodeFingerprints(
             model.getGraph(), model.getResolvedPaths(), eligibleIdxs, *reordered.cachedJoinPlan);
-        auto currentTags = makeCollectionTags(mca);
+        const auto& currentTags = *collectionTags;
         const auto planCacheKeyHex = joinPlanCacheKeyForLog(*cacheKey);
         // 'serializeForLogging()' handles redaction of user content per the 'redactClientLogData'
         // policy.
@@ -843,7 +859,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
         auto entry = std::make_unique<JoinPlanCacheEntry>(std::move(reordered.cachedJoinPlan),
                                                           reordered.baseNode,
-                                                          std::move(currentTags),
+                                                          currentTags,
                                                           std::move(fingerprints));
         const BSONObj planShapeForLog =
             entry->joinTree ? entry->joinTree->toBSONForLog() : BSONObj();

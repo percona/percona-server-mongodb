@@ -114,6 +114,9 @@ const kPerEnumerationExpectedMetrics = {
     numUniqueIndexesUsedForNDV: 0,
     // internalQueryEnablePersistentNDVStats defaults to off, so no persisted NDV is consulted.
     numPersistentNDVStatsUsed: 0,
+    // All three collections are small enough that their b-trees fit on a single leaf, so the storage
+    // engine's approximate leaf page count is unavailable for each.
+    numApproxLeafPagesUnavailable: 3,
 };
 
 // Timers recorded only on the enumeration path, i.e. only on a join plan cache miss. Like the
@@ -222,7 +225,7 @@ const pipeline = [
     },
     {$unwind: "$item"},
 ];
-assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
 // With join optimization disabled, no JoinOptimization supplemental metrics should be present.
 {
@@ -241,7 +244,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
 assert.commandWorked(db.adminCommand({setParameter: 1, internalEnableJoinOptimization: true}));
 
 // Run the query so that it is registered in the query stats store.
-assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
 // With join optimization enabled, we expect to see some metrics.
 {
@@ -257,7 +260,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
 assert.commandWorked(db.adminCommand({setParameter: 1, internalEnableJoinPlanCache: true}));
 
 // Run the query again!
-assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
 // We expect to see updated metrics.
 {
@@ -271,7 +274,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
 }
 
 // Now repeat, but the plan should be cached.
-assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
 {
     const stats = getQueryStats(conn, {collName: orders.getName()});
@@ -296,7 +299,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
     kPerQueryMetrics.numSuffixSourcesPushedToSbe = 1;
     kPerQueryMetrics.numResidualClassicSources = 2;
 
-    assert.eq(orders.aggregate(suffixPipeline, {cursor: {batchSize: 100000}}).itcount(), 10);
+    assert.eq(orders.aggregate(suffixPipeline).itcount(), 10);
 
     const stats = getQueryStats(conn, {collName: orders.getName()});
     const matching = stats.filter((s) => tojson(s.key.queryShape).includes("$group"));
@@ -331,7 +334,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
     kPerQueryMetrics.numResidualClassicSources = 0;
     kPerEnumerationExpectedMetrics.numUniqueIndexesUsedForNDV = 1;
 
-    assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+    assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
     const stats = getQueryStats(conn, {collName: orders.getName()});
     assert.eq(1, stats.length, tojson(stats));
@@ -363,10 +366,7 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
 
     kPerEnumerationExpectedMetrics.numPersistentNDVStatsUsed = 1;
 
-    // TODO SERVER-134077: the single large batch is load-bearing. Supplemental query stats
-    // metrics are only recorded when the initial batch exhausts the cursor; with the default
-    // batch size the JoinOptimization section would be missing entirely.
-    assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+    assert.eq(orders.aggregate(pipeline).itcount(), 1000);
 
     const stats = getQueryStats(conn, {collName: orders.getName()});
     assert.eq(1, stats.length, tojson(stats));
@@ -374,6 +374,45 @@ assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1
     const joinMetrics = stats[0].metrics.supplementalMetrics.JoinOptimization;
     assert(joinMetrics);
     assertJoinMetrics(joinMetrics, 1, 1);
+}
+
+{
+    // Validate that 'numApproxLeafPagesUnavailable' is omitted (not reported as a measured 0)
+    // when planning starts enumeration but fails before catalog statistics are collected. The
+    // fail point makes single-table access planning fail, after which the query still runs as
+    // regular $lookups.
+    assert.commandWorked(
+        db.adminCommand({
+            configureFailPoint: "failSingleTableAccessPlansForJoinOptimization",
+            mode: "alwaysOn",
+        }),
+    );
+    try {
+        resetQueryStatsStore(conn, "10MB");
+        assert.eq(orders.aggregate(pipeline, {cursor: {batchSize: 100000}}).itcount(), 1000);
+
+        const stats = getQueryStats(conn, {collName: orders.getName()});
+        assert.eq(1, stats.length, tojson(stats));
+
+        const joinMetrics = stats[0].metrics.supplementalMetrics.JoinOptimization;
+        assert(joinMetrics);
+        // Enumeration started (sampling ran), so the per-enumeration section exists...
+        assert.eq(joinMetrics.numPlanEnumerations, 1, tojson(joinMetrics));
+        assert.eq(
+            joinMetrics.fallbackReasons.failedToGetSingleTableAccessViaCBR,
+            NumberLong(1),
+            tojson(joinMetrics),
+        );
+        // ...but the metric was never measured, so it must be absent rather than zero.
+        assert.eq(joinMetrics.numApproxLeafPagesUnavailable, undefined, tojson(joinMetrics));
+    } finally {
+        assert.commandWorked(
+            db.adminCommand({
+                configureFailPoint: "failSingleTableAccessPlansForJoinOptimization",
+                mode: "off",
+            }),
+        );
+    }
 }
 
 MongoRunner.stopMongod(conn);

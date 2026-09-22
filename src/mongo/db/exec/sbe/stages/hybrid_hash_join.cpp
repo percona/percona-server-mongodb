@@ -32,8 +32,10 @@ public:
     virtual ~Impl() = default;
     virtual boost::optional<MatchResult> next() = 0;
     virtual void saveState() {}
-    virtual void restoreState() {}
     virtual bool tryReprobe() {
+        return false;
+    }
+    virtual bool hasPendingMatches() const {
         return false;
     }
 };
@@ -54,18 +56,16 @@ void JoinCursor::saveState() {
     }
 }
 
-void JoinCursor::restoreState() {
-    if (_impl) {
-        _impl->restoreState();
-    }
-}
-
 void JoinCursor::reset() {
     _impl = nullptr;
 }
 
 bool JoinCursor::tryReprobe() {
     return _impl && _impl->tryReprobe();
+}
+
+bool JoinCursor::hasPendingMatches() const {
+    return _impl && _impl->hasPendingMatches();
 }
 
 JoinCursor JoinCursor::empty() {
@@ -78,11 +78,7 @@ public:
     InMemoryJoinCursor(HHJTableType& ht,
                        value::MaterializedRow& probeKey,
                        value::MaterializedRow& probeProject)
-        : _ht(ht),
-          _probeKey(probeKey),
-          _probeProject(probeProject),
-          _savedProbeKey(probeKey.size()),
-          _savedProbeProject(probeProject.size()) {
+        : _ht(ht), _probeKey(probeKey), _probeProject(probeProject) {
         // Probe the hash table for matches into the cursor to stream them.
         std::tie(_htIt, _htItEnd) = _ht.equal_range(_probeKey);
     }
@@ -95,41 +91,19 @@ public:
         return true;
     }
 
-    void saveState() override {
-        // Two-pass save: collect all copies into fresh rows before freeing any old saved buffers.
-        value::MaterializedRow newSavedKey(_probeKey.size());
-        for (size_t i = 0; i < _probeKey.size(); ++i) {
-            newSavedKey.reset(i, _probeKey.getViewOfValue(i).copy());
-        }
-        _savedProbeKey = std::move(newSavedKey);
-
-        value::MaterializedRow newSavedProject(_probeProject.size());
-        for (size_t i = 0; i < _probeProject.size(); ++i) {
-            newSavedProject.reset(i, _probeProject.getViewOfValue(i).copy());
-        }
-        _savedProbeProject = std::move(newSavedProject);
+    bool hasPendingMatches() const override {
+        return _htIt != _htItEnd;
     }
 
-    void restoreState() override {
-        // Restore _probeKey/_probeProject from the saved copies, setting ownership to false so
-        // that the next call to HashJoinStage::getNext() - which resets these rows for the new
-        // outer probe row - does not release the underlying buffers. A nested child may hold views
-        // into these buffers via its outer accessor; releasing them would leave those views
-        // dangling.
-        for (size_t i = 0; i < _savedProbeKey.size(); ++i) {
-            _probeKey.reset(i, _savedProbeKey.getViewOfValue(i));
-        }
-        for (size_t i = 0; i < _savedProbeProject.size(); ++i) {
-            _probeProject.reset(i, _savedProbeProject.getViewOfValue(i));
-        }
+    void saveState() override {
+        _probeKey.makeOwned();
+        _probeProject.makeOwned();
     }
 
 private:
     HHJTableType& _ht;
     value::MaterializedRow& _probeKey;
     value::MaterializedRow& _probeProject;
-    value::MaterializedRow _savedProbeKey;
-    value::MaterializedRow _savedProbeProject;
     HHJTableType::iterator _htIt{};
     HHJTableType::iterator _htItEnd{};
 };
@@ -700,10 +674,8 @@ void HybridHashJoin::finishBuild() {
                 // finishProbe()
             }
         }
-        if (_recordsAddedToWriter > 0) {
-            updateSpillingStats(_recordsAddedToWriter);
-            _recordsAddedToWriter = 0;
-        }
+        updateSpillingStats(_recordsAddedToWriter);
+        _recordsAddedToWriter = 0;
 
         // Re-initialize hash table from memory-resident partitions
         buildHashTableFromInMemPartitions();
@@ -859,17 +831,23 @@ boost::filesystem::path HybridHashJoin::getTempDir() const {
 
 void HybridHashJoin::updateSpillingStats(uint64_t nRecords) {
     auto& spillingStats = _stats.spillingStats;
-    auto spillToDiskBytes =
-        _fileStats->bytesSpilledUncompressed() - spillingStats.getSpilledBytes();
 
-    auto spilledDataStorageIncrease = spillingStats.updateSpillingStats(
-        1,
-        spillToDiskBytes,
-        nRecords,
-        _fileStats->bytesSpilled() - (int64_t)spillingStats.getSpilledDataStorageSize());
+    const int64_t totalSpilledBytes = _fileStats->bytesSpilledUncompressed();
+    const int64_t previouslyReportedBytes = static_cast<int64_t>(spillingStats.getSpilledBytes());
+    const uint64_t spillToDiskBytes =
+        static_cast<uint64_t>(totalSpilledBytes - previouslyReportedBytes);
+
+    if (nRecords == 0 && spillToDiskBytes == 0) {
+        return;
+    }
+
+    const uint64_t nSpills = nRecords > 0 ? 1 : 0;
+
+    const uint64_t spilledDataStorageIncrease = spillingStats.updateSpillingStats(
+        nSpills, spillToDiskBytes, nRecords, static_cast<uint64_t>(_fileStats->bytesSpilled()));
 
     hashJoinCounters.incrementPerSpilling(
-        1, spillToDiskBytes, nRecords, spilledDataStorageIncrease);
+        nSpills, spillToDiskBytes, nRecords, spilledDataStorageIncrease);
 }
 
 // Return kNumPartitions if no more left
@@ -888,6 +866,10 @@ size_t HybridHashJoin::findNextSpilledPartitionIdx() {
  * when the stage is reopened.
  */
 void HybridHashJoin::reset() {
+    if (_fileStats) {
+        updateSpillingStats(_recordsAddedToWriter);
+    }
+
     _ht->clear();
     _ht->rehash(0);
 
@@ -899,7 +881,6 @@ void HybridHashJoin::reset() {
     _partitionSpills.shrink_to_fit();
     _bloomFilter.reset();
 
-    _fileStats.reset();
     _memUsage = 0;
     _isPartitioned = false;
 
