@@ -385,26 +385,12 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
-<<<<<<< HEAD
-        "bzlTransitiveDigest": "jKBwyZW3R7uAG43G4a4/0qR/4kR2tuRRmGWSpFtr7hk=",
-        "usagesDigest": "bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-||||||| 6d990baca59
-        "bzlTransitiveDigest": "OO0j1LkAHzbR6IrUDjehesWPNexSPMOftG1uDfuArJ0=",
-        "usagesDigest": "bUxjq9n+hj2YwYT/lcSP4lHyQ2GVy5JpFgSmddUqUZg=",
-        "recordedFileInputs": {},
-        "recordedDirentsInputs": {},
-        "envVariables": {},
-=======
-        "bzlTransitiveDigest": "qc8Uo130XnXihY1h5xRMxjhBXtJrRBRRB78weNP3xBw=",
+        "bzlTransitiveDigest": "v5xQY5NBOVSTsYpK3TQsIGv/WgNWh37gmY8wv5+45og=",
         "usagesDigest": "O6USfOJ8DQPD0n/I12XOSBR02kdpcMceoy4IGWv7Rus=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_features bazel_features+",
           "REPO_MAPPING:bazel_features+,bazel_tools bazel_tools"
         ],
->>>>>>> 64fcc66e7c6abd6f6351a097833dd1877d184f2a
         "generatedRepoSpecs": {
           "py_host": {
             "repoRuleId": "@@//bazel/toolchains/python:python_toolchain.bzl%py_download",
