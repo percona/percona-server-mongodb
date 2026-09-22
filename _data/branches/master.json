@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 45,
-    "days_behind": 10,
-    "unmerged_oldest_age_days": 10.930012450034722,
-    "files_affected": 422,
-    "total_additions": 17842,
-    "total_deletions": 5347,
+    "commits_behind": 76,
+    "days_behind": 11,
+    "unmerged_oldest_age_days": 11.595650084999999,
+    "files_affected": 510,
+    "total_additions": 21019,
+    "total_deletions": 7360,
     "date_range": {
       "first": "2026-09-10T15:54:13+00:00",
-      "last": "2026-09-14T13:09:07+00:00"
+      "last": "2026-09-15T03:00:07+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,316 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "99dc9bb6f1e1c0624de32bf9fd3b97bb90fc9dd8",
+      "short_sha": "99dc9bb6f1e",
+      "date": "2026-09-15T03:00:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-130759: Add arbiter mode into invariant condition (#57820)\" (#62739)"
+    },
+    {
+      "sha": "2669bc8d542426cb9847509f67fb18e25b1e6c3c",
+      "short_sha": "2669bc8d542",
+      "date": "2026-09-14T23:48:25+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 0bccccc98336d74e7f435723514b6c349290ff0f from branch mongodb-master (#62685)"
+    },
+    {
+      "sha": "906da805c2f26bb8260f252cd6bf9d385cda4e39",
+      "short_sha": "906da805c2f",
+      "date": "2026-09-14T22:21:07+00:00",
+      "author": {
+        "name": "James Bronsted",
+        "email": "32047428+jpbronsted@users.noreply.github.com"
+      },
+      "summary": "SERVER-134837 add support for setting client thread niceness (#62593)"
+    },
+    {
+      "sha": "7a720fa2c8b830e363f05abec1f073733f1a2a9c",
+      "short_sha": "7a720fa2c8b",
+      "date": "2026-09-14T21:54:43+00:00",
+      "author": {
+        "name": "Vishnu K",
+        "email": "vishnu.kaushik@mongodb.com"
+      },
+      "summary": "SERVER-134701  Apply truncateRange individually to relieve cache pressure during PIT Restore (#62578)"
+    },
+    {
+      "sha": "fe7c01d04fa4f13aefb137281167225f261c97a1",
+      "short_sha": "fe7c01d04fa",
+      "date": "2026-09-14T21:38:01+00:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-134859: Track join-graph collections in join plan cache tags (#62642)"
+    },
+    {
+      "sha": "fa088cee568c3d87b777d28d44aa4b9f6f431691",
+      "short_sha": "fa088cee568",
+      "date": "2026-09-14T21:23:00+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134688 Add a stepdown lock which serializes table operations against stepdown (#62580)"
+    },
+    {
+      "sha": "6281edaf8c0e9a222d905fc927fc57d0f52dc8d7",
+      "short_sha": "6281edaf8c0",
+      "date": "2026-09-14T21:12:08+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-134255 Add hybrid search operators to the Stable API (#62565)"
+    },
+    {
+      "sha": "4b02dc3ecd9ad5d808153c3699580d810c11a22a",
+      "short_sha": "4b02dc3ecd9",
+      "date": "2026-09-14T20:57:31+00:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-130306 Fix heap-use-after-free in TextMatchExpression (#57481)"
+    },
+    {
+      "sha": "6a810d4b8744033362a2ba8db793c786f32f7558",
+      "short_sha": "6a810d4b874",
+      "date": "2026-09-14T20:02:11+00:00",
+      "author": {
+        "name": "joe-mongodb",
+        "email": "joseph.shalabi@mongodb.com"
+      },
+      "summary": "SERVER-130901: Limit JSON Pointer path depth to 255 for $jsonSchema.encryptMetadata.keyId (#58019)"
+    },
+    {
+      "sha": "3f5aa1d59deb57a1272ab77c5ff900cc8d9d0890",
+      "short_sha": "3f5aa1d59de",
+      "date": "2026-09-14T19:46:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134534 Make knob_utils.js resilient to storage change interrupts (#62667)\" (#62719)"
+    },
+    {
+      "sha": "2f48fde69153d4757fd1b79520f5c32b046c5a10",
+      "short_sha": "2f48fde6915",
+      "date": "2026-09-14T19:23:33+00:00",
+      "author": {
+        "name": "Xuerui Fa",
+        "email": "xuerui.fa@mongodb.com"
+      },
+      "summary": "SERVER-134972: Improve log message when failing to apply batch of oplog entries (#62697)"
+    },
+    {
+      "sha": "2f352be0975d71b118b7f279febef161b524dd48",
+      "short_sha": "2f352be0975",
+      "date": "2026-09-14T19:06:28+00:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-134959: Disable minidumps on Windows (#62682)"
+    },
+    {
+      "sha": "f29feb4e1f01ff5634b8745e18ca85c02659dc41",
+      "short_sha": "f29feb4e1f0",
+      "date": "2026-09-14T18:52:28+00:00",
+      "author": {
+        "name": "Sophia Yang",
+        "email": "sophia.yang@mongodb.com"
+      },
+      "summary": "SERVER-134968: Remove Mothra YAML fallback and associated test (#62691)"
+    },
+    {
+      "sha": "81aae0bfed1556ba2b21a0cad621c91a9595ccb6",
+      "short_sha": "81aae0bfed1",
+      "date": "2026-09-14T18:45:37+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-133227 Add POA dispatcher loop routing batches to worker queues (#62560)"
+    },
+    {
+      "sha": "20006b4ad7219546d91536161f7bc0659b1b6470",
+      "short_sha": "20006b4ad72",
+      "date": "2026-09-14T18:44:01+00:00",
+      "author": {
+        "name": "Kevin Qi",
+        "email": "kevin.qi@mongodb.com"
+      },
+      "summary": "SERVER-111199: Remove Noisy Startup Warnings About Missing Ethtool Stats (#62640)"
+    },
+    {
+      "sha": "c5cf3cf868ba15ba1aaa8d9e59c702027799459d",
+      "short_sha": "c5cf3cf868b",
+      "date": "2026-09-14T18:39:05+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-134786 Include size and count diff in collection validation failure (#62549)"
+    },
+    {
+      "sha": "91b4369ccf99c8c8c0f694c5ab91ba8c6b8e6f84",
+      "short_sha": "91b4369ccf9",
+      "date": "2026-09-14T18:38:07+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-132555 Filling up extra/missing index maps is a warning instead of error (#62687)"
+    },
+    {
+      "sha": "e63059398082d3c0755b09010097e417302dcd86",
+      "short_sha": "e6305939808",
+      "date": "2026-09-14T17:44:58+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-131229 make one config's validation case-sensitive (#58414)"
+    },
+    {
+      "sha": "b84a3705d20793ae0b871d1fb69b28659d0b82e1",
+      "short_sha": "b84a3705d20",
+      "date": "2026-09-14T17:42:53+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-134974: Fix code coverage for bazel 9 (#62699)"
+    },
+    {
+      "sha": "b9e4c8666a621b13d80ae7ddb0f26e4296004148",
+      "short_sha": "b9e4c8666a6",
+      "date": "2026-09-14T17:39:11+00:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-92576 Remove docsRequested and featureFlagSearchBatchSizeTuning (#62506)"
+    },
+    {
+      "sha": "0346cb279bb77445b4134dc9b57d21d48c59d059",
+      "short_sha": "0346cb279bb",
+      "date": "2026-09-14T17:38:16+00:00",
+      "author": {
+        "name": "Will Buerger",
+        "email": "59492746+wbuerger46@users.noreply.github.com"
+      },
+      "summary": "SERVER-134281 Remove stale TODO(SERVER-130493) comments (#62507)"
+    },
+    {
+      "sha": "ec3982359d700bcb3981da1dcecef98918e07443",
+      "short_sha": "ec3982359d7",
+      "date": "2026-09-14T17:34:15+00:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-130759: Add arbiter mode into invariant condition (#57820)"
+    },
+    {
+      "sha": "fb4f04ef4651ae1bbefabddb0253feb569319624",
+      "short_sha": "fb4f04ef465",
+      "date": "2026-09-14T17:19:02+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-134873 Disable enforceFastCount on validate for resharding shutdown retry test (#62631)"
+    },
+    {
+      "sha": "20259ba48ea7e6e4d706e31096419227d484286a",
+      "short_sha": "20259ba48ea",
+      "date": "2026-09-14T16:38:06+00:00",
+      "author": {
+        "name": "Alexander Ignatyev",
+        "email": "alexander.ignatyev@mongodb.com"
+      },
+      "summary": "SERVER-131562 Fix out-of-bounds read in multi-planner tie-breaking heuristics (#58809)"
+    },
+    {
+      "sha": "3e55dc8cecd651cbdd4db654c65973c93d648cb1",
+      "short_sha": "3e55dc8cecd",
+      "date": "2026-09-14T16:17:34+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-134909 Remove stale TODO references from SERVER-122926 (#62693)"
+    },
+    {
+      "sha": "6c835026ba0d9355727b4d20eb3854b269b7eb67",
+      "short_sha": "6c835026ba0",
+      "date": "2026-09-14T15:43:32+00:00",
+      "author": {
+        "name": "Alice Doherty",
+        "email": "66687032+alicedoherty@users.noreply.github.com"
+      },
+      "summary": "SERVER-134719 Update instruction-count microbenchmark thresholds (#62558)"
+    },
+    {
+      "sha": "20381587e386380a76e0c27b5dc9696755d0cbcd",
+      "short_sha": "20381587e38",
+      "date": "2026-09-14T15:21:58+00:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-134534 Make knob_utils.js resilient to storage change interrupts (#62667)"
+    },
+    {
+      "sha": "64fcc66e7c6abd6f6351a097833dd1877d184f2a",
+      "short_sha": "64fcc66e7c6",
+      "date": "2026-09-14T14:55:31+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129061 Auto-generated SBOM files [master] (#62602)"
+    },
+    {
+      "sha": "e2e0702473acea414e3cca73cc512649325024e0",
+      "short_sha": "e2e0702473a",
+      "date": "2026-09-14T14:50:14+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-133839 Enable sizeStats logs in parallel record store traversal (#61710)"
+    },
+    {
+      "sha": "0080ff197965bd7af50489785f21ffc17aa6b516",
+      "short_sha": "0080ff19796",
+      "date": "2026-09-14T14:10:15+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-134077 Record supplemental query stats metrics for cursors that span getMores (#62622)"
+    },
+    {
+      "sha": "92b0c9cfec899c8969ca479d222fa07c4202a6b8",
+      "short_sha": "92b0c9cfec8",
+      "date": "2026-09-14T14:04:18+00:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-134800 Capture join plan cache collection tags before sampling (#62638)"
+    },
     {
       "sha": "7b08e989c08f97e2c64f6db6fa03349265aa2ed5",
       "short_sha": "7b08e989c08",
@@ -625,10 +935,47 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "2f48fde69153d4757fd1b79520f5c32b046c5a10",
+        "short_sha": "2f48fde6915",
+        "date": "2026-09-14T19:23:33+00:00",
+        "author": {
+          "name": "Xuerui Fa",
+          "email": "xuerui.fa@mongodb.com"
+        },
+        "summary": "SERVER-134972: Improve log message when failing to apply batch of oplog entries (#62697)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "fa088cee568c3d87b777d28d44aa4b9f6f431691",
+        "short_sha": "fa088cee568",
+        "date": "2026-09-14T21:23:00+00:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-134688 Add a stepdown lock which serializes table operations against stepdown (#62580)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/storage_engine.h",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-21 14:12:58",
+  "generated_at": "2026-09-22 06:11:25",
   "branch_name": "master",
   "display_name": "master"
 }
