@@ -8,6 +8,7 @@
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/util/modules.h"
 
+#include <mutex>
 #include <string_view>
 
 namespace mongo {
@@ -114,7 +115,11 @@ public:
     }
 
     void setLastMaterializedLsn(uint64_t lsn) final {
+        if (lsn <= _lastSetMaterializedLsn) {
+            return;
+        }
         _lastSetMaterializedLsn = lsn;
+        _operations.push_back("setLastMaterializedLsn");
     }
 
     Status setRecoveryCheckpointMetadata(std::string_view checkpointMetadata) final {
@@ -152,9 +157,12 @@ public:
     Timestamp getOldestTimestamp() const final {
         return {};
     };
-    void setStepDownTimestamp(Timestamp stepDownTimestamp) override {
+    void setStepDownTimestamp(WithLock, Timestamp stepDownTimestamp) override {
         _stepDownTimestamp = stepDownTimestamp;
         ++_setStepDownTimestampCount;
+    }
+    std::unique_lock<std::mutex> lockStepDown() override {
+        return std::unique_lock(_stepdownMutex);
     }
     Timestamp getStepDownTimestamp() const override {
         return _stepDownTimestamp;
@@ -361,6 +369,7 @@ private:
     bool _lastSetOldestTimestampForce = false;
     Timestamp _stableTimestamp;
     Timestamp _stepDownTimestamp;
+    std::mutex _stepdownMutex;
     Timestamp _allDurableTimestamp;
     int _setStepDownTimestampCount = 0;
     int _checkpointCount = 0;

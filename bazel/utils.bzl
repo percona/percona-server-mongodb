@@ -77,12 +77,15 @@ def write_python_pyc_cache_prefix_customization(ctx, customization_file, pycache
     ctx.file(
         customization_file,
         """
+# Prevent bytecode cache writes under Bazel-managed paths (external/, runfiles/).
+# Only `os` and `sys` are used: they are already imported at interpreter startup,
+# so nothing new is imported (and cached) before the prefix takes effect. Importing
+# tempfile here would pull in modules whose .pyc land in the Bazel-managed tree.
 import os
 import sys
-import tempfile
 
-# Prevent bytecode cache writes under Bazel-managed paths (external/, runfiles/).
-sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "{pycache_dirname}")
+_tmpdir = os.environ.get("TMPDIR") or os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
+sys.pycache_prefix = os.path.join(_tmpdir, "{pycache_dirname}")
 """.format(pycache_dirname = pycache_dirname),
     )
 
@@ -244,6 +247,23 @@ def get_toolchain_subs(ctx):
             "{mongo_toolchain_constraint}": "@//bazel/platforms:use_mongo_toolchain",
             "{exec_distro_constraint}": "",
             "{target_distro_constraint}": "",
+            "{target_triple}": "",
+            "{extra_target_settings}": "",
+            "{extra_loads}": "",
+            "{extra_toolchains}": "",
+            "{host_linker_files}": "[]",
+            "{host_linker_bin_dirs}": "[]",
+            "{host_linker_resource_dir}": "\"\"",
+            "{host_linker_tool_path}": "\"\"",
+            "{host_linker_toolchain_repo_dir}": "\"\"",
+            "{host_ar_tool_path}": "\"\"",
+            "{host_dwp_tool_path}": "\"\"",
+            "{host_objcopy_tool_path}": "\"\"",
+            "{host_strip_tool_path}": "\"\"",
+            "{host_ar_files}": "\":all_files\"",
+            "{host_dwp_files}": "\":all_files\"",
+            "{host_objcopy_files}": "\":all_files\"",
+            "{host_strip_files}": "\":all_files\"",
             "{toolchain_repo_name}": "mongo_toolchain_{version}".format(version = version),
             "{arch}": arch,
             "{version}": version,

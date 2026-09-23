@@ -1,6 +1,7 @@
 """Resmoke suite test infrastructure for Bazel."""
 
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
+load("@internal_platforms_do_not_use//host:constraints.bzl", "HOST_CONSTRAINTS")
 load("//bazel/config:py_action_env.bzl", "py_exec_import_paths")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cc_toolchain")
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
@@ -444,6 +445,10 @@ def resmoke_suite_test(
         name = historic_runtimes,
         out = historic_runtimes + ".json",
         suite = "//{pkg}:{name}".format(pkg = native.package_name(), name = name),
+        # This action needs the invoking host's network. Constrain its exec
+        # configuration to that host as well, so cfg = "exec" tools do not
+        # resolve for a foreign RBE worker and then fall back to local execution.
+        exec_compatible_with = HOST_CONSTRAINTS,
     )
 
     # Collect Python imports from data dependencies
@@ -475,6 +480,7 @@ def resmoke_suite_test(
             name = seed_target,
             suite_name = name,
             tags = ["manual"],
+            exec_compatible_with = HOST_CONSTRAINTS,
         )
         seed_target_data = [":%s" % seed_target]
         seed_env = {"CONFIG_FUZZ_SEED_FILE": "$(location :%s)" % seed_target}
@@ -607,6 +613,7 @@ def resmoke_suite_test(
         ]),
         stamp = True,
         tools = ["//bazel/resmoke:generate_tss_test_list"],
+        exec_compatible_with = HOST_CONSTRAINTS,
         # Must run on the Evergreen host, not a remote worker: a later step will call the
         # Test Selection Services API from here (required Mesh),
         # which needs the host's credentials and network. no-sandbox
@@ -788,10 +795,12 @@ def _resmoke_test_impl(ctx):
     if gcov:
         bindir = gcov.rsplit("/", 1)[0]
 
-        # LLVM source-based coverage (.profraw): COVERAGE_GCOV_PATH is the merge tool
-        # (the clang toolchain maps the "gcov" tool_path to llvm-profdata) and LLVM_COV
-        # does the lcov export.
+        # LLVM source-based coverage (.profraw): LLVM_PROFDATA is the merge tool and
+        # LLVM_COV does the lcov export. Bazel 8's collect_cc_coverage.sh merged with
+        # COVERAGE_GCOV_PATH; Bazel 9 switched to LLVM_PROFDATA, so set both (the script
+        # runs under `set -u` and still requires COVERAGE_GCOV_PATH for the gcov path).
         expanded_env["COVERAGE_GCOV_PATH"] = gcov
+        expanded_env["LLVM_PROFDATA"] = bindir + "/llvm-profdata"
         expanded_env["LLVM_COV"] = bindir + "/llvm-cov"
 
     env_exports = "".join(

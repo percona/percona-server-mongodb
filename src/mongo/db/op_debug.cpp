@@ -196,8 +196,6 @@ void OpDebug::report(OperationContext* opCtx,
     // OpDebug without an indicator from the command layer. Non-read commands handle views
     // differently (i.e. they don't resolve them in the same way), and should be logged
     // unconditionally.
-    // TODO SERVER-122926 Determine whether it is always correct to bypass setting/using
-    // collectionType for non-read commands and document accordingly.
     if (collectionType || curop.getReadWriteType() != Command::ReadWriteType::kRead) {
         pAttrs->addDeepCopy("collectionType", getCollectionTypeFromNamespaceString(curop.getNSS()));
     }
@@ -319,6 +317,12 @@ void OpDebug::report(OperationContext* opCtx,
     OPDEBUG_TOATTR_HELP_BOOL_NAMED("usedDisk", additiveMetrics.usedDisk);
     OPDEBUG_TOATTR_HELP_BOOL_NAMED("fromMultiPlanner", additiveMetrics.fromMultiPlanner);
     OPDEBUG_TOATTR_HELP_BOOL_NAMED("fromPlanCache", additiveMetrics.fromPlanCache.value_or(false));
+    OPDEBUG_TOATTR_HELP_BOOL_NAMED("usedJoinOptimization", usedJoinOptimization);
+    if (const auto& joinMetrics = joinOptimizationMetrics) {
+        if (const auto& reason = joinMetrics->fallbackReason) {
+            pAttrs->addDeepCopy("fallbackReason", join_ordering::toReasonName(*reason));
+        }
+    }
     if (replanReason) {
         bool replanned = true;
         OPDEBUG_TOATTR_HELP_BOOL(replanned);
@@ -628,6 +632,12 @@ void OpDebug::append(OperationContext* opCtx,
     OPDEBUG_APPEND_BOOL2(b, "fromMultiPlanner", additiveMetrics.fromMultiPlanner);
     OPDEBUG_APPEND_BOOL2(b, "failedPlanningWithQuerySettings", failedPlanningWithQuerySettings);
     OPDEBUG_APPEND_BOOL2(b, "fromPlanCache", additiveMetrics.fromPlanCache.value_or(false));
+    OPDEBUG_APPEND_BOOL2(b, "usedJoinOptimization", usedJoinOptimization);
+    if (const auto& joinMetrics = joinOptimizationMetrics) {
+        if (const auto& reason = joinMetrics->fallbackReason) {
+            b.append("fallbackReason", join_ordering::toReasonName(*reason));
+        }
+    }
     if (replanReason) {
         bool replanned = true;
         OPDEBUG_APPEND_BOOL(b, replanned);
@@ -1006,6 +1016,16 @@ std::function<BSONObj(OpDebug::AppendArgs)> OpDebug::appendStaged(OperationConte
     addIfNeeded("fromPlanCache", [](auto field, auto args, auto& b) {
         OPDEBUG_APPEND_BOOL2(b, field, args.op.getAdditiveMetrics().fromPlanCache.value_or(false));
     });
+    addIfNeeded("usedJoinOptimization", [](auto field, auto args, auto& b) {
+        OPDEBUG_APPEND_BOOL2(b, field, args.op.usedJoinOptimization);
+    });
+    addIfNeeded("fallbackReason", [](auto field, auto args, auto& b) {
+        if (const auto& joinMetrics = args.op.joinOptimizationMetrics) {
+            if (const auto& reason = joinMetrics->fallbackReason) {
+                b.append(field, join_ordering::toReasonName(*reason));
+            }
+        }
+    });
     addIfNeeded("replanned", [](auto field, auto args, auto& b) {
         if (args.op.replanReason) {
             OPDEBUG_APPEND_BOOL2(b, field, true);
@@ -1341,6 +1361,8 @@ void OpDebug::setPlanSummaryMetrics(PlanSummaryStats&& planSummaryStats) {
     if (planSummaryStats.planSelectionStrategy) {
         planSelectionStrategy = planSummaryStats.planSelectionStrategy;
     }
+
+    usedJoinOptimization = usedJoinOptimization || planSummaryStats.usedJoinOptimization;
 }
 
 BSONObj OpDebug::makeFlowControlObject(FlowControlTicketholder::CurOp stats) {

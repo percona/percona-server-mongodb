@@ -32,6 +32,7 @@ import {
     UpdateLookupExecutor,
 } from "jstests/libs/query/change_stream_metrics_util.js";
 import {withClusteredColl, withCollation} from "jstests/libs/query/collection_config_decorators.js";
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 
 // A compound _id with a Timestamp component (to exercise non-scalar key encoding), fully derived
 // from 'seed' so equal seeds yield equal ids and no field is collation-sensitive.
@@ -46,14 +47,12 @@ describe("change stream updateLookup single-document-lookup metrics", function (
             collOpts: {},
             presentId: "present",
             goneId: "gone",
-            isCompound: false,
         },
         {
             name: "compound _id",
             collOpts: {},
             presentId: compoundId(100),
             goneId: compoundId(200),
-            isCompound: true,
         },
     ]
         .flatMap((config) => [config, withClusteredColl(config)])
@@ -138,40 +137,28 @@ describe("change stream updateLookup single-document-lookup metrics", function (
                 const fallbackLookup =
                     delta.changeStreams.updateLookup[UpdateLookupExecutor.kAggregation];
 
-                // TODO: SERVER-134080 Support non-scalar _id lookups in SbeSingleDocumentLookupExecutor.
-                // This limitation is SBE-specific: Express (the primary for db/cluster-level streams)
-                // handles compound _id directly, so the decline-and-fallback path below only applies
-                // when SBE (i.e. a collection-level stream) is the primary.
-                const isRunningSBELookup = engine === UpdateLookupExecutor.kSBE;
-                if (
-                    config.isCompound &&
-                    !config.collOpts.hasOwnProperty("clusteredIndex") &&
-                    isRunningSBELookup
-                ) {
-                    assert.eq(lookup.notHandled, 2, {lookup});
+                // Every _id shape resolves on the primary engine directly, compound objects
+                // included; the fallback never engages.
+                assert.eq(lookup.found, 1, {lookup});
+                assert.eq(lookup.notFound, 1, {lookup});
 
-                    assert.eq(fallbackLookup.found, 1, {fallbackLookup});
-                    assert.eq(fallbackLookup.notFound, 1, {fallbackLookup});
+                // Since there are no migrations, the primary executor should always succeed.
+                assert.eq(lookup.notHandled, 0, {lookup});
+                assert.eq(fallbackLookup.found + fallbackLookup.notFound, 0, {
+                    lookup,
+                    fallbackLookup,
+                });
 
-                    assert.gt(fallbackLookup.latencyMicros.totalCount, 0, {fallbackLookup});
-                } else {
-                    assert.eq(lookup.found, 1, {lookup});
-                    assert.eq(lookup.notFound, 1, {lookup});
-
-                    // Since there are no migrations, the primary executor should always succeed.
-                    assert.eq(lookup.notHandled, 0, {lookup});
-
-                    // Both lookups (found + notFound) recorded a latency observation.
-                    // 'latencyMicros' is a histogram; 'totalCount' is its number of recorded
-                    // observations.
-                    assert.gt(lookup.latencyMicros.totalCount, 0, {lookup});
-                }
+                // Both lookups (found + notFound) recorded a latency observation.
+                // 'latencyMicros' is a histogram; 'totalCount' is its number of recorded
+                // observations.
+                assert.gt(lookup.latencyMicros.totalCount, 0, {lookup});
             });
         });
     }
 
-    // One shared enrichment window mixing accepted (scalar) and declined (non-clustered compound)
-    // _ids, with the middle doc gone so both shape and outcome vary, in both triplet orders.
+    // One shared enrichment window mixing scalar and compound _ids, with the middle doc gone
+    // so both shape and outcome vary, in both triplet orders.
     const mixedIdConfigs = [
         {
             name: "mixed _id, scalar-compound-scalar order",
@@ -210,8 +197,6 @@ describe("change stream updateLookup single-document-lookup metrics", function (
                 assert.commandWorked(testColl.insert(docs.map((d) => ({_id: d.id}))));
 
                 const engine = expectedUpdateLookupEngine();
-                const isClustered = config.collOpts.hasOwnProperty("clusteredIndex");
-                const compoundDeclines = !isClustered && engine === UpdateLookupExecutor.kSBE;
 
                 let actualChanges;
                 let expectedChanges;
@@ -257,11 +242,21 @@ describe("change stream updateLookup single-document-lookup metrics", function (
                             }
                         }
 
-                        // A change stream cursor never signals EOF; drain exactly the expected count.
+                        // A change stream cursor never signals EOF; drain exactly the expected
+                        // count. On a sharded topology a getMore can legitimately return an empty
+                        // batch (e.g. while merging per-shard cursors), so hasNext() alone can't
+                        // tell "no more events yet" from "done": keep polling until the expected
+                        // count is drained.
                         actualChanges = [];
-                        for (let i = 0; i < expectedChanges.length; i++) {
-                            actualChanges.push(cursor.next());
-                        }
+                        assert.soon(() => {
+                            while (
+                                actualChanges.length < expectedChanges.length &&
+                                cursor.hasNext()
+                            ) {
+                                actualChanges.push(cursor.next());
+                            }
+                            return actualChanges.length >= expectedChanges.length;
+                        });
                         cursor.close();
                     },
                 );
@@ -278,34 +273,36 @@ describe("change stream updateLookup single-document-lookup metrics", function (
                 // is set (its stop-after-one break), so 2 windows over 5 events means window 1 was the
                 // warmer alone and window 2 held all three updates plus the delete. Batching is a
                 // property of the SBE primary, not of the collection.
-                const batchingApplies = engine === UpdateLookupExecutor.kSBE;
-                assert.eq(
-                    delta.changeStreams.updateLookup.enrichBatchesStarted,
-                    batchingApplies ? 2 : expectedChanges.length,
-                    {delta},
-                );
+                //
+                // 'enrichBatchesStarted' is counted per enrichment pipeline, and a sharded change
+                // stream runs one pipeline per targeted shard: the exact count above only holds
+                // when a single shard sees the events, so only assert it there. With more than one
+                // shard, which _id lands on which shard (and so how many pipelines run) depends on
+                // hashed placement, making the count non-deterministic from the test's perspective.
+                if (FixtureHelpers.numberOfShardsForCollection(testColl) === 1) {
+                    const batchingApplies = engine === UpdateLookupExecutor.kSBE;
+                    assert.eq(
+                        delta.changeStreams.updateLookup.enrichBatchesStarted,
+                        batchingApplies ? 2 : expectedChanges.length,
+                        {delta},
+                    );
+                } else {
+                    assert.gte(delta.changeStreams.updateLookup.enrichBatchesStarted, 1, {delta});
+                }
 
                 const lookup = delta.changeStreams.updateLookup[engine];
                 const fallbackLookup =
                     delta.changeStreams.updateLookup[UpdateLookupExecutor.kAggregation];
 
-                // TODO: SERVER-134080 Support non-scalar _id lookups in SbeSingleDocumentLookupExecutor.
-                // Only a non-clustered collection watched via SBE declines a compound _id (Express, the
-                // db/cluster-level primary, handles it directly, as does SBE on a clustered collection).
-                //
-                // Every triplet here is [outerShape, middleShape, outerShape]: the two outer docs are
-                // present, the middle one is gone. So there are only two present docs of outerShape
-                // and one gone doc of middleShape to account for.
-                const [outerShape, middleShape] = config.order;
-                const outerDeclines = outerShape === "compound" && compoundDeclines;
-                const middleDeclines = middleShape === "compound" && compoundDeclines;
-
-                assert.eq(lookup.found, outerDeclines ? 0 : 2, {lookup});
-                assert.eq(fallbackLookup.found, outerDeclines ? 2 : 0, {fallbackLookup});
-                assert.eq(lookup.notFound, middleDeclines ? 0 : 1, {lookup});
-                assert.eq(fallbackLookup.notFound, middleDeclines ? 1 : 0, {fallbackLookup});
-                assert.eq(lookup.notHandled, (outerDeclines ? 2 : 0) + (middleDeclines ? 1 : 0), {
+                // Every _id shape resolves on the primary, compound objects included: the
+                // two outer (present) docs are found, the middle (gone)
+                // one is notFound, and the fallback never engages.
+                assert.eq(lookup.found, 2, {lookup});
+                assert.eq(lookup.notFound, 1, {lookup});
+                assert.eq(lookup.notHandled, 0, {lookup});
+                assert.eq(fallbackLookup.found + fallbackLookup.notFound, 0, {
                     lookup,
+                    fallbackLookup,
                 });
             });
         }

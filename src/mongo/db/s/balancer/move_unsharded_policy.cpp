@@ -31,19 +31,13 @@ int64_t getRandomIndex(const std::vector<T>& items) {
 }
 
 /**
- * Returns whether or not the cluster contains any sharded collections that can be balanced. If we
- * are draining, this includes config collections, otherwise this excludes any config collections.
+ * Returns whether or not the cluster contains any sharded collections that can be balanced.
  */
-bool clusterHasShardedCollections(OperationContext* opCtx, bool draining) {
+bool clusterHasShardedCollections(OperationContext* opCtx) {
     auto client = ShardingCatalogManager::get(opCtx)->localCatalogClient();
 
     BSONObjBuilder matchBuilder;
     matchBuilder.append(CollectionType::kUnsplittableFieldName, BSON("$ne" << true));
-    // Skip config.system.sessions if we are not draining as it isn't balanced as part of the random
-    // migrations failpoint. If we are draining shards, though, we need to include this collection.
-    if (!draining) {
-        matchBuilder.append(CollectionType::kNssFieldName, BSON("$regex" << "^(?!config\\.).*"));
-    }
 
     std::vector<BSONObj> rawPipelineStages{
         BSON("$match" << matchBuilder.obj()),
@@ -437,13 +431,18 @@ MigrateInfoVector MoveUnshardedPolicy::selectCollectionsToMove(
             return result;
         }
 
-
-        // Randomly skip moveCollections if there are sharded collections that could be balanced.
+        // Don't issue moveCollection if there are only two non-draining shards, as that would
+        // consume both, leaving the draining shard unable to migrate chunks off in this round.
         auto drainingShardIter = std::find_if(
             allShards.begin(), allShards.end(), [](const auto& stat) { return stat.isDraining; });
         bool isDraining = drainingShardIter != allShards.end();
+        if (isDraining && randomizedAvailableShards.size() <= 2) {
+            return result;
+        }
+
+        // Randomly skip moveCollections if there are sharded collections that could be balanced.
         if (opCtx->getClient()->getPrng().trueWithProbability(skipMoveCollectionThreshold) &&
-            clusterHasShardedCollections(opCtx, isDraining)) {
+            clusterHasShardedCollections(opCtx)) {
             return result;
         }
 

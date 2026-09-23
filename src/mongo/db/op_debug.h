@@ -491,6 +491,12 @@ public:
             // plan enumeration, for edge selectivity estimation or costing. Repeated requests
             // for the same statistics are memoized and counted once.
             int numPersistentNDVStatsUsed = 0;
+            // Number of join-graph collections for which the storage engine did not report a
+            // usable approximate leaf page count (see RecordStore::approxNumLeafPages()), forcing
+            // cost estimation to fall back to a size-based estimate. 'boost::none' until catalog
+            // statistics are collected, so a planning failure reads as "never measured" rather
+            // than as a measured zero.
+            boost::optional<int> numApproxLeafPagesUnavailable;
 
             // Time spent acquiring samples for CE.
             int64_t samplingTimeMicros = 0;
@@ -756,6 +762,10 @@ public:
     // The strategy that selected the winning plan. Written by setPlanSummaryMetrics.
     // Reported as "none" when no plan selection took place.
     boost::optional<PlanSelectionStrategy> planSelectionStrategy;
+
+    // Whether the winning plan was produced by the join optimizer. Written by
+    // setPlanSummaryMetrics. Only ever true when join optimization is enabled.
+    bool usedJoinOptimization{false};
 
     // Tracks the amount of dynamic indexed loop joins in a pushed down stage.
     int lookupDynamicIndexedLoopJoin{0};

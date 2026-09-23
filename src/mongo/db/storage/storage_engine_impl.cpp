@@ -822,8 +822,8 @@ Timestamp StorageEngineImpl::getStableTimestamp() const {
     return _engine->getStableTimestamp();
 }
 
-void StorageEngineImpl::setStepDownTimestamp(Timestamp stepDownTimestamp) {
-    _engine->setStepDownTimestamp(stepDownTimestamp);
+void StorageEngineImpl::setStepDownTimestamp(WithLock lock, Timestamp stepDownTimestamp) {
+    _engine->setStepDownTimestamp(lock, stepDownTimestamp);
 }
 
 Timestamp StorageEngineImpl::getStepDownTimestamp() const {

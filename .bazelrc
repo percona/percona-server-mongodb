@@ -13,14 +13,16 @@ common --@rules_rust//rust/settings:extra_exec_rustc_flag=--cfg=reset_cache_A
 # Don't use legacy toolchain resolution.
 common --incompatible_enable_cc_toolchain_resolution
 
-# Bazel 9 removed the built-in C++ rules; they must now be loaded from @rules_cc. All first-party
-# code loads them explicitly, but our vendored third-party modules (protobuf, grpc, tcmalloc,
-# abseil) still rely on the old built-ins, and several have no Bazel 9 compatible release yet.
-# Autoloading rewrites those references to @rules_cc without patching vendored trees that
-# scripts/import.sh would clobber anyway. Note this deliberately does not cover the main
-# repository: --incompatible_disable_autoloads_in_main_repo defaults to true, so first-party code
-# still needs real load statements. Remove this once the vendored deps are upgraded.
-common --incompatible_autoload_externally=+@rules_cc
+# This forces third parties to resolve these rules against the external version of these rules rather than
+# the internal version that used to exist inside bazel
+common --incompatible_autoload_externally=+@rules_cc,+@rules_shell,+@rules_java,+@rules_proto,+@com_google_protobuf,+PyInfo
+
+# Bazel 9 flipped --incompatible_disallow_empty_glob to true. Some third parties have not yet, so disable for now
+common --noincompatible_disallow_empty_glob
+
+# Used to treat third parties as having -isystem passed to them, which is then disable on first party code
+common --features=system_include_paths
+common --host_features=system_include_paths
 
 # Require Python packages to explicitly declare their __init__.py files rather than having
 # rules_python synthesize them in executable runfiles.
@@ -29,12 +31,8 @@ build --incompatible_default_to_explicit_init_py
 # https://github.com/bazelbuild/bazel/issues/8766
 # there is WIP to allow users to inject constraints
 # this flag is required because the default for BZLMOD is @platform//host:host
-build --platforms=//bazel/platforms:host
+build --platforms=@internal_platforms_do_not_use//host
 common --enable_workspace=false
-
-# Improves build performance after first clean pull by
-# about 1 minute on developer machines
-common --experimental_remote_merkle_tree_cache
 
 # Linter will have issues with duplicate configurations due to some of our
 # install targets depending on tests that have testonly set. This flag can be removed
@@ -46,10 +44,6 @@ common --incompatible_modify_execution_info_additive
 
 # This makes builds more hermetic by preventing environment variables from leaking into the execution of rules
 common --incompatible_strict_action_env=true
-
-# allows us to use python rules. This is needed because of the bug:
-# https://github.com/bazelbuild/bazel/issues/4327
-common --experimental_inprocess_symlink_creation
 
 # cc_library transitively propagates link opts. The build uses cc_shared_library to avoid this when linking
 # dynamically.
@@ -110,6 +104,11 @@ common --define=LOCAL_RESOURCES="port_block=20000,20250,20500,20750,21000,21250,
 # NOTE: Keep in sync with SIZE_TO_MEMORY_MB in bazel/test_exec_properties.bzl
 common --default_test_resources=memory=3584,3584,7168,14336
 common --default_test_resources=cpu=1,1,2,4
+
+# Reserve 40GB against the local resource manager for every C++ link action. Bazel's built-in
+# estimate for CppLink is far below what linking our larger binaries actually costs, so without
+# this the scheduler runs too many links concurrently and the machine OOMs. Memory is in MB.
+common --modify_execution_info=CppLink=+resources:memory:40960
 
 # Pin down the OSS LLVM Clang version for MacOS builds.
 common:macos --repo_env=LLVM_VERSION=19
@@ -421,6 +420,8 @@ common:evg --evg=True
 common:evg --//bazel/config:build_atlas=False
 common:evg --//bazel/config:opt=auto
 common:evg --//bazel/config:separate_debug=True
+# This helps CI cache more actions as it lets the remote host win more often
+common:evg --dynamic_local_execution_delay=20000
 common:evg --enable_platform_specific_config=true
 
 --config=evg_crypt
@@ -821,54 +822,131 @@ common:windows-cross-x86_64 --//bazel/config:compress_debug_compile=False
 common:windows-cross-x86_64 --remote_download_outputs=toplevel
 common:windows-cross-x86_64 --remote_download_regex=.*\.(exe|dll|lib|pdb|res|manifest|json|txt)$
 
-# Cross-compile Linux s390x/ppc64le from the host Bazel process while compile
-# and link actions execute on Linux x86_64/aarch64 RBE workers. The actual
-# cross compiler archives are configured by the mongo_linux_cross toolchain
-# repository rule.
+# Cross-compile Linux s390x/ppc64le from the host Bazel process. Compile and
+# tool-generation actions execute on Linux x86_64/aarch64 RBE workers; the
+# final C++ link uses the native host action container by default. The cross
+# repository composes the pinned execution compiler, target runtime, and target
+# container sysroot selected by each concrete config.
+# Keep the WASI execution architecture in these concrete configs (rather than
+# only injecting it from the wrapper hook): tools/bazel bootstraps @py_host
+# before the hook starts, and that bootstrap can instantiate @wasi_sdk.
 common:linux-s390x-cross-rbe --config=linux-s390x-rhel9-cross-rbe
 common:linux-ppc64le-cross-rbe --config=linux-ppc64le-rhel9-cross-rbe
 common:linux-s390x-cross-rbe-arm64 --config=linux-s390x-rhel9-cross-rbe-arm64
 common:linux-ppc64le-cross-rbe-arm64 --config=linux-ppc64le-rhel9-cross-rbe-arm64
 
+common:linux-cross-rbe-toolchain --//bazel/config:compiler_type=clang
+common:linux-cross-rbe-toolchain --//bazel/config:linker=lld
+common:linux-cross-rbe-toolchain --remote_download_outputs=toplevel
+common:linux-cross-rbe-toolchain --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+# Test binaries are built for the target IBM architecture and run locally on
+# that native Evergreen host; only their compile/link actions use foreign RBE.
+common:linux-cross-rbe-toolchain --use_target_platform_for_tests
+# rules_pycross builds wheel helpers in Bazel's exec configuration. In that
+# configuration the target platform is the IBM host platform rather than the
+# foreign target platform, so the rules need an explicit cross-build marker to
+# select their foreign execution group. The wrapper clears this marker for
+# local release/provenance builds.
+common:linux-cross-rbe-toolchain --define=MONGO_IBM_CROSS=1
+# Prefer the main-repository protobuf toolchain constrained to the foreign
+# execution marker. Local release mode clears this list after config expansion.
+common:linux-cross-rbe-toolchain --extra_toolchains=//bazel/toolchains:mongo_linux_cross_protoc_toolchain
+
+common:linux-s390x-rhel8-cross-rbe --config=linux-cross-rbe-toolchain
 common:linux-s390x-rhel8-cross-rbe --platforms=//bazel/platforms:rhel8_s390x_cross
-common:linux-s390x-rhel8-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64
-common:linux-s390x-rhel8-cross-rbe --remote_download_outputs=toplevel
-common:linux-s390x-rhel8-cross-rbe --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-s390x-rhel8-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-s390x-rhel8-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_s390x_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-s390x-rhel8-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_s390x_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel8-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel8_s390x_on_rhel9_x86_64
+common:linux-s390x-rhel8-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
 
+common:linux-s390x-rhel9-cross-rbe --config=linux-cross-rbe-toolchain
 common:linux-s390x-rhel9-cross-rbe --platforms=//bazel/platforms:rhel9_s390x_cross
-common:linux-s390x-rhel9-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64
-common:linux-s390x-rhel9-cross-rbe --remote_download_outputs=toplevel
-common:linux-s390x-rhel9-cross-rbe --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-s390x-rhel9-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-s390x-rhel9-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_s390x_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-s390x-rhel9-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_s390x_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel9-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel9_s390x_on_rhel9_x86_64
+common:linux-s390x-rhel9-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
 
+common:linux-s390x-rhel10-cross-rbe --config=linux-cross-rbe-toolchain
+common:linux-s390x-rhel10-cross-rbe --platforms=//bazel/platforms:rhel10_s390x_cross
+common:linux-s390x-rhel10-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-s390x-rhel10-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_s390x_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-s390x-rhel10-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_s390x_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel10-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel10_s390x_on_rhel9_x86_64
+common:linux-s390x-rhel10-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
+
+common:linux-ppc64le-rhel8-cross-rbe --config=linux-cross-rbe-toolchain
 common:linux-ppc64le-rhel8-cross-rbe --platforms=//bazel/platforms:rhel8_ppc64le_cross
-common:linux-ppc64le-rhel8-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64
-common:linux-ppc64le-rhel8-cross-rbe --remote_download_outputs=toplevel
-common:linux-ppc64le-rhel8-cross-rbe --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-ppc64le-rhel8-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-ppc64le-rhel8-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel8-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel8-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel8_ppc64le_on_rhel9_x86_64
+common:linux-ppc64le-rhel8-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
 
+common:linux-ppc64le-rhel9-cross-rbe --config=linux-cross-rbe-toolchain
 common:linux-ppc64le-rhel9-cross-rbe --platforms=//bazel/platforms:rhel9_ppc64le_cross
-common:linux-ppc64le-rhel9-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64
-common:linux-ppc64le-rhel9-cross-rbe --remote_download_outputs=toplevel
-common:linux-ppc64le-rhel9-cross-rbe --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-ppc64le-rhel9-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-ppc64le-rhel9-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel9-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel9-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel9_ppc64le_on_rhel9_x86_64
+common:linux-ppc64le-rhel9-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
 
+common:linux-ppc64le-rhel10-cross-rbe --config=linux-cross-rbe-toolchain
+common:linux-ppc64le-rhel10-cross-rbe --platforms=//bazel/platforms:rhel10_ppc64le_cross
+common:linux-ppc64le-rhel10-cross-rbe --extra_execution_platforms=//bazel/platforms:rhel9_amd64_cross
+common:linux-ppc64le-rhel10-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel10-cross-rbe --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_ppc64le_on_rhel9_x86_64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel10-cross-rbe --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel10_ppc64le_on_rhel9_x86_64
+common:linux-ppc64le-rhel10-cross-rbe --repo_env=MONGO_WASI_SDK_EXEC_ARCH=x86_64
+
+common:linux-s390x-rhel8-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
 common:linux-s390x-rhel8-cross-rbe-arm64 --platforms=//bazel/platforms:rhel8_s390x_cross
-common:linux-s390x-rhel8-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64
-common:linux-s390x-rhel8-cross-rbe-arm64 --remote_download_outputs=toplevel
-common:linux-s390x-rhel8-cross-rbe-arm64 --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-s390x-rhel8-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-s390x-rhel8-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_s390x_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-s390x-rhel8-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_s390x_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel8-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel8_s390x_on_rhel9_aarch64
+common:linux-s390x-rhel8-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
 
+common:linux-s390x-rhel9-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
 common:linux-s390x-rhel9-cross-rbe-arm64 --platforms=//bazel/platforms:rhel9_s390x_cross
-common:linux-s390x-rhel9-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64
-common:linux-s390x-rhel9-cross-rbe-arm64 --remote_download_outputs=toplevel
-common:linux-s390x-rhel9-cross-rbe-arm64 --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-s390x-rhel9-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-s390x-rhel9-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_s390x_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-s390x-rhel9-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_s390x_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel9-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel9_s390x_on_rhel9_aarch64
+common:linux-s390x-rhel9-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
 
+common:linux-s390x-rhel10-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
+common:linux-s390x-rhel10-cross-rbe-arm64 --platforms=//bazel/platforms:rhel10_s390x_cross
+common:linux-s390x-rhel10-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-s390x-rhel10-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_s390x_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-s390x-rhel10-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_s390x_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-s390x-rhel10-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel10_s390x_on_rhel9_aarch64
+common:linux-s390x-rhel10-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
+
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
 common:linux-ppc64le-rhel8-cross-rbe-arm64 --platforms=//bazel/platforms:rhel8_ppc64le_cross
-common:linux-ppc64le-rhel8-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64
-common:linux-ppc64le-rhel8-cross-rbe-arm64 --remote_download_outputs=toplevel
-common:linux-ppc64le-rhel8-cross-rbe-arm64 --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel8_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel8_ppc64le_on_rhel9_aarch64
+common:linux-ppc64le-rhel8-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
 
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
 common:linux-ppc64le-rhel9-cross-rbe-arm64 --platforms=//bazel/platforms:rhel9_ppc64le_cross
-common:linux-ppc64le-rhel9-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64
-common:linux-ppc64le-rhel9-cross-rbe-arm64 --remote_download_outputs=toplevel
-common:linux-ppc64le-rhel9-cross-rbe-arm64 --remote_download_regex=.*\.(so|a|debug|dwp|json|txt|tar|tgz|gz|zip)$
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel9_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel9_ppc64le_on_rhel9_aarch64
+common:linux-ppc64le-rhel9-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
+
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --config=linux-cross-rbe-toolchain
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --platforms=//bazel/platforms:rhel10_ppc64le_cross
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --extra_execution_platforms=//bazel/platforms:rhel9_arm64_cross
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --extra_toolchains=@mongo_linux_cross_toolchain_v5_rhel10_ppc64le_on_rhel9_aarch64//:mongo_exec_toolchain_for_pycross
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --repo_env=MONGO_LINUX_CROSS_TOOLCHAIN=rhel10_ppc64le_on_rhel9_aarch64
+common:linux-ppc64le-rhel10-cross-rbe-arm64 --repo_env=MONGO_WASI_SDK_EXEC_ARCH=aarch64
 
 # This should always be at the bottom because any platform specific configs should always be applied if possible
 common --enable_platform_specific_config=true

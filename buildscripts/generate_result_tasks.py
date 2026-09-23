@@ -16,7 +16,6 @@ Options:
     --outfile           File path for the generated task config.
 """
 
-import glob
 import json
 import os
 import re
@@ -27,7 +26,6 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from typing import Optional
 
-import runfiles
 import typer
 import yaml
 from shrub.v2 import BuildVariant, FunctionCall, Task, TaskGroup
@@ -397,44 +395,15 @@ def resolve_assignment_tags_from_s3(
     return assignment_tags
 
 
-# TODO(DEVPROD-41449): Remove this fallback once the S3 export is stable, prior to YAML deletion.
-def resolve_assignment_tags_from_clone() -> dict[str, str]:
-    """Read the Mothra team YAMLs cloned into the workspace and exposed as @mothra//:teams."""
-    # Find the teams directory in the runfiles. Unfortunately, resolving the
-    # directory requires resolving a specific file within the runfiles, so
-    # an arbitrary team's YAML is used.
-    r = runfiles.Create()
-    teams_dir = os.path.dirname(r.Rlocation("mothra/mothra/teams/devprod.yaml"))
-
-    teams = []
-    for file in glob.glob(teams_dir + "/*.yaml"):
-        with open(file, "rt") as f:
-            teams += yaml.safe_load(f).get("teams", [])
-
-    return assignment_tags_from_teams(teams)
-
-
 @cache
 def resolve_assignment_tags() -> dict[str, str]:
-    """Resolve assignment tags from the Mothra S3 export, falling back to the Mothra clone."""
+    """Resolve assignment tags from the Mothra S3 export."""
     try:
         return resolve_assignment_tags_from_s3()
     except Exception as e:
-        # The S3 export requires credentials that not every caller has, and the export
-        # could change out from under us. Fall back to the clone rather than failing.
-        print(
-            f"Failed to resolve assignment tags from S3, falling back to the Mothra clone: {e}",
-            file=sys.stderr,
-        )
-
-    # TODO(DEVPROD-41449): Remove the fallback once the S3 export is stable, prior to YAML deletion.
-    try:
-        return resolve_assignment_tags_from_clone()
-    except Exception as e:
-        # Conservatively except any exception here. In the worst case, the contents/format from
-        # Mothra repo could change out from under us, and it should not completely fail
-        # task generation.
-        print(f"Failed to resolve assignment tags: {e}", file=sys.stderr)
+        # Conservatively except any exception here. The S3 export requires credentials that not every caller has,
+        # and the export could change out from under us.
+        print(f"Failed to resolve assignment tags from S3: {e}", file=sys.stderr)
         return {}
 
 
@@ -545,9 +514,63 @@ def _build_tag_query(tags: list[str], target_pattern: str, local_exec: bool = Fa
     return inclusion
 
 
+def get_auto_reverter_context(expansions: dict) -> dict:
+    """Parse the auto_reverter_context expansion into a dict, or {} when unset or malformed.
+
+    Auto-reverter patches are created with a patch parameter like:
+    {"failing_task": "//jstests/suites/query-execution:core", "build_variant": "...", ...}
+    """
+    context = expansions.get("auto_reverter_context")
+    if not context:
+        return {}
+    if isinstance(context, str):
+        try:
+            context = json.loads(context)
+        except json.JSONDecodeError:
+            print(f"Warning: could not parse auto_reverter_context: {context!r}", file=sys.stderr)
+            return {}
+    return context if isinstance(context, dict) else {}
+
+
+def get_auto_reverter_failing_task(expansions: dict) -> str:
+    """Return the failing task's bazel target from the auto_reverter_context expansion, if set."""
+    return get_auto_reverter_context(expansions).get("failing_task") or ""
+
+
+def select_resmoke_variant_tasks(
+    evg_config,
+    expansions: dict,
+) -> list[tuple[EvergreenVariant, EvergreenTask]]:
+    """Collect the (variant, resmoke_tests task) pairs to generate result tasks for.
+
+    With auto_reverter_context set, generation only serves the variant the failure occurred on,
+    so every other variant is skipped to avoid querying bazel for it.
+    """
+    auto_reverter_variant = get_auto_reverter_context(expansions).get("build_variant") or ""
+    if auto_reverter_variant:
+        print(
+            f"Auto-reverter context set; generating only for variant {auto_reverter_variant}",
+            file=sys.stderr,
+        )
+
+    variant_tasks = []
+    for variant in evg_config.variants:
+        if auto_reverter_variant and variant.name != auto_reverter_variant:
+            continue
+        resmoke_task = variant.get_task("resmoke_tests")
+        if not resmoke_task:
+            continue
+        variant_tasks.append((variant, resmoke_task))
+    return variant_tasks
+
+
 def _variant_cquery_flags(variant, resmoke_task, expansions) -> tuple[list[str], list[str], str]:
     """Compute (tags, cquery_flags, target_pattern) for a variant."""
     target_pattern = expansions.get("resmoke_test_targets", "//...")
+    # An auto-revert patch only runs the task that failed; restrict the query to it.
+    auto_reverter_target = get_auto_reverter_failing_task(expansions)
+    if auto_reverter_target:
+        target_pattern = auto_reverter_target
 
     tag_filter = get_variant_expansion(variant, resmoke_task, RESMOKE_TESTS_TAG_FILTER)
     tags = [t.strip() for t in tag_filter.split(",") if t.strip()]
@@ -798,12 +821,7 @@ def main(outfile: Annotated[str, typer.Option()]):
 
         project = {"tasks": [], "task_groups": [], "buildvariants": []}
 
-        variant_tasks = []
-        for variant in evg_config.variants:
-            resmoke_task = variant.get_task("resmoke_tests")
-            if not resmoke_task:
-                continue
-            variant_tasks.append((variant, resmoke_task))
+        variant_tasks = select_resmoke_variant_tasks(evg_config, expansions)
 
         # Each variant runs BOTH its RBE-compatible suites (remotely, via the resmoke_tests runner)
         # and its incompatible_with_bazel_remote_test suites (locally on the host). The two sets are

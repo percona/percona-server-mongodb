@@ -56,15 +56,14 @@ void ValidateResultsIf::_mergeBase(const ValidateResultsIf& other) {
 
 void ValidateResults::addExtraIndexEntry(BSONObj entry) {
     if (_extraIndexEntries.add(std::move(entry))) {
-        addError("Not all extra index entry inconsistencies are listed due to size limitations.",
-                 false);
+        addWarning("Not all extra index entry inconsistencies are listed due to size limitations.");
     }
 }
 
 void ValidateResults::addMissingIndexEntry(BSONObj entry) {
     if (_missingIndexEntries.add(std::move(entry))) {
-        addError("Not all missing index entry inconsistencies are listed due to size limitations.",
-                 false);
+        addWarning(
+            "Not all missing index entry inconsistencies are listed due to size limitations.");
     }
 }
 
@@ -188,6 +187,11 @@ void ValidateResults::appendToResultObj(BSONObjBuilder* resultObj,
     }
     if (_numRecords.has_value()) {
         resultObj->appendNumber("nrecords", _numRecords.value());
+    }
+    // Only present when the record store traversal was split across slices, so that the output of a
+    // single-threaded validation is unchanged.
+    if (_numRecordStoreSlices.has_value()) {
+        resultObj->appendNumber("nParallelSlices", _numRecordStoreSlices.value());
     }
 
     if (_collectionHash.has_value()) {

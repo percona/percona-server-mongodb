@@ -39,6 +39,37 @@ assert_not_contains() {
     fi
 }
 
+# Replaces a function for the duration of one test. Saves the previous definition (if any) so
+# restore_stubbed_functions can put it back -- `unset -f` would delete the production function.
+STUBBED_FUNCTION_DEFS=()
+STUBBED_FUNCTION_NAMES=()
+
+stub_function() {
+    local name="$1"
+    local body="$2"
+
+    if declare -F "$name" >/dev/null 2>&1; then
+        STUBBED_FUNCTION_DEFS+=("$(declare -f "$name")")
+    else
+        STUBBED_FUNCTION_NAMES+=("$name")
+    fi
+    eval "${name}() { ${body} }"
+}
+
+restore_stubbed_functions() {
+    local name
+    # Re-eval saved definitions verbatim; iterate by index to keep multi-line bodies intact.
+    local i
+    for ((i = 0; i < ${#STUBBED_FUNCTION_DEFS[@]}; i++)); do
+        eval "${STUBBED_FUNCTION_DEFS[$i]}"
+    done
+    for name in ${STUBBED_FUNCTION_NAMES+"${STUBBED_FUNCTION_NAMES[@]}"}; do
+        unset -f "$name"
+    done
+    STUBBED_FUNCTION_DEFS=()
+    STUBBED_FUNCTION_NAMES=()
+}
+
 count_log_lines() {
     local log_file="$1"
     local pattern="$2"
@@ -187,6 +218,97 @@ run_retry_test_command() {
 
     RETRY_STATUS=0
     RETRY_OUTPUT="$(bazel_evergreen_shutils::retry_bazel_cmd "$attempts" "$RETRY_FAKE_BAZEL" build //evergreen:fake_target 2>&1)" || RETRY_STATUS=$?
+}
+
+test_pid_is_live_detects_live_and_dead_pids_on_posix() {
+    stub_function bazel_evergreen_shutils::is_windows "return 1;"
+
+    local status=0
+    bazel_evergreen_shutils::pid_is_live "$$" || status=$?
+    assert_eq "0" "$status" "the current process should be reported as live"
+
+    status=0
+    bazel_evergreen_shutils::pid_is_live "notapid" || status=$?
+    assert_eq "1" "$status" "a non-numeric PID should be reported as dead"
+
+    restore_stubbed_functions
+}
+
+test_pid_is_live_uses_tasklist_on_windows() {
+    stub_function bazel_evergreen_shutils::is_windows "return 0;"
+    # Emulate the Win32 tool: it lists the PID when the process exists and prints an INFO line
+    # otherwise. A bash function satisfies the `command -v tasklist` probe.
+    stub_function tasklist '
+        if [[ "$*" == *"PID eq 4242"* ]]; then
+            echo "java.exe                      4242 Services                   0    2,000,000 K"
+        else
+            echo "INFO: No tasks are running which match the specified criteria."
+        fi
+    '
+
+    local status=0
+    bazel_evergreen_shutils::pid_is_live 4242 || status=$?
+    assert_eq "0" "$status" "tasklist hit should report the server as live"
+
+    status=0
+    bazel_evergreen_shutils::pid_is_live 5353 || status=$?
+    assert_eq "1" "$status" "tasklist miss should report the server as dead"
+
+    restore_stubbed_functions
+}
+
+test_pid_is_live_reports_unknown_when_tasklist_fails() {
+    stub_function bazel_evergreen_shutils::is_windows "return 0;"
+    # tasklist is present but errors out (access denied, a wedged WMI service, ...). Its own exit
+    # status must be consulted: piping into grep would silently turn this into "no match", i.e.
+    # a positively dead verdict, and shut down a healthy server.
+    stub_function tasklist '
+        echo "ERROR: The RPC server is unavailable." >&2
+        return 1
+    '
+
+    local status=0
+    bazel_evergreen_shutils::pid_is_live 4242 || status=$?
+    assert_eq "2" "$status" "a failing tasklist should report liveness as undetermined"
+
+    restore_stubbed_functions
+}
+
+test_pid_is_live_reports_unknown_when_it_cannot_check() {
+    stub_function bazel_evergreen_shutils::is_windows "return 0;"
+    # No tasklist available: liveness is undeterminable and must not be reported as death.
+    stub_function command '
+        if [[ "$*" == "-v tasklist" ]]; then
+            return 1
+        fi
+        builtin command "$@"
+    '
+
+    local status=0
+    bazel_evergreen_shutils::pid_is_live 4242 || status=$?
+    assert_eq "2" "$status" "an unavailable tasklist should report liveness as undetermined"
+
+    restore_stubbed_functions
+}
+
+# Regression test for the Windows failure where server.pid.txt holds a native Win32 PID that
+# `kill -0` cannot see. The retry loop used to read that as a server death, run `bazel shutdown`
+# on a healthy server, and corrupt in-flight external repository fetches (py_host), which then
+# failed with "libcrypto-3-x64.dll (Permission denied)" on the next attempt.
+test_retry_bazel_cmd_does_not_shutdown_server_when_liveness_is_undetermined() {
+    setup_retry_test running
+    export FAKE_BAZEL_BUILD_MODE="fail_once"
+    RETRY_ON_FAIL=1
+    stub_function bazel_evergreen_shutils::pid_is_live "return 2;"
+
+    run_retry_test_command 2
+
+    restore_stubbed_functions
+
+    assert_eq "0" "$RETRY_STATUS" "undetermined liveness should still retry to success"
+    assert_eq "0" "$(count_exact_log_lines "$FAKE_BAZEL_LOG" "shutdown")" "undetermined liveness must not shut down a possibly-healthy server"
+    assert_eq "0" "$(count_log_lines "$FAKE_BAZEL_LOG" "--local_resources=cpu=HOST_CPUS*.5")" "undetermined liveness must not apply the OOM guard"
+    assert_not_contains "$RETRY_OUTPUT" "OOM/killed" "undetermined liveness must not be diagnosed as an OOM"
 }
 
 test_cache_bazel_output_base_uses_plain_info_once() {
@@ -369,6 +491,115 @@ test_retry_bazel_cmd_does_not_retry_test_timeouts() {
     PATH="$old_path"
 }
 
+test_compute_local_arg_keeps_cross_rbe_for_ibm_run_mode() {
+    local ppc_args
+    local s390x_args
+
+    ppc_args="$({
+        evergreen_remote_exec="on"
+        bazel_evergreen_shutils::bazel_rbe_supported() { return 1; }
+        bazel_evergreen_shutils::is_ppc64le() { return 0; }
+        bazel_evergreen_shutils::is_s390x() { return 1; }
+        bazel_evergreen_shutils::compute_local_arg run
+    })"
+    assert_contains "$ppc_args" "--local_resources=cpu=48" "PPC run mode should retain its local CPU limit"
+    assert_not_contains "$ppc_args" "--jobs=" "PPC cross-RBE should retain the common remote job limit"
+    assert_not_contains "$ppc_args" "--config=local" "PPC run mode should retain cross-RBE configuration"
+
+    s390x_args="$({
+        evergreen_remote_exec="on"
+        bazel_evergreen_shutils::bazel_rbe_supported() { return 1; }
+        bazel_evergreen_shutils::is_ppc64le() { return 1; }
+        bazel_evergreen_shutils::is_s390x() { return 0; }
+        bazel_evergreen_shutils::compute_local_arg run
+    })"
+    assert_contains "$s390x_args" "--local_resources=cpu=16" "s390x run mode should retain its local CPU limit"
+    assert_not_contains "$s390x_args" "--jobs=" "s390x cross-RBE should retain the common remote job limit"
+    assert_not_contains "$s390x_args" "--config=local" "s390x run mode should retain cross-RBE configuration"
+}
+
+test_compute_local_arg_uses_local_for_non_rbe_run_mode() {
+    local remote_unsupported_args
+    local remote_disabled_args
+
+    remote_unsupported_args="$({
+        evergreen_remote_exec="on"
+        bazel_evergreen_shutils::bazel_rbe_supported() { return 1; }
+        bazel_evergreen_shutils::is_ppc64le() { return 1; }
+        bazel_evergreen_shutils::is_s390x() { return 1; }
+        bazel_evergreen_shutils::compute_local_arg run
+    })"
+    assert_contains "$remote_unsupported_args" "--config=local" "unsupported run hosts should use local configuration"
+
+    remote_disabled_args="$({
+        evergreen_remote_exec="off"
+        bazel_evergreen_shutils::bazel_rbe_supported() { return 0; }
+        bazel_evergreen_shutils::is_ppc64le() { return 1; }
+        bazel_evergreen_shutils::is_s390x() { return 1; }
+        bazel_evergreen_shutils::compute_local_arg run
+    })"
+    assert_contains "$remote_disabled_args" "--config=local" "run mode should use local configuration when remote execution is disabled"
+}
+
+test_maybe_release_flag_classifies_patch_test_and_release_tasks() {
+    local output
+
+    output="$({
+        MONGO_VERSION_OVERRIDE=""
+        is_patch="true"
+        release_rbe="false"
+        push_bucket="downloads.example.invalid"
+        compiling_for_test="false"
+        bazel_evergreen_shutils::maybe_release_flag "--config=evg"
+    })"
+    assert_not_contains "$output" "public-release" "patch builds should not select a release config"
+
+    output="$({
+        MONGO_VERSION_OVERRIDE=""
+        is_patch="false"
+        release_rbe="false"
+        push_bucket="downloads.example.invalid"
+        compiling_for_test="true"
+        bazel_evergreen_shutils::maybe_release_flag "--config=evg"
+    })"
+    assert_not_contains "$output" "public-release" "test tasks should not select a release config"
+
+    output="$({
+        MONGO_VERSION_OVERRIDE=""
+        is_patch="false"
+        release_rbe="false"
+        push_bucket="downloads.example.invalid"
+        compiling_for_test="false"
+        bazel_evergreen_shutils::maybe_release_flag "--config=evg"
+    })"
+    assert_contains "$output" "--config=public-release-local" "release artifacts should use local release mode"
+
+    output="$({
+        MONGO_VERSION_OVERRIDE=""
+        is_patch="false"
+        release_rbe="true"
+        push_bucket="downloads.example.invalid"
+        compiling_for_test="false"
+        bazel_evergreen_shutils::maybe_release_flag "--config=evg"
+    })"
+    assert_contains "$output" "--config=public-release-rbe" "explicit release RBE should remain enabled"
+}
+
+test_local_release_command_disables_remote_fallback_timeout() {
+    if ! bazel_evergreen_shutils::command_uses_local_release \
+        build //evergreen:fake_target --config=public-release-local; then
+        fail "public-release-local should disable the remote fallback timeout"
+    fi
+    if ! bazel_evergreen_shutils::command_uses_local_release \
+        build //evergreen:fake_target --remote_executor=; then
+        fail "an empty remote executor should disable the remote fallback timeout"
+    fi
+    if bazel_evergreen_shutils::command_uses_local_release \
+        build //evergreen:fake_target --config=evg; then
+        fail "ordinary test commands should retain the remote fallback timeout"
+    fi
+}
+
 test_retry_bazel_cmd_primes_output_base_before_running_bazel() {
     local tmpdir
     local fake_bazel
@@ -481,6 +712,11 @@ test_retry_bazel_cmd_does_not_retry_or_sleep_after_final_failure() {
     assert_not_contains "$RETRY_OUTPUT" "next attempt" "final server-death failure should not claim that another retry will run"
 }
 
+test_pid_is_live_detects_live_and_dead_pids_on_posix
+test_pid_is_live_uses_tasklist_on_windows
+test_pid_is_live_reports_unknown_when_it_cannot_check
+test_pid_is_live_reports_unknown_when_tasklist_fails
+test_retry_bazel_cmd_does_not_shutdown_server_when_liveness_is_undetermined
 test_cache_bazel_output_base_uses_plain_info_once
 test_should_disable_gdb_index_for_all_ci_builds
 test_remote_unittest_wrapper_is_test_scoped
@@ -488,6 +724,10 @@ test_query_resmoke_configs_filters_target_universe
 test_provenance_build_invocation_file_selection
 test_timeout_prefix_uses_the_expected_fallback_for_each_execution_mode
 test_retry_bazel_cmd_does_not_retry_test_timeouts
+test_compute_local_arg_keeps_cross_rbe_for_ibm_run_mode
+test_compute_local_arg_uses_local_for_non_rbe_run_mode
+test_maybe_release_flag_classifies_patch_test_and_release_tasks
+test_local_release_command_disables_remote_fallback_timeout
 test_retry_bazel_cmd_primes_output_base_before_running_bazel
 test_retry_bazel_cmd_reuses_healthy_server_after_regular_failure
 test_retry_bazel_cmd_starts_missing_server_with_neutral_message

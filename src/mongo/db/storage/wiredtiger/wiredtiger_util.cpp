@@ -747,8 +747,6 @@ logv2::LogComponent getWTLogComponent(const BSONObj& obj) {
             return logv2::LogComponent::kWiredTigerRTS;
         case WT_VERB_SALVAGE:
             return logv2::LogComponent::kWiredTigerSalvage;
-        case WT_VERB_TIERED:
-            return logv2::LogComponent::kWiredTigerTiered;
         case WT_VERB_TIMESTAMP:
             return logv2::LogComponent::kWiredTigerTimestamp;
         case WT_VERB_TRANSACTION:
@@ -1481,7 +1479,6 @@ std::string WiredTigerUtil::generateWTVerboseConfiguration() {
         {logv2::LogComponent::kWiredTigerRecovery, "recovery"},
         {logv2::LogComponent::kWiredTigerRTS, "rts"},
         {logv2::LogComponent::kWiredTigerSalvage, "salvage"},
-        {logv2::LogComponent::kWiredTigerTiered, "tiered"},
         {logv2::LogComponent::kWiredTigerTimestamp, "timestamp"},
         {logv2::LogComponent::kWiredTigerTransaction, "transaction"},
         {logv2::LogComponent::kWiredTigerVerify, "verify"},
@@ -1690,24 +1687,22 @@ Status WiredTigerUtil::createTable(WiredTigerRecoveryUnit& ru,
     auto& session = *ru.getSession();
     LOGV2(51780, "create table", "uri"_attr = uri, "config"_attr = config);
 
-    const bool checkStepdown =
+    const bool publishCreate =
         kvEngine && kvEngine->usesSchemaEpochs() && gFeatureFlagEnableSchemaEpochs.isEnabled();
-    const Timestamp stepdownBefore = checkStepdown ? kvEngine->getStepDownTimestamp() : Timestamp();
-    const auto status = wtRCToStatus(session.create(uri, config), session);
-    if (!status.isOK()) {
-        return status;
+    std::unique_lock<std::mutex> lock;
+    bool inStepdown = false;
+    if (publishCreate) {
+        lock = kvEngine->lockStepDown();
+        inStepdown = !kvEngine->getStepDownTimestamp().isNull();
     }
 
-    using StepdownState = WiredTigerRecoveryUnit::StepdownState;
-    auto state = StepdownState::before;
-    if (checkStepdown) {
-        if (kvEngine->getStepDownTimestamp() != stepdownBefore) {
-            state = StepdownState::invalid;
-        } else if (!stepdownBefore.isNull()) {
-            state = StepdownState::after;
-        }
+    const auto status = wtRCToStatus(session.create(uri, config), session);
+    if (status.isOK()) {
+        using StepdownState = WiredTigerRecoveryUnit::StepdownState;
+        auto state = inStepdown ? StepdownState::after : StepdownState::before;
+        ru.onCreateTable(uri, state);
     }
-    ru.onCreateTable(uri, state);
+
     return status;
 }
 

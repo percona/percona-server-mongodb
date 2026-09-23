@@ -429,7 +429,7 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: ""}, actions: ["containerInsert"]},
+                        {resource: {anyResource: true}, actions: ["containerInsert"]},
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                 },
@@ -473,7 +473,7 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: ""}, actions: ["containerDelete"]},
+                        {resource: {anyResource: true}, actions: ["containerDelete"]},
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                     expectFail: true,
@@ -518,7 +518,7 @@ export const authCommandsLib = {
                 {
                     runOnDb: firstDbName,
                     privileges: [
-                        {resource: {db: firstDbName, collection: ""}, actions: ["containerUpdate"]},
+                        {resource: {anyResource: true}, actions: ["containerUpdate"]},
                         {resource: {cluster: true}, actions: ["applyOps"]},
                     ],
                     expectFail: true,
@@ -9915,6 +9915,20 @@ export const authCommandsLib = {
                 getBuildInfo().version < "8.1",
             skipSharded: true,
             testcases: testcases_transformationOnlyExpectFail, // Not allowed in user requests.
+        },
+        {
+            testname: "aggregate_$throttle",
+            command: {
+                aggregate: "foo",
+                pipeline: [{$throttle: {}}],
+                cursor: {},
+            },
+            skipTest: (conn) =>
+                !isFeatureEnabled(conn, "featureFlagStreams") ||
+                _isWindows() ||
+                getBuildInfo().version < "8.1",
+            skipSharded: true,
+            testcases: testcases_transformationOnlyExpectFail,
         },
         {
             testname: "aggregate_$tumblingWindow",

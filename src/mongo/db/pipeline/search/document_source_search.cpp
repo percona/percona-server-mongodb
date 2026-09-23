@@ -149,6 +149,12 @@ intrusive_ptr<DocumentSource> DocumentSourceSearch::createFromBson(
         search_index_view_validation::validate(*view);
     }
 
+    // Disable operation memory tracking for $search queries with metadata cursors.
+    if (!expCtx->getInRouter() && spec.getMetadataMergeProtocolVersion().has_value() &&
+        spec.getRequiresSearchMetaCursor()) {
+        search_helpers::excludeOperationMemoryTrackingForSecondaryMetadataCursor(expCtx);
+    }
+
     return make_intrusive<DocumentSourceSearch>(expCtx, std::move(spec));
 }
 
@@ -161,9 +167,7 @@ std::list<intrusive_ptr<DocumentSource>> DocumentSourceSearch::desugar() {
 
     auto spec =
         InternalSearchMongotRemoteSpec::parseOwned(_spec.toBSON(), IDLParserContext(kStageName));
-    // Pass the limit in when there is no idLookup stage, and use the limit for mongotDocsRequested.
     // TODO: SERVER-76591 Remove special limit in favor of regular sharded limit optimization.
-    spec.setMongotDocsRequested(spec.getLimit());
     if (!storedSource) {
         spec.setLimit(boost::none);
     }

@@ -16,6 +16,8 @@
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/progress_meter.h"
 
+#include <regex>
+
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kTest
 
 namespace mongo {
@@ -38,6 +40,20 @@ ValidateResults validate(OperationContext* opCtx) {
     ASSERT_OK(
         collection_validation::validate(opCtx, kNss, kDefaultValidateOptions, &validateResults));
     return validateResults;
+}
+
+// Parses the count out of the "Detected N <kind> index entries." warning, which reports the real
+// number of inconsistencies even when memory limits cut down how many are individually reported.
+int getDetectedEntryCount(const ValidateResults& results, const std::string& kind) {
+    const std::regex re{"Detected ([0-9]+) " + kind + " index entries\\."};
+    for (const std::string& warning : results.getWarnings()) {
+        std::smatch match;
+        if (std::regex_search(warning, match, re)) {
+            return std::stoi(match[1].str());
+        }
+    }
+    FAIL("No 'Detected N " + kind + " index entries.' warning found");
+    MONGO_UNREACHABLE;
 }
 
 // Clears the collection without updating indexes, this creates extra index entries.
@@ -187,10 +203,7 @@ TEST_F(KeyStringIndexConsistencyTest, ExtraEntryPartialFindingsWithNonzeroMemory
     // Due to the very large keystrings, the number of reported entries will be smaller than the
     // real number. But we can still parse the real number out of a particular warning.
     auto getRealExtraEntryCount = [](const ValidateResults& results) {
-        const std::string& firstWarning = *results.getWarnings().begin();
-        // It's "Detected XX extra index entries.", so get the number between the first two spaces.
-        auto firstSpace = firstWarning.find(' ');
-        return std::stoi(firstWarning.substr(firstSpace, firstWarning.find(firstSpace + 1)));
+        return getDetectedEntryCount(results, "extra");
     };
 
     {
@@ -244,11 +257,7 @@ TEST_F(KeyStringIndexConsistencyTest, MissingEntryPartialFindingsWithNonzeroMemo
     // Due to the very large keystrings, the number of reported entries will be smaller than the
     // real number. But we can still parse the real number out of a particular warning.
     auto getRealMissingEntryCount = [](const ValidateResults& results) {
-        const std::string& firstWarning = *results.getWarnings().begin();
-        // It's "Detected XX missing index entries.", so get the number between the first two
-        // spaces.
-        auto firstSpace = firstWarning.find(' ');
-        return std::stoi(firstWarning.substr(firstSpace, firstWarning.find(firstSpace + 1)));
+        return getDetectedEntryCount(results, "missing");
     };
 
     {
@@ -730,6 +739,102 @@ TEST_F(KeyStringIndexConsistencyTest, CopyAssignmentPreservesSecondPhaseInconsis
                        assignedResults.getMissingIndexEntries());
     assertEntriesMatch(originalResults.getExtraIndexEntries(),
                        assignedResults.getExtraIndexEntries());
+}
+
+TEST_F(KeyStringIndexConsistencyTest, TraverseIndexReportsDuplicateKeys) {
+    auto opCtx = operationContext();
+    ASSERT_OK(storageInterface()->createCollection(opCtx, kNss, CollectionOptions()));
+
+    static constexpr auto uniqueIndexName{"x_1"sv};
+
+    AutoGetCollection coll(opCtx, kNss, MODE_X);
+    CollectionWriter writer(opCtx, coll);
+    const auto indexSpec =
+        BSON("v" << IndexDescriptor::IndexVersion::kV2 << "name" << uniqueIndexName << "key"
+                 << BSON("x" << 1) << "unique" << true);
+    {
+        WriteUnitOfWork wuow(opCtx);
+        auto collWriter = writer.getWritableCollection(opCtx);
+        ASSERT_OK(collWriter->getIndexCatalog()->createIndexOnEmptyCollection(
+            opCtx, collWriter, indexSpec));
+        ASSERT_OK(Helpers::insert(opCtx, writer.get(), BSON("_id" << 1 << "x" << 1)));
+        wuow.commit();
+    }
+
+    const auto* entry = coll->getIndexCatalog()->findIndexByName(opCtx, uniqueIndexName);
+    auto* iam = entry->accessMethod()->asSortedData();
+
+    // Plant a second entry for the same key under a different RecordId. The keys stay strictly
+    // increasing because the RecordId is appended, so _validateKeyOrder() reaches the uniqueness
+    // check rather than bailing out on the ordering check first.
+
+    const KeyStringSet keys = std::invoke([&] {
+        WriteUnitOfWork wuow(opCtx);
+        SharedBufferFragmentBuilder pooledBuilder(
+            key_string::HeapBuilder::kHeapAllocatorDefaultBytes);
+        KeyStringSet keys;
+        iam->getKeys(opCtx,
+                     *coll,
+                     entry,
+                     pooledBuilder,
+                     BSON("x" << 1),
+                     InsertDeleteOptions::ConstraintEnforcementMode::kRelaxConstraintsUnfiltered,
+                     SortedDataIndexAccessMethod::GetKeysContext::kAddingKeys,
+                     &keys,
+                     nullptr,
+                     nullptr,
+                     RecordId(2));
+        int64_t numInserted = 0;
+        ASSERT_OK(iam->insertKeys(opCtx,
+                                  *shard_role_details::getRecoveryUnit(opCtx),
+                                  *coll,
+                                  entry,
+                                  keys,
+                                  InsertDeleteOptions{.dupsAllowed = true},
+                                  nullptr,
+                                  &numInserted));
+        ASSERT_EQ(1, numInserted);
+        wuow.commit();
+        return keys;
+    });
+
+    collection_validation::ValidateState state(opCtx, kNss, kDefaultValidateOptions);
+    ASSERT_OK(state.initializeCollection(opCtx));
+    state.initializeCursors(opCtx);
+
+    ValidateResults results;
+    auto& indexResults = results.getIndexValidateResult(std::string{uniqueIndexName});
+
+    KeyStringIndexConsistency ksic(opCtx, &state);
+
+    // TODO SERVER-134900 make ConcurrentProgressMeterHolder a nullable pointer argument
+    ConcurrentProgressMeterHolder progress;
+    {
+        std::unique_lock<Client> lk(*opCtx->getClient());
+        progress.set(lk, CurOp::get(opCtx)->setProgress(lk, "test validate", 1), opCtx);
+    }
+
+    unittest::LogCaptureGuard logs;
+    ASSERT_EQ(2, ksic.traverseIndex(opCtx, entry, progress, &results));
+    logs.stop();
+
+    const auto& errors = indexResults.getErrors();
+    ASSERT_EQ(1, errors.size());
+    const auto& error = *errors.begin();
+    EXPECT_THAT(error, testing::HasSubstr("Unique index 'x_1' has duplicate key"sv));
+    EXPECT_THAT(error, testing::HasSubstr("13457600"));
+
+    // getText() keeps only each line's "msg", so the key has to be matched against the structured
+    // "attr" subtree instead.
+    const auto ord = Ordering::make(entry->descriptor()->keyPattern());
+    for (const auto& key : keys) {
+        EXPECT_EQ(1,
+                  logs.countBSONContainingSubset(
+                      BSON("id" << 13457600 << "attr"
+                                << BSON("indexName" << uniqueIndexName << "bsonKey"
+                                                    << key_string::toBson(key, ord) << "records"
+                                                    << BSON_ARRAY("1" << "2")))));
+    }
 }
 
 }  // namespace mongo
