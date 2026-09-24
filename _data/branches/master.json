@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 1,
+    "commits_behind": 24,
     "days_behind": 7,
-    "unmerged_oldest_age_days": 7.061323690648148,
-    "files_affected": 10,
-    "total_additions": 107,
-    "total_deletions": 305,
+    "unmerged_oldest_age_days": 7.7924079002083335,
+    "files_affected": 579,
+    "total_additions": 7379,
+    "total_deletions": 17177,
     "date_range": {
       "first": "2026-09-16T11:11:05+00:00",
-      "last": "2026-09-16T11:11:05+00:00"
+      "last": "2026-09-17T04:16:10+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,239 @@
   },
   "gate": {
     "open": true,
-    "reason": "max_age (7.1d >= 2d)"
+    "reason": "max_age (7.8d >= 2d)"
   },
   "unmerged_commits": [
+    {
+      "sha": "7b33337c4ce7d99510e8dea7a214ebbb4fd6a4a1",
+      "short_sha": "7b33337c4ce",
+      "date": "2026-09-17T04:16:10+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134129 Prevent std::terminate from re-raised NoSuchTransaction during pinned cursor cleanup (#62620)\" (#62886)"
+    },
+    {
+      "sha": "2fd514d3772c68952b793a3793fd8cc71ff5ce99",
+      "short_sha": "2fd514d3772",
+      "date": "2026-09-17T01:44:01+00:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-134787 Parse X.509 roles TLV from GID-validated connections over proxy UDS (#62503)"
+    },
+    {
+      "sha": "a0a24ee468dc40801b64ecb49822cf1c51bbd7dd",
+      "short_sha": "a0a24ee468d",
+      "date": "2026-09-17T01:01:10+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: a8263bcf09a50fd759294e316af194ba0f2e8627 from branch mongodb-master (#62831)"
+    },
+    {
+      "sha": "79cd6db01f91466ece8e07a416d2832486cb14b0",
+      "short_sha": "79cd6db01f9",
+      "date": "2026-09-16T23:00:10+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-134994 Remove parallelValidate and replace with server parameters (#62732)"
+    },
+    {
+      "sha": "2a66aeda1d564ebcd863362d4faa1f67d44efa1f",
+      "short_sha": "2a66aeda1d5",
+      "date": "2026-09-16T21:15:07+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-134809 Create repairReplicatedMetadata command (#62683)"
+    },
+    {
+      "sha": "4d43e0a0e379bac89244cf28fb0fc2a88ec8e031",
+      "short_sha": "4d43e0a0e37",
+      "date": "2026-09-16T21:12:43+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-135131 Exclude requires_getmore tag from sharded_multi_stmt_txn_jscore_passthrough suite (#62857)"
+    },
+    {
+      "sha": "b762f7b5e0eaf7264163ccb1f93b74ae77399577",
+      "short_sha": "b762f7b5e0e",
+      "date": "2026-09-16T20:15:49+00:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-134129 Prevent std::terminate from re-raised NoSuchTransaction during pinned cursor cleanup (#62620)"
+    },
+    {
+      "sha": "d199367a46c9af70e557ab9d33b8bf7c8fba7b33",
+      "short_sha": "d199367a46c",
+      "date": "2026-09-16T19:40:17+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135143 Make change stream V2 tests depend on IFR flag (#62858)"
+    },
+    {
+      "sha": "3c86964f0f9dd44d8264f1f9ada8e3275fa93fe0",
+      "short_sha": "3c86964f0f9",
+      "date": "2026-09-16T19:37:39+00:00",
+      "author": {
+        "name": "Daniele Alessandrelli",
+        "email": "daniele.alessandrelli@mongodb.com"
+      },
+      "summary": "SERVER-129905 Remove check_uuids_consistent_across_cluster hook (#58104)"
+    },
+    {
+      "sha": "fc1fa31b319e7cb4a89dd3392f542328179ff5d5",
+      "short_sha": "fc1fa31b319",
+      "date": "2026-09-16T19:29:44+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-134693 Track dispatched in-flight POA batches in FIFO queue (#62723)"
+    },
+    {
+      "sha": "4c3a9dbd6ddc75b698d8dba510d65860e48a2d2e",
+      "short_sha": "4c3a9dbd6dd",
+      "date": "2026-09-16T19:11:45+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-135052 Respect target compatibility when generating burn-in tasks (#62856)"
+    },
+    {
+      "sha": "8187957af7a4c3c15d8ba4498d1d8da73b1e9436",
+      "short_sha": "8187957af7a",
+      "date": "2026-09-16T18:11:14+00:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-134840 Log the pre-image and post-image with their component hashes on a document validation hash mismatch (#62581)"
+    },
+    {
+      "sha": "f5bec25b1e04f61b3fac5d6ec634b579c569e5f9",
+      "short_sha": "f5bec25b1e0",
+      "date": "2026-09-16T18:08:04+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-134439 Gate $_internalFromPipeline serialization on featureFlagExtensionsInsideHybridSearch (#62666)"
+    },
+    {
+      "sha": "06390d0bbf4823e174adcde4282f16d2aa6f636a",
+      "short_sha": "06390d0bbf4",
+      "date": "2026-09-16T17:41:17+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-134981 Add assumes_balancer_off tag to timeseries_streaming_group.js (#62727)"
+    },
+    {
+      "sha": "04a8f2c8534acc84c3cbe1b263278061f9436136",
+      "short_sha": "04a8f2c8534",
+      "date": "2026-09-16T16:51:27+00:00",
+      "author": {
+        "name": "Saman Memaripour",
+        "email": "amirsaman.memaripour@mongodb.com"
+      },
+      "summary": "SERVER-132650 Enforce the minimum pre-auth streaming hello timeout on mongos (#60070)"
+    },
+    {
+      "sha": "5c04974044939c2f1b258eff763b150ed147f140",
+      "short_sha": "5c049740449",
+      "date": "2026-09-16T16:32:11+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-135122: Fine tune linker requirements (#62843)"
+    },
+    {
+      "sha": "d24aa70519a797496016d98dfe3419c2084a9947",
+      "short_sha": "d24aa70519a",
+      "date": "2026-09-16T15:46:33+00:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-133735 Reapply SERVER-132110 under a feature flag (#62824)"
+    },
+    {
+      "sha": "51078f42eeedd832e7de2de70ce57c00e0aee89e",
+      "short_sha": "51078f42eee",
+      "date": "2026-09-16T15:41:37+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134734: Instrument findAndModify with retry delay metrics (#62502)"
+    },
+    {
+      "sha": "5ee4a547e7019c9ff1e2059159f714f0b187a3db",
+      "short_sha": "5ee4a547e70",
+      "date": "2026-09-16T15:41:30+00:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-134896: Consider lock free reads having acquired a consistent snapshot if there is a pending MODE_X global lock (#62725)"
+    },
+    {
+      "sha": "1256c7fad25b5b655ed8ed62b6c06e2144266023",
+      "short_sha": "1256c7fad25",
+      "date": "2026-09-16T15:37:42+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-131326 Validate stmtIds for uniqueness (#58636)"
+    },
+    {
+      "sha": "9509e7071f269c4afd45fa844e552b4002806dce",
+      "short_sha": "9509e7071f2",
+      "date": "2026-09-16T15:09:55+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-125775 implement a PBT for elemMatch object traversal (#62539)\" (#62833)"
+    },
+    {
+      "sha": "e2133ea34a306ddd289d2d4ee0f2f98ae3145e8b",
+      "short_sha": "e2133ea34a3",
+      "date": "2026-09-16T14:49:30+00:00",
+      "author": {
+        "name": "Serhii Lysenko",
+        "email": "serhii.lysenko@mongodb.com"
+      },
+      "summary": "SERVER-126253: move no-passthrough change streams tests out of passthrough suites (#62366)"
+    },
+    {
+      "sha": "6ec71e93430177d4f001e738153bae2660e5523a",
+      "short_sha": "6ec71e93430",
+      "date": "2026-09-16T14:32:59+00:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-131546 Re-enable disagg multiversion testing (#62446)"
+    },
     {
       "sha": "7d6756d87f39c4fb7c45240bcf4c8afc6b0d1bad",
       "short_sha": "7d6756d87f3",
@@ -55,23 +285,53 @@
   "merge_picks": [
     {
       "commit": {
-        "sha": "7d6756d87f39c4fb7c45240bcf4c8afc6b0d1bad",
-        "short_sha": "7d6756d87f3",
-        "date": "2026-09-16T11:11:05+00:00",
+        "sha": "3c86964f0f9dd44d8264f1f9ada8e3275fa93fe0",
+        "short_sha": "3c86964f0f9",
+        "date": "2026-09-16T19:37:39+00:00",
         "author": {
-          "name": "auto-revert-app[bot]",
-          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+          "name": "Daniele Alessandrelli",
+          "email": "daniele.alessandrelli@mongodb.com"
         },
-        "summary": "Revert \"SERVER-133735 Reapply SERVER-132110 under a feature flag (#61652)\" (#62822)"
+        "summary": "SERVER-129905 Remove check_uuids_consistent_across_cluster hook (#58104)"
       },
-      "strategy_name": "most_recent",
+      "strategy_name": "huge_commit",
       "result": {
-        "fallback": true
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 76,
+          "num_of_lines": 440,
+          "lines_added": 2,
+          "lines_deleted": 438,
+          "num_of_dirs": 22
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "a0a24ee468dc40801b64ecb49822cf1c51bbd7dd",
+        "short_sha": "a0a24ee468d",
+        "date": "2026-09-17T01:01:10+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: a8263bcf09a50fd759294e316af194ba0f2e8627 from branch mongodb-master (#62831)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 369,
+          "num_of_lines": 18445,
+          "lines_added": 2654,
+          "lines_deleted": 15791,
+          "num_of_dirs": 58
+        }
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-23 12:39:20",
+  "generated_at": "2026-09-24 06:11:53",
   "branch_name": "master",
   "display_name": "master"
 }
