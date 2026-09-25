@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 24,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.7924079002083335,
-    "files_affected": 579,
-    "total_additions": 7379,
-    "total_deletions": 17177,
+    "commits_behind": 53,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 8.792448238854167,
+    "files_affected": 684,
+    "total_additions": 12606,
+    "total_deletions": 18723,
     "date_range": {
       "first": "2026-09-16T11:11:05+00:00",
-      "last": "2026-09-17T04:16:10+00:00"
+      "last": "2026-09-18T01:35:26+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,299 @@
   },
   "gate": {
     "open": true,
-    "reason": "max_age (7.8d >= 2d)"
+    "reason": "min_commits (53 >= 50)"
   },
   "unmerged_commits": [
+    {
+      "sha": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+      "short_sha": "20b0ab59839",
+      "date": "2026-09-18T01:35:26+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 3069b317e5a17bcfa53e0abdb2d3fa14e58684b8 from branch mongodb-master (#62908)"
+    },
+    {
+      "sha": "a06c2a9a81a87b2f7bba357b6f9562dd003ba6e3",
+      "short_sha": "a06c2a9a81a",
+      "date": "2026-09-17T23:54:23+00:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-129849 Dispose idle mongot cursors during shutdown (#57167)"
+    },
+    {
+      "sha": "00ded8f9ac86285bc36775531a9de3a913eefa9e",
+      "short_sha": "00ded8f9ac8",
+      "date": "2026-09-17T21:35:54+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-134875: Don't require a WT transaction for schema operations (#62571)"
+    },
+    {
+      "sha": "bdac08e7b790246b7c4937cdd1b502ffc3831215",
+      "short_sha": "bdac08e7b79",
+      "date": "2026-09-17T20:33:05+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-134991 Revert \"Add completion log for chunk migration\" (#62950)"
+    },
+    {
+      "sha": "56017683c98b98ff5f13fd8ae645886f15e434ba",
+      "short_sha": "56017683c98",
+      "date": "2026-09-17T20:13:08+00:00",
+      "author": {
+        "name": "Neil Veira",
+        "email": "neil.veira@mongodb.com"
+      },
+      "summary": "SERVER-135060: Fix legacy MozJS pinned host memory tracking (#62829)"
+    },
+    {
+      "sha": "de969fe2e3734eeae663e6ddf2f6e6d6e0265a9e",
+      "short_sha": "de969fe2e37",
+      "date": "2026-09-17T19:32:22+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134735: Instrument update with retryable writes delay metrics (#62566)"
+    },
+    {
+      "sha": "4c5678c96b75608b3db2a0a6e7ce6403f6615860",
+      "short_sha": "4c5678c96b7",
+      "date": "2026-09-17T19:31:06+00:00",
+      "author": {
+        "name": "Erin Liang",
+        "email": "59406045+erl-ang@users.noreply.github.com"
+      },
+      "summary": "SERVER-133844 Check for interrupt and marker queue existence in truncateByMarkerQueue (#61472)"
+    },
+    {
+      "sha": "ca236fb70f3327cee94ab12521d617c2ced3f317",
+      "short_sha": "ca236fb70f3",
+      "date": "2026-09-17T19:17:51+00:00",
+      "author": {
+        "name": "Cheahuychou Mao",
+        "email": "cheahuychou.mao@mongodb.com"
+      },
+      "summary": "SERVER-135202 Make gRPC concurrent connection unit tests use a larger timeout (#62924)"
+    },
+    {
+      "sha": "339f083021939102566aea0fef5e525f0150b263",
+      "short_sha": "339f0830219",
+      "date": "2026-09-17T19:12:04+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134736: Instrument insert with retry delay metrics (#62797)"
+    },
+    {
+      "sha": "cf9681d077c2068987b495217756a5330a083a64",
+      "short_sha": "cf9681d077c",
+      "date": "2026-09-17T19:11:59+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134738: Instrument delete with retry delay metrics (#62798)"
+    },
+    {
+      "sha": "4ea65f42daebe5e24fb95db9c870fd2c3c240a74",
+      "short_sha": "4ea65f42dae",
+      "date": "2026-09-17T18:59:35+00:00",
+      "author": {
+        "name": "Varun Ravichandran",
+        "email": "varun.ravichandran@mongodb.com"
+      },
+      "summary": "SERVER-135175 Add no-op proxyUnixSocketCheckPermissions parmeter for backwards compatibility (#62894)"
+    },
+    {
+      "sha": "7b6f959e0ef4763a3350cf9c35ebcc237223a7ad",
+      "short_sha": "7b6f959e0ef",
+      "date": "2026-09-17T18:26:13+00:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-135001 Don't log expected coordinator cancellations as errors (#62861)"
+    },
+    {
+      "sha": "d34c38ff4dd7df14cd4ad31ed17c47e2021674b2",
+      "short_sha": "d34c38ff4dd",
+      "date": "2026-09-17T17:43:22+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-133050: Make StringOrNull not a view type (#61618)"
+    },
+    {
+      "sha": "d9970a185afdf5f9e8c0f2f2c31e25949426e634",
+      "short_sha": "d9970a185af",
+      "date": "2026-09-17T17:39:31+00:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-133440 Avoid pushing down projections when the aggregation requires field presence (#62085)\" (#62913)"
+    },
+    {
+      "sha": "60509ff1b303b9ba8aa17a66f67557901d526a9c",
+      "short_sha": "60509ff1b30",
+      "date": "2026-09-17T17:02:15+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-135053: fix streams unit tests to account for sanitizer overhead and add a lint to prevent future issues (#62789)\" (#62925)"
+    },
+    {
+      "sha": "b2f6f49d8a96f06fe040a0eded63e751c947b239",
+      "short_sha": "b2f6f49d8a9",
+      "date": "2026-09-17T16:03:15+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-135188: Store write wall clock time in statement info for calculating retryable write latency (#62905)"
+    },
+    {
+      "sha": "8baf309084d986b573cae77e7a0c42a2f3bfb36a",
+      "short_sha": "8baf309084d",
+      "date": "2026-09-17T15:47:15+00:00",
+      "author": {
+        "name": "Teo Voinea",
+        "email": "teo.voinea@mongodb.com"
+      },
+      "summary": "SERVER-135199: Use recommended Evergreen API page size (#62918)"
+    },
+    {
+      "sha": "7962e4b9e750a331f1525f71bd9af18908b6d6af",
+      "short_sha": "7962e4b9e75",
+      "date": "2026-09-17T15:42:29+00:00",
+      "author": {
+        "name": "Ryan Roelke",
+        "email": "rroelke@users.noreply.github.com"
+      },
+      "summary": "SERVER-135053: fix streams unit tests to account for sanitizer overhead and add a lint to prevent future issues (#62789)"
+    },
+    {
+      "sha": "55e88f8211465955c27eb2e9e03f97ce2ca3fc2e",
+      "short_sha": "55e88f82114",
+      "date": "2026-09-17T15:39:35+00:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-134534 Exclude query_intensive_pbt tests from initial sync passthrough suites (#62748)"
+    },
+    {
+      "sha": "13dddfd683109501062352769078dc2e85248924",
+      "short_sha": "13dddfd6831",
+      "date": "2026-09-17T15:04:03+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-135136: Add collection namespace to progress meter (#62860)"
+    },
+    {
+      "sha": "f0eef2c1ffe7953024853e569f9254f8509155f9",
+      "short_sha": "f0eef2c1ffe",
+      "date": "2026-09-17T14:54:16+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-134715 Handle dollar-prefixed shard key fields in local lookup eligibility check (#62453)"
+    },
+    {
+      "sha": "11ec44830b73b57f0315985d33aac47983d86bd7",
+      "short_sha": "11ec44830b7",
+      "date": "2026-09-17T14:51:22+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-134991 Add completion log for chunk migration (#62875)"
+    },
+    {
+      "sha": "4561cfb5e4ce829af6eb6ce07b3388f8ad2a4980",
+      "short_sha": "4561cfb5e4c",
+      "date": "2026-09-17T13:17:50+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-135167 Introduce a failpoint to force turning off replicated size and count tracking (#62883)"
+    },
+    {
+      "sha": "425844693b8e805102b449bdf6a3a111aaea7749",
+      "short_sha": "425844693b8",
+      "date": "2026-09-17T12:39:49+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-134943 Restore change_streams_sharded_collections_passthrough Evergreen task (#62900)"
+    },
+    {
+      "sha": "d2ea9fdc0ec3a8c47900d5b4fcccdaa16e19ff00",
+      "short_sha": "d2ea9fdc0ec",
+      "date": "2026-09-17T10:37:26+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-133225: Tassert on missing IFRFlagRetryInfo (#62669)"
+    },
+    {
+      "sha": "e87b043aed9b6576aa688b441dcb4cc28c93483e",
+      "short_sha": "e87b043aed9",
+      "date": "2026-09-17T07:55:28+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-132085 Add additional join opt info to explain (#62826)"
+    },
+    {
+      "sha": "1d30e2ff22767e0f62e378c81bd4f76ee0f9f665",
+      "short_sha": "1d30e2ff227",
+      "date": "2026-09-17T07:55:20+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#62884)"
+    },
+    {
+      "sha": "345751627453e6a3a26235411acc49f711c5f0c1",
+      "short_sha": "34575162745",
+      "date": "2026-09-17T06:43:54+00:00",
+      "author": {
+        "name": "karlbozdogan",
+        "email": "karl.bozdogan@mongodb.com"
+      },
+      "summary": "SERVER-133440 Avoid pushing down projections when the aggregation requires field presence (#62085)"
+    },
+    {
+      "sha": "f14e07076433ee20ff780aa1a0bab48983d29dfb",
+      "short_sha": "f14e0707643",
+      "date": "2026-09-17T06:12:18+00:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-134616 FSM workload for the join plan cache (#62749)"
+    },
     {
       "sha": "7b33337c4ce7d99510e8dea7a214ebbb4fd6a4a1",
       "short_sha": "7b33337c4ce",
@@ -328,10 +618,33 @@
           "num_of_dirs": 58
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+        "short_sha": "20b0ab59839",
+        "date": "2026-09-18T01:35:26+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 3069b317e5a17bcfa53e0abdb2d3fa14e58684b8 from branch mongodb-master (#62908)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 47,
+          "num_of_lines": 6203,
+          "lines_added": 3815,
+          "lines_deleted": 2388,
+          "num_of_dirs": 15
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-24 06:11:53",
+  "generated_at": "2026-09-25 06:11:43",
   "branch_name": "master",
   "display_name": "master"
 }
