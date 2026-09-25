@@ -26,9 +26,11 @@ mongo_cc_library(
         "//src/mongo/db:ldap_options",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
+        "//src/mongo/db/auth:cluster_auth_mode",
         "//src/mongo/db/auth:sasl_options",
         "//src/mongo/db/auth/oidc",
         "//src/mongo/util:background_job",
+        "//src/mongo/util/net:ssl_options",
     ],
 )
 
