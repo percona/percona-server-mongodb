@@ -1482,6 +1482,7 @@ const allTestCases = {
         releaseMemory: {skip: "TODO"},
         removeQuerySettings: {skip: "TODO"},
         renameCollection: {skip: "TODO"},
+        repairReplicatedMetadata: {skip: "Never routed via mongos"},
         replSetAbortPrimaryCatchUp: {skip: "TODO"},
         replSetFreeze: {skip: "TODO"},
         replSetGetConfig: {skip: "TODO"},
