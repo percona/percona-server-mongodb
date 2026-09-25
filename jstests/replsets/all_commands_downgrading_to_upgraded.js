@@ -1470,6 +1470,12 @@ const allCommands = {
             assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName + "2"}));
         },
     },
+    repairReplicatedMetadata: {
+        command: {repairReplicatedMetadata: 1, uuid: UUID(), metadata: {}},
+        isAdminCommand: true,
+        doesNotRunOnStandalone: true,
+        doesNotRunOnMongos: true,
+    },
     replicateSearchIndexCommand: {skip: isAnInternalCommand},
     replSetAbortPrimaryCatchUp: {
         // This will be tested in FCV upgrade/downgrade passthroughs through the replsets directory.
