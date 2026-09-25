@@ -105,6 +105,7 @@ protected:
         "ldap_sasl_authentication_enabled"_sd;
     static constexpr StringData kKerberosAuthenticationEnabled = "kerberos_enabled"_sd;
     static constexpr StringData kX509AuthenticationEnabled = "x509_enabled"_sd;
+    static constexpr StringData kX509ServerAuthenticationEnabled = "x509_server_enabled"_sd;
 
     // instance id stored in kTelemetryFileName
     OID _instid;
