@@ -107,6 +107,7 @@ protected:
         "ldap_sasl_authentication_enabled"sv;
     static constexpr std::string_view kKerberosAuthenticationEnabled = "kerberos_enabled"sv;
     static constexpr std::string_view kX509AuthenticationEnabled = "x509_enabled"sv;
+    static constexpr std::string_view kX509ServerAuthenticationEnabled = "x509_server_enabled"sv;
 
     // instance id stored in kTelemetryFileName
     OID _instid;
