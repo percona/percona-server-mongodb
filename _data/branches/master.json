@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 53,
-    "days_behind": 8,
-    "unmerged_oldest_age_days": 8.792448238854167,
-    "files_affected": 684,
-    "total_additions": 12606,
-    "total_deletions": 18723,
+    "commits_behind": 55,
+    "days_behind": 9,
+    "unmerged_oldest_age_days": 8.947557975532408,
+    "files_affected": 692,
+    "total_additions": 15002,
+    "total_deletions": 18348,
     "date_range": {
       "first": "2026-09-16T11:11:05+00:00",
-      "last": "2026-09-18T01:35:26+00:00"
+      "last": "2026-09-18T08:59:31+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,29 @@
   },
   "gate": {
     "open": true,
-    "reason": "min_commits (53 >= 50)"
+    "reason": "min_commits (55 >= 50)"
   },
   "unmerged_commits": [
+    {
+      "sha": "8d8995255aa9555389c71aac7ae473b1d43661e4",
+      "short_sha": "8d8995255aa",
+      "date": "2026-09-18T08:59:31+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-132084 Add join plan enumerator dump log (#62618)"
+    },
+    {
+      "sha": "b7695e3826b5d1461ae1023b72a6ff36237ee36f",
+      "short_sha": "b7695e3826b",
+      "date": "2026-09-18T08:02:10+00:00",
+      "author": {
+        "name": "Sergiy Tsymbal",
+        "email": "sergiy.tsymbal@mongodb.com"
+      },
+      "summary": "SERVER-125775 implement a PBT for elemMatch object traversal (#62897)"
+    },
     {
       "sha": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
       "short_sha": "20b0ab59839",
@@ -644,7 +664,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-25 06:11:43",
+  "generated_at": "2026-09-25 09:54:55",
   "branch_name": "master",
   "display_name": "master"
 }
