@@ -2427,6 +2427,17 @@ const wcCommandsTests = {
             admin: true,
         },
     },
+    repairReplicatedMetadata: {
+        success: {
+            // repairReplicatedMetadata records a no-op oplog entry
+            req: {repairReplicatedMetadata: 1, uuid: UUID(), metadata: {sz: 100}},
+            setupFunc: (coll) => {},
+            confirmFunc: (res, coll) => {
+                assert.commandWorkedIgnoringWriteConcernErrors(res);
+            },
+            admin: true,
+        },
+    },
     replicateSearchIndexCommand: {skip: "internal command for testing only"},
     replSetAbortPrimaryCatchUp: {skip: "does not accept write concern"},
     replSetFreeze: {skip: "does not accept write concern"},
@@ -4658,6 +4669,17 @@ const wcTimeseriesCommandsTests = {
     removeShardFromZone: {skip: "does not accept write concern"},
     // TODO SERVER-125423: add test coverage now that viewless timeseries are enabled.
     renameCollection: {skip: "not supported on timeseries views"},
+    repairReplicatedMetadata: {
+        success: {
+            // repairReplicatedMetadata records a no-op oplog entry
+            req: {repairReplicatedMetadata: 1, uuid: UUID(), metadata: {sz: 100}},
+            setupFunc: (coll) => {},
+            confirmFunc: (res, coll) => {
+                assert.commandWorkedIgnoringWriteConcernErrors(res);
+            },
+            admin: true,
+        },
+    },
     replicateSearchIndexCommand: {skip: "internal command for testing only"},
     replSetAbortPrimaryCatchUp: {skip: "does not accept write concern"},
     replSetFreeze: {skip: "does not accept write concern"},

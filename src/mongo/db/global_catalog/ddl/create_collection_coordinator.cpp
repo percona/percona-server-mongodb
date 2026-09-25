@@ -1352,7 +1352,9 @@ boost::optional<UUID> createCollectionAndIndexes(
 
 // TODO (SERVER-133881): without the feature flag check, this function reduces to just checking
 // `isUnsplittable`, so just remove the function as it doesn't make much sense anymore.
-bool shouldDisallowChunkOperations(OperationContext* opCtx, bool isUnsplittable) {
+bool shouldDisallowChunkOperations(OperationContext* opCtx,
+                                   AuthoritativeMetadataAccessLevelEnum authMetadataAccessLevel,
+                                   bool isUnsplittable) {
     if (!feature_flags::gCreateRenameNewSetAllowChunkOperationsBehavior.isEnabled(
             VersionContext::getDecoration(opCtx),
             serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
@@ -1362,7 +1364,8 @@ bool shouldDisallowChunkOperations(OperationContext* opCtx, bool isUnsplittable)
     // Chunk operations are disallowed on unsplittable collections, there is no need to explicitly
     // block them with `allowChunkOperations: false`. Not doing it saves an `allowChunkOperations:
     // true` command later.
-    return !isUnsplittable;
+    return authMetadataAccessLevel >= AuthoritativeMetadataAccessLevelEnum::kWritesAllowed &&
+        !isUnsplittable;
 }
 
 /**
@@ -1425,7 +1428,7 @@ void commit(OperationContext* opCtx,
         coll.setUnique(*request.getUnique());
     }
 
-    if (shouldDisallowChunkOperations(opCtx, unsplittable)) {
+    if (shouldDisallowChunkOperations(opCtx, authMetadataAccessLevel, unsplittable)) {
         coll.setAllowChunkOperations(false);
     }
 
@@ -2426,18 +2429,15 @@ void CreateCollectionCoordinator::_exitCriticalSection(
                                       _critSecReason,
                                       originalNss());
 
-    if (shouldDisallowChunkOperations(opCtx, isUnsplittable(_request))) {
+    if (const auto authMetadataAccessLevel = _doc.getAuthoritativeMetadataAccessLevel();
+        shouldDisallowChunkOperations(opCtx, authMetadataAccessLevel, isUnsplittable(_request))) {
         // The commit creates the collection with allowChunkOperations set to false. After the
         // critical section is released, we need to enable chunk operations.
         if (!_firstExecution && !_uuid) {
             _uuid = sharding_ddl_util::getCollectionUUID(opCtx, nss());
         }
         sharding_ddl_util::resumeMigrations(
-            opCtx,
-            nss(),
-            _uuid,
-            [&] { return getNewSession(opCtx); },
-            _doc.getAuthoritativeMetadataAccessLevel());
+            opCtx, nss(), _uuid, [&] { return getNewSession(opCtx); }, authMetadataAccessLevel);
     }
 }
 

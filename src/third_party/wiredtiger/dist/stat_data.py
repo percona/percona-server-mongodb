@@ -161,10 +161,6 @@ class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
-class StorageStat(Stat):
-    prefix = 'tiered-storage'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, StorageStat.prefix, desc, flags)
 class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
@@ -668,13 +664,11 @@ conn_stats = [
     ##########################################
     DhandleStat('dh_conn_handle_btree_count', 'btree connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_checkpoint_count', 'checkpoint connection data handles currently active', 'no_clear,no_scale'),
-    # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table,tiered,tiered_tree}_count.
+    # dh_conn_handle_count = The sum of dh_conn_handle_{btree,table}_count.
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_layered_count', 'Layered connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_conn_handle_table_count', 'Table connection data handles currently active', 'no_clear,no_scale'),
-    DhandleStat('dh_conn_handle_tiered_count', 'Tiered connection data handles currently active', 'no_clear,no_scale'),
-    DhandleStat('dh_conn_handle_tiered_tree_count', 'Tiered_Tree connection data handles currently active', 'no_clear,no_scale'),
     DhandleStat('dh_session_handles', 'session dhandles swept'),
     DhandleStat('dh_session_sweeps', 'session sweep attempts'),
     # dh_sweep_dead_close formerly called dh_sweep_close.
@@ -969,20 +963,6 @@ conn_stats = [
     SessionOpStat('session_table_verify_success', 'table verify successful calls', 'no_clear,no_scale'),
 
     ##########################################
-    # Tiered storage statistics
-    ##########################################
-    StorageStat('flush_tier', 'flush_tier operation calls'),
-    StorageStat('flush_tier_fail', 'flush_tier failed calls'),
-    StorageStat('flush_tier_skipped', 'flush_tier tables skipped due to no checkpoint'),
-    StorageStat('flush_tier_switched', 'flush_tier tables switched'),
-    StorageStat('local_objects_inuse', 'attempts to remove a local object and the object is in use'),
-    StorageStat('local_objects_removed', 'local objects removed'),
-    StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
-    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
-    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
-    StorageStat('tiered_work_units_removed', 'tiered operations removed without processing'),
-
-    ##########################################
     # Thread Count statistics
     ##########################################
     ThreadStat('thread_fsync_active', 'active filesystem fsync calls','no_clear,no_scale'),
@@ -1128,6 +1108,10 @@ dsrc_stats = [
     ##########################################
     # Btree size summary statistics (opt-in, accumulated by a debug=(size_stats) cursor scan)
     ##########################################
+    BtreeSizeStat('btree_size_deleted_key_bytes', 'deleted key bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_deleted_key_count', 'deleted key count', 'no_scale'),
+    BtreeSizeStat('btree_size_deleted_value_bytes', 'deleted value bytes', 'no_scale,size'),
+    BtreeSizeStat('btree_size_deleted_value_count', 'deleted value count', 'no_scale'),
     BtreeSizeStat('btree_size_internal_bytes', 'internal page bytes', 'no_scale,size'),
     BtreeSizeStat('btree_size_internal_pages', 'internal pages', 'no_scale'),
     BtreeSizeStat('btree_size_key_bytes', 'key bytes', 'no_scale,size'),

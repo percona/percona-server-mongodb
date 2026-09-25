@@ -112,6 +112,7 @@
 #include "mongo/util/out_of_line_executor.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
+#include "mongo/util/time_support.h"
 #include "mongo/util/timer.h"
 
 #include <algorithm>
@@ -1273,6 +1274,11 @@ WriteResult performInserts(
     out.results.reserve(wholeOp.getDocuments().size());
 
     bool containsRetry = false;
+    // Update total retryable commands counter if applicable. The retried commands counter is
+    // updated by the below hook.
+    if (opCtx->isRetryableWrite()) {
+        RetryableWritesStats::get(opCtx)->incrementRetryableCommandsCount();
+    }
     ON_BLOCK_EXIT([&] { updateRetryStats(opCtx, containsRetry); });
 
     size_t nextOpIndex = 0;
@@ -1313,8 +1319,10 @@ WriteResult performInserts(
             opCtx, doc, bypassEmptyTsReplacement, &containsDotsAndDollarsField);
 
         const StmtId stmtId = getStmtIdForWriteOp(opCtx, wholeOp, currentOpIndex);
-        const bool wasAlreadyExecuted =
-            opCtx->isRetryableWrite() && txnParticipant.checkStatementExecuted(opCtx, stmtId);
+        const auto timestampIfAlreadyExecuted = opCtx->isRetryableWrite()
+            ? txnParticipant.checkStatementExecutedAndGetWallClockTime(opCtx, stmtId)
+            : boost::none;
+        const bool wasAlreadyExecuted = bool(timestampIfAlreadyExecuted);
 
         if (!fixedDoc.isOK()) {
             // Handled after we insert anything in the batch to be sure we report errors in the
@@ -1385,6 +1393,8 @@ WriteResult performInserts(
         } else if (wasAlreadyExecuted) {
             containsRetry = true;
             RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+            RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                opCtx->fastClockSource().now() - *timestampIfAlreadyExecuted);
             out.retriedStmtIds.push_back(stmtId);
             out.results.emplace_back(makeWriteResultForInsertOrDeleteRetry());
         }
@@ -1842,7 +1852,19 @@ WriteResult performUpdates(
 
     LastOpFixer lastOpFixer(opCtx);
 
+    // Count retryable commands for all types of operations except for user-facing
+    // time-series updates on a non-sharded cluster. For non-sharded user time-series
+    // updates, handles the metrics of the command at the caller since each statement
+    // will run as a command through the internal transaction API.
+    bool couldCountAsRetryableCommand = source != OperationSource::kTimeseriesUpdate ||
+        !preConditions.getIsTimeseriesLogicalRequest() || wholeOp.getShardVersion();
+
     bool containsRetry = false;
+    // Update total retryable commands counter if applicable. The retried commands counter is
+    // updated by the below hook.
+    if (opCtx->isRetryableWrite() && couldCountAsRetryableCommand) {
+        RetryableWritesStats::get(opCtx)->incrementRetryableCommandsCount();
+    }
     ON_BLOCK_EXIT([&] { updateRetryStats(opCtx, containsRetry); });
 
     size_t nextOpIndex = 0;
@@ -1877,13 +1899,10 @@ WriteResult performUpdates(
         if (opCtx->isRetryableWrite()) {
             if (auto entry =
                     txnParticipant.checkStatementExecutedAndFetchOplogEntry(opCtx, stmtId)) {
-                // Set containsRetry to true for all types of operations except for user-facing
-                // time-series updates on a non-sharded cluster. For non-sharded user time-series
-                // updates, handles the metrics of the command at the caller since each statement
-                // will run as a command through the internal transaction API.
-                containsRetry = source != OperationSource::kTimeseriesUpdate ||
-                    !preConditions.getIsTimeseriesLogicalRequest() || wholeOp.getShardVersion();
+                containsRetry = couldCountAsRetryableCommand;
                 RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+                RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                    opCtx->fastClockSource().now() - entry->getWallClockTime());
                 // Returns the '_id' of the user measurement for time-series upserts.
                 boost::optional<BSONElement> upsertedId;
                 if (entry->getOpType() == repl::OpTypeEnum::kInsert &&
@@ -2201,6 +2220,9 @@ WriteResult performDeletes(
     LastOpFixer lastOpFixer(opCtx);
 
     bool containsRetry = false;
+    if (opCtx->isRetryableWrite()) {
+        RetryableWritesStats::get(opCtx)->incrementRetryableCommandsCount();
+    }
     ON_BLOCK_EXIT([&] { updateRetryStats(opCtx, containsRetry); });
 
     size_t nextOpIndex = 0;
@@ -2223,9 +2245,14 @@ WriteResult performDeletes(
 
         const auto currentOpIndex = nextOpIndex++;
         const auto stmtId = getStmtIdForWriteOp(opCtx, wholeOp, currentOpIndex);
-        if (opCtx->isRetryableWrite() && txnParticipant.checkStatementExecuted(opCtx, stmtId)) {
+        const auto alreadyExecutedTime = opCtx->isRetryableWrite()
+            ? txnParticipant.checkStatementExecutedAndGetWallClockTime(opCtx, stmtId)
+            : boost::none;
+        if (alreadyExecutedTime) {
             containsRetry = true;
             RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+            RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                opCtx->fastClockSource().now() - *alreadyExecutedTime);
             out.results.emplace_back(makeWriteResultForInsertOrDeleteRetry());
             out.retriedStmtIds.push_back(stmtId);
             continue;

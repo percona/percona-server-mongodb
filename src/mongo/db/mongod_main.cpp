@@ -88,6 +88,7 @@
 #include "mongo/db/pipeline/process_interface/replica_set_node_process_interface.h"
 #include "mongo/db/profile_filter_impl.h"
 #include "mongo/db/query/client_cursor/clientcursor.h"
+#include "mongo/db/query/client_cursor/cursor_manager.h"
 #include "mongo/db/query/compiler/stats/stats_cache_loader_impl.h"
 #include "mongo/db/query/compiler/stats/stats_catalog.h"
 #include "mongo/db/query/query_execution_knobs_gen.h"
@@ -711,7 +712,7 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
         exitCleanly(ExitCode::fail);
     }
 
-    if (storageGlobalParams.validate || storageGlobalParams.validateParallel) {
+    if (storageGlobalParams.validate) {
         LOGV2(9437302, "Finished validating collections");
         exitCleanly(ExitCode::clean);
     }
@@ -1780,6 +1781,13 @@ void shutdownTask(const ShutdownTaskArgs& shutdownArgs) {
         LOGV2_OPTIONS(
             4784905, {LogComponent::kNetwork}, "Shutting down the global connection pool");
         globalConnPool.shutdown();
+    }
+
+    if (auto cursorManager = CursorManager::get(serviceContext)) {
+        SectionScopedTimer scopedTimer(serviceContext->getFastClockSource(),
+                                       TimedSectionId::disposeIdleMongotCursors,
+                                       &shutdownTimeElapsedBuilder);
+        cursorManager->disposeIdleMongotCursorsForShutdown(opCtx);
     }
 
     {
