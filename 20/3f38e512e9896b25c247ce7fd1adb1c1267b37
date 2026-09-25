@@ -1,0 +1,231 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "6589344f35fc8a006b4e0263430304785e00a5bc",
+    "merge_commit": "20b0ab598399e25c42a1e5552a5e41134b28a40b"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+    "merged_commits": [
+      "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+      "a06c2a9a81a87b2f7bba357b6f9562dd003ba6e3",
+      "00ded8f9ac86285bc36775531a9de3a913eefa9e",
+      "bdac08e7b790246b7c4937cdd1b502ffc3831215",
+      "56017683c98b98ff5f13fd8ae645886f15e434ba",
+      "de969fe2e3734eeae663e6ddf2f6e6d6e0265a9e",
+      "4c5678c96b75608b3db2a0a6e7ce6403f6615860",
+      "ca236fb70f3327cee94ab12521d617c2ced3f317",
+      "339f083021939102566aea0fef5e525f0150b263",
+      "cf9681d077c2068987b495217756a5330a083a64",
+      "4ea65f42daebe5e24fb95db9c870fd2c3c240a74",
+      "7b6f959e0ef4763a3350cf9c35ebcc237223a7ad",
+      "d34c38ff4dd7df14cd4ad31ed17c47e2021674b2",
+      "d9970a185afdf5f9e8c0f2f2c31e25949426e634",
+      "60509ff1b303b9ba8aa17a66f67557901d526a9c",
+      "b2f6f49d8a96f06fe040a0eded63e751c947b239",
+      "8baf309084d986b573cae77e7a0c42a2f3bfb36a",
+      "7962e4b9e750a331f1525f71bd9af18908b6d6af",
+      "55e88f8211465955c27eb2e9e03f97ce2ca3fc2e",
+      "13dddfd683109501062352769078dc2e85248924",
+      "f0eef2c1ffe7953024853e569f9254f8509155f9",
+      "11ec44830b73b57f0315985d33aac47983d86bd7",
+      "4561cfb5e4ce829af6eb6ce07b3388f8ad2a4980",
+      "425844693b8e805102b449bdf6a3a111aaea7749",
+      "d2ea9fdc0ec3a8c47900d5b4fcccdaa16e19ff00",
+      "e87b043aed9b6576aa688b441dcb4cc28c93483e",
+      "1d30e2ff22767e0f62e378c81bd4f76ee0f9f665",
+      "345751627453e6a3a26235411acc49f711c5f0c1",
+      "f14e07076433ee20ff780aa1a0bab48983d29dfb",
+      "7b33337c4ce7d99510e8dea7a214ebbb4fd6a4a1",
+      "2fd514d3772c68952b793a3793fd8cc71ff5ce99",
+      "a0a24ee468dc40801b64ecb49822cf1c51bbd7dd",
+      "79cd6db01f91466ece8e07a416d2832486cb14b0",
+      "2a66aeda1d564ebcd863362d4faa1f67d44efa1f",
+      "4d43e0a0e379bac89244cf28fb0fc2a88ec8e031",
+      "b762f7b5e0eaf7264163ccb1f93b74ae77399577",
+      "d199367a46c9af70e557ab9d33b8bf7c8fba7b33",
+      "3c86964f0f9dd44d8264f1f9ada8e3275fa93fe0",
+      "fc1fa31b319e7cb4a89dd3392f542328179ff5d5",
+      "4c3a9dbd6ddc75b698d8dba510d65860e48a2d2e",
+      "8187957af7a4c3c15d8ba4498d1d8da73b1e9436",
+      "f5bec25b1e04f61b3fac5d6ec634b579c569e5f9",
+      "06390d0bbf4823e174adcde4282f16d2aa6f636a",
+      "04a8f2c8534acc84c3cbe1b263278061f9436136",
+      "5c04974044939c2f1b258eff763b150ed147f140",
+      "d24aa70519a797496016d98dfe3419c2084a9947",
+      "51078f42eeedd832e7de2de70ce57c00e0aee89e",
+      "5ee4a547e7019c9ff1e2059159f714f0b187a3db",
+      "1256c7fad25b5b655ed8ed62b6c06e2144266023",
+      "9509e7071f269c4afd45fa844e552b4002806dce",
+      "e2133ea34a306ddd289d2d4ee0f2f98ae3145e8b",
+      "6ec71e93430177d4f001e738153bae2660e5523a",
+      "7d6756d87f39c4fb7c45240bcf4c8afc6b0d1bad"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "buildscripts/resmokelib/core/programs.py",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/db/auth/action_type.idl",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/mongod_options.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/shell/utils.js",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 72022,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.35064799999999996,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 10,
+        "outputTokens": 4886,
+        "cacheReadInputTokens": 106771,
+        "cacheCreationInputTokens": 28010,
+        "webSearchRequests": 0,
+        "costUSD": 0.35064799999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 308,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10,
+            "output": 4886,
+            "cache_read": 106771,
+            "cache_creation": 28010
+          },
+          "cost_usd": 0.35064799999999996
+        }
+      }
+    },
+    "text_result": "I've analyzed the `diff base \u2192 merge commit` diff for each of the 20 auto-merged files and written the JSON response.\n\nKey findings from the incoming merge:\n\n- **New `repairReplicatedMetadata` admin command** \u2014 the dominant theme, adding the action type (`action_type.idl`), build wiring (`commands/BUILD.bazel`), and test-catalog entries across 8 jstest files.\n- **Offline validation rework** \u2014 the standalone `--validateParallel` command-line path is removed (`mongod_options.cpp`), parallel validation now runs off the `--validate` path behind `gFeatureFlagParallelCollectionValidation` (`startup_recovery.cpp`, `mongod_main.cpp`), with collection-gathering/sorting hoisted under a `MODE_IS` catalog lock and the worker thread prefix renamed.\n- **UUID cross-cluster shutdown check removed** from `programs.py` and `utils.js`.\n- **WiredTiger vendor drop** removing tiered-storage / custom storage-source support (`conn_api.c`, `wiredtiger.h.in`), plus a `getSessionNoTxn()` switch in `wiredtiger_util.cpp`.\n- **`.bazelrc`** drops the 40GB CppLink memory reservation; `MODULE.bazel.lock` is a regenerated checksum update.\n\nEvery claim was verified against the actual `git diff 8c6a49a5...20b0ab59` output. No conflict markers were present (clean ort auto-merge), so I flagged only the substantive behavioral change (the `--validateParallel` removal) and the large WiredTiger drop for reviewer attention.",
+    "response": {
+      "summary": "Upstream merge bringing in several unrelated MongoDB changes. The largest themes are: (1) a new admin-only 'repairReplicatedMetadata' command with its action type and matching all-commands test entries; (2) a rework of startup offline collection validation \u2014 the separate --validateParallel command-line path is removed and parallel validation is now driven off the existing --validate path behind the gFeatureFlagParallelCollectionValidation feature flag, with the namespace-collection/sorting logic moved earlier under a MODE_IS catalog lock; (3) removal of the UUID-consistency-across-cluster shutdown check from the shell/resmoke; and (4) a WiredTiger third-party update that strips out tiered-storage / custom storage-source support. Minor build and shutdown-cursor-cleanup changes are also included.",
+      "auto_merged": {
+        ".bazelrc": "Removes the `common --modify_execution_info=CppLink=+resources:memory:40960` line (and its explanatory comment) that reserved 40GB against the local resource manager for every C++ link action.",
+        "MODULE.bazel.lock": "Lock-file checksum/entry updates regenerated to match the merged MODULE.bazel dependency state; no manually meaningful content.",
+        "buildscripts/resmokelib/core/programs.py": "In mongo_shell_program, removes the eval-string append that imported jstests/libs/override_methods/check_uuids_consistent_across_cluster.js (the callback that checked UUID consistency across a cluster before shutting down a ShardingTest). The index-consistency check import is retained.",
+        "jstests/auth/lib/commands_lib.js": "Adds an authorization test case for the new 'repairReplicatedMetadata' command (command {repairReplicatedMetadata: 1, uuid: UUID(), metadata: {}}), skipSharded, requiring the cluster-level 'repairReplicatedMetadata' privilege on adminDb (expectFail) and no roles on the other DBs.",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds a `repairReplicatedMetadata: {skip: isUnrelated}` entry to the views all-commands map.",
+        "jstests/libs/write_concern_all_commands.js": "Adds 'repairReplicatedMetadata' success entries to both the regular and timeseries write-concern command test maps, noting the command records a no-op oplog entry and asserting the command works ignoring write-concern errors (admin command).",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds a 'repairReplicatedMetadata' entry (admin command; doesNotRunOnStandalone; doesNotRunOnMongos) to the all-commands map.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds `repairReplicatedMetadata: {skip: isPrimaryOnly}` to the all-commands map.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds a 'repairReplicatedMetadata' entry (isAdminCommand, shouldFail: true) with a TODO SERVER-134907 note to flip shouldFail once the action is granted to clusterAdmin.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds `repairReplicatedMetadata: {skip: \"Never routed via mongos\"}` to the all-test-cases map.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds a 'repairReplicatedMetadata' test case (checkWriteConcern true, checkReadConcern false, target replset, db admin, useLogs true).",
+        "src/mongo/db/auth/action_type.idl": "Adds the 'repairReplicatedMetadata' action type to the ActionType enum (between repairDatabase and replSetConfigure).",
+        "src/mongo/db/commands/BUILD.bazel": "Adds a dependency on //src/mongo/db/replicated_fast_count:repair_replicated_metadata_command to the command library, wiring in the new repairReplicatedMetadata command.",
+        "src/mongo/db/mongod_main.cpp": "Includes cursor_manager.h. In _initAndListen, the post-validation early exit now triggers only on storageGlobalParams.validate (the || storageGlobalParams.validateParallel condition is dropped). In shutdownTask, adds a step that, when a CursorManager exists, calls disposeIdleMongotCursorsForShutdown under a SectionScopedTimer (TimedSectionId::disposeIdleMongotCursors).",
+        "src/mongo/db/mongod_options.cpp": "Removes the entire storeMongodOptions block that handled the 'validateParallel' option (its mutual-exclusion checks against --validate and --validateCollectionName, the gValidateDbName assignment, and setting storageGlobalParams.validateParallel).",
+        "src/mongo/db/startup_recovery.cpp": "Reworks offlineValidateParallel: the collection-gathering-by-size, descending sort, results initialization, empty-check early return, and thread-count clamping (including clamping to the number of collections) are moved to run before the worker thread pool is created, now under a MODE_IS Lock::GlobalLock (catalogLock) after resetting the global write lock; the dbName selection (gValidateDbName vs. all DB names) is hoisted into a single dbNames vector; and the worker thread-name prefix changes from 'ov' to 'NamespaceValidationWorker'. In repairAndRecoverDatabases, the dedicated storageGlobalParams.validateParallel branch is removed; instead the storageGlobalParams.validate branch now runs offlineValidateParallel (with gValidateParallelMaxConcurrentNamespaces) when gFeatureFlagParallelCollectionValidation is enabled and gValidateCollectionName is empty, otherwise falls back to offlineValidate.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::createTable, changes the session acquisition from ru.getSession() to ru.getSessionNoTxn().",
+        "src/mongo/shell/utils.js": "In jsTestOptions, removes the skipCheckingUUIDsConsistentAcrossCluster, skipCheckingCatalogCacheConsistencyWithShardingCatalog, and skipAwaitingReplicationOnShardsBeforeCheckingUUIDs option fields (the skipCheckingIndexesConsistentAcrossCluster field is kept).",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger update removing tiered-storage / custom storage-source support: deletes __conn_add_storage_source and __conn_get_storage_source (WT_CONNECTION add_storage_source / get_storage_source methods) and related storage-source handling (~166 lines changed, mostly deletions).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger public-header update removing tiered-storage APIs and documentation: drops the WT_STORAGE_SOURCE typedef and the tiered_storage / flush_tier config option documentation blocks and related connection methods (large diff, ~2100 lines, predominantly removals)."
+      },
+      "review_notes": "This is an auto-merge (ort) with no conflicts reported. The dominant new feature is the 'repairReplicatedMetadata' admin command (SERVER-134907 referenced), touching the action_type IDL, commands BUILD.bazel, and many all-commands jstest catalogs. Note the offline-validation behavior change in startup_recovery.cpp / mongod_options.cpp / mongod_main.cpp: the separate --validateParallel command-line flag is gone and parallel validation is now gated on gFeatureFlagParallelCollectionValidation under the regular --validate path \u2014 reviewers should confirm no PSMDB-specific reliance on the old --validateParallel flag. The WiredTiger third-party diff is large but is an upstream vendor drop removing tiered-storage/storage-source code; verify it matches the intended WiredTiger revision. None of these files carry PSMDB-specific conflict markers per the changeset."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe the incoming changes accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the `diff base \u2192 merge commit` diff for each of the 20 auto-merged files and written the JSON response.\n\nKey findings from the incoming merge:\n\n- **New `repairReplicatedMetadata` admin command** \u2014 the dominant theme, adding the action type (`action_type.idl`), build wiring (`commands/BUILD.bazel`), and test-catalog entries across 8 jstest files.\n- **Offline validation rework** \u2014 the standalone `--validateParallel` command-line path is removed (`mongod_options.cpp`), parallel validation now runs off the `--validate` path behind `gFeatureFlagParallelCollectionValidation` (`startup_recovery.cpp`, `mongod_main.cpp`), with collection-gathering/sorting hoisted under a `MODE_IS` catalog lock and the worker thread prefix renamed.\n- **UUID cross-cluster shutdown check removed** from `programs.py` and `utils.js`.\n- **WiredTiger vendor drop** removing tiered-storage / custom storage-source support (`conn_api.c`, `wiredtiger.h.in`), plus a `getSessionNoTxn()` switch in `wiredtiger_util.cpp`.\n- **`.bazelrc`** drops the 40GB CppLink memory reservation; `MODULE.bazel.lock` is a regenerated checksum update.\n\nEvery claim was verified against the actual `git diff 8c6a49a5...20b0ab59` output. No conflict markers were present (clean ort auto-merge), so I flagged only the substantive behavioral change (the `--validateParallel` removal) and the large WiredTiger drop for reviewer attention."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260925_051521_247297.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.282 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+    "short_sha": "20b0ab59839",
+    "strategy": "huge_commit",
+    "summary": "This is the last candidate in the window, a WiredTiger vendoring import (huge_commit, 47 files) - a self-contained, well-isolated third-party artifact commit that is an ideal merge boundary and easy to validate post-merge. Ending here yields ~52 commits, within the target band (~50), and critically keeps every revert pair intact in the same batch: SERVER-133735 revert(#1)+reapply(#8), SERVER-134129 add(b762f7b)+revert(7b33337), SERVER-133440 add(345751)+revert(d9970a1), SERVER-135053 add(7962e4b)+revert(60509ff), and SERVER-134991 add(11ec448)+revert(bdac08e) all fall at or before this point, so they cancel out cleanly rather than importing a feature that upstream already undid. Although it is the newest candidate, a WT import is exactly the kind of atomic, settled boundary the rules favor over cutting mid-stream, and stopping one commit earlier would strand this lone huge import for a future batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36097510546"
+  }
+}
