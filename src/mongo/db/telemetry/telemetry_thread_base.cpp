@@ -43,6 +43,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/base/error_codes.h"
 #include "mongo/base/string_data.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/auth/cluster_auth_mode.h"
 #include "mongo/db/auth/oidc/oidc_server_parameters_gen.h"
 #include "mongo/db/auth/sasl_options.h"
 #include "mongo/db/client.h"
@@ -58,6 +59,7 @@ Copyright (C) 2024-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/util/background.h"
 #include "mongo/util/concurrency/idle_thread_block.h"
 #include "mongo/util/duration.h"
+#include "mongo/util/net/ssl_options.h"
 #include "mongo/util/time_support.h"
 #include "mongo/util/version.h"
 
@@ -136,8 +138,22 @@ bool isKerberosAuthenticationEnabled() {
     return isAuthenticationMechanismEnabled("GSSAPI");
 }
 
+bool isTLSEnabled() {
+    return sslGlobalParams.sslMode.load() != SSLParams::SSLMode_disabled;
+}
+
+// client x.509 authentication requires MONGODB-X509 mechanism, TLS and a CA file or system CA
+// store (tlsUseSystemCA) to validate client certificates
 bool isX509AuthenticationEnabled() {
-    return isAuthenticationMechanismEnabled("MONGODB-X509");
+    return isAuthenticationMechanismEnabled("MONGODB-X509") && isTLSEnabled() &&
+        (!sslGlobalParams.sslCAFile.empty() || sslGlobalParams.sslUseSystemCA);
+}
+
+// server (cluster membership) x.509 authentication requires clusterAuthMode x509 or sendX509,
+// TLS and a CA file to validate peer certificates
+bool isX509ServerAuthenticationEnabled(ServiceContext* serviceContext) {
+    return ClusterAuthMode::get(serviceContext).sendsX509() && isTLSEnabled() &&
+        !(sslGlobalParams.sslCAFile.empty() && sslGlobalParams.sslClusterCAFile.empty());
 }
 
 }  // namespace
@@ -278,6 +294,8 @@ Status TelemetryThreadBase::_initParameters(ServiceContext* serviceContext) try 
     pfx.append(kLDAPSaslAuthenticationEnabled, boolName(isLDAPSaslAuthenticationEnabled()));
     pfx.append(kKerberosAuthenticationEnabled, boolName(isKerberosAuthenticationEnabled()));
     pfx.append(kX509AuthenticationEnabled, boolName(isX509AuthenticationEnabled()));
+    pfx.append(kX509ServerAuthenticationEnabled,
+               boolName(isX509ServerAuthenticationEnabled(serviceContext)));
 
     _prefix = pfx.obj();
 
