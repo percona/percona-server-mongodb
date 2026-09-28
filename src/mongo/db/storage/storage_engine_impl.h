@@ -312,9 +312,7 @@ public:
 
     Status fixDatabaseSize() override;
 
-    void pauseOrResumeAutoCompactForWriteBlock(OperationContext* opCtx,
-                                               bool pause,
-                                               std::string_view oplogIdent = {}) override;
+    void pauseAutoCompactForReplicaSetWritesBlock(OperationContext* opCtx) override;
 
     bool underCachePressure(int concurrentOpOuts) override;
 

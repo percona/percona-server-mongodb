@@ -264,7 +264,7 @@
   "moduleExtensions": {
     "//bazel:bzlmod.bzl%bazel_features_deps": {
       "general": {
-        "bzlTransitiveDigest": "kVkktiq5FiXHyk6cN+GztqPmXhT5UPZjzhYzGUGZVUY=",
+        "bzlTransitiveDigest": "DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=",
         "usagesDigest": "3HdvNuTrXpisScaG7E4ympDid9RzqeReFlWi3w5I0CI=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_features bazel_features+",
@@ -361,7 +361,7 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
-        "bzlTransitiveDigest": "JMws4JlDc7azjSP+9DBZOjz9jKkhUdXefCsVbK5C9tk=",
+        "bzlTransitiveDigest": "q/5LT5HxZoqB37WvW0wcKtaP/llyI/FhVnCVxLhxE3w=",
         "usagesDigest": "O6USfOJ8DQPD0n/I12XOSBR02kdpcMceoy4IGWv7Rus=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_features bazel_features+",
@@ -1255,7 +1255,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "hha72CwOlUYzpX+WXspeYpNbHeKHZEVXwoKm695YjTM=",
+        "bzlTransitiveDigest": "KsHkm6ZJb3dOXLqKFgdRQr1fJ/XjjDL751MjK2Cx5fc=",
         "usagesDigest": "tG3p3Nb5XxC7vWY/bcKdb//g0HoAxpxxH3F5/jBVlk4=",
         "recordedInputs": [
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
