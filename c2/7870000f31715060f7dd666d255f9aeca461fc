@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "788a6b307a06e822e01be686960a702c3c6c14d2",
+    "merge_commit": "26f08d6f78e2ba80e390fc8b3eeba877770f0895"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '26f08d6f78e' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the only conflicting file, MODULE.bazel.lock. Following the\nproject's conflict hint for this file, I removed all conflict markers by\naccepting one side's bzlTransitiveDigest values, then ran `bazel query\n//... >/dev/null` to regenerate the lock file correctly. The command\ncompleted successfully (exit 0) and produced a consistent, marker-free\nlock file.\n\nResolved:\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "c27870000f31715060f7dd666d255f9aeca461fc"
+    }
+  ]
+}
