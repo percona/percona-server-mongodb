@@ -108,6 +108,7 @@
 #include "mongo/util/log_and_backoff.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/serialization_context.h"
+#include "mongo/util/time_support.h"
 #include "mongo/util/uuid.h"
 
 #include <algorithm>
@@ -788,8 +789,10 @@ bool handleGroupedInserts(OperationContext* opCtx,
 
         auto stmtId = opCtx->isRetryableWrite() ? bulk_write_common::getStatementId(req, idx)
                                                 : kUninitializedStmtId;
-        const bool wasAlreadyExecuted =
-            opCtx->isRetryableWrite() && txnParticipant.checkStatementExecuted(opCtx, stmtId);
+        const auto timestampIfAlreadyExecuted = opCtx->isRetryableWrite()
+            ? txnParticipant.checkStatementExecutedAndGetWallClockTime(opCtx, stmtId)
+            : boost::none;
+        const bool wasAlreadyExecuted = bool(timestampIfAlreadyExecuted);
 
         if (!fixedDoc.isOK()) {
             // Handled after we insert anything in the batch to be sure we report errors in the
@@ -847,6 +850,8 @@ bool handleGroupedInserts(OperationContext* opCtx,
             }
         } else if (wasAlreadyExecuted) {
             RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+            RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                opCtx->fastClockSource().now() - *timestampIfAlreadyExecuted);
 
             SingleWriteResult res;
             res.setN(1);
@@ -1062,8 +1067,11 @@ bool handleDeleteOp(OperationContext* opCtx,
 
         if (opCtx->isRetryableWrite()) {
             const auto txnParticipant = TransactionParticipant::get(opCtx);
-            if (txnParticipant.checkStatementExecuted(opCtx, stmtId)) {
+            if (auto alreadyExecutedTimestamp =
+                    txnParticipant.checkStatementExecutedAndGetWallClockTime(opCtx, stmtId)) {
                 RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+                RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                    opCtx->fastClockSource().now() - *alreadyExecutedTimestamp);
                 // Since multi:true is not allowed with retryable writes if the statement was
                 // executed there will always be 1 document deleted.
                 responses.addDeleteReply(
@@ -1663,6 +1671,8 @@ bool handleUpdateOp(OperationContext* opCtx,
             if (auto entry =
                     txnParticipant.checkStatementExecutedAndFetchOplogEntry(opCtx, stmtId)) {
                 RetryableWritesStats::get(opCtx)->incrementRetriedStatementsCount();
+                RetryableWritesStats::get(opCtx)->recordRetriedWriteDelay(
+                    opCtx->fastClockSource().now() - entry->getWallClockTime());
 
                 auto [numMatched, numDocsModified, upserted] =
                     getRetryResultForUpdate(opCtx, nsString, op, entry);

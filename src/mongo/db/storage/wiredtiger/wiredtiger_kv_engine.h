@@ -758,13 +758,7 @@ public:
 
     Status fixDatabaseSize() override;
 
-    Status pauseOrResumeAutoCompactForWriteBlock(
-        RecoveryUnit&, bool pause, const std::vector<std::string_view>& excludedIdents) override;
-
-    boost::optional<AutoCompactOptions> getActiveAutoCompactOptions() const {
-        std::lock_guard lk(_autoCompactMutex);
-        return _activeAutoCompactOptions;
-    }
+    Status pauseAutoCompactForReplicaSetWritesBlock(RecoveryUnit&) override;
 
     bool hasOngoingLiveRestore() override;
 
@@ -1063,10 +1057,6 @@ private:
 
     const bool _supportsTableLogging;
     const bool _usesSchemaEpochs;
-
-    mutable std::mutex _autoCompactMutex;
-    boost::optional<AutoCompactOptions> _activeAutoCompactOptions;
-    boost::optional<AutoCompactOptions> _autoCompactOptionsForRestore;
 
     // Protects _pinnedAllDurableTimestamps. Only acquired by pin/unpin writers.
     // Readers use _minPinnedTimestamp instead, which writers publish atomically
