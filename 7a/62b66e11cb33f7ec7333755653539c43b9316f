@@ -1,0 +1,226 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "788a6b307a06e822e01be686960a702c3c6c14d2",
+    "merge_commit": "26f08d6f78e2ba80e390fc8b3eeba877770f0895"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "788a6b307a06e822e01be686960a702c3c6c14d2",
+    "theirs_commit": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+    "base_commit": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
+    "files": [
+      "MODULE.bazel.lock"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex c0ae73df91e,c296fab02d7..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -364,1 -364,1 +364,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"JMws4JlDc7azjSP+9DBZOjz9jKkhUdXefCsVbK5C9tk=\",\n++||||||| 20b0ab59839\n++        \"bzlTransitiveDigest\": \"kVkktiq5FiXHyk6cN+GztqPmXhT5UPZjzhYzGUGZVUY=\",\n++=======\n+         \"bzlTransitiveDigest\": \"DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=\",\n++>>>>>>> 26f08d6f78e2ba80e390fc8b3eeba877770f0895\n@@@ -458,1 -458,1 +464,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"JMws4JlDc7azjSP+9DBZOjz9jKkhUdXefCsVbK5C9tk=\",\n++||||||| 20b0ab59839\n++        \"bzlTransitiveDigest\": \"kVkktiq5FiXHyk6cN+GztqPmXhT5UPZjzhYzGUGZVUY=\",\n++=======\n+         \"bzlTransitiveDigest\": \"DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=\",\n++>>>>>>> 26f08d6f78e2ba80e390fc8b3eeba877770f0895\n@@@ -569,1 -569,1 +581,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"PdoDt2FqL+l1PYiJjlipXzvstjnqhvGBarPUiicTq8k=\",\n++||||||| 20b0ab59839\n++        \"bzlTransitiveDigest\": \"PBoGg5zt3n+wf1wk5cnD8Eh1EWc+nA4eVNTlf1UBtL8=\",\n++=======\n+         \"bzlTransitiveDigest\": \"JSaooGL+qqLvDJe2gX14L7m9UcsJBjWmoyODNwZemJ8=\",\n++>>>>>>> 26f08d6f78e2ba80e390fc8b3eeba877770f0895"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "bbf7c490f477135baca0de5cb2758fb0eaf22a32",
+        "4721817321ea0487101be0b5337221c16f94d8ee"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+    "merged_commits": [
+      "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+      "1dfa986d59baf771505930ae31f7057c22e9a1f4",
+      "d22ca09ffd967da742e3d412a2b30316b393b90e",
+      "f867f7b484b376a0d73ec0ee165e0ab885382bf6",
+      "d065a10d09121f56c35e79f47629866f93734f41",
+      "50cdb6d94adaed297517edc908297e415e848ef4",
+      "4adae3f22875ca654fb090411082f322aacd7cef",
+      "0dae66b66b1430b592be58c52821e9cf26e4cd82",
+      "b6e82babf6492937962c8b8a0aa152500c2a4c56",
+      "a5dcb9d80fe970dc23a1f0ca3999a0ee94556acb",
+      "e8029994871896d1744e92063ebe3937b4bfd150",
+      "a354bca36c90cda91abaecea6179290ad364bbce",
+      "ca494075bc93bec1ac0cd7f758a8aae15d7b9357",
+      "9348b9cf37df2d003843d9ffc443d38f77854715",
+      "59d7bfc3d365e02c1561f189ccaa7bf7eb1f6190",
+      "6c21e7a39c45d23c5ae6454bfab380337bdacfc8",
+      "da457d58ef2415351ce6a2cc4a65c1bcedf8b725",
+      "ccb586dfa9bdf8e29b0e1bd6d2f70fe687cded07",
+      "ea32ffa27fdf285cc8231050726347dd47577890",
+      "05ce2a54980959e590896ea309b6b8e77cfe5146",
+      "eff2b38e59f4d45cabe933032ee75702b1ad5a07",
+      "bbf7c490f477135baca0de5cb2758fb0eaf22a32",
+      "5e67c48df37c8ac1197821e0adc187662e2bfb45",
+      "73f987f5418ea8e83a8f9ab40ff9f1b146126772",
+      "956941deecbbc74f18f7b6330de7187cc95f69a6",
+      "6aefd47807f50af181e8b5048670efefee3f5f65",
+      "7aa8f8a203a460d0104a00d527bfae891e14a2c0",
+      "860ef04164012b82a2a5abde199a3a8f85b4adf4",
+      "01dcadcb8e645513562835211817805a74a8da05",
+      "502300a5b91f9c62cf1b8a7e0a8cbccf2cae385e",
+      "5d6933de261f0e903f8af25dca2d48b264d49b8a",
+      "aab8d37289576e28fa440e50e0b8da0a82d564c9",
+      "65bb1486a2aeb6d8dbf4d203dbabaf06af7e2143",
+      "4721817321ea0487101be0b5337221c16f94d8ee",
+      "94c4869504d4292dd4fe32bf3b6f6228630a8bac",
+      "51e5ca563b37dacbbdc8924c252794e3691fbc2b",
+      "8d8995255aa9555389c71aac7ae473b1d43661e4",
+      "b7695e3826b5d1461ae1023b72a6ff36237ee36f"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "bazel/utils.bzl",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/conn/conn_api.c"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 55926,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.296304,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 4490,
+        "cacheReadInputTokens": 51098,
+        "cacheCreationInputTokens": 25356,
+        "webSearchRequests": 0,
+        "costUSD": 0.296304,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 222,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 4490,
+            "cache_read": 51098,
+            "cache_creation": 25356
+          },
+          "cost_usd": 0.296304
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diff for each of the 17 auto-merged files and written the JSON response.\n\nKey findings from the diffs:\n\n- **Storage-engine auto-compaction rework** (the largest change, spanning `kv_engine.h`, `storage_engine.h`, `storage_engine_impl.{cpp,h}`, `wiredtiger_kv_engine.{cpp,h}`): the old `pauseOrResumeAutoCompactForWriteBlock` API \u2014 which saved and restored the active auto-compact configuration across a replica-set write block \u2014 is replaced by a one-way `pauseAutoCompactForReplicaSetWritesBlock`. The saved-config bookkeeping (`_activeAutoCompactOptions`, `_autoCompactOptionsForRestore`, `_autoCompactMutex`) and `getActiveAutoCompactOptions` accessor are removed.\n- **Ubuntu 26 platform support** (`bazel/config/BUILD.bazel`, `bazel/utils.bzl`).\n- **Resmoke `new_binary_set_parameters`** option added to replicaset/shardedcluster fixtures and applied only to the new-binary half of mixed-bin-version nodes (`_builder.py`).\n- **Shell build-version helpers** `getBuildVersion`/`isSameBuild` (`servers.js`).\n- **Minor**: WT `disaggregated=(stepdown_write_mirroring=)` config key, a query unit-test source added, mongot idle-cursor disposal removed from mongod shutdown, and a stale TODO comment removed from a jstest.\n- **MODULE.bazel.lock** was the only conflict (digest hashes) \u2014 noted as regenerate-per-convention.\n\nI also flagged in the review notes that `wiredtiger_kv_engine_test.cpp` appears in `important_files_modified` but not in `auto_merged.files`, so I did not describe it, per the prompt's rules.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master into the PSMDB fork. The most substantial change reworks the storage-engine auto-compaction write-block API: the previous pause/resume mechanism (which saved and restored the active auto-compact configuration across a replica-set write block) is replaced by a simpler one-way pause that must be explicitly re-enabled after the write block is released. This removes the saved-configuration bookkeeping and the getActiveAutoCompactOptions accessor from the WiredTiger engine. Other incoming changes add Ubuntu 26 as a supported build platform, add a resmoke fixture option to apply set_parameters only to the new-binary half of mixed-bin-version nodes, add new shell helpers for distinguishing binary builds, add a WiredTiger disaggregated config key, add a query unit-test source, and remove mongot idle-cursor disposal from mongod shutdown. The only textual conflict was MODULE.bazel.lock (bzlTransitiveDigest hashes), resolved/regenerated per project convention.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Conflicting bzlTransitiveDigest hash values at three extension entries; this is the generated Bazel lock file and was resolved by taking one side and regenerating, not by manual merge.",
+        "bazel/config/BUILD.bazel": "Adds `//bazel/platforms:ubuntu26` to two selects.config_setting_group platform lists.",
+        "bazel/utils.bzl": "Adds an `\"Ubuntu 26*\": \"ubuntu26\"` entry to the host-distro major-version mapping in get_host_distro_major_version.",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py": "In ReplSetBuilder, when building a multiversion node, merges replset.new_binary_set_parameters into the new fixture's mongod set_parameters (copying the existing dict first) so these parameters apply only to the new-binary half.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Adds a new_binary_set_parameters constructor argument to ReplicaSetFixture, stored via make_historic. A comment notes these are only merged into the new-binary half of a mixed-bin-versions node so that a failpoint/setParameter absent on the old binary does not prevent startup.",
+        "buildscripts/resmokelib/testing/fixtures/shardedcluster.py": "Adds a new_binary_set_parameters constructor argument to ShardedClusterFixture (stored via make_historic) and forwards it into the option dicts used to build each configsvr and shard ReplicaSetFixture.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Removes a stale `TODO SERVER-134907` comment from the repairReplicatedMetadata entry; the command's shouldFail:true behavior is unchanged.",
+        "src/mongo/db/mongod_main.cpp": "Removes the cursor_manager.h include and the shutdown-task block that called cursorManager->disposeIdleMongotCursorsForShutdown (with its scoped timer) during mongod shutdown.",
+        "src/mongo/db/query/BUILD.bazel": "Adds partitioned_cache_test.cpp to the srcs of a mongo_cc_unit_test target.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Replaces the virtual pauseOrResumeAutoCompactForWriteBlock(RecoveryUnit&, bool pause, const std::vector<std::string_view>&) with pauseAutoCompactForReplicaSetWritesBlock(RecoveryUnit&), and updates the surrounding doc comments to drop the save/restore-configuration semantics (now a one-way pause that must be explicitly re-enabled).",
+        "src/mongo/db/storage/storage_engine.h": "Replaces the virtual pauseOrResumeAutoCompactForWriteBlock(OperationContext*, bool pause, std::string_view oplogIdent) with pauseAutoCompactForReplicaSetWritesBlock(OperationContext*), trimming the doc comment that described saving/restoring configuration and oplog-ident exclusion; retains the note that it aborts in-progress compaction and never fails the write-block transition.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Renames the helper retryPauseOrResumeAutoCompactForWriteBlock to retryPauseAutoCompactForReplicaSetWritesBlock and drops its `operation` parameter and the resume path. StorageEngineImpl::pauseAutoCompactForReplicaSetWritesBlock now only performs the pause (no oplogIdent/resume branch), delegating to the engine's pauseAutoCompactForReplicaSetWritesBlock; log messages updated accordingly.",
+        "src/mongo/db/storage/storage_engine_impl.h": "Updates the override signature from pauseOrResumeAutoCompactForWriteBlock(OperationContext*, bool, std::string_view) to pauseAutoCompactForReplicaSetWritesBlock(OperationContext*).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "In _reconfigureAutoCompact, the WT_BACKGROUND_COMPACT_ALREADY_RUNNING branch no longer appends the current auto-compact options to the error; it just uasserts with err.err_msg. autoCompact no longer caches _activeAutoCompactOptions or clears _autoCompactOptionsForRestore. pauseOrResumeAutoCompactForWriteBlock (with its save-on-pause / restore-on-resume logic) is replaced by pauseAutoCompactForReplicaSetWritesBlock, which simply reconfigures auto-compact to disabled.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Replaces pauseOrResumeAutoCompactForWriteBlock with pauseAutoCompactForReplicaSetWritesBlock(RecoveryUnit&), and removes the getActiveAutoCompactOptions accessor along with the _autoCompactMutex, _activeAutoCompactOptions and _autoCompactOptionsForRestore members.",
+        "src/mongo/shell/servers.js": "Adds MongoRunner.getBuildVersion and MongoRunner.isSameBuild helpers to distinguish exact binary builds (pre-release tags/git hashes included) from versions, and expands the areBinVersionsTheSame doc comment to clarify version-vs-build semantics.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "Adds `disaggregated=(stepdown_write_mirroring=),` to the base-config key list in __conn_write_base_config."
+      },
+      "review_notes": "The auto-compaction API rename (pauseOrResumeAutoCompactForWriteBlock -> pauseAutoCompactForReplicaSetWritesBlock) touches the KVEngine/StorageEngine interfaces plus the WiredTiger and StorageEngineImpl implementations; confirm no PSMDB-specific caller or override still references the old two-argument (pause/resume) signature or the removed getActiveAutoCompactOptions/_activeAutoCompactOptions members. wiredtiger_kv_engine_test.cpp was listed among important files modified but has no entry under auto_merged.files, so its incoming changes were not examined here. The only conflict was MODULE.bazel.lock, which per project convention must be regenerated with `bazel query //... >/dev/null` after all other conflicts are resolved; verify the regenerated digests are consistent. All other files auto-merged cleanly."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough detail from all the diffs. Now let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diff for each of the 17 auto-merged files and written the JSON response.\n\nKey findings from the diffs:\n\n- **Storage-engine auto-compaction rework** (the largest change, spanning `kv_engine.h`, `storage_engine.h`, `storage_engine_impl.{cpp,h}`, `wiredtiger_kv_engine.{cpp,h}`): the old `pauseOrResumeAutoCompactForWriteBlock` API \u2014 which saved and restored the active auto-compact configuration across a replica-set write block \u2014 is replaced by a one-way `pauseAutoCompactForReplicaSetWritesBlock`. The saved-config bookkeeping (`_activeAutoCompactOptions`, `_autoCompactOptionsForRestore`, `_autoCompactMutex`) and `getActiveAutoCompactOptions` accessor are removed.\n- **Ubuntu 26 platform support** (`bazel/config/BUILD.bazel`, `bazel/utils.bzl`).\n- **Resmoke `new_binary_set_parameters`** option added to replicaset/shardedcluster fixtures and applied only to the new-binary half of mixed-bin-version nodes (`_builder.py`).\n- **Shell build-version helpers** `getBuildVersion`/`isSameBuild` (`servers.js`).\n- **Minor**: WT `disaggregated=(stepdown_write_mirroring=)` config key, a query unit-test source added, mongot idle-cursor disposal removed from mongod shutdown, and a stale TODO comment removed from a jstest.\n- **MODULE.bazel.lock** was the only conflict (digest hashes) \u2014 noted as regenerate-per-convention.\n\nI also flagged in the review notes that `wiredtiger_kv_engine_test.cpp` appears in `important_files_modified` but not in `auto_merged.files`, so I did not describe it, per the prompt's rules."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260928_195936_934660.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.284 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+    "short_sha": "26f08d6f78e",
+    "strategy": null,
+    "summary": "The window holds 41 commits, so ~50 is unreachable; per the rules I aim high within the 30-65 band while leaving the freshest few for the next batch. Cutting on 26f08d6f (SERVER-134572, precise checkpoint prepared-txn recovery) yields a 38-commit batch and stops on a small, self-contained WT/recovery bug fix that nothing downstream in the window depends on. The only clean artifact boundary (the WiredTiger import at 05ce2a54) sits at just 19 commits, well below the target band, so pushing past it into settled territory gives a coherent, comfortably-sized batch. The standalone auto-revert of SERVER-129849 (51e5ca56) is included and cancels nothing else in range (its original #57167 is long-merged), and the three scattered Indy Prentice bulkWrite retry-metric commits (update/insert/delete) all land inside this batch rather than being split. This leaves the three newest 2026-09-21 evening commits (kmip retry, otel step-up metric, plan-cache jstest rewrite) to settle upstream before the next merge.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36475642757"
+  }
+}
