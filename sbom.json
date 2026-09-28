@@ -13,7 +13,7 @@
     ],
     "component": {
       "type": "application",
-      "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
+      "bom-ref": "pkg:github/percona/percona-server-mongodb@v9.0",
       "supplier": {
         "name": "Percona LLC",
         "url": [
@@ -24,7 +24,7 @@
       "publisher": "Percona LLC",
       "group": "percona",
       "name": "percona-server-mongodb",
-      "version": "master",
+      "version": "v9.0",
       "description": "Percona Server for MongoDB",
       "licenses": [
         {
@@ -33,11 +33,11 @@
           }
         }
       ],
-      "cpe": "cpe:2.3:a:percona:percona-server-mongodb:master:*:*:*:*:*:*:*",
-      "purl": "pkg:github/percona/percona-server-mongodb@master",
+      "cpe": "cpe:2.3:a:percona:percona-server-mongodb:v9.0:*:*:*:*:*:*:*",
+      "purl": "pkg:github/percona/percona-server-mongodb@v9.0",
       "externalReferences": [
         {
-          "url": "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/master/LICENSE-Community.txt",
+          "url": "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/heads/v9.0/LICENSE-Community.txt",
           "comment": "Server Side Public License 1.0",
           "type": "license"
         },
@@ -2010,7 +2010,7 @@
     },
     {
       "type": "application",
-      "bom-ref": "pkg:github/mongodb/mongo@master",
+      "bom-ref": "pkg:github/mongodb/mongo@v9.0",
       "supplier": {
         "name": "MongoDB, Inc.",
         "url": [
@@ -2021,7 +2021,7 @@
       "publisher": "MongoDB, Inc.",
       "group": "mongodb",
       "name": "mongodb/mongo",
-      "version": "master",
+      "version": "v9.0",
       "description": "The MongoDB Database",
       "scope": "required",
       "licenses": [
@@ -2030,11 +2030,11 @@
         }
       ],
       "copyright": "MongoDB, Inc.",
-      "cpe": "cpe:2.3:a:mongodb:mongodb:master:*:*:*:*:*:*:*",
-      "purl": "pkg:github/mongodb/mongo@master",
+      "cpe": "cpe:2.3:a:mongodb:mongodb:v9.0:*:*:*:*:*:*:*",
+      "purl": "pkg:github/mongodb/mongo@v9.0",
       "externalReferences": [
         {
-          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/master/LICENSE-Community.txt",
+          "url": "https://raw.githubusercontent.com/mongodb/mongo/refs/heads/v9.0/LICENSE-Community.txt",
           "comment": "Server Side Public License 1.0",
           "type": "license"
         },
@@ -2831,7 +2831,7 @@
       ]
     },
     {
-      "ref": "pkg:github/mongodb/mongo@master",
+      "ref": "pkg:github/mongodb/mongo@v9.0",
       "dependsOn": [
         "pkg:deb/debian/firefox-esr@140.11.0esr-1?arch=source",
         "pkg:generic/intel/IntelRDFPMathLib@2.0.1",
@@ -3080,11 +3080,11 @@
       "dependsOn": []
     },
     {
-      "ref": "pkg:github/percona/percona-server-mongodb@master",
+      "ref": "pkg:github/percona/percona-server-mongodb@v9.0",
       "dependsOn": [
         "pkg:github/aws/aws-sdk-cpp@1.11.471",
         "pkg:github/libarchive/libarchive@v3.8.4",
-        "pkg:github/mongodb/mongo@master",
+        "pkg:github/mongodb/mongo@v9.0",
         "pkg:github/OpenKMIP/libkmip@66119416e2c89ab182343900418cecafe02b6e8d"
       ]
     },
