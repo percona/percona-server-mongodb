@@ -135,6 +135,87 @@ check_workdir(){
     [ -d "$WORKDIR" ] || abort "\`$WORKDIR\` is not a directory."
 }
 
+# Creates a release-specific SBOM from a more general branch-specific one.
+generate_release_sbom() {
+    local src="$1"
+    local dst="$2"
+    [ -r "$src" ] || abort "\`generate_release_sbom\`: source SBOM file \`$src\` is not readable or does not exist"
+    [ -n "$dst" ] || abort '`generate_release_sbom`: destination SBOM filepath is empty'
+
+    # `branch_version` is equal `PSM_VER` with
+    # "last-dot-followed-by-something" removed
+    local branch_version="${PSM_VER%.*}"
+    local release_version="${PSM_VER}-${PSM_RELEASE}"
+
+    local uuid
+    uuid="$(uuidgen --random)" || abort '`generate_release_sbom`: `uuidgen` failed'
+    local timestamp
+    timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" || abort '`generate_release_sbom`: failed to obtain current timestamp'
+
+    jq --indent 2 \
+        --arg uuid "$uuid" \
+        --arg timestamp "$timestamp" \
+        --arg version "$PSM_VER" \
+        --arg release_version "$release_version" \
+        --arg mdb_purl_branch "pkg:github/mongodb/mongo@v$branch_version" \
+        --arg mdb_purl_release "pkg:github/mongodb/mongo@$PSM_VER" \
+        --arg psmdb_purl_branch "pkg:github/percona/percona-server-mongodb@v$branch_version" \
+        --arg psmdb_purl_release "pkg:github/percona/percona-server-mongodb@$release_version" \
+        --arg mdb_license_url "https://raw.githubusercontent.com/mongodb/mongo/refs/tags/r$PSM_VER/LICENSE-Community.txt" \
+        --arg psmdb_license_url "https://raw.githubusercontent.com/percona/percona-server-mongodb/refs/tags/psmdb-$release_version/LICENSE-Community.txt" \
+        --arg doc_url "https://docs.percona.com/percona-server-for-mongodb/$branch_version/index.html" \
+        --arg rn_url "https://docs.percona.com/percona-server-for-mongodb/$release_version/release_notes/index.html" \
+        --arg vcs_url "https://github.com/percona/percona-server-mongodb/tree/psmdb-$release_version" \
+        '.serialNumber = "urn:uuid:\($uuid)" | .version = 1 | .metadata = {
+            "timestamp": $timestamp,
+            "lifecycles": [{"phase": "pre-build"}],
+            "component": {
+                "type": "application",
+                "bom-ref": $psmdb_purl_release,
+                "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]},
+                "author": "Percona LLC",
+                "publisher": "Percona LLC",
+                "group": "percona",
+                "name": "percona-server-mongodb",
+                "version": $release_version,
+                "licenses": [{"license": {"id": "SSPL-1.0"}}],
+                "cpe": "cpe:2.3:a:percona:percona-server-mongodb:\($release_version):*:*:*:*:*:*:*",
+                "purl": $psmdb_purl_release,
+                "externalReferences": [
+                    {"type": "license", "url": $psmdb_license_url, "comment": "Server Side Public License 1.0"},
+                    {"type": "website", "url": $doc_url, "comment": "documentation"},
+                    {"type": "release-notes", "url": $rn_url},
+                    {"type": "vcs", "url": $vcs_url}
+                ]
+            },
+            "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]}
+        } | if (.components | any(.purl == $mdb_purl_branch)) then
+                (.components[] | select(.purl == $mdb_purl_branch) | .externalReferences[]
+                    | select(.type == "license")).url = $mdb_license_url
+                | (.components[] | select(.purl == $mdb_purl_branch)) += {
+                    "purl": $mdb_purl_release,
+                    "bom-ref": $mdb_purl_release,
+                    "version": $version,
+                    "cpe": "cpe:2.3:a:mongodb:mongodb:\($version):*:*:*:*:*:*:*"
+                }
+            else
+                error("no component entry found matching \($mdb_purl_branch)")
+            end
+        | if (.dependencies | any(.ref == $mdb_purl_branch)) then
+              (.dependencies[] | select(.ref == $mdb_purl_branch)).ref |= $mdb_purl_release
+          else
+              error("no dependency entry found matching \($mdb_purl_branch)")
+          end
+        | if (.dependencies | any(.ref == $psmdb_purl_branch)) then
+              (.dependencies[] | select(.ref == $psmdb_purl_branch)).ref |= $psmdb_purl_release
+          else
+              error("no dependency entry found matching \($psmdb_purl_branch)")
+          end
+        | (.dependencies[].dependsOn[] | select(. == $mdb_purl_branch)) |= $mdb_purl_release
+        | (.dependencies[].dependsOn[] | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
+        "$src" > "$dst" || abort '`generate_release_sbom`: `jq` failed'
+}
+
 get_sources(){
     cd "${WORKDIR}"
     if [ "${SOURCE}" = 0 ]
@@ -231,6 +312,8 @@ get_sources(){
     fi
     # Scrub nested .git (submodules, mongo-tools clone) regardless of whitelist.
     find . -name '.git' -prune -exec rm -rf {} +
+
+    generate_release_sbom "sbom.json" "sbom.cdx.json"
 
     cd ..
     tar --owner=0 --group=0 -czf ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}.tar.gz ${PRODUCT}-${PSM_VER}-${PSM_RELEASE}
@@ -340,8 +423,9 @@ install_deps() {
         OPENSSL_EXCLUDE=""
         yum -y update
       fi
-      yum -y install wget sudo
-      yum -y install perl
+      # Note. The `util-linux` package provides the `uuidgen` utility,
+      # which is used in `generate_release_sbom` alongside `jq`.
+      yum -y install wget sudo perl jq util-linux
       if [ x"$ARCH" = "xx86_64" ]; then
         yum install -y https://repo.percona.com/yum/percona-release-latest.noarch.rpm
         percona-release enable tools testing
@@ -445,6 +529,9 @@ install_deps() {
       INSTALL_LIST="${INSTALL_LIST} hostname iproute2 openssl zip"
       # PSMDB-2072: systemtap-sdt-dev is in ADDITIONAL_PACKAGES for
       # ubuntu:22.04 and ubuntu:24.04 (SERVER-93258 d4c639cf4a7 init).
+
+      # `jq` and `uuid-runtime` are needed by `generate_release_sbom`
+      INSTALL_LIST="${INSTALL_LIST} jq uuid-runtime"
 
       if [ x"${DEBIAN}" = "xjammy" ] || [ x"${DEBIAN}" = "xnoble" ]; then
         INSTALL_LIST="${INSTALL_LIST} systemtap-sdt-dev"
@@ -826,9 +913,12 @@ build_tarball(){
     export USE_SSE=1
     #
 
-    # Finally build Percona Server for MongoDB with Bazel
     cd ${PSMDIR_ABS}
 
+    mkdir -p ${PSMDIR}/doc
+    cp sbom.cdx.json ${PSMDIR}/doc || abort '`build_tarball`: SBOM copying failed'
+
+    # Finally build Percona Server for MongoDB with Bazel
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     python3 buildscripts/install_bazel.py
