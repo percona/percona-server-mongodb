@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 55,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 8.947557975532408,
-    "files_affected": 692,
-    "total_additions": 15002,
-    "total_deletions": 18348,
+    "commits_behind": 75,
+    "days_behind": 11,
+    "unmerged_oldest_age_days": 11.795098188171297,
+    "files_affected": 767,
+    "total_additions": 18992,
+    "total_deletions": 18699,
     "date_range": {
       "first": "2026-09-16T11:11:05+00:00",
-      "last": "2026-09-18T08:59:31+00:00"
+      "last": "2026-09-20T23:08:48+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,209 @@
   },
   "gate": {
     "open": true,
-    "reason": "min_commits (55 >= 50)"
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "da457d58ef2415351ce6a2cc4a65c1bcedf8b725",
+      "short_sha": "da457d58ef2",
+      "date": "2026-09-20T23:08:48+00:00",
+      "author": {
+        "name": "Daniel Khuu",
+        "email": "daniel.khuu@mongodb.com"
+      },
+      "summary": "SERVER-134073 Expose baseRateMbPerSec in server status (#62371)"
+    },
+    {
+      "sha": "ccb586dfa9bdf8e29b0e1bd6d2f70fe687cded07",
+      "short_sha": "ccb586dfa9b",
+      "date": "2026-09-20T23:06:58+00:00",
+      "author": {
+        "name": "Daniel Khuu",
+        "email": "daniel.khuu@mongodb.com"
+      },
+      "summary": "SERVER-123301 Add jstest with TLS certificate auth (#61957)"
+    },
+    {
+      "sha": "ea32ffa27fdf285cc8231050726347dd47577890",
+      "short_sha": "ea32ffa27fd",
+      "date": "2026-09-20T23:05:05+00:00",
+      "author": {
+        "name": "DennisSHCheung",
+        "email": "40588409+DennisSHCheung@users.noreply.github.com"
+      },
+      "summary": "SERVER-135096 Increase oplogSize to 2048 in backup restore test fixture (#62887)"
+    },
+    {
+      "sha": "05ce2a54980959e590896ea309b6b8e77cfe5146",
+      "short_sha": "05ce2a54980",
+      "date": "2026-09-20T23:05:04+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 2548ad6612e754c1bdff6828a42cae0970f2c263 from branch mongodb-master (#63014)"
+    },
+    {
+      "sha": "eff2b38e59f4d45cabe933032ee75702b1ad5a07",
+      "short_sha": "eff2b38e59f",
+      "date": "2026-09-20T20:27:53+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-135280 Bump Repl's quotas to 6. (#62998)"
+    },
+    {
+      "sha": "bbf7c490f477135baca0de5cb2758fb0eaf22a32",
+      "short_sha": "bbf7c490f47",
+      "date": "2026-09-18T20:43:11+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-135284: Fix slow linking parts of builds (#63001)"
+    },
+    {
+      "sha": "5e67c48df37c8ac1197821e0adc187662e2bfb45",
+      "short_sha": "5e67c48df37",
+      "date": "2026-09-18T20:29:34+00:00",
+      "author": {
+        "name": "prm-official",
+        "email": "philip.miljanic@mongodb.com"
+      },
+      "summary": "SERVER-131786 Addressed potential precision loss in computePercentile method of WindowFunctionPercentileCommon. (#62958)"
+    },
+    {
+      "sha": "73f987f5418ea8e83a8f9ab40ff9f1b146126772",
+      "short_sha": "73f987f5418",
+      "date": "2026-09-18T19:26:02+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-134911 Ensure a document's keys are not torn in PDIB (#62943)"
+    },
+    {
+      "sha": "956941deecbbc74f18f7b6330de7187cc95f69a6",
+      "short_sha": "956941deecb",
+      "date": "2026-09-18T19:25:42+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-133965 Force turning off replicated size and count for sharding multiversion tests (#62906)"
+    },
+    {
+      "sha": "6aefd47807f50af181e8b5048670efefee3f5f65",
+      "short_sha": "6aefd47807f",
+      "date": "2026-09-18T18:46:20+00:00",
+      "author": {
+        "name": "Andrew Chen",
+        "email": "andrew.chen@mongodb.com"
+      },
+      "summary": "SERVER-134725: Add ability to read/write $iceberg metadata files in azure (#62726)"
+    },
+    {
+      "sha": "7aa8f8a203a460d0104a00d527bfae891e14a2c0",
+      "short_sha": "7aa8f8a203a",
+      "date": "2026-09-18T17:18:24+00:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-135030 Add return top-k helper to `PartitionedCache` for `$queryStats` top-k sort optimization (#62782)"
+    },
+    {
+      "sha": "860ef04164012b82a2a5abde199a3a8f85b4adf4",
+      "short_sha": "860ef041640",
+      "date": "2026-09-18T15:12:03+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-135197 Short-circuit failpoint check to disable replicated size and count when the persistence provider uses it (#62970)"
+    },
+    {
+      "sha": "01dcadcb8e645513562835211817805a74a8da05",
+      "short_sha": "01dcadcb8e6",
+      "date": "2026-09-18T14:58:48+00:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-134129 Prevent std::terminate from re-raised NoSuchTransaction during pinned cursor cleanup (#62919)"
+    },
+    {
+      "sha": "502300a5b91f9c62cf1b8a7e0a8cbccf2cae385e",
+      "short_sha": "502300a5b91",
+      "date": "2026-09-18T14:48:13+00:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-130926 Avoid usage of std::stoll (#58055)"
+    },
+    {
+      "sha": "5d6933de261f0e903f8af25dca2d48b264d49b8a",
+      "short_sha": "5d6933de261",
+      "date": "2026-09-18T14:02:51+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134739: Instrument bulkWrite insert with retry delay metrics (#62945)"
+    },
+    {
+      "sha": "aab8d37289576e28fa440e50e0b8da0a82d564c9",
+      "short_sha": "aab8d372895",
+      "date": "2026-09-18T13:49:45+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-134907 Remove todo for repairReplicatedMetadata command test case (#62904)"
+    },
+    {
+      "sha": "65bb1486a2aeb6d8dbf4d203dbabaf06af7e2143",
+      "short_sha": "65bb1486a2a",
+      "date": "2026-09-18T13:40:44+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134741: Instrument bulkWrite update with retry delay metrics (#62946)"
+    },
+    {
+      "sha": "4721817321ea0487101be0b5337221c16f94d8ee",
+      "short_sha": "4721817321e",
+      "date": "2026-09-18T12:17:48+00:00",
+      "author": {
+        "name": "Brian McCarthy",
+        "email": "brian.mccarthy@mongodb.com"
+      },
+      "summary": "SERVER-131625 Add Ubuntu 26.04 support for Server (#62849)"
+    },
+    {
+      "sha": "94c4869504d4292dd4fe32bf3b6f6228630a8bac",
+      "short_sha": "94c4869504d",
+      "date": "2026-09-18T11:05:26+00:00",
+      "author": {
+        "name": "Philip Stoev",
+        "email": "philip.stoev@mongodb.com"
+      },
+      "summary": "SERVER-119231 Additional tests around the _id field (#60367)"
+    },
+    {
+      "sha": "51e5ca563b37dacbbdc8924c252794e3691fbc2b",
+      "short_sha": "51e5ca563b3",
+      "date": "2026-09-18T10:57:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-129849 Dispose idle mongot cursors during shutdown (#57167)\" (#62977)"
+    },
     {
       "sha": "8d8995255aa9555389c71aac7ae473b1d43661e4",
       "short_sha": "8d8995255aa",
@@ -661,10 +861,51 @@
           "num_of_dirs": 15
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "4721817321ea0487101be0b5337221c16f94d8ee",
+        "short_sha": "4721817321e",
+        "date": "2026-09-18T12:17:48+00:00",
+        "author": {
+          "name": "Brian McCarthy",
+          "email": "brian.mccarthy@mongodb.com"
+        },
+        "summary": "SERVER-131625 Add Ubuntu 26.04 support for Server (#62849)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "MODULE.bazel.lock"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "05ce2a54980959e590896ea309b6b8e77cfe5146",
+        "short_sha": "05ce2a54980",
+        "date": "2026-09-20T23:05:04+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 2548ad6612e754c1bdff6828a42cae0970f2c263 from branch mongodb-master (#63014)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 34,
+          "num_of_lines": 3283,
+          "lines_added": 2070,
+          "lines_deleted": 1213,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-25 09:54:55",
+  "generated_at": "2026-09-28 06:15:19",
   "branch_name": "master",
   "display_name": "master"
 }
