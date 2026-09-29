@@ -1,0 +1,132 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "be87c07e977ec4555f99e6a2e6f9488c51a99db9",
+    "merge_commit": "a52342af6858c464497a3b6fb3c48ab473f5c3c8"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+    "merged_commits": [
+      "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+      "2eea47353709f62c785f97f3d8b3c5b6e02a7639",
+      "50bbbab566219d693914894874be188584d9119b",
+      "5da8feb591e170846c284f3c1d304164ce46402a",
+      "df79014d06770430ff85566aa78f263fc8aa30ac",
+      "adaefe296be779e74d737f4c43e9ef867f65f534",
+      "def374e56f1e968840b623a70f5b63a24d459f27",
+      "4c70479b48ecebd873df2bb9149ea5f689bbf470"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/base/error_codes.yml"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 30634,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.11309224999999999,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 1361,
+        "cacheReadInputTokens": 47767,
+        "cacheCreationInputTokens": 8823,
+        "webSearchRequests": 0,
+        "costUSD": 0.11309224999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 52,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 1361,
+            "cache_read": 47767,
+            "cache_creation": 8823
+          },
+          "cost_usd": 0.11309224999999999
+        }
+      }
+    },
+    "text_result": "I read the incoming diff and wrote the JSON response.\n\nThe merge is small: the only auto-merged file, `src/mongo/base/error_codes.yml`, gains one new error code \u2014 `{code: 528, name: KMIPRetryableError}` (from upstream SERVER-134360's KMIP retry work), left uncategorized on purpose. It's purely additive; no existing codes were touched. The response file has been written to the requested path.",
+    "response": {
+      "summary": "Merge of upstream commit a52342af6858c464497a3b6fb3c48ab473f5c3c8 into the master branch. The only file auto-merged in this changeset is src/mongo/base/error_codes.yml, which gains a new error code. This addition comes from SERVER-134360 (retry KMIP requests on retryable proxy error returns); the merge also carries several other upstream commits (multikey set preservation during PDIB commit/drain, less verbose multikey validation errors, a JOO/CBR cardinality snapshot fix, plan cache jstest rewrites, and passing priorPrimaryStopAcceptingWrites time to replSetStepUp) whose file changes were applied cleanly and are not part of the auto-merged conflict set.",
+      "auto_merged": {
+        "src/mongo/base/error_codes.yml": "Adds a single new error code near the end of the error_codes list: `{code: 528, name: KMIPRetryableError}`, with a comment noting it represents a KMIP server rejecting a request for a reason that could succeed on retry, and that it is intentionally left uncategorized because RetryableKMIPService performs the retrying and anything that escapes it should not be retried again. No existing codes are modified or removed."
+      },
+      "review_notes": "The auto-merged change in error_codes.yml is purely additive (one new sequential error code, 528 KMIPRetryableError) and does not touch any Percona-specific codes or categories. This new code corresponds to upstream SERVER-134360's KMIP retry work. Verify no local fork code has already claimed error code 528; sequential numbering must remain intact."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The diff is small and clear. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the incoming diff and wrote the JSON response.\n\nThe merge is small: the only auto-merged file, `src/mongo/base/error_codes.yml`, gains one new error code \u2014 `{code: 528, name: KMIPRetryableError}` (from upstream SERVER-134360's KMIP retry work), left uncategorized on purpose. It's purely additive; no existing codes were touched. The response file has been written to the requested path."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260929_105903_053178.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.284 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+    "short_sha": "a52342af685",
+    "strategy": null,
+    "summary": "The WiredTiger vendored import (a52342af) is an ideal merge boundary: a well-isolated third-party import touching an isolated file set that rarely depends on the commits after it and is easy to validate post-merge. Cutting here yields a coherent 8-commit batch that keeps Gregory Noma's related PDIB multikey pair together (5da8feb5 'Preserve multikey set during PDIB drain' and 2eea4735 'Preserve multikey set during PDIB commit') plus the associated multikey validation work (50bbbab5), rather than splitting that unit of work. It also stops short of the s390x CI conflict commit (bc1f8232) and the freshest 09-22 commits (resumed index build, monotonic RSWB counter, profiling regen), leaving those for the next batch to settle. Although the full window is only 13 commits (below the ~50 target), the gate was force-opened by the conflict, and a clean atomic boundary here is preferable to importing the still-unsettled tail; the conflict remains available at the head of the next window.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36558589359"
+  }
+}
