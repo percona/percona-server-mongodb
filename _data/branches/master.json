@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 39,
-    "days_behind": 10,
-    "unmerged_oldest_age_days": 10.450927554594907,
-    "files_affected": 204,
-    "total_additions": 9410,
-    "total_deletions": 3090,
+    "commits_behind": 49,
+    "days_behind": 11,
+    "unmerged_oldest_age_days": 10.9238706240625,
+    "files_affected": 276,
+    "total_additions": 12498,
+    "total_deletions": 3742,
     "date_range": {
       "first": "2026-09-18T08:02:10+00:00",
-      "last": "2026-09-21T18:24:19+00:00"
+      "last": "2026-09-22T04:30:39+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,106 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "9e0943627a5f732ce070b98b509d4701286b86cc",
+      "short_sha": "9e0943627a5",
+      "date": "2026-09-22T04:30:39+00:00",
+      "author": {
+        "name": "Jordan Glassley",
+        "email": "jordan.glassley@mongodb.com"
+      },
+      "summary": "SERVER-135036 Make ShardingTest fixture orphan cleanup wait robust to cursor timeouts (#62959)"
+    },
+    {
+      "sha": "6ed85676b72e7118489d2e2cf347d0927cd0e8a1",
+      "short_sha": "6ed85676b72",
+      "date": "2026-09-22T04:08:31+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-134910 Intercept writes before a resumed index build sets up (#62996)"
+    },
+    {
+      "sha": "bc1f8232c8ced7bb0442d95641793f9ba21335b1",
+      "short_sha": "bc1f8232c8c",
+      "date": "2026-09-22T00:00:58+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-135110: Run s390x CI builds on arm64 cross-compile hosts (#62799)"
+    },
+    {
+      "sha": "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+      "short_sha": "a52342af685",
+      "date": "2026-09-21T22:44:53+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 6c446256635bd0a702a14cb08d5d70505e1cbfe7 from branch mongodb-master (#63043)"
+    },
+    {
+      "sha": "2eea47353709f62c785f97f3d8b3c5b6e02a7639",
+      "short_sha": "2eea4735370",
+      "date": "2026-09-21T21:04:10+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-135383 Preserve multikey set during PDIB commit (#63071)"
+    },
+    {
+      "sha": "50bbbab566219d693914894874be188584d9119b",
+      "short_sha": "50bbbab5662",
+      "date": "2026-09-21T21:00:16+00:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134574 Make multikey validation errors less verbose (#62935)"
+    },
+    {
+      "sha": "5da8feb591e170846c284f3c1d304164ce46402a",
+      "short_sha": "5da8feb591e",
+      "date": "2026-09-21T20:01:05+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-134912 Preserve multikey set during PDIB drain (#62960)"
+    },
+    {
+      "sha": "df79014d06770430ff85566aa78f263fc8aa30ac",
+      "short_sha": "df79014d067",
+      "date": "2026-09-21T19:58:20+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-133645: JOO/CBR cardinality snapshot mismatch triggers tassert 9274202 (#62734)"
+    },
+    {
+      "sha": "adaefe296be779e74d737f4c43e9ef867f65f534",
+      "short_sha": "adaefe296be",
+      "date": "2026-09-21T19:04:47+00:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-134851 Rewrite plan cache jstests to use $joinPlanCacheStats instad of logs to verify the cache was used (#62607)"
+    },
+    {
+      "sha": "def374e56f1e968840b623a70f5b63a24d459f27",
+      "short_sha": "def374e56f1",
+      "date": "2026-09-21T18:28:15+00:00",
+      "author": {
+        "name": "huayu-ouyang",
+        "email": "huayu.ouyang@mongodb.com"
+      },
+      "summary": "SERVER-134408 Pass priorPrimaryStopAcceptingWrites time to replSetStepUp for write unavailability otel metric (#62865)"
+    },
     {
       "sha": "4c70479b48ecebd873df2bb9149ea5f689bbf470",
       "short_sha": "4c70479b48e",
@@ -493,10 +593,31 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+        "short_sha": "26f08d6f78e",
+        "date": "2026-09-21T17:04:57+00:00",
+        "author": {
+          "name": "Evelyn Wu",
+          "email": "32441547+evelynwu88@users.noreply.github.com"
+        },
+        "summary": "SERVER-134572 Handle shutdown in precise checkpoint prepared-txn recovery (#62426)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-26f08d6f78e/conflict",
+          "mergai/master-26f08d6f78e/main",
+          "mongodb"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-28 18:51:25",
+  "generated_at": "2026-09-29 06:12:16",
   "branch_name": "master",
   "display_name": "master"
 }
