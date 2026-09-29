@@ -341,6 +341,10 @@ private:
         // writes.
         boost::optional<RecordId> lastSpilledRecordId;
 
+        // Multikey state this build recovered from the side writes it drained.
+        bool drainedMultikey = false;
+        MultikeyPaths drainedMultikeyPaths;
+
         // We cache index catalog entry pointer for the collection scan phase. This is necessary for
         // index build performance in the insert path.
         const IndexCatalogEntry* entryForScan = nullptr;
@@ -373,10 +377,25 @@ private:
     void _writeIndexStateInfoToContainer(OperationContext* opCtx, size_t index) const;
 
     /**
+     * Writes the IndexStateInfo for the given index within the caller's transaction. Callers that
+     * are not already in one should use `_writeIndexStateInfoToContainer`.
+     */
+    void _upsertIndexStateInfo(OperationContext* opCtx, size_t index) const;
+
+    /**
      * Writes the IndexBuildMetadata and the IndexStateInfo for all indexes to the index build
      * container. No-op when not replicating container writes or not resumable.
      */
     void _writeAllStateToContainer(OperationContext* opCtx) const;
+
+    /**
+     * Folds multikey paths recovered while draining side writes or retrying skipped records into
+     * this build's state and persists them with the rest of the resume state, within the caller's
+     * transaction.
+     */
+    Status _recordRecoveredMultikeyPaths(OperationContext* opCtx,
+                                         size_t index,
+                                         const MultikeyPaths& paths);
 
     BSONObj _constructStateObject() const;
 
