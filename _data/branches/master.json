@@ -5,42 +5,62 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 49,
-    "days_behind": 11,
-    "unmerged_oldest_age_days": 10.9238706240625,
-    "files_affected": 276,
-    "total_additions": 12498,
-    "total_deletions": 3742,
+    "commits_behind": 13,
+    "days_behind": 7,
+    "unmerged_oldest_age_days": 7.687640233981482,
+    "files_affected": 85,
+    "total_additions": 3103,
+    "total_deletions": 713,
     "date_range": {
-      "first": "2026-09-18T08:02:10+00:00",
-      "last": "2026-09-22T04:30:39+00:00"
+      "first": "2026-09-21T18:24:19+00:00",
+      "last": "2026-09-22T09:59:08+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "20b0ab598399e25c42a1e5552a5e41134b28a40b",
-    "short_sha": "20b0ab59839",
-    "date": "2026-09-18T01:35:26+00:00",
+    "sha": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
+    "short_sha": "26f08d6f78e",
+    "date": "2026-09-21T17:04:57+00:00",
     "author": {
-      "name": "wt-vendoring-bot[bot]",
-      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      "name": "Evelyn Wu",
+      "email": "32441547+evelynwu88@users.noreply.github.com"
     },
-    "summary": "Import wiredtiger: 3069b317e5a17bcfa53e0abdb2d3fa14e58684b8 from branch mongodb-master (#62908)"
+    "summary": "SERVER-134572 Handle shutdown in precise checkpoint prepared-txn recovery (#62426)"
   },
   "first_unmerged_commit": {
-    "sha": "b7695e3826b5d1461ae1023b72a6ff36237ee36f",
-    "short_sha": "b7695e3826b",
-    "date": "2026-09-18T08:02:10+00:00",
+    "sha": "4c70479b48ecebd873df2bb9149ea5f689bbf470",
+    "short_sha": "4c70479b48e",
+    "date": "2026-09-21T18:24:19+00:00",
     "author": {
-      "name": "Sergiy Tsymbal",
-      "email": "sergiy.tsymbal@mongodb.com"
+      "name": "Ken Martin",
+      "email": "ken.martin@mongodb.com"
     },
-    "summary": "SERVER-125775 implement a PBT for elemMatch object traversal (#62897)"
+    "summary": "SERVER-134360 Retry kmip requests on proxy error returns that can be retried (#62931)"
   },
   "gate": {
     "open": true,
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "dde18219bd09c7ca38c3cd7c8ea178f9cede39a6",
+      "short_sha": "dde18219bd0",
+      "date": "2026-09-22T09:59:08+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#63101)"
+    },
+    {
+      "sha": "12b3229ee271d76353d7ae696c410df57bc34c54",
+      "short_sha": "12b3229ee27",
+      "date": "2026-09-22T08:31:09+00:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-134940 Treat the RSWB command counter as a monotonic value (#62688)"
+    },
     {
       "sha": "9e0943627a5f732ce070b98b509d4701286b86cc",
       "short_sha": "9e0943627a5",
@@ -150,399 +170,19 @@
         "email": "ken.martin@mongodb.com"
       },
       "summary": "SERVER-134360 Retry kmip requests on proxy error returns that can be retried (#62931)"
-    },
-    {
-      "sha": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
-      "short_sha": "26f08d6f78e",
-      "date": "2026-09-21T17:04:57+00:00",
-      "author": {
-        "name": "Evelyn Wu",
-        "email": "32441547+evelynwu88@users.noreply.github.com"
-      },
-      "summary": "SERVER-134572 Handle shutdown in precise checkpoint prepared-txn recovery (#62426)"
-    },
-    {
-      "sha": "1dfa986d59baf771505930ae31f7057c22e9a1f4",
-      "short_sha": "1dfa986d59b",
-      "date": "2026-09-21T17:02:19+00:00",
-      "author": {
-        "name": "seanzimm",
-        "email": "102551488+seanzimm@users.noreply.github.com"
-      },
-      "summary": "SERVER-135138: Make initiateForDisagg also wait for secondary nodes (#62866)"
-    },
-    {
-      "sha": "d22ca09ffd967da742e3d412a2b30316b393b90e",
-      "short_sha": "d22ca09ffd9",
-      "date": "2026-09-21T16:00:03+00:00",
-      "author": {
-        "name": "Philip Stoev",
-        "email": "philip.stoev@mongodb.com"
-      },
-      "summary": "SERVER-127218 PBT passthrough where the experimental collection is clustered (#62932)"
-    },
-    {
-      "sha": "f867f7b484b376a0d73ec0ee165e0ab885382bf6",
-      "short_sha": "f867f7b484b",
-      "date": "2026-09-21T15:51:24+00:00",
-      "author": {
-        "name": "Marco Bizzarri",
-        "email": "marco.bizzarri@mongodb.com"
-      },
-      "summary": "SERVER-135238 DSC last-patch Multiversion tests incorrectly compare version of binaries (#62983)"
-    },
-    {
-      "sha": "d065a10d09121f56c35e79f47629866f93734f41",
-      "short_sha": "d065a10d091",
-      "date": "2026-09-21T14:49:44+00:00",
-      "author": {
-        "name": "Adithi Raghavan",
-        "email": "adithi.raghavan@mongodb.com"
-      },
-      "summary": "SERVER-135189 Refactor $queryStats execution path into helpers (#62244)"
-    },
-    {
-      "sha": "50cdb6d94adaed297517edc908297e415e848ef4",
-      "short_sha": "50cdb6d94ad",
-      "date": "2026-09-21T14:41:49+00:00",
-      "author": {
-        "name": "Lynne Wang",
-        "email": "lynne.wang@mongodb.com"
-      },
-      "summary": "SERVER-134041 Refresh the cached earliest oplog timestamp from the truncate bound (#62834)"
-    },
-    {
-      "sha": "4adae3f22875ca654fb090411082f322aacd7cef",
-      "short_sha": "4adae3f2287",
-      "date": "2026-09-21T14:36:38+00:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-134726 Stop persisting auto-compaction state and resuming auto-compaction for RSWB (#62520)"
-    },
-    {
-      "sha": "0dae66b66b1430b592be58c52821e9cf26e4cd82",
-      "short_sha": "0dae66b66b1",
-      "date": "2026-09-21T14:18:38+00:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-135183 Track a fallback reason in more cases (#62911)"
-    },
-    {
-      "sha": "b6e82babf6492937962c8b8a0aa152500c2a4c56",
-      "short_sha": "b6e82babf64",
-      "date": "2026-09-21T14:16:22+00:00",
-      "author": {
-        "name": "Mickey J Winters",
-        "email": "314083+mjrb@users.noreply.github.com"
-      },
-      "summary": "SERVER-135075 random_ddl_crud_operations: tolerate partial insert counts after collection reincarnation (#62916)"
-    },
-    {
-      "sha": "a5dcb9d80fe970dc23a1f0ca3999a0ee94556acb",
-      "short_sha": "a5dcb9d80fe",
-      "date": "2026-09-21T14:11:11+00:00",
-      "author": {
-        "name": "James H",
-        "email": "james.harrison@mongodb.com"
-      },
-      "summary": "SERVER-117555: Enable cbr_plan_cache.js under SBE (#63031)"
-    },
-    {
-      "sha": "e8029994871896d1744e92063ebe3937b4bfd150",
-      "short_sha": "e8029994871",
-      "date": "2026-09-21T13:52:35+00:00",
-      "author": {
-        "name": "Indy Prentice",
-        "email": "iprentic@users.noreply.github.com"
-      },
-      "summary": "SERVER-134740: Instrument bulkWrite delete with retry delay metrics (#62944)"
-    },
-    {
-      "sha": "a354bca36c90cda91abaecea6179290ad364bbce",
-      "short_sha": "a354bca36c9",
-      "date": "2026-09-21T13:24:42+00:00",
-      "author": {
-        "name": "Henri Nikku",
-        "email": "henri.nikku@mongodb.com"
-      },
-      "summary": "SERVER-134526 Avoid generating projection for sampling estimator when MatchExpression needs the whole document (#62304)"
-    },
-    {
-      "sha": "ca494075bc93bec1ac0cd7f758a8aae15d7b9357",
-      "short_sha": "ca494075bc9",
-      "date": "2026-09-21T12:49:28+00:00",
-      "author": {
-        "name": "James H",
-        "email": "james.harrison@mongodb.com"
-      },
-      "summary": "SERVER-122264: Remove todo in server_status_multiplanner.js (#63030)"
-    },
-    {
-      "sha": "9348b9cf37df2d003843d9ffc443d38f77854715",
-      "short_sha": "9348b9cf37d",
-      "date": "2026-09-21T08:18:06+00:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-110427 Update profiling data (#63009)"
-    },
-    {
-      "sha": "59d7bfc3d365e02c1561f189ccaa7bf7eb1f6190",
-      "short_sha": "59d7bfc3d36",
-      "date": "2026-09-21T08:00:47+00:00",
-      "author": {
-        "name": "mivanova3",
-        "email": "milena.ivanova@mongodb.com"
-      },
-      "summary": "SERVER-132998 Re-enable tests disabled due to FCV upgrade to 9.1 (#62768)"
-    },
-    {
-      "sha": "6c21e7a39c45d23c5ae6454bfab380337bdacfc8",
-      "short_sha": "6c21e7a39c4",
-      "date": "2026-09-21T07:40:38+00:00",
-      "author": {
-        "name": "James H",
-        "email": "james.harrison@mongodb.com"
-      },
-      "summary": "SERVER-135235: Skip force_plan_winning_roundtrip.js without deferred engine choice (#62974)"
-    },
-    {
-      "sha": "da457d58ef2415351ce6a2cc4a65c1bcedf8b725",
-      "short_sha": "da457d58ef2",
-      "date": "2026-09-20T23:08:48+00:00",
-      "author": {
-        "name": "Daniel Khuu",
-        "email": "daniel.khuu@mongodb.com"
-      },
-      "summary": "SERVER-134073 Expose baseRateMbPerSec in server status (#62371)"
-    },
-    {
-      "sha": "ccb586dfa9bdf8e29b0e1bd6d2f70fe687cded07",
-      "short_sha": "ccb586dfa9b",
-      "date": "2026-09-20T23:06:58+00:00",
-      "author": {
-        "name": "Daniel Khuu",
-        "email": "daniel.khuu@mongodb.com"
-      },
-      "summary": "SERVER-123301 Add jstest with TLS certificate auth (#61957)"
-    },
-    {
-      "sha": "ea32ffa27fdf285cc8231050726347dd47577890",
-      "short_sha": "ea32ffa27fd",
-      "date": "2026-09-20T23:05:05+00:00",
-      "author": {
-        "name": "DennisSHCheung",
-        "email": "40588409+DennisSHCheung@users.noreply.github.com"
-      },
-      "summary": "SERVER-135096 Increase oplogSize to 2048 in backup restore test fixture (#62887)"
-    },
-    {
-      "sha": "05ce2a54980959e590896ea309b6b8e77cfe5146",
-      "short_sha": "05ce2a54980",
-      "date": "2026-09-20T23:05:04+00:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 2548ad6612e754c1bdff6828a42cae0970f2c263 from branch mongodb-master (#63014)"
-    },
-    {
-      "sha": "eff2b38e59f4d45cabe933032ee75702b1ad5a07",
-      "short_sha": "eff2b38e59f",
-      "date": "2026-09-20T20:27:53+00:00",
-      "author": {
-        "name": "Brad Cater",
-        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
-      },
-      "summary": "SERVER-135280 Bump Repl's quotas to 6. (#62998)"
-    },
-    {
-      "sha": "bbf7c490f477135baca0de5cb2758fb0eaf22a32",
-      "short_sha": "bbf7c490f47",
-      "date": "2026-09-18T20:43:11+00:00",
-      "author": {
-        "name": "Andrew Bradshaw",
-        "email": "andrew.bradshaw@mongodb.com"
-      },
-      "summary": "SERVER-135284: Fix slow linking parts of builds (#63001)"
-    },
-    {
-      "sha": "5e67c48df37c8ac1197821e0adc187662e2bfb45",
-      "short_sha": "5e67c48df37",
-      "date": "2026-09-18T20:29:34+00:00",
-      "author": {
-        "name": "prm-official",
-        "email": "philip.miljanic@mongodb.com"
-      },
-      "summary": "SERVER-131786 Addressed potential precision loss in computePercentile method of WindowFunctionPercentileCommon. (#62958)"
-    },
-    {
-      "sha": "73f987f5418ea8e83a8f9ab40ff9f1b146126772",
-      "short_sha": "73f987f5418",
-      "date": "2026-09-18T19:26:02+00:00",
-      "author": {
-        "name": "Gregory Noma",
-        "email": "gregory.noma@gmail.com"
-      },
-      "summary": "SERVER-134911 Ensure a document's keys are not torn in PDIB (#62943)"
-    },
-    {
-      "sha": "956941deecbbc74f18f7b6330de7187cc95f69a6",
-      "short_sha": "956941deecb",
-      "date": "2026-09-18T19:25:42+00:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-133965 Force turning off replicated size and count for sharding multiversion tests (#62906)"
-    },
-    {
-      "sha": "6aefd47807f50af181e8b5048670efefee3f5f65",
-      "short_sha": "6aefd47807f",
-      "date": "2026-09-18T18:46:20+00:00",
-      "author": {
-        "name": "Andrew Chen",
-        "email": "andrew.chen@mongodb.com"
-      },
-      "summary": "SERVER-134725: Add ability to read/write $iceberg metadata files in azure (#62726)"
-    },
-    {
-      "sha": "7aa8f8a203a460d0104a00d527bfae891e14a2c0",
-      "short_sha": "7aa8f8a203a",
-      "date": "2026-09-18T17:18:24+00:00",
-      "author": {
-        "name": "Gil Alon",
-        "email": "47804748+galon1@users.noreply.github.com"
-      },
-      "summary": "SERVER-135030 Add return top-k helper to `PartitionedCache` for `$queryStats` top-k sort optimization (#62782)"
-    },
-    {
-      "sha": "860ef04164012b82a2a5abde199a3a8f85b4adf4",
-      "short_sha": "860ef041640",
-      "date": "2026-09-18T15:12:03+00:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-135197 Short-circuit failpoint check to disable replicated size and count when the persistence provider uses it (#62970)"
-    },
-    {
-      "sha": "01dcadcb8e645513562835211817805a74a8da05",
-      "short_sha": "01dcadcb8e6",
-      "date": "2026-09-18T14:58:48+00:00",
-      "author": {
-        "name": "Moustafa Maher",
-        "email": "m.maher@mongodb.com"
-      },
-      "summary": "SERVER-134129 Prevent std::terminate from re-raised NoSuchTransaction during pinned cursor cleanup (#62919)"
-    },
-    {
-      "sha": "502300a5b91f9c62cf1b8a7e0a8cbccf2cae385e",
-      "short_sha": "502300a5b91",
-      "date": "2026-09-18T14:48:13+00:00",
-      "author": {
-        "name": "Alberto Massari",
-        "email": "alberto.massari@mongodb.com"
-      },
-      "summary": "SERVER-130926 Avoid usage of std::stoll (#58055)"
-    },
-    {
-      "sha": "5d6933de261f0e903f8af25dca2d48b264d49b8a",
-      "short_sha": "5d6933de261",
-      "date": "2026-09-18T14:02:51+00:00",
-      "author": {
-        "name": "Indy Prentice",
-        "email": "iprentic@users.noreply.github.com"
-      },
-      "summary": "SERVER-134739: Instrument bulkWrite insert with retry delay metrics (#62945)"
-    },
-    {
-      "sha": "aab8d37289576e28fa440e50e0b8da0a82d564c9",
-      "short_sha": "aab8d372895",
-      "date": "2026-09-18T13:49:45+00:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-134907 Remove todo for repairReplicatedMetadata command test case (#62904)"
-    },
-    {
-      "sha": "65bb1486a2aeb6d8dbf4d203dbabaf06af7e2143",
-      "short_sha": "65bb1486a2a",
-      "date": "2026-09-18T13:40:44+00:00",
-      "author": {
-        "name": "Indy Prentice",
-        "email": "iprentic@users.noreply.github.com"
-      },
-      "summary": "SERVER-134741: Instrument bulkWrite update with retry delay metrics (#62946)"
-    },
-    {
-      "sha": "4721817321ea0487101be0b5337221c16f94d8ee",
-      "short_sha": "4721817321e",
-      "date": "2026-09-18T12:17:48+00:00",
-      "author": {
-        "name": "Brian McCarthy",
-        "email": "brian.mccarthy@mongodb.com"
-      },
-      "summary": "SERVER-131625 Add Ubuntu 26.04 support for Server (#62849)"
-    },
-    {
-      "sha": "94c4869504d4292dd4fe32bf3b6f6228630a8bac",
-      "short_sha": "94c4869504d",
-      "date": "2026-09-18T11:05:26+00:00",
-      "author": {
-        "name": "Philip Stoev",
-        "email": "philip.stoev@mongodb.com"
-      },
-      "summary": "SERVER-119231 Additional tests around the _id field (#60367)"
-    },
-    {
-      "sha": "51e5ca563b37dacbbdc8924c252794e3691fbc2b",
-      "short_sha": "51e5ca563b3",
-      "date": "2026-09-18T10:57:07+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-129849 Dispose idle mongot cursors during shutdown (#57167)\" (#62977)"
-    },
-    {
-      "sha": "8d8995255aa9555389c71aac7ae473b1d43661e4",
-      "short_sha": "8d8995255aa",
-      "date": "2026-09-18T08:59:31+00:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-132084 Add join plan enumerator dump log (#62618)"
-    },
-    {
-      "sha": "b7695e3826b5d1461ae1023b72a6ff36237ee36f",
-      "short_sha": "b7695e3826b",
-      "date": "2026-09-18T08:02:10+00:00",
-      "author": {
-        "name": "Sergiy Tsymbal",
-        "email": "sergiy.tsymbal@mongodb.com"
-      },
-      "summary": "SERVER-125775 implement a PBT for elemMatch object traversal (#62897)"
     }
   ],
   "merge_picks": [
     {
       "commit": {
-        "sha": "4721817321ea0487101be0b5337221c16f94d8ee",
-        "short_sha": "4721817321e",
-        "date": "2026-09-18T12:17:48+00:00",
+        "sha": "bc1f8232c8ced7bb0442d95641793f9ba21335b1",
+        "short_sha": "bc1f8232c8c",
+        "date": "2026-09-22T00:00:58+00:00",
         "author": {
-          "name": "Brian McCarthy",
-          "email": "brian.mccarthy@mongodb.com"
+          "name": "Daniel Moody",
+          "email": "dmoody256@gmail.com"
         },
-        "summary": "SERVER-131625 Add Ubuntu 26.04 support for Server (#62849)"
+        "summary": "SERVER-135110: Run s390x CI builds on arm64 cross-compile hosts (#62799)"
       },
       "strategy_name": "conflict",
       "result": {
@@ -550,74 +190,10 @@
           "MODULE.bazel.lock"
         ]
       }
-    },
-    {
-      "commit": {
-        "sha": "05ce2a54980959e590896ea309b6b8e77cfe5146",
-        "short_sha": "05ce2a54980",
-        "date": "2026-09-20T23:05:04+00:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: 2548ad6612e754c1bdff6828a42cae0970f2c263 from branch mongodb-master (#63014)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 34,
-          "num_of_lines": 3283,
-          "lines_added": 2070,
-          "lines_deleted": 1213,
-          "num_of_dirs": 11
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "4adae3f22875ca654fb090411082f322aacd7cef",
-        "short_sha": "4adae3f2287",
-        "date": "2026-09-21T14:36:38+00:00",
-        "author": {
-          "name": "Anna Maria Nestorov",
-          "email": "annamaria.nestorov@gmail.com"
-        },
-        "summary": "SERVER-134726 Stop persisting auto-compaction state and resuming auto-compaction for RSWB (#62520)"
-      },
-      "strategy_name": "important_files",
-      "result": {
-        "matched_files": [
-          "src/mongo/db/storage/storage_engine.h",
-          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
-          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
-        ]
-      }
-    },
-    {
-      "commit": {
-        "sha": "26f08d6f78e2ba80e390fc8b3eeba877770f0895",
-        "short_sha": "26f08d6f78e",
-        "date": "2026-09-21T17:04:57+00:00",
-        "author": {
-          "name": "Evelyn Wu",
-          "email": "32441547+evelynwu88@users.noreply.github.com"
-        },
-        "summary": "SERVER-134572 Handle shutdown in precise checkpoint prepared-txn recovery (#62426)"
-      },
-      "strategy_name": "branching_point",
-      "result": {
-        "branches": [
-          "master",
-          "mergai/master-26f08d6f78e/conflict",
-          "mergai/master-26f08d6f78e/main",
-          "mongodb"
-        ]
-      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-29 06:12:16",
+  "generated_at": "2026-09-29 10:54:24",
   "branch_name": "master",
   "display_name": "master"
 }
