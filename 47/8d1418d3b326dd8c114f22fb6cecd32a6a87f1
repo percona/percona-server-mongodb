@@ -1,0 +1,186 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "59f88fd706cb934cba89fc890c62ef9be4a45cbe",
+    "merge_commit": "d420b565eb6cb069cec6f8c7a6390079a31e0289"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "d420b565eb6cb069cec6f8c7a6390079a31e0289",
+    "merged_commits": [
+      "d420b565eb6cb069cec6f8c7a6390079a31e0289",
+      "be7480f4f844c271714ed05db09fa6f189c912cd",
+      "1da71f7b02bce2c79bd841ac74b51e8923fe3f87",
+      "e17b3da32bb3a7e5095300ac4349344d1d354d18",
+      "94a0f24d986ceecb00055ce73fdd351b16bdc5f6",
+      "304f10c09454355827ba846e381c891964a8b79b",
+      "ea304097afe316a04366034c8a65fe4f432f86c0",
+      "5cc127b9c92fff6072b58ebfce72acf20853731f",
+      "5a181bafb657c23b86a7ff7cf531f095d5b098e3",
+      "bfdb0a13a37266511337ddbc45cc75b8089b232f",
+      "161fdb2b0bd10321f43461d6cbce883e8e560be6",
+      "2afd946335ec041e0debc6e11c632bbf2ab61594",
+      "3ec5edf46d47252289baee59395eb06973726a91",
+      "d93a88e91baa59de03545708932e9b096e2ec20e",
+      "f0b14c395722a19a8fb13ac02aede3a78c68376f",
+      "30f64ad228c2bc0ff09ecfaa5a09e23b80047533",
+      "2aa05c87e165799c3b04a8051fd41095765c3cbc",
+      "a342e97db5abb49485840f170679b988530e2325",
+      "c66ffa8313ac4017e23667bc3c1de2fcad3a70a8",
+      "d47442d0bb5bb6d13899028f128cab622a38fa9a",
+      "efc2aad5d454dd2f8861aab50728b5b6387d03f4",
+      "6a34f37d061504d9c2ca5a5f8f4bbc7a641bf22f",
+      "fc1db55ef337e15746b8967dd4fdab279f02cea8",
+      "60ca036e16c2075a7c841d438c98dea56a734bb8",
+      "6a301431496c510a16137cc82ca85945688a14c7",
+      "130a6dfc6c2dc22b0efdfe4c783fe76ae2d6273d",
+      "31ae88e31d8b3ee64684d98677e57bf26fde8289",
+      "3c380897c96d66816bc04f3318c53e5e49e848ae",
+      "f00509f17fd0c43bef0de4317efe72ca5d57a722",
+      "227c8776c776f85a0d44ee994e7566c8f58057bb",
+      "2c1c09a9b739e7432b1bd290d90003951c392aba",
+      "8e49572fa04e1bd198b157e5af1b46ab295d79a8",
+      "010123df9fcbad1c4d306f191c4bf81436e569e5"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/auth/sasl_plain_server_conversation.cpp",
+      "src/mongo/db/storage/storage_engine.h",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/executor/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 44472,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.2175025,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 3285,
+        "cacheReadInputTokens": 61450,
+        "cacheCreationInputTokens": 16738,
+        "webSearchRequests": 0,
+        "costUSD": 0.2175025,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 144,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 3285,
+            "cache_read": 61450,
+            "cache_creation": 16738
+          },
+          "cost_usd": 0.2175025
+        }
+      }
+    },
+    "text_result": "I've read the prompt, inspected the actual `diff base \u2192 merge commit` diffs for all nine auto-merged files, and written the JSON response.\n\nSummary of what the merge introduces in the auto-merged files:\n\n- **SERVER-135137** (the dominant theme): a new `getSharedHistoryStoreStorageSize` API threaded through the storage-engine hierarchy \u2014 declared with a default `0` implementation in `storage_engine.h` and `kv_engine.h`, overridden in `storage_engine_impl.{h,cpp}` (delegating to the underlying engine) and in `wiredtiger_kv_engine.{h,cpp}` (reads `WT_STAT_DSRC_BLOCK_SIZE` for the new `kSharedHistoryStoreFileUri` constant added to `wiredtiger_util.h`, returning 0 on `NoSuchKey`).\n- **SERVER-135488**: `startup_recovery.cpp` now computes `enableSizeStats` instead of hard-coding `true`, disabling size stats when parallel record-store slicing is active.\n- **executor/BUILD.bazel**: adds OpenTelemetry metrics Bazel dependencies to two libraries and one unit-test target.\n\nEvery claim in the response is backed by lines I read in the actual diff. No conflict markers were present (clean `ort` auto-merge), and no Percona-specific code appears in these files.",
+    "response": {
+      "summary": "Merges a batch of upstream mongodb-master commits into the fork. The auto-merged files here center on two themes: (1) SERVER-135137 adds tracking of the shared history store size for disaggregated storage, introducing a new getSharedHistoryStoreStorageSize storage-engine API threaded from StorageEngine down through KVEngine and the WiredTiger engine; and (2) SERVER-135488, which disables collection size-stats metrics during parallel (sliced) collection validation. It also includes a Bazel dependency update in src/mongo/executor adding an OpenTelemetry metrics service dependency (SERVER-123572 / SERVER-134133 connection metrics work). Other commits in the range touch unrelated areas but do not appear in the auto-merged files below.",
+      "auto_merged": {
+        "src/mongo/db/startup_recovery.cpp": "In offlineValidateCollection, the previously hard-coded enableSizeStats=true argument to collection_validation::parseValidateOptions is replaced with a computed enableSizeStats flag (SERVER-135488). It is true only when record-store slicing is disabled (getTargetRecordsPerRecordStoreSlice() is unset or 0) or when there is a single slice (getMaxRecordStoreSlices() == 1); i.e. enabling parallel record-store traversal now disables size stats. The related locals (collectionValidateOptionsParam, validateOptions, parsedOptions) are also changed to const.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Adds a new virtual method getSharedHistoryStoreStorageSize(OperationContext*) returning StatusWith<int64_t> with a default implementation returning 0, referencing StorageEngine's declaration for details (SERVER-135137).",
+        "src/mongo/db/storage/storage_engine.h": "Adds a new virtual method getSharedHistoryStoreStorageSize(OperationContext* opCtx) returning StatusWith<int64_t>, with a doc comment stating it returns the compressed size of the shared history store table (WiredTigerSharedHS.wt_stable) as of the last checkpoint, and 0 if unsupported, not disaggregated, or the table is missing. Default implementation returns 0 (SERVER-135137).",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Adds StorageEngineImpl::getSharedHistoryStoreStorageSize, which delegates to the underlying _engine->getSharedHistoryStoreStorageSize(opCtx) (SERVER-135137).",
+        "src/mongo/db/storage/storage_engine_impl.h": "Declares the getSharedHistoryStoreStorageSize override on StorageEngineImpl (SERVER-135137).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Implements WiredTigerKVEngineBase::getSharedHistoryStoreStorageSize. It opens an uninterruptible session, builds a statistics URI from WiredTigerUtil::kSharedHistoryStoreFileUri, and reads WT_STAT_DSRC_BLOCK_SIZE via WiredTigerUtil::getStatisticsValue. On NoSuchKey (shared history store absent, e.g. not disaggregated or not yet created) it returns 0; other errors propagate; otherwise it returns the size value (SERVER-135137).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Declares the getSharedHistoryStoreStorageSize override on the WiredTiger KV engine (SERVER-135137).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Adds a new constexpr constant kSharedHistoryStoreFileUri = \"file:WiredTigerSharedHS.wt_stable\" to WiredTigerUtil, alongside the existing kFileUriPrefix / kStableFileSuffix constants (SERVER-135137).",
+        "src/mongo/executor/BUILD.bazel": "Adds Bazel dependencies on //src/mongo/otel/metrics:otel_metrics_service to two mongo_cc_library targets, and adds //src/mongo/otel/metrics:metrics_test_util plus otel_metrics_service to a mongo_cc_unit_test target (OpenTelemetry connection-metrics work, e.g. SERVER-123572 / SERVER-134133)."
+      },
+      "review_notes": "All nine files auto-merged cleanly under the ort strategy; no conflict markers are involved. The changes are additive: a new getSharedHistoryStoreStorageSize API added consistently across the storage-engine class hierarchy (interface default returning 0, WiredTiger implementation reading a WT statistic), the size-stats validation change in startup_recovery.cpp, and Bazel dep additions. No Percona-specific code appears in these diffs, so there is no fork-vs-upstream reconciliation to verify here. Confirm the OpenTelemetry metrics targets referenced in executor/BUILD.bazel exist in the merged tree so the build resolves."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me check the merge commit's summary and a couple of the important modified files for the overall summary."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I have everything I need. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt, inspected the actual `diff base \u2192 merge commit` diffs for all nine auto-merged files, and written the JSON response.\n\nSummary of what the merge introduces in the auto-merged files:\n\n- **SERVER-135137** (the dominant theme): a new `getSharedHistoryStoreStorageSize` API threaded through the storage-engine hierarchy \u2014 declared with a default `0` implementation in `storage_engine.h` and `kv_engine.h`, overridden in `storage_engine_impl.{h,cpp}` (delegating to the underlying engine) and in `wiredtiger_kv_engine.{h,cpp}` (reads `WT_STAT_DSRC_BLOCK_SIZE` for the new `kSharedHistoryStoreFileUri` constant added to `wiredtiger_util.h`, returning 0 on `NoSuchKey`).\n- **SERVER-135488**: `startup_recovery.cpp` now computes `enableSizeStats` instead of hard-coding `true`, disabling size stats when parallel record-store slicing is active.\n- **executor/BUILD.bazel**: adds OpenTelemetry metrics Bazel dependencies to two libraries and one unit-test target.\n\nEvery claim in the response is backed by lines I read in the actual diff. No conflict markers were present (clean `ort` auto-merge), and no Percona-specific code appears in these files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260930_215449_039506.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.286 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "d420b565eb6cb069cec6f8c7a6390079a31e0289",
+    "short_sha": "d420b565eb6",
+    "strategy": null,
+    "summary": "The window is 35 commits; cutting here takes 33 of them, comfortably within the ~30-65 target band, while leaving the freshest 2 (SERVER-130885 $lookup validation and SERVER-134268 SBE sort) for the next batch per the 'stop short of unsettled commits' rule. d420b565 (SERVER-135500) is a self-contained collection-validation improvement and pairs naturally with the immediately preceding be7480f4 (SERVER-135488), which also reworks collection validation metrics -- so this boundary keeps that validation-related work together rather than splitting it. No reverts span this cut, and the trailing commits left out are independent units, so nothing coherent is broken across the boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36782067324"
+  }
+}
