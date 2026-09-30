@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 13,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.687640233981482,
-    "files_affected": 85,
-    "total_additions": 3103,
-    "total_deletions": 713,
+    "commits_behind": 30,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 8.491736374189815,
+    "files_affected": 150,
+    "total_additions": 4388,
+    "total_deletions": 1634,
     "date_range": {
       "first": "2026-09-21T18:24:19+00:00",
-      "last": "2026-09-22T09:59:08+00:00"
+      "last": "2026-09-23T00:38:43+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,176 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "010123df9fcbad1c4d306f191c4bf81436e569e5",
+      "short_sha": "010123df9fc",
+      "date": "2026-09-23T00:38:43+00:00",
+      "author": {
+        "name": "Ryan Roelke",
+        "email": "rroelke@users.noreply.github.com"
+      },
+      "summary": "SERVER-134071: Iceberg sink can write to existing tables which are partitioned on a nested struct field (#63070)"
+    },
+    {
+      "sha": "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+      "short_sha": "9e49fe7112b",
+      "date": "2026-09-22T23:18:12+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: ba66aae727a45d41ad84357c035de2bb0c3880b6 from branch mongodb-master (#63122)"
+    },
+    {
+      "sha": "afdc2db672377637fc07fe89dfc6c404ebab83a3",
+      "short_sha": "afdc2db6723",
+      "date": "2026-09-22T20:54:08+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134863 Harden oplog application against malformed collection validators (#62934)\" (#63179)"
+    },
+    {
+      "sha": "a738764e8aa7b595d8405d91e448f7138e3a4023",
+      "short_sha": "a738764e8aa",
+      "date": "2026-09-22T20:51:11+00:00",
+      "author": {
+        "name": "Luke Pearson",
+        "email": "luke.pearson@mongodb.com"
+      },
+      "summary": "SERVER-134997 Version the WiredTiger size metrics log (#63147)"
+    },
+    {
+      "sha": "b51ed2fd22b1d68aec4e1fe2bedcde1cc1b7a5d8",
+      "short_sha": "b51ed2fd22b",
+      "date": "2026-09-22T19:58:07+00:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-135223: Fix incorrect usage of waitForState (#62957)"
+    },
+    {
+      "sha": "6465dfbac2f92bd47ca0a05ccf9c738462ba4780",
+      "short_sha": "6465dfbac2f",
+      "date": "2026-09-22T18:08:36+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-135391 Route SimulateCrash shrink warning through hook logger and test growth path (#63073)"
+    },
+    {
+      "sha": "e6c6b0377fe781261a6f63fd1f0da3a83a3ddd9b",
+      "short_sha": "e6c6b0377fe",
+      "date": "2026-09-22T17:59:17+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-128900 Disambiguate validation results (#60021)\" (#63143)"
+    },
+    {
+      "sha": "be1699de5e81ca2bb9b58656361f72f301fd8808",
+      "short_sha": "be1699de5e8",
+      "date": "2026-09-22T17:39:04+00:00",
+      "author": {
+        "name": "adriangzz",
+        "email": "adriangonzalezmontemayor@gmail.com"
+      },
+      "summary": "SERVER-135226 Node aborts on invariant when KMIP decryption is cancelled by shutdown (#63008)"
+    },
+    {
+      "sha": "2aa9e7161ca329cd0ac893968695e01a41352ee6",
+      "short_sha": "2aa9e7161ca",
+      "date": "2026-09-22T17:36:04+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-135484 Catch errors dropping spill table (#63118)"
+    },
+    {
+      "sha": "411e98a7bc9afc96e1894a4c4c4ae5381750010f",
+      "short_sha": "411e98a7bc9",
+      "date": "2026-09-22T17:07:46+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-135479 Set multikey before adding keys for PDIB (#63112)"
+    },
+    {
+      "sha": "58d15cf314d3f34817573f33d657575efdcaa0ea",
+      "short_sha": "58d15cf314d",
+      "date": "2026-09-22T16:25:04+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-129785 Define a set of BinData subtypes that $convert, $const and $function can convert to (#61438)"
+    },
+    {
+      "sha": "d3a6b7c67d1e4722e1f02a1b10f22d459cadb481",
+      "short_sha": "d3a6b7c67d1",
+      "date": "2026-09-22T14:27:52+00:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-128900 Disambiguate validation results (#60021)"
+    },
+    {
+      "sha": "89a44c10b4f1dc52b2c853aee85d179f7dade7f5",
+      "short_sha": "89a44c10b4f",
+      "date": "2026-09-22T14:23:21+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-134863 Harden oplog application against malformed collection validators (#62934)"
+    },
+    {
+      "sha": "041cb8433de644a5a89d473cc8dd46492fd1a3b1",
+      "short_sha": "041cb8433de",
+      "date": "2026-09-22T14:22:27+00:00",
+      "author": {
+        "name": "William Zhou",
+        "email": "william.zhou@mongodb.com"
+      },
+      "summary": "SERVER-135381 Bump mongot and rerank extension version to v2.0.6 (#63102)"
+    },
+    {
+      "sha": "f7d45cd8863e64cadc67b355fc0d2a7cdc0dbfa1",
+      "short_sha": "f7d45cd8863",
+      "date": "2026-09-22T13:44:40+00:00",
+      "author": {
+        "name": "Kyra Ramesh Krishna",
+        "email": "60921433+kyra-rk@users.noreply.github.com"
+      },
+      "summary": "SERVER-133484: Add the isServerInitiatedTransaction IDL definitions and feature flag (#61538)"
+    },
+    {
+      "sha": "ca84efc482feb13d4d9a76b2ecaf74c2f88078a3",
+      "short_sha": "ca84efc482f",
+      "date": "2026-09-22T13:40:47+00:00",
+      "author": {
+        "name": "prm-official",
+        "email": "philip.miljanic@mongodb.com"
+      },
+      "summary": "SERVER-134478 Updated getExtensionStubParserDirectory to use startup cwd to avoid path change issues when test server is started with --fork. (#63006)"
+    },
+    {
+      "sha": "f972476a651053c9d3110ecf43a0ce0c18df54c5",
+      "short_sha": "f972476a651",
+      "date": "2026-09-22T11:03:06+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135406 Disable change stream multiversion tests (#63046)"
+    },
     {
       "sha": "dde18219bd09c7ca38c3cd7c8ea178f9cede39a6",
       "short_sha": "dde18219bd0",
@@ -175,6 +345,26 @@
   "merge_picks": [
     {
       "commit": {
+        "sha": "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+        "short_sha": "a52342af685",
+        "date": "2026-09-21T22:44:53+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 6c446256635bd0a702a14cb08d5d70505e1cbfe7 from branch mongodb-master (#63043)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-a52342af685/main",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "bc1f8232c8ced7bb0442d95641793f9ba21335b1",
         "short_sha": "bc1f8232c8c",
         "date": "2026-09-22T00:00:58+00:00",
@@ -190,10 +380,51 @@
           "MODULE.bazel.lock"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "be1699de5e81ca2bb9b58656361f72f301fd8808",
+        "short_sha": "be1699de5e8",
+        "date": "2026-09-22T17:39:04+00:00",
+        "author": {
+          "name": "adriangzz",
+          "email": "adriangonzalezmontemayor@gmail.com"
+        },
+        "summary": "SERVER-135226 Node aborts on invariant when KMIP decryption is cancelled by shutdown (#63008)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+        "short_sha": "9e49fe7112b",
+        "date": "2026-09-22T23:18:12+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: ba66aae727a45d41ad84357c035de2bb0c3880b6 from branch mongodb-master (#63122)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 17,
+          "num_of_lines": 939,
+          "lines_added": 175,
+          "lines_deleted": 764,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-29 10:54:24",
+  "generated_at": "2026-09-30 06:12:11",
   "branch_name": "master",
   "display_name": "master"
 }
