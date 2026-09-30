@@ -1,0 +1,232 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "02ca2a65f114c5e973030b4449be690b95b17ce1",
+    "merge_commit": "9e49fe7112bc89377b708976aa056b5fc5b78ba0"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "conflict_context": {
+    "ours_commit": "02ca2a65f114c5e973030b4449be690b95b17ce1",
+    "theirs_commit": "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+    "base_commit": "a52342af6858c464497a3b6fb3c48ab473f5c3c8",
+    "files": [
+      "MODULE.bazel.lock",
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 207a32805b6,a676db71640..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -569,1 -569,1 +569,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"PdoDt2FqL+l1PYiJjlipXzvstjnqhvGBarPUiicTq8k=\",\n++||||||| a52342af685\n++        \"bzlTransitiveDigest\": \"JSaooGL+qqLvDJe2gX14L7m9UcsJBjWmoyODNwZemJ8=\",\n++=======\n+         \"bzlTransitiveDigest\": \"4q+urDOQABxFwFMUpKJKJnd6uVwVfm/PROjIt8jGFF8=\",\n++>>>>>>> 9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 05b5d06cc02,d57cdc280eb..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -38,1 -38,1 +38,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52 + 1);\n++||||||| a52342af685\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 52);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);\n++>>>>>>> 9e49fe7112bc89377b708976aa056b5fc5b78ba0"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "58d15cf314d3f34817573f33d657575efdcaa0ea",
+        "bc1f8232c8ced7bb0442d95641793f9ba21335b1"
+      ],
+      "src/mongo/db/commands/profile_common.cpp": [
+        "f7d45cd8863e64cadc67b355fc0d2a7cdc0dbfa1"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+    "merged_commits": [
+      "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+      "afdc2db672377637fc07fe89dfc6c404ebab83a3",
+      "a738764e8aa7b595d8405d91e448f7138e3a4023",
+      "b51ed2fd22b1d68aec4e1fe2bedcde1cc1b7a5d8",
+      "6465dfbac2f92bd47ca0a05ccf9c738462ba4780",
+      "e6c6b0377fe781261a6f63fd1f0da3a83a3ddd9b",
+      "be1699de5e81ca2bb9b58656361f72f301fd8808",
+      "2aa9e7161ca329cd0ac893968695e01a41352ee6",
+      "411e98a7bc9afc96e1894a4c4c4ae5381750010f",
+      "58d15cf314d3f34817573f33d657575efdcaa0ea",
+      "d3a6b7c67d1e4722e1f02a1b10f22d459cadb481",
+      "89a44c10b4f1dc52b2c853aee85d179f7dade7f5",
+      "041cb8433de644a5a89d473cc8dd46492fd1a3b1",
+      "f7d45cd8863e64cadc67b355fc0d2a7cdc0dbfa1",
+      "ca84efc482feb13d4d9a76b2ecaf74c2f88078a3",
+      "f972476a651053c9d3110ecf43a0ce0c18df54c5",
+      "dde18219bd09c7ca38c3cd7c8ea178f9cede39a6",
+      "12b3229ee271d76353d7ae696c410df57bc34c54",
+      "9e0943627a5f732ce070b98b509d4701286b86cc",
+      "6ed85676b72e7118489d2e2cf347d0927cd0e8a1",
+      "bc1f8232c8ced7bb0442d95641793f9ba21335b1"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '9e49fe7112b' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved two merge conflicts. In profile_common.cpp, combined both\nsides' additions to the ProfileCmdRequest field metadata static assert:\nupstream raised its base count from 52 to 53, and Percona keeps its '+1'\noffset for the Percona-specific 'ratelimit' field, giving '53 + 1'. In\nMODULE.bazel.lock, removed the conflict markers by accepting upstream's\nbzlTransitiveDigest and regenerated the file with 'bazel query //...'.\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "38f8be6e166ec30dcc615b0a51a4ae67c874dc3f"
+    },
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '9e49fe7112b' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "bazel/integration_test_wrapper.sh": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (b): a latent race in Percona's own RBE replica-set\nfixture (bazel/integration_test_wrapper.sh, PSMDB-1924), exposed by\n//src/mongo/client:replica_set_monitor_integration_test. The wrapper\nonly waited for the node it connected to (p0) to report\nisWritablePrimary; in a 2-node set the other node can win the election,\nand in this run node 1 became PRIMARY while p0 stayed SECONDARY, so the\ncheck timed out and falsely reported 'no primary' even though\nrs.status() showed a healthy elected primary. Fixed the readiness check\nto wait for the SET to have a primary (via the hello 'primary' field,\npopulated on primaries and secondaries alike).\n\nResolved:\n\tbazel/integration_test_wrapper.sh\n\nCI: build-and-test run 36714459626 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "9b49ea621a7e17a9e112eed54ae97f89d23e5a55"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 52675,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.23891625,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2737,
+        "cacheReadInputTokens": 49435,
+        "cacheCreationInputTokens": 23319,
+        "webSearchRequests": 0,
+        "costUSD": 0.23891625,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 327,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2737,
+            "cache_read": 49435,
+            "cache_creation": 23319
+          },
+          "cost_usd": 0.23891625
+        }
+      }
+    },
+    "text_result": "I've analyzed the incoming merge diff (base `a52342af685` \u2192 merge commit `9e49fe7112b`) for each auto-merged file and written the JSON response.\n\nSummary of what the merge introduces:\n\n- **`.bazelrc`** \u2014 Retargets the ppc64le/s390x cross-compile RBE configs (rhel8 & rhel10, x86_64 & arm64) from a rhel9 execution host to matching-distro exec hosts.\n- **`MODULE.bazel.lock`** (conflict) \u2014 jstestfuzz commit/digest bump plus cross-toolchain repo-spec renames mirroring the `.bazelrc` change. Per policy, regenerate via `bazel query //...` after all other conflicts.\n- **`profile_common.cpp`** (conflict) \u2014 Static assert on `ProfileCmdRequest::fieldMetadata.size()` goes 52 \u2192 53; the fork's `52 + 1` equals 53, so resolving to 53 is consistent.\n- **`wiredtiger_kv_engine.cpp`** \u2014 New `ECANCELED` handling in `setRecoveryCheckpointMetadata` returning `ShutdownInProgress`.\n- **`wiredtiger_util.cpp`** \u2014 Adds deleted key/value cell stats and a schema version (2) to the size-metrics LOGV2.\n\nI noted the two conflicts and the lock-file regeneration step in the review notes.",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the PSMDB master branch. The incoming changes retarget the Linux cross-compilation RBE toolchains from rhel9 execution hosts to matching rhel8/rhel10 execution hosts, bump the pinned jstestfuzz commit, add a new profiler command option (raising the ProfileCmdRequest field count from 52 to 53), handle ECANCELED during WiredTiger checkpoint-metadata pickup at shutdown, and extend WiredTiger size-metrics logging with deleted key/value cell statistics and a schema version. Two files conflicted (MODULE.bazel.lock and profile_common.cpp) and were resolved.",
+      "auto_merged": {
+        ".bazelrc": "Retargets the ppc64le and s390x cross-compilation RBE configs (rhel8 and rhel10 targets, both x86_64 and arm64 exec variants) so their execution platform, toolchains and MONGO_LINUX_CROSS_TOOLCHAIN repo_env now use a matching-distro exec host (rhel8_*/rhel10_*) instead of the previous rhel9_* exec host. The rhel9 target configs are unchanged.",
+        "MODULE.bazel.lock": "Conflicted file (both modified). The incoming changes update the jstestfuzz_repository bzlTransitiveDigest and its pinned git commit (101ae461... -> ffd9738a...), and rename the generated cross-toolchain repo specs from *_on_rhel9_x86_64 / *_on_rhel9_aarch64 to *_on_rhel8_* and *_on_rhel10_* (with exec_distro changed from rhel9 to rhel8/rhel10 accordingly), matching the .bazelrc retargeting; the setup_mongo_linux_cross_toolchains_extension bzlTransitiveDigest is updated. The conflict is confined to bzlTransitiveDigest values and per project policy should be regenerated by running 'bazel query //... >/dev/null' after all other conflicts are resolved.",
+        "src/mongo/db/commands/profile_common.cpp": "Conflicted file (both modified). Upstream raised the MONGO_STATIC_ASSERT on ProfileCmdRequest::fieldMetadata.size() from 52 to 53 (a new profile command option was added). The fork side expressed the same count as '52 + 1'. Resolving to 53 keeps both sides consistent since the values are equal; verify the resolved assert matches the actual generated field count.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "In WiredTigerKVEngine::setRecoveryCheckpointMetadata, adds handling for an ECANCELED return: it now returns ErrorCodes::ShutdownInProgress with a message that the checkpoint metadata could not be applied because the server is shutting down, so the checkpoint is abandoned without advancing the metadata LSN and is picked up again on restart. This case is handled before the existing invariantWTOK(ret).",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::logStorageSizeStats, adds a kSizeMetricsSchemaVersion (=2) constant and four new statistics read from the btree size stats (deletedKeyBytes, deletedKeyCount, deletedValueBytes, deletedValueCount for WT_STAT_DSRC_BTREE_SIZE_DELETED_* counters). The 'WiredTiger size metrics' LOGV2 (id 12951900) now also logs schemaVersion and the four deleted key/value attributes."
+      },
+      "review_notes": "Two files were in conflict. (1) profile_common.cpp: the fork carried '52 + 1' and upstream moved to '53'; both are equal so resolving to 53 is correct, but confirm the field count still matches after the merge. (2) MODULE.bazel.lock: do not hand-merge; remove markers by taking one side then regenerate with 'bazel query //... >/dev/null'. The .bazelrc rhel8/rhel10-on-matching-distro exec host retargeting and the corresponding MODULE.bazel.lock repo-spec renames must stay in sync. The wiredtiger_util.cpp change bumps the size-metrics log schema to version 2; downstream log consumers should be aware of the new fields."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the incoming merge diff (base `a52342af685` \u2192 merge commit `9e49fe7112b`) for each auto-merged file and written the JSON response.\n\nSummary of what the merge introduces:\n\n- **`.bazelrc`** \u2014 Retargets the ppc64le/s390x cross-compile RBE configs (rhel8 & rhel10, x86_64 & arm64) from a rhel9 execution host to matching-distro exec hosts.\n- **`MODULE.bazel.lock`** (conflict) \u2014 jstestfuzz commit/digest bump plus cross-toolchain repo-spec renames mirroring the `.bazelrc` change. Per policy, regenerate via `bazel query //...` after all other conflicts.\n- **`profile_common.cpp`** (conflict) \u2014 Static assert on `ProfileCmdRequest::fieldMetadata.size()` goes 52 \u2192 53; the fork's `52 + 1` equals 53, so resolving to 53 is consistent.\n- **`wiredtiger_kv_engine.cpp`** \u2014 New `ECANCELED` handling in `setRecoveryCheckpointMetadata` returning `ShutdownInProgress`.\n- **`wiredtiger_util.cpp`** \u2014 Adds deleted key/value cell stats and a schema version (2) to the size-metrics LOGV2.\n\nI noted the two conflicts and the lock-file regeneration step in the review notes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20260930_112800_400937.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.285 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "9e49fe7112bc89377b708976aa056b5fc5b78ba0",
+    "short_sha": "9e49fe7112b",
+    "strategy": "huge_commit",
+    "summary": "The WiredTiger vendored import (huge_commit) is an ideal merge boundary: it touches a well-isolated set of third-party files, rarely depends on the commits after it, and is easy to validate post-merge. Crucially, cutting here at the 22nd of 24 candidates keeps both in-range revert pairs together so they cancel out instead of importing-then-removing: SERVER-128900 (d3a6b7c6) with its revert (e6c6b0377), and SERVER-134863 (89a44c10) with its revert (afdc2db67) \u2014 all four land before this import. This yields a ~22-commit coherent batch (reasonable given the 24-commit window), while leaving the two freshest, still-unsettled commits (Iceberg sink change, transaction cache-pressure test, rename-across-DB fix) for the next batch to let any upstream churn settle.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36708366319"
+  },
+  "note_index": [
+    {
+      "sha": "59f88fd706cb934cba89fc890c62ef9be4a45cbe",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "solutions[1]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "b75a77e6152451e6729d9f08ecebb4a2d0fc2f0f",
+      "message": "Merge commit '9e49fe7112b' into master"
+    },
+    {
+      "sha": "38f8be6e166ec30dcc615b0a51a4ae67c874dc3f",
+      "message": "Resolve conflicts for merge commit '9e49fe7112b' into master"
+    },
+    {
+      "sha": "9b49ea621a7e17a9e112eed54ae97f89d23e5a55",
+      "message": "Fix 'build-and-test' failure for merge commit '9e49fe7112b' into 'master'"
+    }
+  ]
+}
