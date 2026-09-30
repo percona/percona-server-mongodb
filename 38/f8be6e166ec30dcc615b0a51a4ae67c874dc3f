@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "02ca2a65f114c5e973030b4449be690b95b17ce1",
+    "merge_commit": "9e49fe7112bc89377b708976aa056b5fc5b78ba0"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '9e49fe7112b' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "src/mongo/db/commands/profile_common.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved two merge conflicts. In profile_common.cpp, combined both\nsides' additions to the ProfileCmdRequest field metadata static assert:\nupstream raised its base count from 52 to 53, and Percona keeps its '+1'\noffset for the Percona-specific 'ratelimit' field, giving '53 + 1'. In\nMODULE.bazel.lock, removed the conflict markers by accepting upstream's\nbzlTransitiveDigest and regenerated the file with 'bazel query //...'.\n\nResolved:\n\tsrc/mongo/db/commands/profile_common.cpp\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "38f8be6e166ec30dcc615b0a51a4ae67c874dc3f"
+    }
+  ]
+}
