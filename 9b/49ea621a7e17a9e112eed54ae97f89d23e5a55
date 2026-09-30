@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "02ca2a65f114c5e973030b4449be690b95b17ce1",
+    "merge_commit": "9e49fe7112bc89377b708976aa056b5fc5b78ba0"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '9e49fe7112b' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "bazel/integration_test_wrapper.sh": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (b): a latent race in Percona's own RBE replica-set\nfixture (bazel/integration_test_wrapper.sh, PSMDB-1924), exposed by\n//src/mongo/client:replica_set_monitor_integration_test. The wrapper\nonly waited for the node it connected to (p0) to report\nisWritablePrimary; in a 2-node set the other node can win the election,\nand in this run node 1 became PRIMARY while p0 stayed SECONDARY, so the\ncheck timed out and falsely reported 'no primary' even though\nrs.status() showed a healthy elected primary. Fixed the readiness check\nto wait for the SET to have a primary (via the hello 'primary' field,\npopulated on primaries and secondaries alike).\n\nResolved:\n\tbazel/integration_test_wrapper.sh\n\nCI: build-and-test run 36714459626 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "9b49ea621a7e17a9e112eed54ae97f89d23e5a55"
+    }
+  ]
+}
