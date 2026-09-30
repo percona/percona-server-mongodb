@@ -252,12 +252,20 @@ replset)
     p0="$last_node_port"
     wait_ready "$rs1_log" "$rs1_pid"
     p1="$last_node_port"
-    # Initiate the set and wait for a writable primary in ONE shell process.
-    # A fresh shell per poll cost ~2s startup each (minutes of wall clock);
-    # a single long-lived connection also keeps db bound to the node we
+    # Initiate the set and wait for the set to elect a primary in ONE shell
+    # process. A fresh shell per poll cost ~2s startup each (minutes of wall
+    # clock); a single long-lived connection also keeps db bound to the node we
     # initiated. Use runCommand({hello:1}) rather than the db.hello() helper
     # so this does not depend on shell-helper availability, and dump
     # rs.status() on timeout so a genuine election failure is diagnosable.
+    # Wait for the SET to have a primary, not for the node we happen to be
+    # connected to to become primary: in a 2-node set either member can win the
+    # election, and when the other node wins the node we initiated on stays
+    # SECONDARY forever (its isWritablePrimary never turns true). The hello
+    # 'primary' field is populated on primaries and secondaries alike once a
+    # primary is known, so it is the correct set-wide readiness signal; the
+    # test's connection string names both hosts, so its ReplicaSetMonitor then
+    # finds the primary regardless of which node won.
     init_js="
             assert.commandWorked(rs.initiate({_id: 'rs0', members: [
                 {_id: 0, host: '127.0.0.1:${p0}'},
@@ -265,7 +273,9 @@ replset)
             var ok = false;
             for (var i = 0; i < 120; i++) {
                 try {
-                    if (db.runCommand({hello: 1}).isWritablePrimary === true) {
+                    var res = db.runCommand({hello: 1});
+                    if (res.isWritablePrimary === true ||
+                        (typeof res.primary === 'string' && res.primary.length > 0)) {
                         ok = true;
                         break;
                     }
