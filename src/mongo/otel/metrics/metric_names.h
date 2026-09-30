@@ -111,6 +111,8 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.network.egress.bytesOut");
     static constexpr MetricName kNetworkEgressNumRequests =
         MetricNameMaker::make("mongodb.serverStatus.network.egress.numRequests");
+    static constexpr MetricName kNetworkEgressConnectionsCreated =
+        MetricNameMaker::make("mongodb.network.egress.connections_created");
     static constexpr MetricName kNetworkNumSlowDNSOperations =
         MetricNameMaker::make("mongodb.serverStatus.network.numSlowDNSOperations");
     static constexpr MetricName kNetworkNumSlowSSLOperations =
@@ -669,6 +671,10 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.queryLatencies.singlePlan");
     static constexpr MetricName kQueryLatencyCachedPlan =
         MetricNameMaker::make("mongodb.serverStatus.queryLatencies.cachedPlan");
+    static constexpr MetricName kQueryLatencyJoinOptimization =
+        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.joinOptimization");
+    static constexpr MetricName kQueryLatencyJoinCachedPlan =
+        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.joinCachedPlan");
 
     // Op Counters
     static constexpr MetricName kInsertOpCount =

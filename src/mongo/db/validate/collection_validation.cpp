@@ -618,7 +618,8 @@ void _compareCollectionHash(OperationContext* opCtx,
                       logAttrs(validateState.nss()),
                       logAttrs(validateState.uuid()),
                       "expectedHash"_attr = *expected,
-                      "accumulatedHash"_attr = accumulated);
+                      "accumulatedHash"_attr = accumulated,
+                      "hashDiff"_attr = static_cast<int64_t>(accumulated) ^ *expected);
     }
 } catch (const DBException& e) {
     if (!opCtx->checkForInterruptNoAssert().isOK() || e.code() == ErrorCodes::Interrupted) {
@@ -703,6 +704,13 @@ boost::optional<int64_t> getTargetRecordsPerRecordStoreSlice() {
         return boost::none;
     }
     return gValidateParallelTargetRecordsPerSlice.load();
+}
+
+int64_t getMaxRecordStoreSlices() {
+    if (!gFeatureFlagParallelCollectionValidation.isEnabled()) {
+        return 1;
+    }
+    return gValidateParallelMaxRecordStoreSlices.load();
 }
 
 ValidationOptions parseValidateOptions(OperationContext* opCtx,
