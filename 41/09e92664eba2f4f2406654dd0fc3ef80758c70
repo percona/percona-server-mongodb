@@ -1,0 +1,175 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "478d1418d3b326dd8c114f22fb6cecd32a6a87f1",
+    "merge_commit": "0456fa702ea53036f9c1620db7e51e6aa306e884"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "0456fa702ea53036f9c1620db7e51e6aa306e884",
+    "merged_commits": [
+      "0456fa702ea53036f9c1620db7e51e6aa306e884",
+      "d9f0fca1347504c2c8b74fbd20d05933c2bf1b8d",
+      "507c2143439f902023ef1d23a30ef40066ad834a",
+      "6d0f2bb435ecead11d2ca7df2115256b52133e49",
+      "56574e93869f566dd92765805002e8a79b5d12b7",
+      "ebe05bd85c78e23ddfd511dd28de54c89a32f1b1",
+      "4e90f0985468068e491ed2b3767d998e1071c2dd",
+      "7d28c5f7a3ddb5d6da6ab61f44f3229033d08847",
+      "44111a689faa2a9fa3f00d259475ee82bacb05b0"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 52226,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.21466125000000003,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 12,
+        "outputTokens": 3681,
+        "cacheReadInputTokens": 86540,
+        "cacheCreationInputTokens": 12689,
+        "webSearchRequests": 0,
+        "costUSD": 0.21466125000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 680,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 12,
+            "output": 3681,
+            "cache_read": 86540,
+            "cache_creation": 12689
+          },
+          "cost_usd": 0.21466125000000003
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Summary of findings:\n\n**This merge** pulls in upstream WiredTiger changes affecting two vendored third-party files, both auto-merged cleanly:\n\n- **`conn/conn_api.c`** \u2014 adds a new internal-testing `debug_mode.disagg_stepdown_prepare` config option that toggles the new `WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE` flag, letting the test suite bypass step-down/prepare bans.\n\n- **`include/wiredtiger.h.in`** \u2014 adds one new connection statistic, `WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES` (1031), for failed page inserts into the disaggregated victim cache. I verified programmatically that this is the *only* net-new stat (zero removed); the rest of the large diff is purely the +1 renumbering of all subsequent `WT_STAT_CONN_*` IDs.\n\nNo Percona-specific lines were touched, and no conflicts were present.",
+    "response": {
+      "summary": "This merge pulls in upstream WiredTiger changes to the vendored third-party sources. Two files are affected, both auto-merged without conflicts. The functional change is the addition of a new internal debug-mode configuration option (debug_mode.disagg_stepdown_prepare) that sets/clears a new WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE connection debug flag, plus a new connection statistic for failed page inserts into the disaggregated victim cache (WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES). Inserting that statistic shifts the numeric IDs of all subsequent WT_STAT_CONN_* constants in the generated header by one.",
+      "auto_merged": {
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In __wti_debug_mode_config, adds parsing of a new 'debug_mode.disagg_stepdown_prepare' config key. When set, it enables the WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE flag on conn->debug.flags; otherwise it clears it. The inline comment notes this is internal-testing-only and lets the test suite bypass the step-down/prepare bans. This block is inserted between the existing DISAGG_SLOW_TRUNCATE_FOLLOWER handling and the eviction debug-mode handling.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds one new connection statistic constant, WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES (value 1031), documented as 'block-cache: failed page inserts into the disaggregated victim cache'. Because this constant is inserted into the ordered list, every following WT_STAT_CONN_* #define has its numeric value incremented by one (e.g. WT_STAT_CONN_BLOCK_CACHE_BYPASS_FILESIZE 1031->1032, and so on through the rest of the header). No statistics were removed; the only net-new symbol is WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES. All other lines in this file's diff are pure ID renumbering, not semantic changes."
+      },
+      "review_notes": "Both files are vendored WiredTiger sources and were auto-merged by the ort strategy with no conflicts. No Percona-specific lines are touched. The wiredtiger.h.in diff is large (~185KB) but consists almost entirely of mechanical statistic-ID renumbering triggered by the single inserted WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES constant (verified: exactly one net-new WT_STAT define, zero removed). The only behavioral addition is the new internal-testing debug_mode.disagg_stepdown_prepare option in conn_api.c. No action needed beyond confirming the vendored copy stays in sync; the renumbered stat IDs are consumed elsewhere in the WiredTiger stat machinery and should be regenerated/consistent as part of the upstream drop."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for the two auto-merged files to describe what this merge introduces."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The wiredtiger.h.in diff is large and mostly statistic ID renumbering. Let me find the meaningful non-renumbering changes."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Confirmed. Now I understand the full picture. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Summary of findings:\n\n**This merge** pulls in upstream WiredTiger changes affecting two vendored third-party files, both auto-merged cleanly:\n\n- **`conn/conn_api.c`** \u2014 adds a new internal-testing `debug_mode.disagg_stepdown_prepare` config option that toggles the new `WT_CONN_DEBUG_DISAGG_STEPDOWN_PREPARE` flag, letting the test suite bypass step-down/prepare bans.\n\n- **`include/wiredtiger.h.in`** \u2014 adds one new connection statistic, `WT_STAT_CONN_BLOCK_CACHE_PUT_FAILURES` (1031), for failed page inserts into the disaggregated victim cache. I verified programmatically that this is the *only* net-new stat (zero removed); the rest of the large diff is purely the +1 renumbering of all subsequent `WT_STAT_CONN_*` IDs.\n\nNo Percona-specific lines were touched, and no conflicts were present."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261001_133459_006245.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.286 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "0456fa702ea53036f9c1620db7e51e6aa306e884",
+    "short_sha": "0456fa702ea",
+    "strategy": null,
+    "summary": "The window has only 10 commits, so a larger coherent batch is preferred over an arbitrarily small cut. Critically, SERVER-130885 (44111a689) and its auto-revert (56574e9) are both in range; the rules require keeping a revert with what it reverts in the same batch so they cancel out, which rules out any boundary before the revert (e.g. the wiredtiger import ebe05bd, which would otherwise be an ideal atomic boundary but sits before the revert and would import the feature upstream undoes). Among the post-revert candidates, 0456fa7 (SERVER-134869 golden test, 992 additions / 0 deletions) is a self-contained, isolated test-only commit that makes a clean, easy-to-validate boundary. It also leaves only the single freshest commit (694241ea 'Guard query collator access') for the next batch, honoring 'stop short of unsettled commits' by not ending on the very newest candidate.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/36869327603"
+  }
+}
