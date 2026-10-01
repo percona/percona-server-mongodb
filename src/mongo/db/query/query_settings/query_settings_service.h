@@ -67,8 +67,7 @@ struct RepresentativeQueryInfo {
  * Creates a RepresentativeQueryInfo for the given query.
  */
 RepresentativeQueryInfo createRepresentativeInfo(OperationContext* opCtx,
-                                                 const QueryInstance& queryInstance,
-                                                 const boost::optional<TenantId>& tenantId);
+                                                 const QueryInstance& queryInstance);
 
 class [[MONGO_MOD_PUBLIC]] QuerySettingsService {
 public:
@@ -103,16 +102,6 @@ public:
      */
     static void applyMaxTimeMSFromSettings(const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                            const QuerySettings& settings);
-
-    /**
-     * Returns a set of system and administrative aggregation pipeline stages that, if used as the
-     * initial stage, prevent the query from being rejected via query settings.
-     *
-     * Query settings module is responsible for maintaining the information about what aggregation
-     * stages can be rejected.
-     */
-    static const stdx::unordered_set<std::string_view, StringMapHasher>&
-    getRejectionIncompatibleStages();
 
     /**
      * Creates the QuerySettingsService that is attached to the 'serviceContext' with the logic
@@ -150,7 +139,6 @@ public:
     virtual QuerySettings lookupQuerySettingsWithRejectionCheck(
         const boost::intrusive_ptr<ExpressionContext>& expCtx,
         const query_shape::QueryShapeHash& queryShapeHash,
-        const NamespaceString& nss,
         const boost::optional<QuerySettings>& querySettingsFromOriginalCommand) const = 0;
 
     /**
@@ -183,7 +171,7 @@ public:
         }
 
         return lookupQuerySettingsWithRejectionCheck(
-            expCtx, *queryShapeHash, nss, querySettingsFromOriginalCommand);
+            expCtx, *queryShapeHash, querySettingsFromOriginalCommand);
     }
 
     /**
@@ -206,26 +194,23 @@ public:
     /**
      * Returns all the query shape configurations and the timestamp of the last modification.
      */
-    virtual QueryShapeConfigurationsWithTimestamp getAllQueryShapeConfigurations(
-        const boost::optional<TenantId>& tenantId) const = 0;
+    virtual QueryShapeConfigurationsWithTimestamp getAllQueryShapeConfigurations() const = 0;
 
     /**
      * Sets all the query shape configurations with the given timestamp.
      */
     virtual void setAllQueryShapeConfigurations(
-        QueryShapeConfigurationsWithTimestamp&& queryShapeConfigurations,
-        const boost::optional<TenantId>& tenantId) = 0;
+        QueryShapeConfigurationsWithTimestamp&& queryShapeConfigurations) = 0;
 
     /**
      * Removes all query shape configurations.
      */
-    virtual void removeAllQueryShapeConfigurations(const boost::optional<TenantId>& tenantId) = 0;
+    virtual void removeAllQueryShapeConfigurations() = 0;
 
     /**
      * Returns the LogicalTime of the 'querySettings' cluster parameter.
      */
-    virtual LogicalTime getClusterParameterTime(
-        const boost::optional<TenantId>& tenantId) const = 0;
+    virtual LogicalTime getClusterParameterTime() const = 0;
 
     /**
      * Creates the corresponding 'querySettings' cluster parameter value out of the 'config' and
@@ -352,12 +337,6 @@ public:
     void sanitizeQuerySettingsHints(
         std::vector<QueryShapeConfiguration>& queryShapeConfigurations) const;
 };
-
-/**
- * Returns true if the aggregation pipeline 'pipeline' does not start with rejection incompatible
- * stage, and therefore can be rejected.
- */
-bool canPipelineBeRejected(const std::vector<BSONObj>& pipeline);
 
 /**
  * Determines if 'querySettings' field is allowed to be present as part of the command request for

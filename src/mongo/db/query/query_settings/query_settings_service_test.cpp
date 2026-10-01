@@ -7,6 +7,7 @@
 #include "mongo/bson/json.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/db/client.h"
+#include "mongo/db/commands.h"
 #include "mongo/db/logical_time.h"
 #include "mongo/db/namespace_string_util.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -20,6 +21,7 @@
 #include "mongo/db/query/query_settings/query_settings.h"
 #include "mongo/db/query/query_settings/query_settings_cluster_parameter_gen.h"
 #include "mongo/db/query/query_settings/query_settings_context.h"
+#include "mongo/db/query/query_settings/query_settings_context_test_util.h"
 #include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/db/query/query_shape/agg_cmd_shape.h"
 #include "mongo/db/query/query_shape/distinct_cmd_shape.h"
@@ -52,10 +54,8 @@ static bool operator==(const QueryShapeConfigurationsWithTimestamp& lhs,
 namespace {
 using namespace std::literals::string_view_literals;
 using namespace query_settings_details;
-static auto const kSerializationContext =
-    SerializationContext{SerializationContext::Source::Command,
-                         SerializationContext::CallerType::Request,
-                         SerializationContext::Prefix::ExcludePrefix};
+static auto const kSerializationContext = SerializationContext{
+    SerializationContext::Source::Command, SerializationContext::CallerType::Request};
 
 BSONObj makeSettingsClusterParameter(const QueryShapeConfigurationsWithTimestamp& config) {
     BSONArrayBuilder settings;
@@ -90,7 +90,7 @@ QuerySettings makeQuerySettings(const IndexHintSpecs& indexHints, bool setFramew
 
 auto makeDbName(std::string_view dbName) {
     return DatabaseNameUtil::deserialize(
-        boost::none /*tenantId=*/, dbName, SerializationContext::stateDefault());
+        /* tenantId */ boost::none, dbName, SerializationContext::stateDefault());
 }
 
 NamespaceSpec makeNsSpec(std::string_view collName) {
@@ -106,20 +106,18 @@ public:
                        std::vector<QueryShapeConfiguration> queryShapeConfigurations)
         : _opCtx(opCtx),
           _previousQueryShapeConfigurationsWithTimestamp(
-              QuerySettingsService::get(opCtx).getAllQueryShapeConfigurations(
-                  boost::none /* tenantId */)) {
+              QuerySettingsService::get(opCtx).getAllQueryShapeConfigurations()) {
         LogicalTime newTime = _previousQueryShapeConfigurationsWithTimestamp.clusterParameterTime;
         newTime.addTicks(1);
 
         QuerySettingsService::get(_opCtx).setAllQueryShapeConfigurations(
-            QueryShapeConfigurationsWithTimestamp{queryShapeConfigurations, newTime},
-            boost::none /* tenantId */);
+            QueryShapeConfigurationsWithTimestamp{queryShapeConfigurations, newTime});
     }
 
     ~QuerySettingsScope() {
         _previousQueryShapeConfigurationsWithTimestamp.clusterParameterTime.addTicks(1);
         QuerySettingsService::get(_opCtx).setAllQueryShapeConfigurations(
-            std::move(_previousQueryShapeConfigurationsWithTimestamp), boost::none /* tenantId */);
+            std::move(_previousQueryShapeConfigurationsWithTimestamp));
     }
 
 private:
@@ -141,29 +139,6 @@ public:
 private:
     OperationContext* _opCtx;
     bool _wasInternalClient;
-};
-
-class ExplainScope {
-public:
-    ExplainScope(boost::intrusive_ptr<ExpressionContext> expCtx, const BSONObj& originalCmd)
-        : _expCtx(expCtx),
-          _explainCmdBSON(BSON("explain" << originalCmd)),
-          _previousExplain(_expCtx->getExplain()) {
-        _expCtx->setExplain(ExplainOptions::Verbosity::kQueryPlanner);
-    }
-
-    BSONObj explainCmd() const {
-        return _explainCmdBSON;
-    }
-
-    ~ExplainScope() {
-        _expCtx->setExplain(_previousExplain);
-    }
-
-private:
-    boost::intrusive_ptr<ExpressionContext> _expCtx;
-    BSONObj _explainCmdBSON;
-    boost::optional<ExplainOptions::Verbosity> _previousExplain;
 };
 
 class QuerySettingsServiceTest : public ServiceContextTest {
@@ -194,26 +169,25 @@ public:
 
     static NamespaceString nss() {
         return NamespaceStringUtil::deserialize(
-            boost::none, kDbName, kCollName, kSerializationContext);
+            /* tenantId */ boost::none, kDbName, kCollName, kSerializationContext);
     }
 
     query_shape::QueryShapeHash hashForShape(const query_shape::DeferredQueryShape& shape) {
         return shape().getValue()->sha256Hash(opCtx(), kSerializationContext);
     }
 
-    QueryShapeConfiguration makeQueryShapeConfiguration(
-        const BSONObj& cmdBSON,
-        const QuerySettings& querySettings,
-        boost::optional<TenantId> tenantId = boost::none) {
-        auto queryShapeHash = createRepresentativeInfo(opCtx(), cmdBSON, tenantId).queryShapeHash;
+    QueryShapeConfiguration makeQueryShapeConfiguration(const BSONObj& cmdBSON,
+                                                        const QuerySettings& querySettings) {
+        auto queryShapeHash = createRepresentativeInfo(opCtx(), cmdBSON).queryShapeHash;
         QueryShapeConfiguration config(queryShapeHash, querySettings);
         config.setRepresentativeQuery(cmdBSON);
         return config;
     }
 
-    std::vector<QueryShapeConfiguration> getExampleQueryShapeConfigurations(TenantId tenantId) {
+    std::vector<QueryShapeConfiguration> getExampleQueryShapeConfigurations() {
         NamespaceSpec ns;
-        ns.setDb(DatabaseNameUtil::deserialize(tenantId, kDbName, kSerializationContext));
+        ns.setDb(DatabaseNameUtil::deserialize(
+            /* tenantId */ boost::none, kDbName, kSerializationContext));
         ns.setColl(kCollName);
 
         const QuerySettings settings = makeQuerySettings({IndexHintSpec(ns, {IndexHint("a_1")})});
@@ -221,8 +195,8 @@ public:
             BSON("find" << kCollName << "$db" << kDbName << "filter" << BSON("a" << 2));
         QueryInstance queryB =
             BSON("find" << kCollName << "$db" << kDbName << "filter" << BSON("a" << BSONNULL));
-        return {makeQueryShapeConfiguration(queryA, settings, tenantId),
-                makeQueryShapeConfiguration(queryB, settings, tenantId)};
+        return {makeQueryShapeConfiguration(queryA, settings),
+                makeQueryShapeConfiguration(queryB, settings)};
     }
 
     void assertQuerySettingsLookup(const BSONObj& cmdBSON,
@@ -249,9 +223,6 @@ public:
         const BSONObj& cmdBSON,
         const query_shape::DeferredQueryShape& deferredShape,
         const NamespaceString& nss) {
-        const bool isExplain = cmdBSON.firstElementFieldNameStringData() == "explain";
-        BSONObj cmdForSettingsBSON = isExplain ? cmdBSON.firstElement().Obj() : cmdBSON;
-
         QuerySettings forceClassicEngineSettings;
         forceClassicEngineSettings.setQueryFramework(
             QueryFrameworkControlEnum::kForceClassicEngine);
@@ -263,9 +234,9 @@ public:
                       expCtx(), hashForShape(deferredShape), nss, boost::none),
                   QuerySettings());
 
-        // Set { queryFramework: 'classic' } settings to 'cmdForSettingsBSON'.
+        // Set { queryFramework: 'classic' } settings to 'cmdBSON'.
         QuerySettingsScope forceClassicEngineQuerySettingsScope(
-            opCtx(), {makeQueryShapeConfiguration(cmdForSettingsBSON, forceClassicEngineSettings)});
+            opCtx(), {makeQueryShapeConfiguration(cmdBSON, forceClassicEngineSettings)});
 
         // Ensure that 'forceClassicEngineSettings' are returned during the lookup, after query
         // settings have been populated.
@@ -281,10 +252,6 @@ public:
         const BSONObj& cmdBSON,
         const query_shape::DeferredQueryShape& deferredShape,
         const NamespaceString& nss) {
-
-        const bool isExplain = cmdBSON.firstElementFieldNameStringData() == "explain";
-        BSONObj cmdForSettingsBSON = isExplain ? cmdBSON.firstElement().Obj() : cmdBSON;
-
         QuerySettings forceClassicEngineSettings;
         forceClassicEngineSettings.setQueryFramework(
             QueryFrameworkControlEnum::kForceClassicEngine);
@@ -296,9 +263,9 @@ public:
                       expCtx(), hashForShape(deferredShape), nss, boost::none),
                   QuerySettings());
 
-        // Set { queryFramework: 'classic' } settings to 'cmdForSettingsBSON'.
+        // Set { queryFramework: 'classic' } settings to 'cmdBSON'.
         QuerySettingsScope forceClassicEngineQuerySettingsScope(
-            opCtx(), {makeQueryShapeConfiguration(cmdForSettingsBSON, forceClassicEngineSettings)});
+            opCtx(), {makeQueryShapeConfiguration(cmdBSON, forceClassicEngineSettings)});
 
         // Ensure that in case of a replica set case, a regular query settings lookup is performed.
         ASSERT_EQ(service().lookupQuerySettingsWithRejectionCheck(
@@ -337,18 +304,15 @@ public:
         const BSONObj& cmdBSON,
         const query_shape::DeferredQueryShape& deferredShape,
         const NamespaceString& nss) {
-        const bool isExplain = cmdBSON.firstElementFieldNameStringData() == "explain";
-        BSONObj cmdForSettingsBSON = isExplain ? cmdBSON.firstElement().Obj() : cmdBSON;
-
-        // Set { reject: true } settings to 'cmdForSettingsBSON'.
+        // Set { reject: true } settings to 'cmdBSON'.
         QuerySettings querySettingsWithReject;
         querySettingsWithReject.setReject(true);
         QuerySettingsScope rejectQuerySettingsScope(
-            opCtx(), {makeQueryShapeConfiguration(cmdForSettingsBSON, querySettingsWithReject)});
+            opCtx(), {makeQueryShapeConfiguration(cmdBSON, querySettingsWithReject)});
 
-        // Ensure query is not rejected if an explain query is run, otherwise is rejected by
-        // throwing an exception with QueryRejectedBySettings error code.
-        if (isExplain) {
+        // An invocation which bypasses rejection (e.g. explain) must still run; any other is
+        // rejected with QueryRejectedBySettings.
+        if (CommandInvocation::get(opCtx())->shouldBypassQuerySettingsRejection()) {
             ASSERT_DOES_NOT_THROW(service().lookupQuerySettingsWithRejectionCheck(
                 expCtx(), hashForShape(deferredShape), nss, boost::none));
         } else {
@@ -367,18 +331,15 @@ public:
         const BSONObj& cmdBSON,
         const query_shape::DeferredQueryShape& deferredShape,
         const NamespaceString& nss) {
-        const bool isExplain = cmdBSON.firstElementFieldNameStringData() == "explain";
-        BSONObj cmdForSettingsBSON = isExplain ? cmdBSON.firstElement().Obj() : cmdBSON;
-
-        // Set { reject: true } settings to 'cmdForSettingsBSON'.
+        // Set { reject: true } settings to 'cmdBSON'.
         QuerySettings querySettingsWithReject;
         querySettingsWithReject.setReject(true);
         QuerySettingsScope rejectQuerySettingsScope(
-            opCtx(), {makeQueryShapeConfiguration(cmdForSettingsBSON, querySettingsWithReject)});
+            opCtx(), {makeQueryShapeConfiguration(cmdBSON, querySettingsWithReject)});
 
-        // Ensure query is not rejected if an explain query is run, otherwise is rejected by
-        // throwing an exception with QueryRejectedBySettings error code.
-        if (isExplain) {
+        // An invocation which bypasses rejection (e.g. explain) must still run; any other is
+        // rejected with QueryRejectedBySettings.
+        if (CommandInvocation::get(opCtx())->shouldBypassQuerySettingsRejection()) {
             ASSERT_DOES_NOT_THROW(service().lookupQuerySettingsWithRejectionCheck(
                 expCtx(),
                 hashForShape(deferredShape),
@@ -439,10 +400,15 @@ TEST_F(QuerySettingsServiceTest, QuerySettingsLookupForFind) {
         return shape_helpers::tryMakeShape<query_shape::FindCmdShape>(*parsedRequest, expCtx());
     }};
 
-    assertQuerySettingsLookup(findCmdBSON, deferredShape, nss());
     {
-        ExplainScope explainScope(expCtx(), findCmdBSON);
-        assertQuerySettingsLookup(explainScope.explainCmd(), deferredShape, nss());
+        CommandInvocationScope invocationScope(opCtx());
+        assertQuerySettingsLookup(findCmdBSON, deferredShape, nss());
+    }
+    {
+        // Re-run the lookup as an exempt invocation (e.g. explain): 'reject: true' must not apply.
+        CommandInvocationScope invocationScope(opCtx(),
+                                               /*shouldBypassQuerySettingsRejection=*/true);
+        assertQuerySettingsLookup(findCmdBSON, deferredShape, nss());
     }
 }
 
@@ -459,10 +425,15 @@ TEST_F(QuerySettingsServiceTest, QuerySettingsLookupForAgg) {
             aggCmd, nss(), involvedNamespaces, *pipeline, expCtx());
     }};
 
-    assertQuerySettingsLookup(aggCmdBSON, deferredShape, nss());
     {
-        ExplainScope explainScope(expCtx(), aggCmdBSON);
-        assertQuerySettingsLookup(explainScope.explainCmd(), deferredShape, nss());
+        CommandInvocationScope invocationScope(opCtx());
+        assertQuerySettingsLookup(aggCmdBSON, deferredShape, nss());
+    }
+    {
+        // Re-run the lookup as an exempt invocation (e.g. explain): 'reject: true' must not apply.
+        CommandInvocationScope invocationScope(opCtx(),
+                                               /*shouldBypassQuerySettingsRejection=*/true);
+        assertQuerySettingsLookup(aggCmdBSON, deferredShape, nss());
     }
 }
 
@@ -472,7 +443,7 @@ TEST_F(QuerySettingsServiceTest, QuerySettingsLookupForDistinct) {
         DistinctCommandRequest::parse(distinctCmdBSON,
                                       IDLParserContext("distinctCommandRequest",
                                                        auth::ValidatedTenancyScope::get(opCtx()),
-                                                       boost::none,
+                                                       /* tenantId */ boost::none,
                                                        SerializationContext::stateDefault())));
     auto parsedDistinct =
         parsed_distinct_command::parse(expCtx(),
@@ -484,10 +455,15 @@ TEST_F(QuerySettingsServiceTest, QuerySettingsLookupForDistinct) {
                                                                           expCtx());
     }};
 
-    assertQuerySettingsLookup(distinctCmdBSON, deferredShape, nss());
     {
-        ExplainScope explainScope(expCtx(), distinctCmdBSON);
-        assertQuerySettingsLookup(explainScope.explainCmd(), deferredShape, nss());
+        CommandInvocationScope invocationScope(opCtx());
+        assertQuerySettingsLookup(distinctCmdBSON, deferredShape, nss());
+    }
+    {
+        // Re-run the lookup as an exempt invocation (e.g. explain): 'reject: true' must not apply.
+        CommandInvocationScope invocationScope(opCtx(),
+                                               /*shouldBypassQuerySettingsRejection=*/true);
+        assertQuerySettingsLookup(distinctCmdBSON, deferredShape, nss());
     }
 }
 
@@ -843,7 +819,7 @@ TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsIsNotAppliedForExplain) {
 
     // Under explain, query settings 'maxTimeMS' must not bound the explain operation itself, so the
     // deadline is left untouched (mirrors how 'reject' exempts explain).
-    ExplainScope explainScope(expCtx(), findCmdBSON);
+    expCtx()->setExplain(ExplainOptions::Verbosity::kQueryPlanner);
     ASSERT_EQ(opCtx()->getDeadline(), Date_t::max());
 
     service().lookupQuerySettingsWithRejectionCheck(
