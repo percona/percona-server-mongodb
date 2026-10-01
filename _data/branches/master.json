@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 35,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.88352577755787,
-    "files_affected": 134,
-    "total_additions": 4424,
-    "total_deletions": 978,
+    "commits_behind": 37,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 8.231714576782407,
+    "files_affected": 165,
+    "total_additions": 7443,
+    "total_deletions": 2605,
     "date_range": {
       "first": "2026-09-23T00:38:43+00:00",
-      "last": "2026-09-23T21:14:21+00:00"
+      "last": "2026-09-24T04:46:30+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "ebe05bd85c78e23ddfd511dd28de54c89a32f1b1",
+      "short_sha": "ebe05bd85c7",
+      "date": "2026-09-24T14:46:30+10:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 0afe1e32a643c383e0a3710f6a1efaa4b813d06a from branch mongodb-master (#63209)"
+    },
+    {
+      "sha": "4e90f0985468068e491ed2b3767d998e1071c2dd",
+      "short_sha": "4e90f098546",
+      "date": "2026-09-23T21:38:28+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-132460 Include gdb output when there is an error extracting binary name from core (#63123)"
+    },
     {
       "sha": "7d28c5f7a3ddb5d6da6ab61f44f3229033d08847",
       "short_sha": "7d28c5f7a3d",
@@ -430,10 +450,53 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "d420b565eb6cb069cec6f8c7a6390079a31e0289",
+        "short_sha": "d420b565eb6",
+        "date": "2026-09-23T21:08:23+00:00",
+        "author": {
+          "name": "Stephanie",
+          "email": "53684987+seristof@users.noreply.github.com"
+        },
+        "summary": "SERVER-135500 Include collection hash diff in collection validation failure (#63162)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-d420b565eb6/main",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "ebe05bd85c78e23ddfd511dd28de54c89a32f1b1",
+        "short_sha": "ebe05bd85c7",
+        "date": "2026-09-24T14:46:30+10:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 0afe1e32a643c383e0a3710f6a1efaa4b813d06a from branch mongodb-master (#63209)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 29,
+          "num_of_lines": 4580,
+          "lines_added": 2961,
+          "lines_deleted": 1619,
+          "num_of_dirs": 15
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-09-30 21:50:40",
+  "generated_at": "2026-10-01 06:11:57",
   "branch_name": "master",
   "display_name": "master"
 }
