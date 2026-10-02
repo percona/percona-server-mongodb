@@ -167,12 +167,14 @@ void ServerMechanism::_parseStsResponse(StringData body) {
     ServerMechanismBase::_principalName =
         pt.get<std::string>("GetCallerIdentityResponse.GetCallerIdentityResult.Arn");
 
-    // Convert assumed-role to role
-    static const std::regex assumedRoleRegex(R"(^arn:aws:sts::(\d+):assumed-role/([^/]+)/)");
+    // Convert assumed-role to role, keeping the partition (aws, aws-us-gov, aws-cn, ...).
+    // Matching only "arn:aws:" left GovCloud and China ARNs unconverted, session name included.
+    static const std::regex assumedRoleRegex(
+        R"(^arn:(aws(?:-[a-z]+)*):sts::(\d+):assumed-role/([^/]+)/)");
     if (std::smatch matches;
         std::regex_search(ServerMechanismBase::_principalName, matches, assumedRoleRegex)) {
-        ServerMechanismBase::_principalName =
-            fmt::format("arn:aws:iam::{}:role/{}", matches[1].str(), matches[2].str());
+        ServerMechanismBase::_principalName = fmt::format(
+            "arn:{}:iam::{}:role/{}", matches[1].str(), matches[2].str(), matches[3].str());
         LOGV2_DEBUG(29115,
                     3,
                     "Assumed role ARN converted to role ARN",
