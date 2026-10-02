@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 10,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.682086733449074,
-    "files_affected": 86,
-    "total_additions": 4749,
-    "total_deletions": 2325,
+    "commits_behind": 35,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 8.378812335393519,
+    "files_affected": 251,
+    "total_additions": 13155,
+    "total_deletions": 3924,
     "date_range": {
       "first": "2026-09-23T21:09:20+00:00",
-      "last": "2026-09-24T12:08:53+00:00"
+      "last": "2026-09-24T22:44:33+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,259 @@
   },
   "gate": {
     "open": true,
-    "reason": "max_age (7.7d >= 2d)"
+    "reason": "max_age (8.4d >= 2d)"
   },
   "unmerged_commits": [
+    {
+      "sha": "c78f8642fd09cd561e7c1d784de06a218a269405",
+      "short_sha": "c78f8642fd0",
+      "date": "2026-09-24T22:44:33+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 017069e7fc5f0108e39ea23cdfb8180b8c483427 from branch mongodb-master (#63276)"
+    },
+    {
+      "sha": "717beedd45d364868a524d20701a02e3bcdbb282",
+      "short_sha": "717beedd45d",
+      "date": "2026-09-24T21:36:17+00:00",
+      "author": {
+        "name": "Kyra Ramesh Krishna",
+        "email": "60921433+kyra-rk@users.noreply.github.com"
+      },
+      "summary": "SERVER-135397: Attach isServerInitiatedTransaction to the first command sent to each participant (#63189)"
+    },
+    {
+      "sha": "3580e66f99782a9d2175fdfd933633a2f47822be",
+      "short_sha": "3580e66f997",
+      "date": "2026-09-24T21:11:25+00:00",
+      "author": {
+        "name": "Stewart D. Smith",
+        "email": "stewart.smith@mongodb.com"
+      },
+      "summary": "SERVER-133135 Proper implementation for tassertNoThrow (was bugLog/bugLogOn) (#61044)"
+    },
+    {
+      "sha": "d0bc6b36a1dbc414762e1b7f42481e33156da0a9",
+      "short_sha": "d0bc6b36a1d",
+      "date": "2026-09-24T20:24:04+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-135233 Remove stale TODO references for SERVER-134826 (#63312)"
+    },
+    {
+      "sha": "4e60ef9fd959a304735037d8e1effea948b615d7",
+      "short_sha": "4e60ef9fd95",
+      "date": "2026-09-24T19:24:39+00:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-131008: Improve documentation of async_client.h (#63210)"
+    },
+    {
+      "sha": "d81b5ea40334c1517a353124a77e671380e691ae",
+      "short_sha": "d81b5ea4033",
+      "date": "2026-09-24T19:18:15+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135365 Avoid leaking control event resume token PBRTs (#63045)"
+    },
+    {
+      "sha": "09af933069f9d1c8bb064b899af53dd58bce0b24",
+      "short_sha": "09af933069f",
+      "date": "2026-09-24T19:06:51+00:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-133757 Guard against DataThrottle rate overflowing (#63152)"
+    },
+    {
+      "sha": "68455baa2af4c9a9168574c3fc2426dadec101c9",
+      "short_sha": "68455baa2af",
+      "date": "2026-09-24T19:04:05+00:00",
+      "author": {
+        "name": "Stewart D. Smith",
+        "email": "stewart.smith@mongodb.com"
+      },
+      "summary": "SERVER-133707: Add LogCaptureGuard indicesOfTextContaining, indicesOfBSONContainingSubset (#61299)"
+    },
+    {
+      "sha": "135afb648f7c5b4c8fd51def95eba66d8f6a63a4",
+      "short_sha": "135afb648f7",
+      "date": "2026-09-24T18:17:16+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-134307 Allow usage of showMigrationEvents on mongos (#63269)"
+    },
+    {
+      "sha": "6a0a9b733f1bbb91c62c9ab9c76bb23330a4ee82",
+      "short_sha": "6a0a9b733f1",
+      "date": "2026-09-24T17:55:55+00:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-131820 Prevent shard-side merge of a sharded $search query from losing SEARCH_META metadata cursors (#59083)"
+    },
+    {
+      "sha": "3c82b65a4d0094a96b131058051fa81a8daae980",
+      "short_sha": "3c82b65a4d0",
+      "date": "2026-09-24T16:57:19+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-135639 Fix parallel offline validate success logs (#63274)"
+    },
+    {
+      "sha": "8319f59edf7e5068937957dd39f8b55a34127de6",
+      "short_sha": "8319f59edf7",
+      "date": "2026-09-24T16:49:23+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-94927 Remove featureFlagPQSBackfill (#62907)"
+    },
+    {
+      "sha": "31c19c86e050053e9be431d47a7e08758cd011cd",
+      "short_sha": "31c19c86e05",
+      "date": "2026-09-24T16:39:40+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-135203 Check permissions before to read oplog with system events on (#62773)\" (#63286)"
+    },
+    {
+      "sha": "65fdde4fd00add7a342f6989a19362766116a6f4",
+      "short_sha": "65fdde4fd00",
+      "date": "2026-09-24T16:22:47+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-103347 Add jstest for maxTimeMS during upsert write conflict (#62459)"
+    },
+    {
+      "sha": "6a160fa898f47865667311503eaaa6ba0f266de8",
+      "short_sha": "6a160fa898f",
+      "date": "2026-09-24T15:06:14+00:00",
+      "author": {
+        "name": "Matt Kneiser",
+        "email": "matt.kneiser@mongodb.com"
+      },
+      "summary": "SERVER-135615 Temporarily exclude a multiversion test (#63279)"
+    },
+    {
+      "sha": "4183651f0bb85ce71683edf11a96bbf043c5b5f2",
+      "short_sha": "4183651f0bb",
+      "date": "2026-09-24T14:54:15+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-107030: Avoid copying MetricsSet in getOldestOperation (#63232)"
+    },
+    {
+      "sha": "24266cc85a44680c8b834fb713eef399a7281521",
+      "short_sha": "24266cc85a4",
+      "date": "2026-09-24T14:48:16+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-134795 Guard against backwards PBRT when resuming (#62550)"
+    },
+    {
+      "sha": "8ecb2c9aa082b9061a0e1ad5eda49da720a31273",
+      "short_sha": "8ecb2c9aa08",
+      "date": "2026-09-24T14:32:52+00:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-135203 Check permissions before to read oplog with system events on (#62773)"
+    },
+    {
+      "sha": "5ca193a29a6fe40947e25428e4768c2bd673a0fe",
+      "short_sha": "5ca193a29a6",
+      "date": "2026-09-24T14:17:56+00:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-135033 Re-enable record_ids_preserved_after_stepup_secondaries.js in disagg_replica_sets (#62871)"
+    },
+    {
+      "sha": "c47f66e58bde60ebe78bd1ad5e1662dadc40d17a",
+      "short_sha": "c47f66e58bd",
+      "date": "2026-09-24T14:07:18+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135640: Fix flaky change streams pre-images removal test (#63275)"
+    },
+    {
+      "sha": "85f6f085ddec01c8f1335232e283c6125c3b900d",
+      "short_sha": "85f6f085dde",
+      "date": "2026-09-24T13:48:10+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-134697 Implement POA advancer thread for lastApplied publication (#62778)"
+    },
+    {
+      "sha": "683208dee40e2602403996ddd8fd748ab5267ed9",
+      "short_sha": "683208dee40",
+      "date": "2026-09-24T13:40:54+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135633 Fix flaky updateLookup test (#63273)"
+    },
+    {
+      "sha": "3ff269df7c761da07c2b189fad5061fc8fa8c3c7",
+      "short_sha": "3ff269df7c7",
+      "date": "2026-09-24T13:29:39+00:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-135594 Advance oplog time before waiting on change stream in `projection_changes_type.js` (#63227)"
+    },
+    {
+      "sha": "8d425a7764de33924c523db4f414ca8b8a7ab284",
+      "short_sha": "8d425a7764d",
+      "date": "2026-09-24T13:26:14+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-133514 Evaluate $geoNear residual filter inside the stage (#60507)"
+    },
+    {
+      "sha": "1c1fb85377d58c35d4e536daacfa5cf16ebda78b",
+      "short_sha": "1c1fb85377d",
+      "date": "2026-09-24T13:20:41+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-125498 Count sort spills in SortedFileWriter once per logical spill (#62070)"
+    },
     {
       "sha": "694241ea164b5fc57c260ec49259e7ef74509b1d",
       "short_sha": "694241ea164",
@@ -165,10 +415,53 @@
           "num_of_dirs": 15
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "0456fa702ea53036f9c1620db7e51e6aa306e884",
+        "short_sha": "0456fa702ea",
+        "date": "2026-09-24T12:04:50+00:00",
+        "author": {
+          "name": "Vadim Piven",
+          "email": "vadim@piven.tech"
+        },
+        "summary": "SERVER-134869 Add golden test asserting on $listQueryKnobs output (#62681)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-0456fa702ea/main",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "c78f8642fd09cd561e7c1d784de06a218a269405",
+        "short_sha": "c78f8642fd0",
+        "date": "2026-09-24T22:44:33+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 017069e7fc5f0108e39ea23cdfb8180b8c483427 from branch mongodb-master (#63276)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 46,
+          "num_of_lines": 1187,
+          "lines_added": 906,
+          "lines_deleted": 281,
+          "num_of_dirs": 18
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-01 13:31:23",
+  "generated_at": "2026-10-02 06:14:19",
   "branch_name": "master",
   "display_name": "master"
 }
