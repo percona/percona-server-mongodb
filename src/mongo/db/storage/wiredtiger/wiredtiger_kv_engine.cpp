@@ -2608,6 +2608,14 @@ Status WiredTigerKVEngine::hotBackup(OperationContext* opCtx,
         TransferManagerConfiguration trManConf(executor.get());
         trManConf.s3Client = s3_client;
         trManConf.computeContentMD5 = true;
+        // When `computeContentMD5` is `true`, `TransferManager` disables the
+        // default CRC32 checksums for the `CreateMultipartUpload`, `UploadPart`,
+        // and `PutObject` operations but not for `CompleteMultipartUpload`.
+        // Because of this bug in the AWS SDK, `CompleteMultipartUpload`
+        // contains an empty `<ChecksumCRC32/>` element for each part, which
+        // Google Cloud Storage rejects.
+        // Disable additional checksums explicitly.
+        trManConf.checksumAlgorithm = Aws::S3::Model::ChecksumAlgorithm::NOT_SET;
 
         // by default part size is 5MB and number of parts is limited by 10000
         // if we have files bigger than 50GB we need to increase bufferSize
