@@ -41,8 +41,6 @@
 
 namespace mongo::query_settings {
 using namespace std::literals::string_view_literals;
-MONGO_FAIL_POINT_DEFINE(throwConflictingOperationInProgressOnQuerySettingsSetClusterParameter);
-
 using namespace query_shape;
 
 namespace {
@@ -392,11 +390,6 @@ public:
     enum class Op : uint8_t {
         kNone = 0,
         kRemoveUnsupportedQueryKnobs = 1 << 0,
-        kCreateCollection = 1 << 1,
-        kMoveQueriesToCollection = 1 << 2,
-        kMoveQueriesToParameter = 1 << 3,
-        kDropCollection = 1 << 4,
-        kRemoveMaxTimeMS = 1 << 5,
     };
 
     friend constexpr Op operator|(Op a, Op b) {
@@ -414,12 +407,6 @@ public:
     void run(OperationContext* opCtx,
              Op plan,
              multiversion::FeatureCompatibilityVersion targetFCV) {
-        // Create the collection up front, before the retry loop populates it. The create is
-        // idempotent and unrelated to the cluster parameter conflict being retried below.
-        if (contains(plan, Op::kCreateCollection)) {
-            _service->createQueryShapeRepresentativeQueriesCollection(opCtx);
-        }
-
         conflictingOperationInProgressRetry([&] {
             _dirty = false;
             _config = _service->getAllQueryShapeConfigurations();
@@ -431,15 +418,6 @@ public:
             if (contains(plan, Op::kRemoveUnsupportedQueryKnobs)) {
                 removeUnsupportedQueryKnobs(targetFCV);
             }
-            if (contains(plan, Op::kRemoveMaxTimeMS)) {
-                removeMaxTimeMS();
-            }
-            if (contains(plan, Op::kMoveQueriesToCollection)) {
-                moveQueriesToCollection(opCtx);
-            }
-            if (contains(plan, Op::kMoveQueriesToParameter)) {
-                moveQueriesToParameter(opCtx);
-            }
             if (_dirty) {
                 LOGV2_DEBUG(12826801,
                             2,
@@ -449,12 +427,6 @@ public:
                 _service->setQuerySettingsClusterParameter(opCtx, _config);
             }
         });
-
-        // Drop the dedicated collection only after the representative queries have been persisted
-        // back to the cluster parameter, so a failed write cannot lose them.
-        if (contains(plan, Op::kDropCollection)) {
-            _service->dropQueryShapeRepresentativeQueriesCollection(opCtx);
-        }
     }
 
 private:
@@ -498,96 +470,6 @@ private:
             configuration.setSettings(settings);
             return ModifyResult::kModified;
         });
-    }
-
-    void removeMaxTimeMS() {
-        modifySettingsArray([](QueryShapeConfiguration& configuration) {
-            auto&& settings = configuration.getSettings();
-            if (!settings.getMaxTimeMS()) {
-                return ModifyResult::kNotModified;
-            }
-            LOGV2_DEBUG(12998201,
-                        3,
-                        "Stripping maxTimeMS from query settings",
-                        "queryShapeHash"_attr = configuration.getQueryShapeHash().toHexString());
-            settings.setMaxTimeMS(boost::none);
-            configuration.setSettings(settings);
-            return ModifyResult::kModified;
-        });
-    }
-
-    void moveQueriesToCollection(OperationContext* opCtx) {
-        const auto& clusterParameterTime = _config.clusterParameterTime;
-        std::vector<QueryShapeRepresentativeQuery> representativeQueries;
-        for (auto&& shapeConfig : _config.queryShapeConfigurations) {
-            auto&& representativeQuery = shapeConfig.getRepresentativeQuery();
-            if (!representativeQuery) {
-                continue;
-            }
-            representativeQueries.emplace_back(
-                shapeConfig.getQueryShapeHash(), *representativeQuery, clusterParameterTime);
-            // Clear the 'representativeQuery' information as it will be stored in a separate
-            // collection.
-            shapeConfig.setRepresentativeQuery(boost::none);
-            _dirty = true;
-        }
-        if (!representativeQueries.empty()) {
-            _service->upsertRepresentativeQueries(opCtx, representativeQueries);
-        }
-    }
-
-    void moveQueriesToParameter(OperationContext* opCtx) {
-        auto& configs = _config.queryShapeConfigurations;
-        auto setRepresentativeQuery = [&](auto representativeQuery) -> bool {
-            auto it = std::find_if(configs.begin(), configs.end(), [&](const auto& shapeConfig) {
-                return shapeConfig.getQueryShapeHash() == representativeQuery.get_id();
-            });
-            if (it != configs.end()) {
-                it->setRepresentativeQuery(representativeQuery.getRepresentativeQuery());
-                return true;
-            }
-            return false;
-        };
-
-        // Migrate representative queries from smallest to largest, stopping once approaching
-        // BSONObjMaxUserSize limit.
-        DBDirectClient client(opCtx);
-        auto cursor = client.find([] {
-            FindCommandRequest request{NamespaceString::kQueryShapeRepresentativeQueriesNamespace};
-            BSONObjBuilder projection;
-            projection.append(QueryShapeRepresentativeQuery::k_idFieldName, 1);
-            projection.append(QueryShapeRepresentativeQuery::kRepresentativeQueryFieldName, 1);
-            projection.append(QueryShapeRepresentativeQuery::kLastModifiedTimeFieldName, 1);
-            std::string dollarRepresentativeQuery = str::stream()
-                << "$" << QueryShapeRepresentativeQuery::kRepresentativeQueryFieldName;
-            projection.append("bsonSize", BSON("$bsonSize" << dollarRepresentativeQuery));
-            request.setProjection(projection.obj().getOwned());
-
-            // Prioritize by 'representativeQuery' size, so that we can migrate as many
-            // representative queries as possible.
-            // TODO SERVER-107307: Introduce additional representative query size limits test
-            // coverage.
-            request.setSort(BSON("bsonSize" << 1));
-            return request;
-        }());
-        IDLParserContext ctx{"QueryShapeRepresentativeQuery"};
-        int budget =
-            BSONObjMaxUserSize - makeQuerySettingsClusterParameter(_config).toBSON().objsize();
-        while (cursor->more()) {
-            BSONObj doc = cursor->next();
-            int cost =
-                doc.getField(QueryShapeRepresentativeQuery::kRepresentativeQueryFieldName).size();
-            if (cost > budget) {
-                break;
-            }
-            if (setRepresentativeQuery(QueryShapeRepresentativeQuery::parse(doc, ctx))) {
-                budget -= cost;
-                _dirty = true;
-            }
-        }
-        if (!cursor->isDead()) {
-            cursor->kill();
-        }
     }
 
     const QuerySettingsService* _service;
@@ -691,7 +573,6 @@ public:
             // error.
             auto userSettings = *querySettingsFromOriginalCommand;
             validateQueryKnobs(expCtx->getOperationContext(), userSettings);
-            validateMaxTimeMS(expCtx->getOperationContext(), userSettings);
 
             settings = mergeQuerySettings(userSettings, settings);
             simplifyQuerySettings(settings);
@@ -716,15 +597,6 @@ public:
 
     void createQueryShapeRepresentativeQueriesCollection(OperationContext* opCtx) const override {
         MONGO_UNIMPLEMENTED_TASSERT(10445100);
-    }
-
-    void dropQueryShapeRepresentativeQueriesCollection(OperationContext* opCtx) const override {
-        MONGO_UNIMPLEMENTED_TASSERT(10445101);
-    }
-
-    void upgradeQuerySettings(OperationContext* opCtx,
-                              multiversion::FeatureCompatibilityVersion targetFCV) const override {
-        MONGO_UNIMPLEMENTED_TASSERT(10445102);
     }
 
     void downgradeQuerySettings(
@@ -825,7 +697,6 @@ public:
             // error.
             auto& userSettings = *querySettingsFromOriginalCommand;
             validateQueryKnobs(opCtx, userSettings);
-            validateMaxTimeMS(opCtx, userSettings);
 
             settings = mergeQuerySettings(userSettings, settings);
             simplifyQuerySettings(settings);
@@ -846,12 +717,6 @@ public:
         const QueryShapeConfigurationsWithTimestamp& config,
         boost::optional<LogicalTime> newClusterParameterTime = boost::none) const final {
         try {
-            if (MONGO_unlikely(throwConflictingOperationInProgressOnQuerySettingsSetClusterParameter
-                                   .shouldFail())) {
-                uasserted(ErrorCodes::ConflictingOperationInProgress,
-                          "ConflictingOperationInProgress");
-            }
-
             auto request = makeQuerySettingsClusterParameter(config);
             auto newClusterParameterTimeAsTs = newClusterParameterTime
                 ? boost::optional<Timestamp>(newClusterParameterTime->asTimestamp())
@@ -872,34 +737,6 @@ public:
         std::ignore = client.createCollection(nss);
     }
 
-    void dropQueryShapeRepresentativeQueriesCollection(OperationContext* opCtx) const override {
-        constexpr auto& nss = NamespaceString::kQueryShapeRepresentativeQueriesNamespace;
-        DBDirectClient client(opCtx);
-        std::ignore = client.dropCollection(nss);
-    }
-
-
-    void upgradeQuerySettings(OperationContext* opCtx,
-                              multiversion::FeatureCompatibilityVersion targetFCV) const override {
-        using Op = QuerySettingsMigration::Op;
-
-        // Move representative queries into the dedicated collection once backfill is enabled.
-        auto plan = Op::kNone;
-        if (feature_flags::gFeatureFlagPQSBackfill.isEnabledOnVersion(targetFCV)) {
-            plan |= Op::kCreateCollection | Op::kMoveQueriesToCollection;
-        }
-
-        LOGV2_DEBUG(12826803,
-                    2,
-                    "Planning query settings FCV upgrade",
-                    "targetFCV"_attr = multiversion::toString(targetFCV),
-                    "migrateRepresentativeQueriesToCollection"_attr =
-                        QuerySettingsMigration::contains(plan, Op::kMoveQueriesToCollection));
-        if (plan != Op::kNone) {
-            QuerySettingsMigration(this).run(opCtx, plan, targetFCV);
-        }
-    }
-
     void downgradeQuerySettings(
         OperationContext* opCtx,
         multiversion::FeatureCompatibilityVersion targetFCV) const override {
@@ -908,23 +745,11 @@ public:
         // Query knob overrides not supported on the target FCV must be stripped on every
         // downgrade.
         auto plan = Op::kRemoveUnsupportedQueryKnobs;
-        // Move representative queries back to the cluster parameter once backfill is disabled.
-        if (!feature_flags::gFeatureFlagPQSBackfill.isEnabledOnVersion(targetFCV)) {
-            plan |= Op::kMoveQueriesToParameter | Op::kDropCollection;
-        }
-        // Strip the maxTimeMS query setting once the target FCV no longer supports it.
-        if (!feature_flags::gFeatureFlagPqsMaxTimeMS.isEnabledOnVersion(targetFCV)) {
-            plan |= Op::kRemoveMaxTimeMS;
-        }
 
         LOGV2_DEBUG(12826804,
                     2,
                     "Planning query settings FCV downgrade",
-                    "targetFCV"_attr = multiversion::toString(targetFCV),
-                    "removeMaxTimeMS"_attr =
-                        QuerySettingsMigration::contains(plan, Op::kRemoveMaxTimeMS),
-                    "migrateRepresentativeQueriesToClusterParameter"_attr =
-                        QuerySettingsMigration::contains(plan, Op::kMoveQueriesToParameter));
+                    "targetFCV"_attr = multiversion::toString(targetFCV));
 
         QuerySettingsMigration(this).run(opCtx, plan, targetFCV);
     }
@@ -1152,16 +977,6 @@ void QuerySettingsService::validateQueryKnobs(OperationContext* opCtx,
     }
 }
 
-void QuerySettingsService::validateMaxTimeMS(OperationContext* opCtx,
-                                             const QuerySettings& querySettings) const {
-    uassert(12998200,
-            "Unknown field 'maxTimeMS' in querySettings",
-            !querySettings.getMaxTimeMS() ||
-                feature_flags::gFeatureFlagPqsMaxTimeMS.isEnabled(
-                    VersionContext::getDecoration(opCtx),
-                    serverGlobalParams.featureCompatibility.acquireFCVSnapshot()));
-}
-
 void QuerySettingsService::validateQuerySettings(const QuerySettings& querySettings) const {
     // Validates that the settings field for query settings is not empty.
     uassert(7746604,
@@ -1279,9 +1094,8 @@ void QuerySettingsService::sanitizeQuerySettingsHints(
         if (isDefault(settings)) {
             LOGV2_WARNING(9646003,
                           "query settings became default after index hint sanitization",
-                          "queryShapeShash"_attr = queryShapeItem.getQueryShapeHash().toHexString(),
-                          "queryInstance"_attr = queryShapeItem.getRepresentativeQuery().map(
-                              [](const BSONObj& b) { return redact(b); }));
+                          "queryShapeShash"_attr =
+                              queryShapeItem.getQueryShapeHash().toHexString());
             return true;
         }
         return false;

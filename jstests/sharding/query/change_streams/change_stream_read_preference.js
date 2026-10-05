@@ -5,6 +5,7 @@
 //   requires_profiling,
 //   uses_change_streams,
 // ]
+import {FixtureHelpers} from "jstests/libs/fixture_helpers.js";
 import {enableLocalReadLogs} from "jstests/libs/local_reads.js";
 import {after, afterEach, before, beforeEach, describe, it} from "jstests/libs/mochalite.js";
 import {
@@ -15,6 +16,8 @@ import {
 import {
     withChangeStreamTest,
     observePostImageLookup,
+    changeStreamPassthroughType,
+    ChangeStreamWatchMode,
 } from "jstests/libs/query/change_stream_util.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {ClusteredCollectionUtil} from "jstests/libs/clustered_collections/clustered_collection_util.js";
@@ -40,6 +43,14 @@ describe("change stream and update lookup read preference", function () {
             assert.commandWorked(coll.update({_id: -1}, {$set: {updated: true}}));
             assert.commandWorked(coll.update({_id: 1}, {$set: {updated: true}}));
 
+            // The updates above use the default write concern, so their change events are not yet
+            // readable by the majority-read change stream: a change event (and its post-image
+            // lookup) only surfaces once it is majority-committed. Applying an update on a
+            // secondary is itself an _id idhack that records an '_id_' index access, so wait for
+            // both replica sets to reach the commit point, making the events immediately
+            // deliverable and leaving the update lookup as the only in-window access.
+            FixtureHelpers.awaitLastOpCommitted(db);
+
             // Consume both updates while observing where the post-image lookup ran on each shard.
             let changes;
             const lookupFn = () => (changes = cst.getNextChanges(stream, 2));
@@ -59,8 +70,12 @@ describe("change stream and update lookup read preference", function () {
                 // more than one entry if we needed multiple getMores to retrieve the changes.
                 // TODO SERVER-31650 We have to use 'originatingCommand' here and look for the getMore
                 // because the initial aggregate will not show up.
+                // Under whole-cluster passthrough, the stream's getMore is upconverted to run
+                // against 'admin', so its profiler entry lands there instead of the test db.
+                const isWholeClusterPassthrough =
+                    changeStreamPassthroughType() === ChangeStreamWatchMode.kCluster;
                 profilerHasAtLeastOneMatchingEntryOrThrow({
-                    profileDB: nodeDB,
+                    profileDB: isWholeClusterPassthrough ? node.getDB("admin") : nodeDB,
                     filter: {"originatingCommand.comment": comment},
                 });
 
@@ -134,15 +149,19 @@ describe("change stream and update lookup read preference", function () {
                 moveChunk: coll.getFullName(),
                 find: {_id: 1},
                 to: st.rs1.getURL(),
+                _waitForDelete: true,
             }),
         );
 
-        // Turn on the profiler and local-read logging on every node.
+        // Turn on the profiler and local-read logging on every node. Also profile 'admin' on each
+        // node, since under whole-cluster passthrough the stream's own getMore is upconverted to
+        // run there instead of the test db.
         for (let rs of [st.rs0, st.rs1]) {
-            assert.commandWorked(rs.getPrimary().getDB(dbName).setProfilingLevel(2));
-            assert.commandWorked(rs.getSecondary().getDB(dbName).setProfilingLevel(2));
-            enableLocalReadLogs(rs.getPrimary());
-            enableLocalReadLogs(rs.getSecondary());
+            for (let node of [rs.getPrimary(), rs.getSecondary()]) {
+                assert.commandWorked(node.getDB(dbName).setProfilingLevel(2));
+                assert.commandWorked(node.getDB("admin").setProfilingLevel(2));
+                enableLocalReadLogs(node);
+            }
         }
     });
 
@@ -155,6 +174,7 @@ describe("change stream and update lookup read preference", function () {
     afterEach(function () {
         // Drop all documents.
         assert.commandWorked(coll.deleteMany({}));
+        FixtureHelpers.awaitLastOpCommitted(db);
     });
 
     after(function () {

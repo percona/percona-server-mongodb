@@ -181,13 +181,6 @@ feature_flags:
         version: 8.3
         fcv_gated: true
 
-    featureFlagPQSBackfill:
-        description: "Enables PQS representative query backfilling"
-        cpp_varname: gFeatureFlagPQSBackfill
-        default: true
-        version: 8.3
-        fcv_gated: true
-
     featureFlagConvertObjectToBinData:
         description: "Feature flag to enable converting from Object to BinData"
         cpp_varname: gFeatureFlagConvertObjectToBinData
@@ -462,13 +455,6 @@ feature_flags:
     featureFlagPqsQueryKnobs:
         description: "Feature flag to enable per-query-shape overrides of internal query parameters (query knobs) via Persistent Query Settings."
         cpp_varname: gFeatureFlagPqsQueryKnobs
-        default: true
-        version: 9.0
-        fcv_gated: true
-
-    featureFlagPqsMaxTimeMS:
-        description: "Feature flag to enable per-query-shape maxTimeMS timeout limits via Persistent Query Settings."
-        cpp_varname: gFeatureFlagPqsMaxTimeMS
         default: true
         version: 9.0
         fcv_gated: true
