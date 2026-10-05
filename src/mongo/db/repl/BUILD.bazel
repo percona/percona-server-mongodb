@@ -2257,6 +2257,7 @@ mongo_cc_unit_test(
         ":pipelined_applier_advancer",
         ":pipelined_applier_batch_tracker",
         "//src/mongo:base",
+        "//src/mongo/db:audit_interface",
         "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/stdx",
         "//src/mongo/unittest",

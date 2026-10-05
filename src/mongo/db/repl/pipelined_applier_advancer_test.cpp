@@ -3,6 +3,7 @@
 
 #include "mongo/db/repl/pipelined_applier_advancer.h"
 
+#include "mongo/db/audit_interface.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
 #include "mongo/db/service_context_test_fixture.h"
@@ -15,6 +16,7 @@
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/time_support.h"
 
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <vector>
@@ -29,6 +31,14 @@ OpTimeAndWallTime batchTime(uint32_t timestamp) {
 // Records publications from a real advancer thread while tests control batch completion.
 class PipelinedApplierAdvancerTest : public ServiceContextTest {
 protected:
+    PipelinedApplierAdvancerTest() {
+        // The advancer thread grants internal authorization, so destroying its client logs out the
+        // authenticated user. Percona's audit dispatcher requires an AuditInterface to be
+        // registered; install the no-op implementation so logout does not dereference a null
+        // interface.
+        audit::AuditInterface::set(getServiceContext(), std::make_unique<audit::AuditNoOp>());
+    }
+
     using InflightBatch = PipelinedApplierBatchTracker::InflightBatch;
 
     // Records the published batch and whether the client is authorized and exempt from stepdown
