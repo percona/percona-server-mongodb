@@ -5,42 +5,142 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 67,
+    "commits_behind": 68,
     "days_behind": 11,
-    "unmerged_oldest_age_days": 11.382378945914352,
-    "files_affected": 397,
-    "total_additions": 15747,
-    "total_deletions": 5530,
+    "unmerged_oldest_age_days": 11.136797317256946,
+    "files_affected": 497,
+    "total_additions": 14667,
+    "total_deletions": 9028,
     "date_range": {
-      "first": "2026-09-23T21:09:20+00:00",
-      "last": "2026-09-25T20:53:21+00:00"
+      "first": "2026-09-24T12:08:53+00:00",
+      "last": "2026-09-28T13:43:08+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "d420b565eb6cb069cec6f8c7a6390079a31e0289",
-    "short_sha": "d420b565eb6",
-    "date": "2026-09-23T21:08:23+00:00",
+    "sha": "0456fa702ea53036f9c1620db7e51e6aa306e884",
+    "short_sha": "0456fa702ea",
+    "date": "2026-09-24T12:04:50+00:00",
     "author": {
-      "name": "Stephanie",
-      "email": "53684987+seristof@users.noreply.github.com"
+      "name": "Vadim Piven",
+      "email": "vadim@piven.tech"
     },
-    "summary": "SERVER-135500 Include collection hash diff in collection validation failure (#63162)"
+    "summary": "SERVER-134869 Add golden test asserting on $listQueryKnobs output (#62681)"
   },
   "first_unmerged_commit": {
-    "sha": "44111a689faa2a9fa3f00d259475ee82bacb05b0",
-    "short_sha": "44111a689fa",
-    "date": "2026-09-23T21:09:20+00:00",
+    "sha": "694241ea164b5fc57c260ec49259e7ef74509b1d",
+    "short_sha": "694241ea164",
+    "date": "2026-09-24T12:08:53+00:00",
     "author": {
-      "name": "Naafiyan Ahmed",
-      "email": "naafiyan.ahmed@mongodb.com"
+      "name": "Vadim Piven",
+      "email": "vadim@piven.tech"
     },
-    "summary": "SERVER-130885: Add validation for $lookup internal-only fields coming from external clients (#59689)"
+    "summary": "SERVER-134241: Guard query collator access (#62407)"
   },
   "gate": {
     "open": true,
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "5d2a1dbac468802ea32c013605d5ab68105f5038",
+      "short_sha": "5d2a1dbac46",
+      "date": "2026-09-28T13:43:08+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-135751 Remove the SBE stage builder for window nodes (#63388)"
+    },
+    {
+      "sha": "ba62746323a923dc39c4407c449a39d984589314",
+      "short_sha": "ba62746323a",
+      "date": "2026-09-28T13:43:06+00:00",
+      "author": {
+        "name": "Ernesto Rodriguez Reina",
+        "email": "erreina@users.noreply.github.com"
+      },
+      "summary": "SERVER-135742 Re-enable reused_record_ids test in disagg replica set suite (#63368)"
+    },
+    {
+      "sha": "4eebd02c968861b84827841a30b3486e51bca5d4",
+      "short_sha": "4eebd02c968",
+      "date": "2026-09-28T13:18:25+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-127664 Change non-optional arguments to references in validate (#63245)"
+    },
+    {
+      "sha": "b8edddce4f6eeb528ec32c6a47fda1da28cd01df",
+      "short_sha": "b8edddce4f6",
+      "date": "2026-09-28T12:18:05+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#63404)"
+    },
+    {
+      "sha": "659bb44b54a3468777a6f8c8fe77f7278b913959",
+      "short_sha": "659bb44b54a",
+      "date": "2026-09-28T10:04:19+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-135688 Remove leftover SERVER-94927 TODOs (#63347)"
+    },
+    {
+      "sha": "fedbb1e646f2f3ff7fa2999c0deda6fb2beca733",
+      "short_sha": "fedbb1e646f",
+      "date": "2026-09-28T10:02:47+00:00",
+      "author": {
+        "name": "Aitor Esteve Alvarado",
+        "email": "aitor.esteve@mongodb.com"
+      },
+      "summary": "SERVER-135563 Run `checkAtPrimaryTimestamp` CMC on secondaries with majority read concern (#63207)"
+    },
+    {
+      "sha": "46c73b253b0180167511be1d178de527efa86ad1",
+      "short_sha": "46c73b253b0",
+      "date": "2026-09-28T09:49:08+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-135150 Add direct-to-shard change-stream passthrough suites (#63013)"
+    },
+    {
+      "sha": "78f4c078368a72e61a52578ffcf976ec02c9600e",
+      "short_sha": "78f4c078368",
+      "date": "2026-09-28T09:08:00+00:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-135517 Skip metadata consistency check if snapshot predates fcv change (#63135)"
+    },
+    {
+      "sha": "97c0d342f39fa74a6993f5f576f8b1351ed1352c",
+      "short_sha": "97c0d342f39",
+      "date": "2026-09-28T08:43:31+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-122103 Remove featureFlagPqsQueryKnobs (#62903)"
+    },
+    {
+      "sha": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138",
+      "short_sha": "33cd8f13fff",
+      "date": "2026-09-27T23:33:10+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 91f28f0e3befa4a368555687c0f998db675be980 from branch mongodb-master (#63407)"
+    },
     {
       "sha": "23483951d618f7d87648211499cf05b2f38991ce",
       "short_sha": "23483951d61",
@@ -620,142 +720,9 @@
         "email": "vadim@piven.tech"
       },
       "summary": "SERVER-134241: Guard query collator access (#62407)"
-    },
-    {
-      "sha": "0456fa702ea53036f9c1620db7e51e6aa306e884",
-      "short_sha": "0456fa702ea",
-      "date": "2026-09-24T12:04:50+00:00",
-      "author": {
-        "name": "Vadim Piven",
-        "email": "vadim@piven.tech"
-      },
-      "summary": "SERVER-134869 Add golden test asserting on $listQueryKnobs output (#62681)"
-    },
-    {
-      "sha": "d9f0fca1347504c2c8b74fbd20d05933c2bf1b8d",
-      "short_sha": "d9f0fca1347",
-      "date": "2026-09-24T11:55:06+00:00",
-      "author": {
-        "name": "Vadim Piven",
-        "email": "vadim@piven.tech"
-      },
-      "summary": "SERVER-113707 Remove query settings multitenancy (#62219)"
-    },
-    {
-      "sha": "507c2143439f902023ef1d23a30ef40066ad834a",
-      "short_sha": "507c2143439",
-      "date": "2026-09-24T09:25:47+00:00",
-      "author": {
-        "name": "Vadim Piven",
-        "email": "vadim@piven.tech"
-      },
-      "summary": "SERVER-134532 Replace rejection-incompatible stage set (#62322)"
-    },
-    {
-      "sha": "6d0f2bb435ecead11d2ca7df2115256b52133e49",
-      "short_sha": "6d0f2bb435e",
-      "date": "2026-09-24T08:37:28+00:00",
-      "author": {
-        "name": "Niels Lohmann",
-        "email": "niels.lohmann@mongodb.com"
-      },
-      "summary": "SERVER-133420 Remove stale TODO referencing resolved SERVER-123100 (#62673)"
-    },
-    {
-      "sha": "56574e93869f566dd92765805002e8a79b5d12b7",
-      "short_sha": "56574e93869",
-      "date": "2026-09-24T07:14:41+00:00",
-      "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
-      },
-      "summary": "Revert \"SERVER-130885: Add validation for $lookup internal-only fields coming from external clients (#59689)\" (#63267)"
-    },
-    {
-      "sha": "ebe05bd85c78e23ddfd511dd28de54c89a32f1b1",
-      "short_sha": "ebe05bd85c7",
-      "date": "2026-09-24T14:46:30+10:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 0afe1e32a643c383e0a3710f6a1efaa4b813d06a from branch mongodb-master (#63209)"
-    },
-    {
-      "sha": "4e90f0985468068e491ed2b3767d998e1071c2dd",
-      "short_sha": "4e90f098546",
-      "date": "2026-09-23T21:38:28+00:00",
-      "author": {
-        "name": "Sean Lyons",
-        "email": "sean.lyons@mongodb.com"
-      },
-      "summary": "SERVER-132460 Include gdb output when there is an error extracting binary name from core (#63123)"
-    },
-    {
-      "sha": "7d28c5f7a3ddb5d6da6ab61f44f3229033d08847",
-      "short_sha": "7d28c5f7a3d",
-      "date": "2026-09-23T21:14:21+00:00",
-      "author": {
-        "name": "Jan",
-        "email": "jsteemann@users.noreply.github.com"
-      },
-      "summary": "SERVER-134268 Use chunked memory tracker in SBE sort stage (#62002)"
-    },
-    {
-      "sha": "44111a689faa2a9fa3f00d259475ee82bacb05b0",
-      "short_sha": "44111a689fa",
-      "date": "2026-09-23T21:09:20+00:00",
-      "author": {
-        "name": "Naafiyan Ahmed",
-        "email": "naafiyan.ahmed@mongodb.com"
-      },
-      "summary": "SERVER-130885: Add validation for $lookup internal-only fields coming from external clients (#59689)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "ebe05bd85c78e23ddfd511dd28de54c89a32f1b1",
-        "short_sha": "ebe05bd85c7",
-        "date": "2026-09-24T14:46:30+10:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: 0afe1e32a643c383e0a3710f6a1efaa4b813d06a from branch mongodb-master (#63209)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 29,
-          "num_of_lines": 4580,
-          "lines_added": 2961,
-          "lines_deleted": 1619,
-          "num_of_dirs": 15
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "0456fa702ea53036f9c1620db7e51e6aa306e884",
-        "short_sha": "0456fa702ea",
-        "date": "2026-09-24T12:04:50+00:00",
-        "author": {
-          "name": "Vadim Piven",
-          "email": "vadim@piven.tech"
-        },
-        "summary": "SERVER-134869 Add golden test asserting on $listQueryKnobs output (#62681)"
-      },
-      "strategy_name": "branching_point",
-      "result": {
-        "branches": [
-          "master",
-          "mergai/master-0456fa702ea/main",
-          "mongodb"
-        ]
-      }
-    },
     {
       "commit": {
         "sha": "c78f8642fd09cd561e7c1d784de06a218a269405",
@@ -797,10 +764,56 @@
           "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138",
+        "short_sha": "33cd8f13fff",
+        "date": "2026-09-27T23:33:10+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 91f28f0e3befa4a368555687c0f998db675be980 from branch mongodb-master (#63407)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 46,
+          "num_of_lines": 2907,
+          "lines_added": 2164,
+          "lines_deleted": 743,
+          "num_of_dirs": 17
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "97c0d342f39fa74a6993f5f576f8b1351ed1352c",
+        "short_sha": "97c0d342f39",
+        "date": "2026-09-28T08:43:31+00:00",
+        "author": {
+          "name": "Vadim Piven",
+          "email": "vadim@piven.tech"
+        },
+        "summary": "SERVER-122103 Remove featureFlagPqsQueryKnobs (#62903)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 30,
+          "num_of_lines": 464,
+          "lines_added": 71,
+          "lines_deleted": 393,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-05 06:19:14",
+  "generated_at": "2026-10-05 15:25:23",
   "branch_name": "master",
   "display_name": "master"
 }
