@@ -1,0 +1,239 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4c69a06c9a7b4ff1e9e4f8d314360bea632141b0",
+    "merge_commit": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138",
+    "merged_commits": [
+      "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138",
+      "23483951d618f7d87648211499cf05b2f38991ce",
+      "01ce017b1734bc63001cf158e92e9d23be52efed",
+      "fc1272199ce8323b328a1d58d42c6986d7fe7b1f",
+      "bfac2ff0eae84c53528bce51204574d4a9412e03",
+      "eb6d72c01140224dcfdbbfefa6f53a87917a3bad",
+      "beae5175e212af314df834f36181461cb258eca8",
+      "c4b19501946e8c95c590dafc27802288d6c79a31",
+      "a0cb46b78625219e1d09510b478720e2abb47a85",
+      "cd0bec9d3be605339fd236c62c8b3b06993f4c7f",
+      "73b67998ad8afd790a9c4d3dcc4cca187e0e3dbe",
+      "832961cc78c526116fb3be2088b8a1267d13740b",
+      "f0a8b7513025c4d0fce15ffa560019af5ee5cd50",
+      "ffd1c8c7aa860e98715b14002dcb58b35a9928f4",
+      "8851c3587e42a03d6739e55a4078b9d5c8743eed",
+      "e7d80f9b40e0417c91cd437a0114ff7399c46fa0",
+      "04012f9327628f19d64b8cc4ed2c69efdb21884e",
+      "436b9e6c20a3b73aeb18d9d6d03744cc17c77752",
+      "cbaf51ace35330033cd6d1c6f4b63a9e1f538a19",
+      "17626f8e58c0715c23d606a268024d0f8e0daf46",
+      "ecded8b6e7c32adf43af1b0423d5c8a3ecc3f22a",
+      "4e4f5d12f83062e5c64f42fd1e2ebf45b7476f44",
+      "3841a57c2c0365d0dc5f1dbbfb4bc4b95ef96236",
+      "a927811f560d9d29ca962cea346f5713a8a8d0c8",
+      "00fda31f76f8b4998db10957ce1c7bf4a52cf5b6",
+      "625e6adaf1f4b4413bd944bd1e25e39222e83ea0",
+      "9d155e61c773efc701c095ff6c0dc256099ec71f",
+      "07b05d72b55d018513bbb3edc7afa8c86395ee33",
+      "621db8719a113d7ca37eadb2d17fcb9ba9b9449c",
+      "ab2de1f36bb45980f0b7df48fd79091b52be153f",
+      "a54aab9065259aa35f69ef415dd9627f24519126",
+      "4d185215a6346f0de02b494966e5131fdf4cefd2",
+      "402f4072ba2783423b96d71d94f69a6873a622a9",
+      "c78f8642fd09cd561e7c1d784de06a218a269405",
+      "717beedd45d364868a524d20701a02e3bcdbb282",
+      "3580e66f99782a9d2175fdfd933633a2f47822be",
+      "d0bc6b36a1dbc414762e1b7f42481e33156da0a9",
+      "4e60ef9fd959a304735037d8e1effea948b615d7",
+      "d81b5ea40334c1517a353124a77e671380e691ae",
+      "09af933069f9d1c8bb064b899af53dd58bce0b24",
+      "68455baa2af4c9a9168574c3fc2426dadec101c9",
+      "135afb648f7c5b4c8fd51def95eba66d8f6a63a4",
+      "6a0a9b733f1bbb91c62c9ab9c76bb23330a4ee82",
+      "3c82b65a4d0094a96b131058051fa81a8daae980",
+      "8319f59edf7e5068937957dd39f8b55a34127de6",
+      "31c19c86e050053e9be431d47a7e08758cd011cd",
+      "65fdde4fd00add7a342f6989a19362766116a6f4",
+      "6a160fa898f47865667311503eaaa6ba0f266de8",
+      "4183651f0bb85ce71683edf11a96bbf043c5b5f2",
+      "24266cc85a44680c8b834fb713eef399a7281521",
+      "8ecb2c9aa082b9061a0e1ad5eda49da720a31273",
+      "5ca193a29a6fe40947e25428e4768c2bd673a0fe",
+      "c47f66e58bde60ebe78bd1ad5e1662dadc40d17a",
+      "85f6f085ddec01c8f1335232e283c6125c3b900d",
+      "683208dee40e2602403996ddd8fd748ab5267ed9",
+      "3ff269df7c761da07c2b189fad5061fc8fa8c3c7",
+      "8d425a7764de33924c523db4f414ca8b8a7ab284",
+      "1c1fb85377d58c35d4e536daacfa5cf16ebda78b",
+      "694241ea164b5fc57c260ec49259e7ef74509b1d"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/core/programs.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/dbtests/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '33cd8f13fff' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/BUILD.bazel": "Modified by human",
+          "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Modified by human"
+        },
+        "review_notes": "Bucket (b): the new upstream test pipelined_applier_advancer_test (added\nby SERVER-134697 in this merge) grants internal authorization on the\nadvancer thread, so destroying that thread's Client triggers\nAuthorizationSessionImpl::logoutAllDatabases -> audit::logLogout.\nPercona's audit dispatcher (src/mongo/db/audit.cpp) unconditionally\ndereferences AuditInterface::get(service), which is null in a unit test\nwhere no audit interface is registered, causing a segfault (Invalid\naccess at address: 0). Fixed by registering the no-op audit::AuditNoOp\nin the test fixture, matching the existing convention.\n\nResolved:\n\tsrc/mongo/db/repl/pipelined_applier_advancer_test.cpp\n\nModified:\n\tsrc/mongo/db/repl/BUILD.bazel\n\nCI: build-and-test run 37333825191 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "3974049ee80e9fc718f090ee0c730977a9a23085"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 35790,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.17517,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2429,
+        "cacheReadInputTokens": 41555,
+        "cacheCreationInputTokens": 14982,
+        "webSearchRequests": 0,
+        "costUSD": 0.17517,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 39,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2429,
+            "cache_read": 41555,
+            "cache_creation": 14982
+          },
+          "cost_usd": 0.17517
+        }
+      }
+    },
+    "text_result": "I've written the merge description JSON. Here's a summary of what this merge pulls in (diff base `0456fa702ea` \u2192 merge commit `33cd8f13fff`), all auto-merged cleanly with the `ort` strategy:\n\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 orphan-check override import path moved under `cluster_scalability/`.\n- **`jstests/auth/lib/commands_lib.js`** \u2014 four `queryShapeRepresentativeQueries` test cases drop the `featureFlagPQSBackfill` gate from `skipTest`.\n- **`src/mongo/db/startup_recovery.cpp`** \u2014 offline validation control flow consolidated; valid/invalid logging and the `allValidationComplete` uassert moved to a single shared path (log IDs `9437303`/`9437304`).\n- **`src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp`** \u2014 `dump()` adds `cache_top=true` to the WT `debug_info` config.\n- **`src/mongo/dbtests/BUILD.bazel`** \u2014 adds `query_stage_near_residual_filter.cpp` source.\n- **`src/third_party/wiredtiger/src/conn/conn_api.c`** \u2014 new disaggregated-storage debug_mode knobs (`disagg_block_header_upgrade` enum and `disagg_block_header_v1_ignore_size`).\n\nEvery statement in the response is backed by lines I read in the actual `diff base \u2192 merge commit` diff. No Percona-specific customizations appear in this changeset.",
+    "response": {
+      "summary": "Merge of upstream MongoDB changes into the PSMDB master branch. The incoming changes refactor offline (startup) collection validation logging and control flow, move the orphan-check override script to a new cluster_scalability path in the resmoke mongo-shell program, drop a feature-flag gate (featureFlagPQSBackfill) from several queryShapeRepresentativeQueries auth test cases, add a new query-stage dbtest source file, extend WiredTiger's KV engine dump with a cache_top debug option, and add new WiredTiger disaggregated-storage debug_mode configuration parsing. All listed files auto-merged cleanly with the ort strategy.",
+      "auto_merged": {
+        "buildscripts/resmokelib/core/programs.py": "In mongo_shell_program the orphan-deletion check callback import is updated from \"jstests/libs/override_methods/check_orphans_are_deleted.js\" to the relocated path \"jstests/libs/override_methods/cluster_scalability/check_orphans_are_deleted.js\".",
+        "jstests/auth/lib/commands_lib.js": "Four queryShapeRepresentativeQueries-related auth test entries have their skipTest predicate simplified from \"isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill\" to just \"isStandalone(conn)\", removing the featureFlagPQSBackfill gate so these cases run regardless of that flag.",
+        "src/mongo/db/startup_recovery.cpp": "Refactors offline validation handling. The \"no issues\"/\"found issues\" LOGV2 messages (ids 9437303 and 9437304) are removed from offlineValidate() and the two separate parallel/non-parallel branches in repairAndRecoverDatabases() are consolidated: a runParallel bool chooses between offlineValidateParallel() and offlineValidate(), after which the valid/invalid result is logged once (9437303/9437304) and a single allValidationComplete check uassert's with OfflineValidationFailedToComplete.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "WiredTigerKVEngine::dump() adds \"cache_top=true\" to the configuration string passed to _conn->debug_info(), so the dump now includes cache_top in addition to cache, cursors, handles, log, sessions and txn.",
+        "src/mongo/dbtests/BUILD.bazel": "Adds the source file \"query_stage_near_residual_filter.cpp\" to the dbtest binary's source list (after query_stage_near.cpp).",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "__wti_disagg_debug_mode_config() gains parsing of two new debug_mode options for disaggregated storage: \"disagg_block_header_upgrade\" (an enumeration none/compatible/incompatible/v1_oversized parsed under HAVE_DIAGNOSTIC into conn->debug.disagg_block_header_upgrade, with EINVAL on invalid values; non-diagnostic builds reject any non-none value with ENOTSUP), and \"disagg_block_header_v1_ignore_size\" stored into conn->debug.disagg_block_header_v1_ignore_size."
+      },
+      "review_notes": "All changes come from the upstream side of the diff base (0456fa702ea) -> merge commit (33cd8f13fff) and merged without conflicts. No Percona-specific files or customizations appear in this diff. The startup_recovery.cpp change is purely a control-flow/logging refactor with no behavioral change to validation outcomes. The WiredTiger conn_api.c change is a third-party vendored update adding new diagnostic debug_mode knobs; verify the corresponding config schema (api_data / flags.py generated configs) and the WT_CONN_DEBUG_DISAGG_BLOCK_HEADER_UPGRADE enum definitions were pulled in by the same upstream import."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diff for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs are clear. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description JSON. Here's a summary of what this merge pulls in (diff base `0456fa702ea` \u2192 merge commit `33cd8f13fff`), all auto-merged cleanly with the `ort` strategy:\n\n- **`buildscripts/resmokelib/core/programs.py`** \u2014 orphan-check override import path moved under `cluster_scalability/`.\n- **`jstests/auth/lib/commands_lib.js`** \u2014 four `queryShapeRepresentativeQueries` test cases drop the `featureFlagPQSBackfill` gate from `skipTest`.\n- **`src/mongo/db/startup_recovery.cpp`** \u2014 offline validation control flow consolidated; valid/invalid logging and the `allValidationComplete` uassert moved to a single shared path (log IDs `9437303`/`9437304`).\n- **`src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp`** \u2014 `dump()` adds `cache_top=true` to the WT `debug_info` config.\n- **`src/mongo/dbtests/BUILD.bazel`** \u2014 adds `query_stage_near_residual_filter.cpp` source.\n- **`src/third_party/wiredtiger/src/conn/conn_api.c`** \u2014 new disaggregated-storage debug_mode knobs (`disagg_block_header_upgrade` enum and `disagg_block_header_v1_ignore_size`).\n\nEvery statement in the response is backed by lines I read in the actual `diff base \u2192 merge commit` diff. No Percona-specific customizations appear in this changeset."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261005_153056_528338.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.289 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138",
+    "short_sha": "33cd8f13fff",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import ('Import wiredtiger: 91f28f0e3...') is an ideal merge boundary: it is a large, self-contained, auto-generated third-party import touching a well-isolated set of files that rarely depend on commits after it, so it is easy to validate post-merge. It sits at 59 commits from the fork base, comfortably within the ~30-65 target band and close to the ~50 ideal. Picking it cleanly includes the SERVER-135203 commit (8ecb2c9a) together with its auto-revert (31c19c86), so they cancel out within the same batch rather than importing then dropping the change across merges. It also stops short of the freshest, still-unsettled commits at the window edge (the second PQS feature-flag removals, more validate refactors, and the large SBE window-node removal), leaving 9 commits for the next batch to let that churn settle upstream.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/37332919256"
+  },
+  "note_index": [
+    {
+      "sha": "b1b5df8ccabf6cae701965a032640cd2b864fe14",
+      "fields": [
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "032c377e36732d819dc81919093f60d9ad8a1709",
+      "message": "Merge commit '33cd8f13fff'"
+    },
+    {
+      "sha": "3974049ee80e9fc718f090ee0c730977a9a23085",
+      "message": "Fix 'build-and-test' failure for merge commit '33cd8f13fff' into 'master'"
+    }
+  ]
+}
