@@ -230,19 +230,6 @@ public:
     virtual void createQueryShapeRepresentativeQueriesCollection(OperationContext* opCtx) const = 0;
 
     /**
-     * Drops 'queryShapeRepresentativeQueries' collection locally. Throws an exception in case of
-     * collection drop failure, unless the collection doesn't exist.
-     */
-    virtual void dropQueryShapeRepresentativeQueriesCollection(OperationContext* opCtx) const = 0;
-
-    /**
-     * Performs any query settings data migrations needed when upgrading to 'targetFCV'. The
-     * required actions are derived from which feature flags are enabled on 'targetFCV'.
-     */
-    virtual void upgradeQuerySettings(
-        OperationContext* opCtx, multiversion::FeatureCompatibilityVersion targetFCV) const = 0;
-
-    /**
      * Performs any query settings data migrations needed when downgrading to 'targetFCV'. The
      * required actions are derived from which feature flags are enabled on 'targetFCV'.
      */
@@ -291,13 +278,6 @@ public:
      * (SPM-4364).
      */
     void validateQueryKnobs(OperationContext* opCtx, const QuerySettings& querySettings) const;
-
-    /**
-     * Validates that 'maxTimeMS' in 'querySettings' is only used when featureFlagPqsMaxTimeMS is
-     * enabled. Must be called at every entry point accepting external query settings, mirroring
-     * validateQueryKnobs().
-     */
-    void validateMaxTimeMS(OperationContext* opCtx, const QuerySettings& querySettings) const;
 
     /**
      * Validates that QuerySettings can be applied to the query represented by 'queryInfo'.

@@ -77,6 +77,13 @@ public:
 
         _mergeCursors->recognizeControlEvents();
 
+        // In ignore-removed-shards mode, promises made by a shard can be withdrawn when that shard
+        // is removed. Do not let the AsyncResultsMerger advance its high water mark from those
+        // promises; doing so would allow the client-visible post-batch resume token to regress.
+        if (_changeStream.getReadMode() == ChangeStreamReadMode::kIgnoreRemovedShards) {
+            _mergeCursors->disablePromisedSortKeyHighWaterMarkAdvancement();
+        }
+
         _initializationResumeToken = ResumeToken(resumeTokenData);
         LOGV2_DEBUG(12163604,
                     5,
@@ -84,7 +91,7 @@ public:
                     "changeStream"_attr = _changeStream.toString(),
                     "resumeToken"_attr = _initializationResumeToken,
                     "resumeTokenClusterTime"_attr = resumeTokenData.clusterTime);
-        setHighWaterMark(_initializationResumeToken.getClusterTime());
+        _mergeCursors->setHighWaterMark(_initializationResumeToken.toBSON());
 
         _originalAggregateCommand = expCtx->getOriginalAggregateCommand().getOwned();
     }
@@ -254,6 +261,14 @@ public:
                                             highWaterMark, ResumeTokenData::kDefaultTokenVersion)
                                             .toDocument()
                                             .toBson());
+    }
+
+    void setPromisedSortKeyHighWaterMarkAdvancement(bool enabled) override {
+        if (enabled) {
+            _mergeCursors->enablePromisedSortKeyHighWaterMarkAdvancement();
+        } else {
+            _mergeCursors->disablePromisedSortKeyHighWaterMarkAdvancement();
+        }
     }
 
     Timestamp getTimestampFromCurrentHighWaterMark() const override {
@@ -1373,8 +1388,17 @@ ChangeStreamHandleTopologyChangeV2Stage::_handleStateFetchingStartingChangeStrea
                         "expecting no config server cursor to be open",
                         !_params->cursorManager->isCursorOnConfigServerOpen());
 
+                // This is a bounded segment: a shard promise may point beyond the segment end, so
+                // do not let it advance the client-visible high water mark.
+                _params->cursorManager->setPromisedSortKeyHighWaterMarkAdvancement(false);
+
                 _setState(State::kFetchingDegradedGettingChangeEvent);
             } else {
+                // Unbounded segment: promises from the current shard set are valid, so allow them
+                // to advance the client-visible high water mark again. This keeps the post-batch
+                // resume token moving forward while shards are idle.
+                _params->cursorManager->setPromisedSortKeyHighWaterMarkAdvancement(true);
+
                 _setState(State::kFetchingNormalGettingChangeEvent);
             }
             return boost::none;
@@ -1452,6 +1476,10 @@ ChangeStreamHandleTopologyChangeV2Stage::_handleStateFetchingNormalGettingChange
                 } else {
                     // Adjust end timestamp of the current segment and transition to degraded mode.
                     _segmentEndTimestamp = extractTimestampFromDocument(input.getDocument()) + 1;
+
+                    // This segment is now bounded, so shard promises may point beyond its end. Do
+                    // not let them advance the client-visible high water mark.
+                    _params->cursorManager->setPromisedSortKeyHighWaterMarkAdvancement(false);
 
                     LOGV2_DEBUG(10657543,
                                 3,

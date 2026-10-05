@@ -10418,7 +10418,7 @@ export const authCommandsLib = {
                 find: "queryShapeRepresentativeQueries",
             },
             skipTest: (conn) => {
-                return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+                return isStandalone(conn);
             },
             testcases: [
                 {
@@ -10446,7 +10446,7 @@ export const authCommandsLib = {
                 documents: [{a: 1}],
             },
             skipTest: (conn) => {
-                return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+                return isStandalone(conn);
             },
             testcases: [
                 {
@@ -10479,7 +10479,7 @@ export const authCommandsLib = {
                 ],
             },
             skipTest: (conn) => {
-                return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+                return isStandalone(conn);
             },
             testcases: [
                 {
@@ -10517,7 +10517,7 @@ export const authCommandsLib = {
                 ],
             },
             skipTest: (conn) => {
-                return isStandalone(conn) || !TestData.setParameters.featureFlagPQSBackfill;
+                return isStandalone(conn);
             },
             testcases: [
                 {
