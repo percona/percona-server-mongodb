@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4c69a06c9a7b4ff1e9e4f8d314360bea632141b0",
+    "merge_commit": "33cd8f13fffcae4f5ec255f9b8b290bc1b6aa138"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '33cd8f13fff' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/BUILD.bazel": "Modified by human",
+          "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Modified by human"
+        },
+        "review_notes": "Bucket (b): the new upstream test pipelined_applier_advancer_test (added\nby SERVER-134697 in this merge) grants internal authorization on the\nadvancer thread, so destroying that thread's Client triggers\nAuthorizationSessionImpl::logoutAllDatabases -> audit::logLogout.\nPercona's audit dispatcher (src/mongo/db/audit.cpp) unconditionally\ndereferences AuditInterface::get(service), which is null in a unit test\nwhere no audit interface is registered, causing a segfault (Invalid\naccess at address: 0). Fixed by registering the no-op audit::AuditNoOp\nin the test fixture, matching the existing convention.\n\nResolved:\n\tsrc/mongo/db/repl/pipelined_applier_advancer_test.cpp\n\nModified:\n\tsrc/mongo/db/repl/BUILD.bazel\n\nCI: build-and-test run 37333825191 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "3974049ee80e9fc718f090ee0c730977a9a23085"
+    }
+  ]
+}
