@@ -26,7 +26,6 @@ Usage: $0 [OPTIONS]
         --repo              Repo for build
         --psm_ver           PSM_VER(mandatory)
         --psm_release       PSM_RELEASE(mandatory)
-        --mongo_tools_tag   MONGO_TOOLS_TAG(mandatory)
         --special_targets   Special targets for tests
         --debug             build debug tarball
         --help) usage ;;
@@ -62,7 +61,6 @@ parse_arguments() {
             --install_deps=*) INSTALL="$val" ;;
             --psm_ver=*) PSM_VER="$val" ;;
             --psm_release=*) PSM_RELEASE="$val" ;;
-            --mongo_tools_tag=*) MONGO_TOOLS_TAG="$val" ;;
             --debug=*) DEBUG="$val" ;;
             --special_targets=*) SPECIAL_TAR="$val" ;;
             --help) usage ;;
@@ -120,13 +118,6 @@ path_affix() {
             fi
             ;;
     esac
-}
-
-set_gopath() {
-    local dir="$1"
-    [ -n "$dir" ] || abort '`set_gopath`: empty directory or too few arguments'
-    export GOPATH="$dir"
-    path_affix "$GOPATH/bin" "at_the_end"
 }
 
 check_workdir(){
@@ -250,38 +241,12 @@ get_sources(){
     echo "PRODUCT_FULL=${PRODUCT_FULL}" >> ${WORKDIR}/percona-server-mongodb-80.properties
     echo "VERSION=${PSM_VER}" >> ${WORKDIR}/percona-server-mongodb-80.properties
     echo "RELEASE=${PSM_RELEASE}" >> ${WORKDIR}/percona-server-mongodb-80.properties
-    echo "MONGO_TOOLS_TAG=${MONGO_TOOLS_TAG}" >> ${WORKDIR}/percona-server-mongodb-80.properties
 
     echo "REVISION=${REVISION}" >> ${WORKDIR}/percona-server-mongodb-80.properties
     echo "REVISION_LONG=${REVISION_LONG}" >> ${WORKDIR}/percona-server-mongodb-80.properties
     rm -fr debian rpm
     cp -a percona-packaging/manpages .
     cp -a percona-packaging/docs/* .
-
-    local MONGO_TOOLS_REPO="https://github.com/mongodb/mongo-tools.git";
-    git clone --depth 1 --branch "$MONGO_TOOLS_TAG" --recurse-submodules --shallow-submodules "$MONGO_TOOLS_REPO" \
-        || abort "failed to clone the \`$MONGO_TOOLS_REPO\` repository, try again"
-    cd mongo-tools
-    sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
-    sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
-    echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
-    echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
-    chmod +x set_tools_revision.sh
-    set_gopath "$PWD/../"
-
-    # Dirty hack for mongo-tools 100.7.3 and aarch64 builds. Should fail once Mongo fixes OS detection https://jira.mongodb.org/browse/TOOLS-3318
-    #if [ x"$ARCH" = "xaarch64" ]; then
-        sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || abort '`sed` failed'
-    #fi
-
-    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 -dropreplace golang.org/x/text@v0.31.0 -dropreplace github.com/klauspost/compress@v1.17.8 || abort '`go mod edit` failed'
-    go get golang.org/x/crypto@v0.56.0 golang.org/x/net@v0.57.0 golang.org/x/text@v0.41.0 github.com/klauspost/compress@v1.18.7 || abort '`go get` failed'
-    go mod tidy || abort '`go mod tidy` failed'
-    go mod vendor || abort '`go mod vendor` failed'
-    # Make downloaded Go packages writable to be able to remove them later
-    if [ -d "$GOPATH/pkg" ]; then
-        chmod -R u+w "$GOPATH/pkg" || abort '`chmod` failed'
-    fi
 
     cd ${WORKDIR}
     source percona-server-mongodb-80.properties
@@ -320,7 +285,7 @@ get_sources(){
         echo "$DROP_DOTFILES" | sed 's/^/  /' >&2
         echo "$DROP_DOTFILES" | xargs -r rm -rf
     fi
-    # Scrub nested .git (submodules, mongo-tools clone) regardless of whitelist.
+    # Scrub nested .git (submodules) regardless of whitelist.
     find . -name '.git' -prune -exec rm -rf {} +
 
     generate_release_sbom "sbom.json" "sbom.cdx.json"
@@ -367,52 +332,6 @@ get_system(){
     fi
 
     return
-}
-
-install_golang() {
-    if [ "$ARCH" = "x86_64" ]; then
-      GO_ARCH="amd64"
-    elif [ "$ARCH" = "aarch64" ]; then
-      GO_ARCH="arm64"
-    else
-        abort "Unsupported architecture: $ARCH"
-    fi
-
-    GO_VERSION="1.26.8"
-    GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
-    GO_SHA="${GO_TAR}.sha256"
-    GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
-    SHA_URL="https://downloads.percona.com/downloads/packaging/go/${GO_SHA}"
-    DL_PATH="/tmp/${GO_TAR}"
-    SHA_PATH="/tmp/${GO_SHA}"
-
-    while :; do
-        #if wget --spider "$GO_URL" && wget --spider "$SHA_URL"; then
-        if wget --spider "$GO_URL"; then
-            wget -q "$GO_URL" -O "$DL_PATH"
-            break
-            #wget -q "$SHA_URL" -O "$SHA_PATH"
-
-            #EXPECTED_SHA=$(awk '{print $1}' "$SHA_PATH")
-            #ACTUAL_SHA=$(sha256sum "$DL_PATH" | awk '{print $1}')
-
-            #if [ "$EXPECTED_SHA" = "$ACTUAL_SHA" ]; then
-            #    echo "SHA256 verification passed."
-            #    break
-            #else
-            #    echo "SHA256 verification failed! Retrying in 10 seconds..."
-            #    rm -f "$DL_PATH" "$SHA_PATH"
-            #fi
-        else
-            echo "Go archive not available. Retrying in 10 seconds..."
-        fi
-        sleep 10
-    done
-
-    tar --transform=s,go,go${GO_VERSION}, -zxf "$DL_PATH"
-    rm -rf /usr/local/go*
-    mv go${GO_VERSION} /usr/local/
-    ln -s /usr/local/go${GO_VERSION} /usr/local/go
 }
 
 install_deps() {
@@ -493,7 +412,6 @@ install_deps() {
         # bazel/remote_execution_container/repin_dockerfiles.sh:
         yum -y install $OPENSSL_EXCLUDE cyrus-sasl-gssapi glibc-devel procps-ng systemtap-sdt-devel ncurses-libs
       fi
-      install_golang
       if [ x"$RHEL" = x8 ]; then
         if [ -f /opt/rh/gcc-toolset-9/enable ]; then
           source /opt/rh/gcc-toolset-9/enable
@@ -546,7 +464,6 @@ install_deps() {
         echo "waiting"
       done
       apt-get -y install libext2fs-dev || apt-get -y install e2fslibs-dev
-      install_golang
     fi
     #keep symbol table in the binary
     sed -i 's:$strip, "--remove-section=.comment":$strip, "--strip-debug", "--remove-section=.comment":g' /usr/bin/dh_strip
@@ -695,8 +612,6 @@ build_rpm(){
     echo "ARCH=${ARCH}" >> percona-server-mongodb-80.properties
     #
     #
-    set_gopath "$(pwd)/"
-
     export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
     rpmbuild --define "_topdir ${WORKDIR}/rpmbuild" --define "dist .$OS_NAME" --rebuild rpmbuild/SRPMS/$SRC_RPM
 
@@ -795,12 +710,6 @@ build_deb(){
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xbookworm" -o x"${DEBIAN}" = "xtrixie" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
     fi
-    sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
-    sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
-    sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
-    sed -i 's|exit $ec||' mongo-tools/build.sh
-    . ./mongo-tools/set_tools_revision.sh
-
     export PSMDB_VERSION="${VERSION}-${RELEASE}"
     export PSMDB_GIT_HASH="${REVISION_LONG}"
 
@@ -825,8 +734,6 @@ build_deb(){
         echo "exit 0" >> percona-server-mongodb-server.postinst
         rm -f call-home.sh
     cd ../
-
-    set_gopath "$PWD/../"
 
     dpkg-buildpackage -rfakeroot -us -uc -b
 
@@ -886,9 +793,6 @@ build_tarball(){
     TARFILE=$(basename $(find . -name 'percona-server-mongodb*.tar.gz' | sort | grep -v "tools" | tail -n1))
     PSMDIR=${TARFILE%.tar.gz}
     PSMDIR_ABS=${WORKDIR}/${PSMDIR}
-    TOOLSDIR=${PSMDIR}/mongo-tools
-    TOOLSDIR_ABS=${WORKDIR}/${TOOLSDIR}
-    TOOLS_TAGS="ssl sasl"
 
     tar xzf $TARFILE
     rm -f $TARFILE
@@ -929,22 +833,6 @@ build_tarball(){
     #
     cd ${WORKDIR}
     #
-    # Build mongo tools
-    mkdir -p build_tools/src/github.com/mongodb/mongo-tools
-    set_gopath "$PWD/"
-    mkdir -p $GOPATH/src/github.com/mongodb
-    cd $GOPATH/src/github.com/mongodb
-    cp -r ${WORKDIR}/${TOOLSDIR} ./
-    cd mongo-tools
-    . ./set_tools_revision.sh
-    sed -i '14d' buildscript/build.go
-    sed -i '246,254d' buildscript/build.go
-    sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
-    sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
-    ./make build
-    # move mongo tools to PSM installation dir
-    mv bin/* ${PSMDIR_ABS}/${PSMDIR}/bin
-    # end build tools
     #
     sed -i "s:TARBALL=0:TARBALL=1:" ${PSMDIR_ABS}/percona-packaging/conf/percona-server-mongodb-enable-auth.sh
     cp ${PSMDIR_ABS}/percona-packaging/conf/percona-server-mongodb-enable-auth.sh ${PSMDIR_ABS}/${PSMDIR}/bin
@@ -1154,7 +1042,6 @@ BRANCH="master"
 REPO="https://github.com/percona/percona-server-mongodb.git"
 PSM_VER="8.0.0"
 PSM_RELEASE="1"
-MONGO_TOOLS_TAG="master"
 PRODUCT=percona-server-mongodb
 DEBUG=0
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
@@ -1180,9 +1067,6 @@ path_affix "/usr/bin"
 # The `python3 buildscripts/install_bazel.py` command installs `bazel` and
 # `bazelisk` into "$HOME/.local/bin"
 path_affix "$HOME/.local/bin"
-
-export GOROOT="/usr/local/go"
-path_affix "$GOROOT/bin"
 
 check_workdir
 get_system
