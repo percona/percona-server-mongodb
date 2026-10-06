@@ -4,7 +4,7 @@ How to install dependencies:
   sudo ./psmdb_builder.sh --builddir=<absolute path to dir> --install_deps=1
 
 How to get sources from github:
-  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=master --psm_ver=4.4.0 --psm_release=1.1 --mongo_tools_tag=r4.4.0 --get_sources=1
+  bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=master --psm_ver=4.4.0 --psm_release=1.1 --get_sources=1
 
 How to get sources from github for jenkins needs:
   bash -x psmdb_builder.sh --builddir=<absolute path to dir> --branch=v4.4 --jenkins_mode=1 --get_sources=1

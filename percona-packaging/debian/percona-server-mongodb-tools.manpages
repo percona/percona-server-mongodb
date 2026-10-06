@@ -1,9 +1,0 @@
-
-manpages/bsondump.1
-manpages/mongostat.1
-manpages/mongofiles.1
-manpages/mongoexport.1 
-manpages/mongoimport.1
-manpages/mongorestore.1
-manpages/mongodump.1
-manpages/mongotop.1
