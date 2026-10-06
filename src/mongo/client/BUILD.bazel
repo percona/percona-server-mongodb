@@ -751,7 +751,10 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_unit_test(
-    name = "rpc_local_timing_test",
+    # PSMDB: renamed from "rpc_local_timing_test" to avoid install collision with
+    # //src/mongo/executor:rpc_local_timing_test (both install to bin/). Upstream bug
+    # from SERVER-135606. On merge conflict here, take the upstream version.
+    name = "client_rpc_local_timing_test",
     srcs = [
         "rpc_local_timing_test.cpp",
     ],
