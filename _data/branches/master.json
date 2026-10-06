@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 68,
+    "commits_behind": 89,
     "days_behind": 11,
-    "unmerged_oldest_age_days": 11.141196298819445,
-    "files_affected": 497,
-    "total_additions": 14667,
-    "total_deletions": 9028,
+    "unmerged_oldest_age_days": 11.752195204502314,
+    "files_affected": 600,
+    "total_additions": 20834,
+    "total_deletions": 11363,
     "date_range": {
       "first": "2026-09-24T12:08:53+00:00",
-      "last": "2026-09-28T13:43:08+00:00"
+      "last": "2026-09-28T23:59:15+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,216 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "1c1e012583df064096c951d5932008ea23333aac",
+      "short_sha": "1c1e012583d",
+      "date": "2026-09-28T23:59:15+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 255ba5c69f6b6ddaef34a99c4b0a349c16a3c4a6 from branch mongodb-master (#63431)"
+    },
+    {
+      "sha": "5b88131806aa3f005275fd9616fb85ba1cf2d2d3",
+      "short_sha": "5b88131806a",
+      "date": "2026-09-28T23:06:25+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-135263 Be more explicit about what can fail in replicated drops (#62994)"
+    },
+    {
+      "sha": "9fa8f95790a4b21286a272c376b4829a010e25ea",
+      "short_sha": "9fa8f95790a",
+      "date": "2026-09-28T22:42:58+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-127020 Add SBE blueprint (#54040)"
+    },
+    {
+      "sha": "0e6f27c5b0d3a52ad52786e2a31a3bd623966cbb",
+      "short_sha": "0e6f27c5b0d",
+      "date": "2026-09-28T21:55:25+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-135148 observer factory guard (#63417)"
+    },
+    {
+      "sha": "1205d06bbd903848bc7a6bda4edde0d7c96e49ad",
+      "short_sha": "1205d06bbd9",
+      "date": "2026-09-28T21:26:02+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-135865: Download native macOS LLVM toolchain from S3 instead of Homebrew (#63462)"
+    },
+    {
+      "sha": "6981694cfe56e7ca1b719d5979dab5a20fb9a033",
+      "short_sha": "6981694cfe5",
+      "date": "2026-09-28T21:24:29+00:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-134335 Reset outstanding accessors in SBE IXSCAN when reading index components of different sizes (#62186)"
+    },
+    {
+      "sha": "2139333161536df726ed1d4e88e95a2573160dfd",
+      "short_sha": "21393331615",
+      "date": "2026-09-28T21:08:00+00:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-135606: Introduce rpc timing abstraction (#63289)"
+    },
+    {
+      "sha": "96793353eec2c9a2339e5bbeaede427dad4e84a9",
+      "short_sha": "96793353eec",
+      "date": "2026-09-28T19:39:31+00:00",
+      "author": {
+        "name": "Matt Kneiser",
+        "email": "matt.kneiser@mongodb.com"
+      },
+      "summary": "SERVER-134555 Translate queries on an empty-string metaField instead of requiring a non-empty metaField (#62331)"
+    },
+    {
+      "sha": "a51ba6002c053d76f4ac7b6e507f4c97d37f9ad4",
+      "short_sha": "a51ba6002c0",
+      "date": "2026-09-28T19:07:51+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-132033 Add support for SBE plans in V3 explain (#63316)"
+    },
+    {
+      "sha": "e7465432fb44e31872bc6a1fd5ac35befdc90d4f",
+      "short_sha": "e7465432fb4",
+      "date": "2026-09-28T17:54:46+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-135555 Remove outdated todos (#63311)"
+    },
+    {
+      "sha": "9d3608b3409fc2c91c6f602ccb19ba6229143d3e",
+      "short_sha": "9d3608b3409",
+      "date": "2026-09-28T17:50:21+00:00",
+      "author": {
+        "name": "Andrew Wang",
+        "email": "andrew.wang@mongodb.com"
+      },
+      "summary": "SERVER-134760 Return interrupt code from interrupted validate (#62863)"
+    },
+    {
+      "sha": "5130e6fcbb46aef323b07fbebd9ea64153783dfe",
+      "short_sha": "5130e6fcbb4",
+      "date": "2026-09-28T17:18:24+00:00",
+      "author": {
+        "name": "Owen Chen",
+        "email": "owen.chen@mongodb.com"
+      },
+      "summary": "SERVER-131040 Remove stale SERVER-128430 TODO from implicit_ecoc_creation.js (#63438)"
+    },
+    {
+      "sha": "d0c8a07eee5cf8199c910c538a8529dd7d8e89c6",
+      "short_sha": "d0c8a07eee5",
+      "date": "2026-09-28T16:50:10+00:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "milena.ivanova@mongodb.com"
+      },
+      "summary": "SERVER-135632 Publish queryLatencies as HistogramServerStatusMetric (#63270)"
+    },
+    {
+      "sha": "c124546ae08c205b0aabfb15019437328a63815d",
+      "short_sha": "c124546ae08",
+      "date": "2026-09-28T16:36:45+00:00",
+      "author": {
+        "name": "Ron Neuman",
+        "email": "31408835+rongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-133712: Use display task name if present (#62855)"
+    },
+    {
+      "sha": "43180330a36009ecd18a08325fd4fa2a043810a9",
+      "short_sha": "43180330a36",
+      "date": "2026-09-28T16:32:15+00:00",
+      "author": {
+        "name": "Abdul Qadeer",
+        "email": "abdul.qadeer@mongodb.com"
+      },
+      "summary": "SERVER-135497: Make ReshardingCoordinatorService test fixture robust to races (#63401)"
+    },
+    {
+      "sha": "2f282ada37e8ffe8e42f9dc40a31f72e284a7a13",
+      "short_sha": "2f282ada37e",
+      "date": "2026-09-28T16:28:02+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135249 Prevent change streams metrics exceptions from blocking serverStatus completion (#63346)"
+    },
+    {
+      "sha": "a180bae0ce32a55a9286d0c3e43bee09c7276e8a",
+      "short_sha": "a180bae0ce3",
+      "date": "2026-09-28T16:27:46+00:00",
+      "author": {
+        "name": "Sam Goodrick",
+        "email": "sam.goodrick@mongodb.com"
+      },
+      "summary": "SERVER-135540: Add instrument for observable mutex wait cycle time in microseconds (#63240)"
+    },
+    {
+      "sha": "5393e70c0ed3801c20a3b8b34a9f686bca50ebeb",
+      "short_sha": "5393e70c0ed",
+      "date": "2026-09-28T16:04:51+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-132343 Enable excluded change stream tests in no_passthrough_d…isagg_override_replsets on TSAN variant (#63425)"
+    },
+    {
+      "sha": "ee294a32839b1165d191627e770c5096e76bb00e",
+      "short_sha": "ee294a32839",
+      "date": "2026-09-28T15:23:00+00:00",
+      "author": {
+        "name": "Kevin Qi",
+        "email": "kevin.qi@mongodb.com"
+      },
+      "summary": "SERVER-130890 Abort step-up when invoking quiesce mode for DSC (#63192)"
+    },
+    {
+      "sha": "7044de7c45462a3bf1c078f0f859608778fe0ecb",
+      "short_sha": "7044de7c454",
+      "date": "2026-09-28T14:41:40+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-134583 Replace end-of-string check (#62344)"
+    },
+    {
+      "sha": "85b863f78efffc45385172cb6087305f0d77078c",
+      "short_sha": "85b863f78ef",
+      "date": "2026-09-28T14:33:23+00:00",
+      "author": {
+        "name": "Jordan Glassley",
+        "email": "jordan.glassley@mongodb.com"
+      },
+      "summary": "SERVER-135672 Harden runOplogSyncAggAssertMinOplogTest against transient CappedPositionLost errors (#63327)"
+    },
     {
       "sha": "5d2a1dbac468802ea32c013605d5ab68105f5038",
       "short_sha": "5d2a1dbac46",
@@ -810,10 +1020,28 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "5b88131806aa3f005275fd9616fb85ba1cf2d2d3",
+        "short_sha": "5b88131806a",
+        "date": "2026-09-28T23:06:25+00:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-135263 Be more explicit about what can fail in replicated drops (#62994)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-05 15:31:40",
+  "generated_at": "2026-10-06 06:11:21",
   "branch_name": "master",
   "display_name": "master"
 }
