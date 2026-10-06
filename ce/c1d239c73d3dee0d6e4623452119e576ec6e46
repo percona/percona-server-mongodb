@@ -1,0 +1,170 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b1b5df8ccabf6cae701965a032640cd2b864fe14",
+    "merge_commit": "1c1e012583df064096c951d5932008ea23333aac"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "1c1e012583df064096c951d5932008ea23333aac",
+    "merged_commits": [
+      "1c1e012583df064096c951d5932008ea23333aac",
+      "5b88131806aa3f005275fd9616fb85ba1cf2d2d3",
+      "9fa8f95790a4b21286a272c376b4829a010e25ea",
+      "0e6f27c5b0d3a52ad52786e2a31a3bd623966cbb",
+      "1205d06bbd903848bc7a6bda4edde0d7c96e49ad",
+      "6981694cfe56e7ca1b719d5979dab5a20fb9a033",
+      "2139333161536df726ed1d4e88e95a2573160dfd",
+      "96793353eec2c9a2339e5bbeaede427dad4e84a9",
+      "a51ba6002c053d76f4ac7b6e507f4c97d37f9ad4",
+      "e7465432fb44e31872bc6a1fd5ac35befdc90d4f",
+      "9d3608b3409fc2c91c6f602ccb19ba6229143d3e",
+      "5130e6fcbb46aef323b07fbebd9ea64153783dfe",
+      "d0c8a07eee5cf8199c910c538a8529dd7d8e89c6",
+      "c124546ae08c205b0aabfb15019437328a63815d",
+      "43180330a36009ecd18a08325fd4fa2a043810a9",
+      "2f282ada37e8ffe8e42f9dc40a31f72e284a7a13",
+      "a180bae0ce32a55a9286d0c3e43bee09c7276e8a",
+      "5393e70c0ed3801c20a3b8b34a9f686bca50ebeb",
+      "ee294a32839b1165d191627e770c5096e76bb00e",
+      "7044de7c45462a3bf1c078f0f859608778fe0ecb",
+      "85b863f78efffc45385172cb6087305f0d77078c",
+      "5d2a1dbac468802ea32c013605d5ab68105f5038",
+      "ba62746323a923dc39c4407c449a39d984589314",
+      "4eebd02c968861b84827841a30b3486e51bca5d4",
+      "b8edddce4f6eeb528ec32c6a47fda1da28cd01df",
+      "659bb44b54a3468777a6f8c8fe77f7278b913959",
+      "fedbb1e646f2f3ff7fa2999c0deda6fb2beca733",
+      "46c73b253b0180167511be1d178de527efa86ad1",
+      "78f4c078368a72e61a52578ffcf976ec02c9600e",
+      "97c0d342f39fa74a6993f5f576f8b1351ed1352c"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "buildscripts/resmokelib/config.py",
+        "buildscripts/resmokelib/configure_resmoke.py",
+        "src/mongo/client/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/executor/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 42874,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.23722,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3174,
+        "cacheReadInputTokens": 46705,
+        "cacheCreationInputTokens": 21518,
+        "webSearchRequests": 0,
+        "costUSD": 0.23722,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 72,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3174,
+            "cache_read": 46705,
+            "cache_creation": 21518
+          },
+          "cost_usd": 0.23722
+        }
+      }
+    },
+    "text_result": "I've read the merge prompt, inspected the real `diff base \u2192 merge commit` diff for each auto-merged file, and written the JSON response to the specified path.\n\nSummary of what this merge pulls in from upstream:\n\n- **`wiredtiger_kv_engine.cpp`** (the one flagged important file) \u2014 `dropIdent()` is reworked to wrap `closeAllCursors()` and the `_drop()` call in try/catch blocks that convert `DBException` to a `Status`, moves the `WTDropEBUSY` failpoint check earlier, adds a comment explaining the separate drop session, and returns `Status::OK()` on success.\n- **`kv_engine.h`** \u2014 trims the `dropIdent()` doc comment (drops the \"enqueue for later removal\" wording).\n- **`startup_recovery.cpp`** \u2014 `collection_validation::validate()` now takes `validateResults` by reference instead of pointer.\n- **BUILD files** \u2014 new `rpc_local_timing` library + tests (executor/client), dep adjustments in query BUILD, removal of a test source in commands BUILD.\n- **resmoke** \u2014 new `display_task_name` / `EVERGREEN_DISPLAY_TASK_NAME` plumbing.\n- **`.bazelrc`** \u2014 removes the macOS LLVM 19 pin.\n- **`wiredtiger.h.in`** \u2014 regenerated header: new disagg step-up stats and renumbered `WT_STAT_CONN_*` constants, plus a `publish()` doc-tag change.\n\nEach file's description is backed only by lines I actually saw in the diff; `MODULE.bazel.lock` is noted as a regenerated lock file.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master changes into the Percona fork. The most substantial code change rewrites WiredTigerKVEngine::dropIdent() to wrap cursor-closing and the table drop in try/catch blocks that convert DBException to a Status, move the WTDropEBUSY failpoint check earlier, create the separate drop session inside the try block with an explanatory comment, and return Status::OK() on success. Supporting doc comments in kv_engine.h for dropIdent are trimmed (removal of the 'enqueue for later removal' wording). Other changes are build-file and tooling updates: new rpc_local_timing library/tests, resmoke display-task-name config plumbing, query BUILD dependency adjustments, removal of a macOS LLVM pin in .bazelrc, an updated offlineValidateCollection call signature, and regenerated WiredTiger generated header stat constants.",
+      "auto_merged": {
+        ".bazelrc": "Removes the two lines pinning the OSS LLVM Clang version to 19 for macOS builds (the `common:macos --repo_env=LLVM_VERSION=19` line and its comment).",
+        "MODULE.bazel.lock": "Lock file regenerated as part of the merge; no manually meaningful content to describe.",
+        "buildscripts/resmokelib/config.py": "Adds a new `display_task_name` entry to the DEFAULTS dict and a new module-level `EVERGREEN_DISPLAY_TASK_NAME = None` variable (with a comment) to track the Evergreen display task that the current task rolls up to.",
+        "buildscripts/resmokelib/configure_resmoke.py": "Populates the new config value: `_config.EVERGREEN_DISPLAY_TASK_NAME = config.pop(\"display_task_name\")`.",
+        "src/mongo/client/BUILD.bazel": "Adds a new `rpc_local_timing_test` mongo_cc_unit_test target (srcs rpc_local_timing_test.cpp, tagged mongo_unittest_fourth_group, depending on :async_client and //src/mongo/unittest).",
+        "src/mongo/db/commands/BUILD.bazel": "Removes the `query_settings_cmds_test.cpp` source entry from a mongo_cc_unit_test target's srcs list.",
+        "src/mongo/db/query/BUILD.bazel": "Adjusts dependencies of a mongo_cc_library: adds //src/mongo/db/commands/server_status:histogram_server_status_metric and //src/mongo/db/stats:counters; removes //src/mongo/db/stats:top, //src/mongo/otel/metrics:metric_unit, and //src/mongo/otel/metrics:otel_metrics_service. Also removes //src/mongo/otel/metrics:metrics_test_util from a mongo_cc_unit_test target's deps.",
+        "src/mongo/db/startup_recovery.cpp": "In offlineValidateCollection, changes the call to collection_validation::validate() to pass validateResults by reference (`validateResults`) instead of by pointer (`&validateResults`).",
+        "src/mongo/db/storage/kv/kv_engine.h": "Trims the dropIdent() doc comment, removing the sentence about enqueuing the removal to be processed at a later time when the engine cannot process it immediately; the 'schemaEpoch' and 'waitForLocks' wording is retained.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Rewrites WiredTigerKVEngine::dropIdent() error handling: wraps closeAllCursors() in a try/catch that returns ex.toStatus() on DBException; moves the WTDropEBUSY failpoint check before the drop; constructs the separate WiredTigerSession and performs _drop() inside a try block (with a new comment explaining why a separate session is needed), returning the drop status only on failure and converting any thrown DBException to a Status; and returns Status::OK() at the end instead of the previously captured `status`.",
+        "src/mongo/executor/BUILD.bazel": "Adds a new `rpc_local_timing` mongo_cc_library (srcs rpc_local_timing.cpp, hdrs rpc_local_timing.h, depending on //src/mongo/client:async_client and //src/mongo/otel/metrics:otel_metrics_service) and a new `rpc_local_timing_test` mongo_cc_unit_test (tagged mongo_unittest_sixth_group).",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Regenerated WiredTiger header. Removes the `@exclusive` tag and changes `@ebusy_errors` to `@errors` in the WT_SESSION::publish() doc block. Adds several new disagg step-up statistic constants (step up checkpoint restart time, deferred pickup retries/time, ingest table drain stats, missing stable table creation stats) and renumbers the subsequent WT_STAT_CONN_* constant values accordingly."
+      },
+      "review_notes": "The only non-trivial source change is the WiredTigerKVEngine::dropIdent() rework in wiredtiger_kv_engine.cpp and the matching doc-comment trim in kv_engine.h; reviewers should confirm the new try/catch-based error handling and the Status::OK() return path are consistent with Percona's expectations around drop-pending idents. This file is listed in important_files_modified. All diffs were taken from the authoritative base 33cd8f13 to merge commit 1c1e0125. The wiredtiger.h.in change is a generated-header stat renumbering plus new disagg step-up stats and should match the imported WiredTiger source. Remaining files are BUILD.bazel/tooling adjustments. MODULE.bazel.lock was treated as a regenerated lock file."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough from the diffs. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the merge prompt, inspected the real `diff base \u2192 merge commit` diff for each auto-merged file, and written the JSON response to the specified path.\n\nSummary of what this merge pulls in from upstream:\n\n- **`wiredtiger_kv_engine.cpp`** (the one flagged important file) \u2014 `dropIdent()` is reworked to wrap `closeAllCursors()` and the `_drop()` call in try/catch blocks that convert `DBException` to a `Status`, moves the `WTDropEBUSY` failpoint check earlier, adds a comment explaining the separate drop session, and returns `Status::OK()` on success.\n- **`kv_engine.h`** \u2014 trims the `dropIdent()` doc comment (drops the \"enqueue for later removal\" wording).\n- **`startup_recovery.cpp`** \u2014 `collection_validation::validate()` now takes `validateResults` by reference instead of pointer.\n- **BUILD files** \u2014 new `rpc_local_timing` library + tests (executor/client), dep adjustments in query BUILD, removal of a test source in commands BUILD.\n- **resmoke** \u2014 new `display_task_name` / `EVERGREEN_DISPLAY_TASK_NAME` plumbing.\n- **`.bazelrc`** \u2014 removes the macOS LLVM 19 pin.\n- **`wiredtiger.h.in`** \u2014 regenerated header: new disagg step-up stats and renumbered `WT_STAT_CONN_*` constants, plus a `publish()` doc-tag change.\n\nEach file's description is backed only by lines I actually saw in the diff; `MODULE.bazel.lock` is noted as a regenerated lock file."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261006_110119_062635.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.291 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "1c1e012583df064096c951d5932008ea23333aac",
+    "short_sha": "1c1e012583d",
+    "strategy": null,
+    "summary": "This is a vendored third-party WiredTiger import (wt-vendoring-bot), which is an ideal merge boundary: it touches a well-isolated set of files, is self-contained, and does not depend on the commits after it. Cutting here yields a batch of 30 commits (within the comfortable ~30-65 band) and leaves the freshest 4 candidates (a feature-flag add, a profiling-data regen, a rollout toggle, and a TODO removal) for the next batch, honoring 'stop short of unsettled commits'. It also cleanly separates the WiredTiger vendor bump from the following unrelated server-side work.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/37453351941"
+  }
+}
