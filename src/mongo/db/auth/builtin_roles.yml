@@ -98,7 +98,6 @@ roles:
         tenancy: single # Not granted in multitenancy mode
         actions: &dbAdminRoleSingleTenantActions
           - configureQueryAnalyzer # clusterManager gets this also
-          - startBackup
 
       - matchType: exact_namespace
         collection: "system.profile"
@@ -439,7 +438,6 @@ roles:
       - matchType: any_normal
         actions: &queryableBackupReadActions
           - find
-          - startBackup
           - performRawDataOperations
       - matchType: any_system_buckets
         actions: *queryableBackupReadActions
