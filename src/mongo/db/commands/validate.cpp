@@ -247,9 +247,7 @@ public:
                 });
             } catch (AssertionException& e) {
                 CommandHelpers::appendCommandStatusNoThrow(
-                    result,
-                    {ErrorCodes::CommandFailed,
-                     str::stream() << "Exception thrown during validation: " << e.toString()});
+                    result, e.toStatus().withContext("Exception thrown during validation"));
                 return false;
             }
 
@@ -264,7 +262,7 @@ public:
 
         ValidateResults validateResults;
         Status status =
-            collection_validation::validate(opCtx, nss, std::move(options), &validateResults);
+            collection_validation::validate(opCtx, nss, std::move(options), validateResults);
         if (!status.isOK()) {
             return CommandHelpers::appendCommandStatusNoThrow(result, status);
         }

@@ -117,6 +117,8 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.network.numSlowDNSOperations");
     static constexpr MetricName kNetworkNumSlowSSLOperations =
         MetricNameMaker::make("mongodb.serverStatus.network.numSlowSSLOperations");
+    static constexpr MetricName kNetworkRpcLocalLatency =
+        MetricNameMaker::make("mongodb.network.rpc.local_latency");
     static constexpr MetricName kPrometheusFileExporterWrites =
         MetricNameMaker::make("mongodb.metrics.prometheus_file_exporter.writes");
     static constexpr MetricName kPrometheusFileExporterWritesFailed =
@@ -661,20 +663,6 @@ public:
 
     static constexpr MetricName kOperationLatency =
         MetricNameMaker::make("mongodb.serverStatus.opLatencies.latency");
-
-    // Query latency histograms for plan selection strategies.
-    static constexpr MetricName kQueryLatencyMultiPlanner =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.multiPlanner");
-    static constexpr MetricName kQueryLatencyCostBased =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.costBased");
-    static constexpr MetricName kQueryLatencySinglePlan =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.singlePlan");
-    static constexpr MetricName kQueryLatencyCachedPlan =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.cachedPlan");
-    static constexpr MetricName kQueryLatencyJoinOptimization =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.joinOptimization");
-    static constexpr MetricName kQueryLatencyJoinCachedPlan =
-        MetricNameMaker::make("mongodb.serverStatus.queryLatencies.joinCachedPlan");
 
     // Op Counters
     static constexpr MetricName kInsertOpCount =

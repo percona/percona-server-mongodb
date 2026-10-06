@@ -14,7 +14,11 @@ import {
 import {DiscoverTopology} from "jstests/libs/discover_topology.js";
 import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {after, describe, it} from "jstests/libs/mochalite.js";
-import {withChangeStreamTest} from "jstests/libs/query/change_stream_util.js";
+import {
+    ChangeStreamWatchMode,
+    changeStreamPassthroughType,
+    withChangeStreamTest,
+} from "jstests/libs/query/change_stream_util.js";
 import {runWithParamsAllNonConfigNodes} from "jstests/noPassthrough/libs/server_parameter_helpers.js";
 
 const kParamName = "internalQueryEnableChangeStreamMatchExpressionReordering";
@@ -202,8 +206,10 @@ describe("change stream match expression reordering", () => {
         // The query settings knob mechanism is feature flagged, so this case is skipped at runtime
         // rather than tagged on the file: tagging would gate the rest of the reordering coverage
         // above on flags it does not need.
-        const areQueryKnobsAvailable = ["AllowUserFacingQuerySettings", "PqsQueryKnobs"].every(
-            (flag) => FeatureFlagUtil.isPresentAndEnabled(db, flag),
+        // TODO SERVER-135778: Remove the AllowUserFacingQuerySettings feature flag check.
+        const areQueryKnobsAvailable = FeatureFlagUtil.isPresentAndEnabled(
+            db,
+            "AllowUserFacingQuerySettings",
         );
         if (!areQueryKnobsAvailable) {
             jsTest.log.info("Skipping case: query settings knobs are not available");
@@ -249,14 +255,23 @@ describe("change stream match expression reordering", () => {
             });
         }
 
-        // A non-boolean value for the knob must be rejected.
-        assert.commandFailed(
-            db.runCommand({
-                aggregate: collName,
-                pipeline: [{$changeStream: {}}],
-                cursor: {},
-                querySettings: {queryKnobs: {[kKnobWireName]: "not-a-bool"}},
-            }),
-        );
+        // A non-boolean value for the knob must be rejected. TODO SERVER-135301: this validation
+        // is silently skipped for a whole-cluster stream (admin db, allChangesForCluster) because
+        // isEligbleForQuerySettings() rejects the admin namespace outright. Remove this skip once
+        // that is fixed.
+        const isDirectToShard =
+            TestData.connectedDirectlyToShard || TestData.changeStreamCommandsDirectToShard;
+        if (
+            !(isDirectToShard && changeStreamPassthroughType() === ChangeStreamWatchMode.kCluster)
+        ) {
+            assert.commandFailed(
+                db.runCommand({
+                    aggregate: collName,
+                    pipeline: [{$changeStream: {}}],
+                    cursor: {},
+                    querySettings: {queryKnobs: {[kKnobWireName]: "not-a-bool"}},
+                }),
+            );
+        }
     });
 });

@@ -196,6 +196,7 @@ DEFAULTS = {
     "revision_order_id": None,
     "task_id": None,
     "task_name": None,
+    "display_task_name": None,
     "task_doc": None,
     "variant_name": None,
     "version_id": None,
@@ -480,6 +481,10 @@ EVERGREEN_TASK_ID = None
 
 # The name of the Evergreen task that resmoke.py is being run for.
 EVERGREEN_TASK_NAME = None
+
+# The name of the Evergreen display task that the task resmoke.py is being run for rolls up to.
+# Unset when the task is not part of a display task.
+EVERGREEN_DISPLAY_TASK_NAME = None
 
 # The documentation that describes what Evergreen task does.
 EVERGREEN_TASK_DOC = None

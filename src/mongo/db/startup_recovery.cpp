@@ -834,8 +834,7 @@ StatusWith<bool> offlineValidateCollection(OperationContext* opCtx,
     }
     ValidateResults validateResults;
     try {
-        Status status =
-            collection_validation::validate(opCtx, nss, parsedOptions, &validateResults);
+        Status status = collection_validation::validate(opCtx, nss, parsedOptions, validateResults);
 
         if (!status.isOK()) {
             LOGV2_ERROR(11790200,
