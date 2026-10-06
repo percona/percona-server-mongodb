@@ -5,12 +5,9 @@ export DEB_BUILD_HARDENING=1
 export NJOBS=$(shell grep -c processor /proc/cpuinfo)
 export PSM_TARGETS=install-mongod install-mongos install-mongo install-perconadecrypt build/install/bin/mongobridge
 export PSMSRC=$(CURDIR)
-export MONGOTOOLS=bsondump mongostat mongofiles mongoexport mongoimport mongorestore mongodump mongotop
 export INSTALLDIR=/usr/local
-export TOOLS_TAGS=ssl sasl
 export PORTABLE=1
 export USE_SSE=1
-export PATH := /usr/local/go/bin:$(PATH)
 
 $(info GLIBC_TUNABLES is $(GLIBC_TUNABLES))
 #
@@ -22,10 +19,8 @@ override_dh_builddeb:
 
 override_dh_auto_clean:
 	dh_auto_clean
-	rm -fr $(PSMSRC)/bin
 	cd $(PSMSRC); \
 	bazel clean --expunge || true
-	rm -rf $(PSMSRC)/bin build resmoke.ini
 	#rm -fr $(INSTALLDIR)
 	rm -fr build resmoke.ini
 	find $(PSMSRC) -name '*.pyc' -delete
@@ -33,26 +28,9 @@ override_dh_auto_clean:
 percona-server-mongodb:
 	bazel build --config=psmdb_opt_release $(PSMDB_RBE_BAZEL_FLAGS) --define=MONGO_VERSION=$(PSMDB_VERSION) --define=GIT_COMMIT_HASH=$(PSMDB_GIT_HASH) install-dist-test
 
-compile-mongo-tools:
-	mkdir $(PSMSRC)/bin || true;
-	mkdir -p $(PSMSRC)/../src/github.com/mongodb;
-	cp -r $(PSMSRC)/mongo-tools $(PSMSRC)/../src/github.com/mongodb;
-	export GOROOT="/usr/local/go/"; \
-        export GOPATH=$(PSMSRC)/../; \
-        export PATH="/usr/local/go/bin:$(PATH):$(GOPATH)"; \
-        export GOBINPATH="/usr/local/go/bin"
-	cd $(PSMSRC)/../src/github.com/mongodb/mongo-tools; \
-        sed -i '15d' buildscript/build.go; \
-        sed -i '260,269d' buildscript/build.go; \
-        sed -i "s:versionStr,:\"$(PSMDB_TOOLS_REVISION)\",:" buildscript/build.go; \
-        sed -i "s:gitCommit):\"$(PSMDB_TOOLS_COMMIT_HASH)\"):" buildscript/build.go; \
-        ./make build;
-	cp -av $(PSMSRC)/../src/github.com/mongodb/mongo-tools/bin/* $(PSMSRC)/bin; \
-        cd $(PSMSRC);
-
 # Finally PSMDB
 
-build: percona-server-mongodb compile-mongo-tools
+build: percona-server-mongodb
 
 override_dh_auto_install:
 	dh_auto_install
@@ -64,7 +42,6 @@ override_dh_auto_install:
 	cp -av debian/percona-server-mongodb-helper.sh debian/percona-server-mongodb-server/usr/bin
 	cp -av debian/percona-server-mongodb-enable-auth.sh debian/percona-server-mongodb-server/usr/bin
 	cp -av debian/mongod.conf debian/percona-server-mongodb-server/etc/mongod.conf
-	cp -av $(PSMSRC)/bin/* debian/percona-server-mongodb-tools/usr/bin
 
 override_dh_strip:
 	dh_strip -a --dbg-package=percona-server-mongodb-dbg

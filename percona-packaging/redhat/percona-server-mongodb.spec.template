@@ -62,7 +62,7 @@ BuildRequires: snappy-devel, zlib-devel, bzip2-devel, libpcap-devel, openldap-de
 
 Requires: %{name}-mongos = %{version}-%{release}
 Requires: %{name}-server = %{version}-%{release}
-Requires: %{name}-tools = %{version}-%{release}
+Requires: %{name}-tools
 Requires: percona-mongodb-mongosh
 Requires: numactl, openldap, cyrus-sasl-gssapi, curl
 
@@ -118,13 +118,6 @@ Conflicts: Percona-Server-MongoDB-shell Percona-Server-MongoDB-32-shell Percona-
 %description shell
 This package contains the Percona Server for MongoDB shell
 
-%package tools
-Group:          Applications/Databases
-Summary:        The tools package for Percona Server for MongoDB
-Conflicts: Percona-Server-MongoDB-tools Percona-Server-MongoDB-32-tools Percona-Server-MongoDB-34-tools Percona-Server-MongoDB-36-tools mongodb-org-tools mongodb-database-tools
-%description tools
-This package contains various tools from MongoDB project, recompiled for Percona Server for MongoDB
-
 %prep
 
 %setup -q -n %{src_dir}
@@ -134,18 +127,10 @@ bazel clean --expunge || true
 
 export PSM_TARGETS="install-mongod install-mongos install-mongo install-perconadecrypt build/install/bin/mongobridge"
 export INSTALLDIR=$RPM_BUILD_DIR/install
-export TOOLS_TAGS="ssl sasl"
 export PORTABLE=1
 export USE_SSE=1
-export PATH=/usr/local/go/bin:$PATH
 export OPT_LINKFLAGS="${LINKFLAGS} -Wl,--build-id=sha1"
 export GLIBC_TUNABLES=${GLIBC_TUNABLES}
-
-export PATH=/usr/local/go/bin:${PATH}
-export GOROOT="/usr/local/go/"
-export GOPATH=$(pwd)/
-export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-export GOBINPATH="/usr/local/go/bin"
 
 # Build PSfMDB with Bazel
 pushd $RPM_BUILD_DIR/%{src_dir}
@@ -157,27 +142,6 @@ popd
 %if 0%{?rhel} == 7
 eu-strip build/install/bin/mongod
 %endif
-
-# Mongo Tools compilation
-mkdir -p $RPM_BUILD_DIR/%{src_dir}/bin
-pushd $RPM_BUILD_DIR/
-[[ ${PATH} == *"/usr/local/go/bin"* && -x /usr/local/go/bin/go ]] || export PATH=/usr/local/go/bin:${PATH}
-export GOROOT="/usr/local/go/"
-export GOPATH=$(pwd)/
-export PATH="/usr/local/go/bin:$PATH:$GOPATH"
-export GOBINPATH="/usr/local/go/bin"
-mkdir -p $GOPATH/src/github.com/mongodb
-cp -r $RPM_BUILD_DIR/%{src_dir}/mongo-tools ${GOPATH}/src/github.com/mongodb
-pushd ${GOPATH}/src/github.com/mongodb/mongo-tools
-. ./set_tools_revision.sh
-sed -i '15d' buildscript/build.go
-sed -i '260,269d' buildscript/build.go
-sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
-sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
-./make build
-mv bin/* $RPM_BUILD_DIR/%{src_dir}/bin
-popd
-
 
 %install
 #
@@ -217,8 +181,6 @@ install -m 755 bazel-bin/install/bin/mongos %{buildroot}/%{_bindir}/mongos
 install -m 755 bazel-bin/install/bin/perconadecrypt %{buildroot}/%{_bindir}/
 install -m 755 bazel-bin/install/bin/mongobridge %{buildroot}/%{_bindir}/mongobridge
 
-install -m 755 $RPM_BUILD_DIR/%{src_dir}/bin/* %{buildroot}/%{_bindir}/
-
 install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1/
 
 %files
@@ -253,25 +215,6 @@ install -m 644 $RPM_BUILD_DIR/%{src_dir}/manpages/* %{buildroot}/%{_mandir}/man1
 %defattr(-,root,root,-)
 %{_bindir}/mongo
 %{_mandir}/man1/mongo.1.gz
-
-%files tools
-%defattr(-,root,root,-)
-%{_bindir}/bsondump
-%{_mandir}/man1/bsondump.1.gz
-%{_bindir}/mongostat
-%{_mandir}/man1/mongostat.1.gz
-%{_bindir}/mongofiles
-%{_mandir}/man1/mongofiles.1.gz
-%{_bindir}/mongoexport
-%{_mandir}/man1/mongoexport.1.gz
-%{_bindir}/mongoimport
-%{_mandir}/man1/mongoimport.1.gz
-%{_bindir}/mongorestore
-%{_mandir}/man1/mongorestore.1.gz
-%{_bindir}/mongodump
-%{_mandir}/man1/mongodump.1.gz
-%{_bindir}/mongotop
-%{_mandir}/man1/mongotop.1.gz
 
 %pre server
 if [ $1 == 1 ]; then
