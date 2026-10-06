@@ -91,7 +91,6 @@ private:
     std::vector<VersionInfoInterface::BuildInfoField> buildEnvironment{@buildinfo_environment_data@};
     std::vector<std::string_view> perconaFeatureList{
         "MemoryEngine",
-        "HotBackup",
         "BackupCursorAggregationStage",
         "BackupCursorExtendAggregationStage",
         "AWSIAM",

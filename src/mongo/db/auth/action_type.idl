@@ -180,7 +180,6 @@ enums:
             shutdown: "shutdown"
             splitChunk: "splitChunk"
             splitVector: "splitVector"
-            startBackup: "startBackup"
             storageDetails: "storageDetails"
             top: "top"
             touch: "touch"

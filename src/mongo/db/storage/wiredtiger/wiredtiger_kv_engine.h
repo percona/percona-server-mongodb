@@ -561,10 +561,6 @@ public:
 
     StatusWith<std::deque<std::string>> extendBackupCursor() override;
 
-    Status hotBackup(OperationContext* opCtx, const std::string& path) override;
-    Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
-    Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
-
     int64_t getIdentSize(RecoveryUnit&, std::string_view ident) override;
 
     Status repairIdent(RecoveryUnit& ru, std::string_view ident) override;
@@ -870,17 +866,6 @@ private:
         StorageEngine::DropIdentCallback callback;
     };
 
-    // srcPath, destPath, session, cursor
-    typedef std::tuple<boost::filesystem::path,
-                       boost::filesystem::path,
-                       std::shared_ptr<WiredTigerSession>,
-                       WT_CURSOR*>
-        DBTuple;
-    // srcPath, destPath, filename, size to copy
-    typedef std::
-        tuple<boost::filesystem::path, boost::filesystem::path, boost::uintmax_t, std::time_t>
-            FileTuple;
-
     Status _reconfigureAutoCompact(RecoveryUnit& ru, const AutoCompactOptions& options);
 
 
@@ -895,12 +880,6 @@ private:
     void _checkpoint(WiredTigerSession& session);
 
     void _checkpoint(WiredTigerSession& session, bool useTimestamp);
-
-    Status _hotBackupPopulateLists(OperationContext* opCtx,
-                                   const std::string& path,
-                                   std::vector<DBTuple>& dbList,
-                                   std::vector<FileTuple>& filesList,
-                                   boost::uintmax_t& totalfsize);
 
     // auxiliary function for beginNonBlockingBackup
     StatusWith<std::unique_ptr<StorageEngine::StreamingCursor>> _disableIncrementalBackup();
