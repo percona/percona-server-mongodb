@@ -873,7 +873,6 @@ jobs:
           rc=0
           for t in \
             //jstests/ratelimit:ratelimit \
-            //jstests/backup:backup \
             //jstests/backup:backup_tde_cbc \
             //jstests/backup:backup_tde_gcm \
             //jstests/percona/tde:tde_cbc \

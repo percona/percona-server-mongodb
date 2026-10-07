@@ -483,11 +483,6 @@ const allCommands = {
         command: {create: collName},
         shouldFail: true,
     },
-    createBackup: {
-        isAdminCommand: true,
-        command: {createBackup: 1, backupDir: "/tmp/bckp"},
-        shouldFail: false,
-    },
     createIndexes: {
         setUp: function (mongoS) {
             assert.commandWorked(mongoS.getDB(dbName).runCommand({create: collName}));

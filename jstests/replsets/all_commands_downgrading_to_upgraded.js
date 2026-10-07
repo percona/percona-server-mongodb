@@ -669,7 +669,6 @@ const allCommands = {
             assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName}));
         },
     },
-    createBackup: {skip: "requires additional setup to execute backup"},
     createIndexes: {
         setUp: function (conn) {
             assert.commandWorked(conn.getDB(dbName).runCommand({create: collName}));

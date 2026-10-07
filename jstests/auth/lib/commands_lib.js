@@ -282,7 +282,6 @@ const skippedAuthTestingCommands = [
     "configureCollectionBalancing",
     "configureQueryAnalyzer",
     "coordinateCommitTransaction",
-    "createBackup",
     "createUnsplittableCollection",
     "dbCheck",
     "dropAllRolesFromDatabase",
