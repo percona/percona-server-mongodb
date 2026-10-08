@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 87,
+    "commits_behind": 112,
     "days_behind": 9,
-    "unmerged_oldest_age_days": 9.106412463275463,
-    "files_affected": 513,
-    "total_additions": 26240,
-    "total_deletions": 5867,
+    "unmerged_oldest_age_days": 9.514687264641204,
+    "files_affected": 637,
+    "total_additions": 31608,
+    "total_deletions": 7506,
     "date_range": {
       "first": "2026-09-29T08:36:10+00:00",
-      "last": "2026-10-01T09:58:42+00:00"
+      "last": "2026-10-01T19:39:43+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,256 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "cf553a09535fdf3a2f01908a368ef9c452982d7f",
+      "short_sha": "cf553a09535",
+      "date": "2026-10-01T19:39:43+00:00",
+      "author": {
+        "name": "Nick Jefferies",
+        "email": "nick.jefferies@mongodb.com"
+      },
+      "summary": "SERVER-134728 Remove redundant optional s3.get for jstestshell (#63365)"
+    },
+    {
+      "sha": "a198a6440d71002f390a624483ac720726cc2ac5",
+      "short_sha": "a198a6440d7",
+      "date": "2026-10-01T19:10:42+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-134042 Timestamp replicated metadata checkpoint using watermark (#63290)"
+    },
+    {
+      "sha": "fb0593138a4c8bc293b1deb389dacc0889c3bd85",
+      "short_sha": "fb0593138a4",
+      "date": "2026-10-01T18:44:39+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136142: Record interrupt delinquency stats in system.profile documents (#63702)\" (#63723)"
+    },
+    {
+      "sha": "92de7b6be40c129b2f70307168a6b06396beba59",
+      "short_sha": "92de7b6be40",
+      "date": "2026-10-01T17:31:49+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-13607 Fix group key printing in GroupNode::appendToString (#63628)"
+    },
+    {
+      "sha": "b9d33beb5ccf37c65bab55a728853c47bfca70e0",
+      "short_sha": "b9d33beb5cc",
+      "date": "2026-10-01T17:31:19+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-135992 Add featureFlagSbeUnwind for $unwind pushdown (#63479)"
+    },
+    {
+      "sha": "cfcf949174822b7bf8068199cfbb5412966a34d2",
+      "short_sha": "cfcf9491748",
+      "date": "2026-10-01T17:03:27+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-134507: Surface retryable command delay latency histogram in serverStatus and assert it in tests (#62955)"
+    },
+    {
+      "sha": "90bcd5952dba19233a438f182d1a4fb3fa7e6198",
+      "short_sha": "90bcd5952db",
+      "date": "2026-10-01T17:00:37+00:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-135973 Create featureFlagAllocationTimeMemoryTracking (#63681)"
+    },
+    {
+      "sha": "1ea4f06c5ad1eb332d4b7c8c9bbf9af8c6bf3e89",
+      "short_sha": "1ea4f06c5ad",
+      "date": "2026-10-01T16:40:29+00:00",
+      "author": {
+        "name": "Binh Vo",
+        "email": "146007384+binhvomongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-128900 Disambiguate validation results (#63250)"
+    },
+    {
+      "sha": "9bf68bbdcd6bfaa11bcb4b3584315614a4b62d68",
+      "short_sha": "9bf68bbdcd6",
+      "date": "2026-10-01T16:14:37+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-135024 Add tests for V3 explain in a sharded cluster (#63318)"
+    },
+    {
+      "sha": "c4547ad8fbb86f7beac3b79569931499789ff561",
+      "short_sha": "c4547ad8fbb",
+      "date": "2026-10-01T16:14:21+00:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-136157: Make codeowners repository rules public for bzlmod (#63637)"
+    },
+    {
+      "sha": "334d1e1bd96497fef96c665dba16bae9c543ba30",
+      "short_sha": "334d1e1bd96",
+      "date": "2026-10-01T16:12:28+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-135481 Handle dotted paths in DependencyGraph type check (#63444)"
+    },
+    {
+      "sha": "49477a18f964c944b5622e8702f7fc667151ff77",
+      "short_sha": "49477a18f96",
+      "date": "2026-10-01T15:59:43+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-135893 Remove window function SBE compatibility tracking (#63488)"
+    },
+    {
+      "sha": "e3ba39ed8bb9cbb8dc21209d1308b1ce7bbb401e",
+      "short_sha": "e3ba39ed8bb",
+      "date": "2026-10-01T15:43:57+00:00",
+      "author": {
+        "name": "Sean Lyons",
+        "email": "sean.lyons@mongodb.com"
+      },
+      "summary": "SERVER-136149: Decrease verbosity of test selection for resmoke (#63701)"
+    },
+    {
+      "sha": "f5aadda034d68b33a3feea2a8ac50f9a25f9801e",
+      "short_sha": "f5aadda034d",
+      "date": "2026-10-01T15:27:56+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-136142: Record interrupt delinquency stats in system.profile documents (#63702)"
+    },
+    {
+      "sha": "1397efe4676115c3927ce4b53f15bf254e128c2f",
+      "short_sha": "1397efe4676",
+      "date": "2026-10-01T15:27:14+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-135480 Skip $match stages that don't depend on the given path in DependencyGraph::getType() (#63282)"
+    },
+    {
+      "sha": "adf29e93d18c8114f72109c5a57be1f2f43f51bc",
+      "short_sha": "adf29e93d18",
+      "date": "2026-10-01T15:12:27+00:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-135206 Increase RCString size limit by 1 (#63631)"
+    },
+    {
+      "sha": "763176e7bdd1e2837ff8f55523d94594b7add96c",
+      "short_sha": "763176e7bdd",
+      "date": "2026-10-01T15:08:44+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-136134 Shorten Type debugString (#63685)"
+    },
+    {
+      "sha": "b8f6eca949068328730d326ea97887bf4c82aa33",
+      "short_sha": "b8f6eca9490",
+      "date": "2026-10-01T14:41:07+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-136128 Denylist change_stream_update_lookup_sharded_insert_update.js from last-lts/last-continuous multiversion suites (#63687)"
+    },
+    {
+      "sha": "eb4a87e5d2054b9ceb957cc38b2d27f1c8f8572e",
+      "short_sha": "eb4a87e5d20",
+      "date": "2026-10-01T14:35:42+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-135159: Storage for the inferred types from SchemaConstraint validator (#62964)"
+    },
+    {
+      "sha": "835aea8dfea06082c46b5f86030fd8012bbff607",
+      "short_sha": "835aea8dfea",
+      "date": "2026-10-01T14:31:34+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-135164 Expand the logging in chunk migration (#63668)"
+    },
+    {
+      "sha": "7a52de0150a3759d33d710b0c75ab58259c51a3c",
+      "short_sha": "7a52de0150a",
+      "date": "2026-10-01T13:41:26+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-134596 Use type of field in canPathBeArray (#63208)"
+    },
+    {
+      "sha": "bacf2c8924255c5c618ac111b41bbd55c0608a14",
+      "short_sha": "bacf2c89242",
+      "date": "2026-10-01T12:54:28+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-134595 Infer type of field from previous $match in DependencyGraph (#63114)"
+    },
+    {
+      "sha": "2a4cd4df889a23c43a24cc7c604d8337d99076a5",
+      "short_sha": "2a4cd4df889",
+      "date": "2026-10-01T12:31:42+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#63674)"
+    },
+    {
+      "sha": "2dc2bf9fc2c39e6cfbde89c5d524840e92f11d63",
+      "short_sha": "2dc2bf9fc2c",
+      "date": "2026-10-01T11:53:40+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-101303 Remove explicit namespace from query settings initialization using getNamespaceString (#63633)"
+    },
+    {
+      "sha": "79899eb71d6cc892a644b24c7466753380c9f4ef",
+      "short_sha": "79899eb71d6",
+      "date": "2026-10-01T11:28:36+00:00",
+      "author": {
+        "name": "Christian Jeffries",
+        "email": "cjeffries@users.noreply.github.com"
+      },
+      "summary": "SERVER-136048 Set clone depth for DSI for performance tasks in Evergreen (#63601)"
+    },
     {
       "sha": "a52c9aaf9e4f9715d2ab09a7222d0b87d0dc2e26",
       "short_sha": "a52c9aaf9e4",
@@ -1025,7 +1275,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-08 11:08:35",
+  "generated_at": "2026-10-08 20:56:30",
   "branch_name": "master",
   "display_name": "master"
 }
