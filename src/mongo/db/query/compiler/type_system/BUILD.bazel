@@ -1,0 +1,58 @@
+load("//bazel:mongo_src_rules.bzl", "mongo_cc_library", "mongo_cc_unit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(
+    glob([
+        "*.h",
+        "*.cpp",
+    ]),
+)
+
+mongo_cc_library(
+    name = "type_system",
+    srcs = [
+        "matcher_typing.cpp",
+        "type.cpp",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:query_expressions",
+        "//src/mongo/db/exec/document_value",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "field_map_test",
+    srcs = [
+        "field_map_test.cpp",
+    ],
+    tags = ["mongo_unittest_sixth_group"],
+    deps = [
+        ":type_system",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "type_test",
+    srcs = [
+        "type_test.cpp",
+    ],
+    tags = ["mongo_unittest_second_group"],
+    deps = [
+        ":type_system",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "matcher_typing_test",
+    srcs = [
+        "matcher_typing_test.cpp",
+    ],
+    tags = ["mongo_unittest_sixth_group"],
+    deps = [
+        ":type_system",
+        "//src/mongo/db/pipeline:expression_context_for_test",
+        "//src/mongo/db/query/compiler/parsers/matcher:parsed_match_expression_for_test",
+    ],
+)
