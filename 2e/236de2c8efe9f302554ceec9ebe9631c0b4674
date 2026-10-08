@@ -1,0 +1,183 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4c3d97a631342e6e06aa942b4e21bf5077d2860b",
+    "merge_commit": "f969c59733cb64aad8e84b54959b942171976b1f"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "merge_context": {
+    "merge_commit": "f969c59733cb64aad8e84b54959b942171976b1f",
+    "merged_commits": [
+      "f969c59733cb64aad8e84b54959b942171976b1f",
+      "d70170bafc822db1e589a0cd88f09aada4499ea8",
+      "cd8b037b9fc8d4021fe8ab83e1386767bfe32bbc",
+      "efe43ca21bc1bef44274fa3386f84609dd0997fd",
+      "c0960e44958c3aede09ea75183acdbed0cecc33c",
+      "62c5aaf6a52703ae40290aac0d0331c4c4089ac6",
+      "13c0e142dee644b88eaa0fcfdb7f054c769a8856",
+      "dc586e7fb39bf8bd8419e37576fe2671807b111c",
+      "d52364570e01eaa37c8890286bdcc66b0fdc5922",
+      "f923b1f7a354c7b62a89c5dacfe76ca2ddd5d046",
+      "b56e7c8222b17bb50c363bbd0b8fcc7e5c15f2ad",
+      "a31fa88e4da0933165956d7f4827c3b84c4057a4",
+      "354510f928847751adc9d829da8e2862d3a2fc9c",
+      "4feb8eb99836696c4c5ac528aca7828fc1281ba1",
+      "34afe0f42e0c000275c94b3a4cd5121a095efa34",
+      "9c51c5192e5e4284982c29e154012a79922f781b",
+      "d347f3a3537b3d713892a845b02eedfe940e6504",
+      "638026a357b5b6b96d44f23195f54ba17e1dc474",
+      "7cfcdffebd20a9b296098e8aeafaf102d89d236d",
+      "5a54684bf98affad335859bea41296358b1ede50",
+      "f0a59b8a6090924614123d4036d7802278eebb8a",
+      "deb1e5cf658c3ff1319e7cd37cc51409a721fdce",
+      "b0e3e25cd598802f58155681ac0450412286a1cf",
+      "bebdeb1f5667d44661bc81d3827d64a5ff73f511",
+      "8fab2756f150c079821a53695357bbf8543dfc48",
+      "2f40528135377e4a83e9400e767bfcd404b3f887",
+      "ebc2a67228ca344325766372c0b90098e1556c34",
+      "d2c8703f817772685254e439d9de732c612fad4e",
+      "b9394a9250781b911c5033e46de811c123f12b74",
+      "288bc18dcfea37760cf5b6c79336ae22bdf68537",
+      "e375888c08991167a83e46caaa103058a074e77d",
+      "319804450992233ba8689fa0e15a8cb30ee86907",
+      "2f2e48c159609e5f976a5024c33fd9ea06733f79",
+      "ed9575e54df9f697e029f3343d8824a57f674593",
+      "18c035398b7c93cd55c2e788eec9a03d781ad549",
+      "38d818f02db337b15a958d70c69ca3e1152d187a",
+      "8938844f30d26fb6b29fbd751fc06f1f936e59a1",
+      "ae20717787b1643def5a96bc42a037596d8c9f8d",
+      "1be6a01ad5402d1e836b63616174cd0ca7426f64",
+      "ff0a8022ad031d6ec0c32c9adff06ff96809dae8",
+      "20cf72d7a0a1fc48716b4fcb16a52accc20dbfaa",
+      "077d68bbc2258ed5039eadaa31e203a083848608",
+      "6af0c3115d073e29d8cf8f8345367d4edd833a9c",
+      "f668ca72d7b7231fb98ca7145b9591bbf8b287f8",
+      "e39df5eb614ca33fa440ae84720c00296342e8d1",
+      "0c7f11fbaa5a3a5b9b4e29b0ca5aacb12f8329e3",
+      "59dfc3a38f43a4821bb498bd4741c1a1339e4fb2"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/shell/mongo_main.cpp",
+        "src/mongo/shell/shell_options.h",
+        "src/mongo/shell/shell_options.idl",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 36961,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.29528774999999996,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 2648,
+        "cacheReadInputTokens": 73083,
+        "cacheCreationInputTokens": 30801,
+        "webSearchRequests": 0,
+        "costUSD": 0.29528774999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 144,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 2648,
+            "cache_read": 73083,
+            "cache_creation": 30801
+          },
+          "cost_usd": 0.29528774999999996
+        }
+      }
+    },
+    "text_result": "I've read the prompt, inspected the `diff base \u2192 merge commit` diff for each of the seven auto-merged files, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **mongod_main.cpp** \u2014 new shutdown step disposing idle mongot (search) cursors via `CursorManager::disposeIdleMongotCursorsForShutdown`.\n- **repl/BUILD.bazel** \u2014 new deps (`replicated_storage_service`, `replicated_fast_count` targets, `record_store_base`, `fail_point`).\n- **shell (mongo_main.cpp / shell_options.h / shell_options.idl)** \u2014 new `jsAbortOnOutOfMemory` option that forces a core dump on an unrecoverable JS OOM.\n- **transport/BUILD.bazel** \u2014 wires up `mock_reactor.cpp` (+ `clock_source_mock` dep) and its unit test.\n- **wiredtiger.h.in** \u2014 adds one connection stat (`WT_STAT_CONN_SESSION_HS_VERIFY_BTREES_CHECKED` = 1945) and renumbers all subsequent stats by +1.\n\nAll files merged cleanly via `ort` with no conflict markers and no Percona-specific code altered. Response written to `response_20261008_111442_691692.json`.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master into the PSMDB master branch. The incoming changes add a mongod shutdown step that disposes idle mongot (search) cursors, introduce a new shell option 'jsAbortOnOutOfMemory' to force a core dump on an unrecoverable JavaScript OOM, add new build dependencies to the repl library, wire up a reusable mock reactor in the transport layer's mock test support, and import a new WiredTiger connection statistic (history-store verify btrees checked) which shifts the numeric IDs of all following connection stats. All listed files were auto-merged by the 'ort' strategy with no conflicts.",
+      "auto_merged": {
+        "src/mongo/db/mongod_main.cpp": "Adds an include of 'mongo/db/query/client_cursor/cursor_manager.h' and, inside shutdownTask(), a new block that obtains the CursorManager from the service context and calls cursorManager->disposeIdleMongotCursorsForShutdown(opCtx) while timing it with a SectionScopedTimer under TimedSectionId::disposeIdleMongotCursors, placed after globalConnPool.shutdown() and before the search task-executor shutdown block.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds build dependencies to mongo_cc_library targets: '//src/mongo/db/rss:replicated_storage_service' to one target; '//src/mongo/db/replicated_fast_count:repair_replicated_metadata_idl', '//src/mongo/db/replicated_fast_count:replicated_fast_count_enabled' and '//src/mongo/db/storage:record_store_base' to another; and '//src/mongo/util:fail_point' to a third.",
+        "src/mongo/shell/mongo_main.cpp": "In mongo_main(), after setting the JS heap limit, adds a call to getGlobalScriptEngine()->setJSAbortOnOutOfMemory(shellGlobalParams.jsAbortOnOutOfMemory).",
+        "src/mongo/shell/shell_options.h": "Adds a new 'bool jsAbortOnOutOfMemory = false;' member to the ShellGlobalParams struct, after jsHeapLimitMB.",
+        "src/mongo/shell/shell_options.idl": "Adds a new 'jsAbortOnOutOfMemory' config option (arg_vartype: Switch, cpp_varname: shellGlobalParams.jsAbortOnOutOfMemory) that aborts on an unrecoverable JavaScript out-of-memory condition so the kernel writes a core dump of the exhausted heap.",
+        "src/mongo/transport/BUILD.bazel": "Adds 'mock_reactor.cpp' to the srcs of the transport_layer_mock mongo_cc_library and a new dependency on '//src/mongo/util:clock_source_mock'; also adds 'mock_reactor_test.cpp' to the transport mongo_cc_unit_test srcs.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Imports a new WiredTiger connection statistic WT_STAT_CONN_SESSION_HS_VERIFY_BTREES_CHECKED (1945) for history-store verify btrees checked against the data store, and renumbers all subsequent WT_STAT_CONN_* connection statistic #define values by +1 (through WT_STAT_CONN_TXN_ROLLBACK_STEPDOWN, now 2081)."
+      },
+      "review_notes": "All changes in this merge are straightforward auto-merged upstream additions with no conflict markers and no Percona-specific code touched. The wiredtiger.h.in change is a generated-header stat renumbering driven by the new HS verify btrees stat; it must stay consistent with the rest of the WiredTiger import. The new 'jsAbortOnOutOfMemory' shell option is additive across shell_options.h/.idl and mongo_main.cpp and requires getGlobalScriptEngine()->setJSAbortOnOutOfMemory to exist (brought in with the broader upstream import). The new BUILD.bazel dependencies assume the referenced targets (db/rss, db/replicated_fast_count, transport mock_reactor sources) were added by this import; verify those files/targets are present."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough from the diffs. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt, inspected the `diff base \u2192 merge commit` diff for each of the seven auto-merged files, and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **mongod_main.cpp** \u2014 new shutdown step disposing idle mongot (search) cursors via `CursorManager::disposeIdleMongotCursorsForShutdown`.\n- **repl/BUILD.bazel** \u2014 new deps (`replicated_storage_service`, `replicated_fast_count` targets, `record_store_base`, `fail_point`).\n- **shell (mongo_main.cpp / shell_options.h / shell_options.idl)** \u2014 new `jsAbortOnOutOfMemory` option that forces a core dump on an unrecoverable JS OOM.\n- **transport/BUILD.bazel** \u2014 wires up `mock_reactor.cpp` (+ `clock_source_mock` dep) and its unit test.\n- **wiredtiger.h.in** \u2014 adds one connection stat (`WT_STAT_CONN_SESSION_HS_VERIFY_BTREES_CHECKED` = 1945) and renumbers all subsequent stats by +1.\n\nAll files merged cleanly via `ort` with no conflict markers and no Percona-specific code altered. Response written to `response_20261008_111442_691692.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261008_111442_691555.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.293 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "f969c59733cb64aad8e84b54959b942171976b1f",
+    "short_sha": "f969c59733c",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import (import b154ad88a3ca...) is an ideal merge boundary: a self-contained, well-isolated third-party artifact commit that rarely depends on the commits after it and is easy to validate post-merge. Cutting here yields ~47 commits, comfortably inside the ~50 target band. Crucially, it keeps both in-range revert pairs intact so they cancel out within this batch: SERVER-135892 'Incorporate blueprint tree' (bebdeb1f) with its Revert (34afe0f4), and SERVER-135772 'sbe window plan node and stage removal' (d2c8703f) with its Revert (a31fa88e). The eventual settled re-removal of the SBE window node (ee6ae838) falls well past this boundary, so it is left for the next batch to import the settled result. The alternative WiredTiger import (1a6371be) sits at ~69 commits, beyond the target band.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/37768297642"
+  }
+}
