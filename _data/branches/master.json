@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 78,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 8.894846206550925,
-    "files_affected": 441,
-    "total_additions": 20579,
-    "total_deletions": 8401,
+    "commits_behind": 114,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 9.895811306805555,
+    "files_affected": 680,
+    "total_additions": 27856,
+    "total_deletions": 11211,
     "date_range": {
       "first": "2026-09-28T08:43:31+00:00",
-      "last": "2026-09-30T02:58:01+00:00"
+      "last": "2026-10-01T03:47:19+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,366 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "c1ba5e58fbcc134d1c1b721f420b39ed5e6f0dcb",
+      "short_sha": "c1ba5e58fbc",
+      "date": "2026-10-01T03:47:19+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-135148 Chain missing base-class setUp/tearDown calls involving ServiceContextTest (#63405)"
+    },
+    {
+      "sha": "0265e8d2dec893ad2b46eeafe7565368848c3f7b",
+      "short_sha": "0265e8d2dec",
+      "date": "2026-10-01T02:04:35+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-135735 Do not allow overriding table type via custom config strings (#63493)"
+    },
+    {
+      "sha": "2298b8f25291d1717fe412846ff48169f837c5fc",
+      "short_sha": "2298b8f2529",
+      "date": "2026-10-01T00:54:00+00:00",
+      "author": {
+        "name": "Nic",
+        "email": "nic.hollingum@mongodb.com"
+      },
+      "summary": "SERVER-135914: make the metric policy selector trait public (#63496)"
+    },
+    {
+      "sha": "15572099f3b6605a32c5fc2ae63fef4f5eb2768f",
+      "short_sha": "15572099f3b",
+      "date": "2026-09-30T23:58:04+00:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-97670 Capture whether a query shape is executed in a transaction in $queryStats (#59977)"
+    },
+    {
+      "sha": "8f5329473850b6226bb4de581c5987362708cb54",
+      "short_sha": "8f532947385",
+      "date": "2026-09-30T23:09:06+00:00",
+      "author": {
+        "name": "Thomas Goyne",
+        "email": "thomas.goyne@mongodb.com"
+      },
+      "summary": "SERVER-135913: Use layered tables in more disagg unit tests (#63475)"
+    },
+    {
+      "sha": "92e03ab56620a9c4b88139cd860f58f909a2ae0d",
+      "short_sha": "92e03ab5662",
+      "date": "2026-09-30T20:58:16+00:00",
+      "author": {
+        "name": "Militsa Sotirova",
+        "email": "militsa.sotirova@mongodb.com"
+      },
+      "summary": "SERVER-135762: Fallback to MP for intersection of unions when hash intersections are enabled (#63364)"
+    },
+    {
+      "sha": "65d77c036e832acafa48543cd84e376768915dc5",
+      "short_sha": "65d77c036e8",
+      "date": "2026-09-30T20:44:49+00:00",
+      "author": {
+        "name": "Asher Kornfeld",
+        "email": "asher.kornfeld@mongodb.com"
+      },
+      "summary": "SERVER-135103: add congestion window metrics asynchronously (#63099)"
+    },
+    {
+      "sha": "ab45e7b1c35bd030c20a00a33c6c4bacb2609c01",
+      "short_sha": "ab45e7b1c35",
+      "date": "2026-09-30T20:34:14+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-130342: Parse IFR wire flags with an IDL-defined struct (#57338)"
+    },
+    {
+      "sha": "850f907928a5d9eb2fe86534fab1c0e4a8a21865",
+      "short_sha": "850f907928a",
+      "date": "2026-09-30T19:58:50+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-135622 Disable `featureFlagSbeEqLookupUnwindHashJoin` (#63551)"
+    },
+    {
+      "sha": "6eb4bf59177ef1432bcbebbfc41bb540d7318e8f",
+      "short_sha": "6eb4bf59177",
+      "date": "2026-09-30T19:30:30+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-135574 Balancer round exception creates a misleading config.actionlog entry (#63591)"
+    },
+    {
+      "sha": "46f251a661e2433afbbf149cf11d0f511525f63e",
+      "short_sha": "46f251a661e",
+      "date": "2026-09-30T19:07:44+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-136007 Add StreamingGroupNode QSN (#63577)"
+    },
+    {
+      "sha": "54621c497506d99dfadd539b8a93a9ef9ffdd35e",
+      "short_sha": "54621c49750",
+      "date": "2026-09-30T19:06:41+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-136054 Move _ht from HashAggStageBase into CRTP derived (#63627)"
+    },
+    {
+      "sha": "941ce7c3d3298130d644743d806268bcaf3431fc",
+      "short_sha": "941ce7c3d32",
+      "date": "2026-09-30T19:05:59+00:00",
+      "author": {
+        "name": "James Wahlin",
+        "email": "james@mongodb.com"
+      },
+      "summary": "SERVER-135794 Team rename from Query Integration to DB Integration & Observability (#63550)"
+    },
+    {
+      "sha": "03a2138bee424ace8cf3a57843a1f30c81fa0979",
+      "short_sha": "03a2138bee4",
+      "date": "2026-09-30T19:03:12+00:00",
+      "author": {
+        "name": "Asher Kornfeld",
+        "email": "asher.kornfeld@mongodb.com"
+      },
+      "summary": "SERVER-134392 & SERVER-134394: Merge feature branch for repl-lag-metrics (#63225)"
+    },
+    {
+      "sha": "63a11c275c62714446fe15434e20c0711622d197",
+      "short_sha": "63a11c275c6",
+      "date": "2026-09-30T16:54:23+00:00",
+      "author": {
+        "name": "Samuel Mercier",
+        "email": "samontea@users.noreply.github.com"
+      },
+      "summary": "SERVER-136018  Disable fuzzers in DSC release branch temporarily (#63557)"
+    },
+    {
+      "sha": "51982b82fcfbbe8f1e1205c66ba1554e3a5dbe36",
+      "short_sha": "51982b82fcf",
+      "date": "2026-09-30T16:48:53+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-135706 Migrate initialTimesEntered()+N waits to relative-wait API (#63619)"
+    },
+    {
+      "sha": "40acb676c28489ec7fb458fb1655058e27b6bec1",
+      "short_sha": "40acb676c28",
+      "date": "2026-09-30T16:44:40+00:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-129387 Optimize $queryStats top-k sort on workingTimeMillis and execCount (#62783)"
+    },
+    {
+      "sha": "3ac1e3a5a476579ab6e51011130ee5555092215b",
+      "short_sha": "3ac1e3a5a47",
+      "date": "2026-09-30T16:20:09+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-135909: Add back in scip-clang (#63490)"
+    },
+    {
+      "sha": "d58aa28d9c926875c02cb97add82053bbf069991",
+      "short_sha": "d58aa28d9c9",
+      "date": "2026-09-30T16:16:20+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-135339 Implement LeafArrayBehavior::kNoTraversal (#63107)"
+    },
+    {
+      "sha": "e7b398ccc8ec2f46fe1c49edf63757472d510bce",
+      "short_sha": "e7b398ccc8e",
+      "date": "2026-09-30T15:57:41+00:00",
+      "author": {
+        "name": "Sergei B",
+        "email": "sergei.b@mongodb.com"
+      },
+      "summary": "SERVER-135663 Mock transport layer with mock reactor (#63249)"
+    },
+    {
+      "sha": "104932251bd13695e8e4c41f7850e2f0f3a9ecdb",
+      "short_sha": "104932251bd",
+      "date": "2026-09-30T15:57:40+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-136036: Relax PBRT test asserts when replicated fastcount is enabled (#63580)"
+    },
+    {
+      "sha": "38a596cf2476bdf6e62920b8bc884c7193050100",
+      "short_sha": "38a596cf247",
+      "date": "2026-09-30T15:33:36+00:00",
+      "author": {
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
+      },
+      "summary": "SERVER-136076 Update exclusion paths for tests moved in SERVER-135288 (#63622)"
+    },
+    {
+      "sha": "6f5d8d0de79bc73ea8f0820a3dec1608f4f02a3d",
+      "short_sha": "6f5d8d0de79",
+      "date": "2026-09-30T15:13:22+00:00",
+      "author": {
+        "name": "Kyra Ramesh Krishna",
+        "email": "60921433+kyra-rk@users.noreply.github.com"
+      },
+      "summary": "SERVER-135398: Parse isServerInitiatedTransaction on shard participants and split prepared transaction metrics (#63322)"
+    },
+    {
+      "sha": "88e17a36e0dc12aa173f339b36019ea7faf0804f",
+      "short_sha": "88e17a36e0d",
+      "date": "2026-09-30T15:08:35+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-135780 Re-enable preimages test (#63420)"
+    },
+    {
+      "sha": "ee6ae838fd6b75a0c1373529679be74d0d7c7e52",
+      "short_sha": "ee6ae838fd6",
+      "date": "2026-09-30T14:52:35+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-135772 Remove the SBE window plan node and execution stage (#63593)"
+    },
+    {
+      "sha": "d7c4afb387c8e7597757fa0231bab6b9fb129977",
+      "short_sha": "d7c4afb387c",
+      "date": "2026-09-30T14:17:40+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-135703: Add relative-wait API to FailPointEnableBlock (#63349)"
+    },
+    {
+      "sha": "1cf977c9d1309adea4ce14e28579511347073b45",
+      "short_sha": "1cf977c9d13",
+      "date": "2026-09-30T14:04:35+00:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-130677 Add size validation for BSONObjs returned from the stash (#62188)"
+    },
+    {
+      "sha": "2eb36111568433686fcc29f84c827b2c5aad1be8",
+      "short_sha": "2eb36111568",
+      "date": "2026-09-30T13:52:34+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-134934: Implement And/Or/Nor inference for MatchExpressions (#62989)"
+    },
+    {
+      "sha": "56c4d7e83c02f47c8d7cd79d6a49911c9375c550",
+      "short_sha": "56c4d7e83c0",
+      "date": "2026-09-30T13:02:34+00:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-135154 Enforce the PinnedConnectionTaskExecutor lifetime contract during mongot shutdown (#62939)"
+    },
+    {
+      "sha": "285e78e89748bc2c5234648c40fdd3f8fa50f052",
+      "short_sha": "285e78e8974",
+      "date": "2026-09-30T12:45:00+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-133123 Split multiPlanStats into estimate and finalize sections in V3 explain (#63317)"
+    },
+    {
+      "sha": "1ebb092922df66e220768580817f6e02603e5aaf",
+      "short_sha": "1ebb092922d",
+      "date": "2026-09-30T11:37:32+00:00",
+      "author": {
+        "name": "Timour Katchaounov",
+        "email": "34627040+timourk@users.noreply.github.com"
+      },
+      "summary": "SERVER-135934 Tag bindata_construction_validation.js with requires_scripting (#63512)"
+    },
+    {
+      "sha": "7ee42c4a069d569266af791b63f126c4989c47f5",
+      "short_sha": "7ee42c4a069",
+      "date": "2026-09-30T10:05:32+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#63605)"
+    },
+    {
+      "sha": "1c80b533a239a9f536ebdc264b4ae490bf262ff8",
+      "short_sha": "1c80b533a23",
+      "date": "2026-09-30T08:26:33+00:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-134450 Add regression tests for concurrent implicit collection creation during createIndexes (#62449)"
+    },
+    {
+      "sha": "35f88717c556fe90aeca7c2013423342a66bad63",
+      "short_sha": "35f88717c55",
+      "date": "2026-09-30T08:25:49+00:00",
+      "author": {
+        "name": "Carlos Alonso",
+        "email": "c.alonso@mongodb.com"
+      },
+      "summary": "SERVER-135554. Migrate TODOs (#63433)"
+    },
+    {
+      "sha": "92fc0872078191c559e9574de73477c755c6647e",
+      "short_sha": "92fc0872078",
+      "date": "2026-09-30T07:59:26+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-134594 Implement TypeMatchExpression narrowing (#62615)"
+    },
+    {
+      "sha": "7c5a4b6daaa61289d398d0b615eb257cbb38594a",
+      "short_sha": "7c5a4b6daaa",
+      "date": "2026-09-30T06:50:44+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-134594 Add basic path traversal and narrowing (#62614)"
+    },
     {
       "sha": "0d30700a47defbf2a38dbd7bba7981ab6964b040",
       "short_sha": "0d30700a47d",
@@ -906,10 +1266,97 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "51982b82fcfbbe8f1e1205c66ba1554e3a5dbe36",
+        "short_sha": "51982b82fcf",
+        "date": "2026-09-30T16:48:53+00:00",
+        "author": {
+          "name": "Charlie Swanson",
+          "email": "charlie.swanson@mongodb.com"
+        },
+        "summary": "SERVER-135706 Migrate initialTimesEntered()+N waits to relative-wait API (#63619)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 35,
+          "num_of_lines": 256,
+          "lines_added": 127,
+          "lines_deleted": 129,
+          "num_of_dirs": 19
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "03a2138bee424ace8cf3a57843a1f30c81fa0979",
+        "short_sha": "03a2138bee4",
+        "date": "2026-09-30T19:03:12+00:00",
+        "author": {
+          "name": "Asher Kornfeld",
+          "email": "asher.kornfeld@mongodb.com"
+        },
+        "summary": "SERVER-134392 & SERVER-134394: Merge feature branch for repl-lag-metrics (#63225)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 22,
+          "num_of_lines": 328,
+          "lines_added": 288,
+          "lines_deleted": 40,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "0265e8d2dec893ad2b46eeafe7565368848c3f7b",
+        "short_sha": "0265e8d2dec",
+        "date": "2026-10-01T02:04:35+00:00",
+        "author": {
+          "name": "Thomas Goyne",
+          "email": "thomas.goyne@mongodb.com"
+        },
+        "summary": "SERVER-135735 Do not allow overriding table type via custom config strings (#63493)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "c1ba5e58fbcc134d1c1b721f420b39ed5e6f0dcb",
+        "short_sha": "c1ba5e58fbc",
+        "date": "2026-10-01T03:47:19+00:00",
+        "author": {
+          "name": "Billy Donahue",
+          "email": "BillyDonahue@users.noreply.github.com"
+        },
+        "summary": "SERVER-135148 Chain missing base-class setUp/tearDown calls involving ServiceContextTest (#63405)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 45,
+          "num_of_lines": 127,
+          "lines_added": 90,
+          "lines_deleted": 37,
+          "num_of_dirs": 28
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-07 06:11:13",
+  "generated_at": "2026-10-08 06:12:23",
   "branch_name": "master",
   "display_name": "master"
 }
