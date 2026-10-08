@@ -178,6 +178,15 @@ std::string renderUnion(const TypeSet& typeSet, const std::string& objectRenderi
     return rendered;
 }
 
+/// Renders 'typeSet' as the negation of the types it does not cover, such as '~(null|array)'.
+std::string renderNegation(const TypeSet& typeSet) {
+    const std::string negatedUnion = renderUnion(complement(typeSet));
+    if (negatedUnion.find('|') == std::string::npos) {
+        return fmt::format("~{}", negatedUnion);
+    }
+    return fmt::format("~({})", negatedUnion);
+}
+
 /// Returns the type of unset fields (any or missing).
 Type impliedType(Open open) {
     return isOpen(open) ? Type::any() : Type::missing();
@@ -351,13 +360,7 @@ std::string TypeSet::toDebugString() const {
     // This will happen generally when more types are included than excluded.
     // Since the four numeric types print as 'number' it is easier to produce this string and
     // compare the length than to try to count how many types will be rendered.
-    const std::string negatedUnion = renderUnion(complement(*this));
-    std::string negative;
-    if (negatedUnion.find('|') == std::string::npos) {
-        negative = fmt::format("~{}", negatedUnion);
-    } else {
-        negative = fmt::format("~({})", negatedUnion);
-    }
+    const std::string negative = renderNegation(*this);
 
     const std::string positive = renderUnion(*this);
     return negative.size() < positive.size() ? negative : positive;
@@ -418,6 +421,10 @@ Type Type::never() {
 
 Type Type::missing() {
     return Type(BSONType::eoo, Extent::kAll);
+}
+
+Type Type::anyObject() {
+    return Type(BSONType::object, Extent::kAll);
 }
 
 Type Type::fromValue(const Value& value) {
@@ -494,7 +501,11 @@ std::string Type::toDebugString() const {
     if (isAnyObject(_shape)) {
         return _typeSet.toDebugString();
     }
-    return renderUnion(_typeSet, renderShape(_shape));
+    const std::string shape = renderShape(_shape);
+    const std::string negative =
+        fmt::format("{}|{}", renderNegation(withoutType(_typeSet, BSONType::object)), shape);
+    const std::string positive = renderUnion(_typeSet, shape);
+    return negative.size() < positive.size() ? negative : positive;
 }
 
 Type unionType(Type lhs, Type rhs) {
@@ -583,5 +594,23 @@ Type narrowField(Type input, std::string_view fieldName, Type fieldType) {
         clearShape(input._typeSet, input._shape);
     }
     return Type(input._typeSet, std::move(input._shape));
+}
+
+Type resolveFieldAccess(Type input, std::string_view fieldName) {
+    tassert(13459501, "Cannot access a field of a type covering no value", !input.isNever());
+    if (input.hasOnlyType(BSONType::object)) {
+        return input.getField(fieldName);
+    }
+    // Any field access involving an array input results in 'any', because we currently don't model
+    // array contents or array traversal semantics.
+    if (input.hasType(BSONType::array)) {
+        return Type::any();
+    }
+    // Field access on a scalar value results in 'missing', not 'never', which matches MQL
+    // semantics. The input may also cover objects, whose field type must be kept.
+    if (!input.hasType(BSONType::object)) {
+        return Type::missing();
+    }
+    return unionType(input.getField(fieldName), Type::missing());
 }
 }  // namespace mongo::pipeline::type_system

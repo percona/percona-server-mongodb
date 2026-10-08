@@ -44,9 +44,14 @@ namespace {
 /**
  * Sets up and tears down the test environment for `TopologyVersionObserver`
  */
-class TopologyVersionObserverTest : public ReplCoordTest {
+class BasicTopologyVersionObserverTest : public ReplCoordTest {
 protected:
-    BSONObj getConfigObj() {
+    void setUp() override {
+        ReplCoordTest::setUp();
+        assertStartSuccess(configObj, HostAndPort("node1", 12345));
+    }
+
+    const BSONObj configObj{[] {
         BSONObjBuilder configBuilder;
         configBuilder << "_id"
                       << "mySet";
@@ -58,12 +63,16 @@ protected:
                                                   << "node2:12345"));
         configBuilder << "protocolVersion" << 1;
         return configBuilder.obj();
-    }
+    }()};
 
+    unittest::MinimumLoggedSeverityGuard severityGuard{logv2::LogComponent::kDefault,
+                                                       logv2::LogSeverity::Debug(4)};
+};
+
+class TopologyVersionObserverTest : public BasicTopologyVersionObserverTest {
 public:
     void setUp() override {
-        auto configObj = getConfigObj();
-        assertStartSuccess(configObj, HostAndPort("node1", 12345));
+        BasicTopologyVersionObserverTest::setUp();
         ReplSetConfig config = assertMakeRSConfig(configObj);
         replCoord = getReplCoord();
 
@@ -86,6 +95,7 @@ public:
         observer->shutdown();
         ASSERT(observer->isShutdown());
         observer.reset();
+        BasicTopologyVersionObserverTest::tearDown();
     }
 
     auto getObserverCache() {
@@ -118,14 +128,11 @@ public:
     }
 
 protected:
-    ReplicationCoordinatorImpl* replCoord;
+    ReplicationCoordinatorImpl* replCoord{};
 
     const Milliseconds sleepTime = Milliseconds(100);
 
     std::unique_ptr<TopologyVersionObserver> observer;
-
-    unittest::MinimumLoggedSeverityGuard severityGuard{logv2::LogComponent::kDefault,
-                                                       logv2::LogSeverity::Debug(4)};
 };
 
 
@@ -213,7 +220,7 @@ TEST_F(TopologyVersionObserverTest, HandleDBException) {
         // Kill the operation waiting on the `isMaster` future to make it throw
         if (!tryKillOperation()) {
             // If we weren't able to kill, then block until there is an opCtx again.
-            failBlock->waitForTimesEntered(failBlock.initialTimesEntered() + 1);
+            failBlock.waitForOneNewEntry();
 
             // Try again to kill now that we've waited for the failpoint.
             ASSERT(tryKillOperation()) << "Unable to acquire and kill observer OpCtx";
@@ -252,22 +259,14 @@ TEST_F(TopologyVersionObserverTest, HandleQuiesceMode) {
     }
 
     // Wait for the background thread to fully shutdown.
-    failBlock->waitForTimesEntered(failBlock.initialTimesEntered() + 1);
+    failBlock.waitForOneNewEntry();
 
     // In quiescence, the observer should be shutdown and have nothing in cache.
     ASSERT(!observer->getCached());
     ASSERT(observer->isShutdown());
 }
 
-class TopologyVersionObserverInterruptedTest : public TopologyVersionObserverTest {
-public:
-    void setUp() override {
-        auto configObj = getConfigObj();
-        assertStartSuccess(configObj, HostAndPort("node1", 12345));
-    }
-
-    void tearDown() override {}
-};
+class TopologyVersionObserverInterruptedTest : public BasicTopologyVersionObserverTest {};
 
 TEST_F(TopologyVersionObserverInterruptedTest, ShutdownAlwaysInterruptsWorkerOperation) {
 
@@ -281,7 +280,7 @@ TEST_F(TopologyVersionObserverInterruptedTest, ShutdownAlwaysInterruptsWorkerOpe
         observer = std::make_unique<TopologyVersionObserver>();
         observer->init(getServiceContext(), getReplCoord());
 
-        workerFailBlock->waitForTimesEntered(workerFailBlock.initialTimesEntered() + 1);
+        workerFailBlock.waitForOneNewEntry();
         blockerThread = stdx::thread([&] {
             FailPointEnableBlock requestFailBlock("topologyVersionObserverExpectsInterruption");
             b1.countDownAndWait();
@@ -293,7 +292,7 @@ TEST_F(TopologyVersionObserverInterruptedTest, ShutdownAlwaysInterruptsWorkerOpe
             FailPointEnableBlock shutdownFailBlock("topologyVersionObserverShutdownShouldWait");
             observerThread = stdx::thread([&] { observer->shutdown(); });
 
-            shutdownFailBlock->waitForTimesEntered(shutdownFailBlock.initialTimesEntered() + 1);
+            shutdownFailBlock.waitForOneNewEntry();
         }
     }
     observerThread->join();

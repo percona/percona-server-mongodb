@@ -137,6 +137,7 @@ public:
             params.repair,
             isReplSet,
             shouldRecoverFromOplogAsStandalone,
+<<<<<<< HEAD
             inStandaloneMode,
             opCtx->getServiceContext()->getPeriodicRunner());
         std::string extraRecordStoreOptions = WiredTigerUtil::concatConfigs(
@@ -146,6 +147,20 @@ public:
         std::string extraIndexOptions = WiredTigerUtil::concatConfigs(
             wiredTigerGlobalOptions.indexConfig, provider.getMainWiredTigerTableSettings());
         kv->setSortedDataInterfaceExtraOptions(std::move(extraIndexOptions));
+||||||| f969c59733c
+            inStandaloneMode);
+        std::string extraRecordStoreOptions = WiredTigerUtil::concatConfigs(
+            wiredTigerGlobalOptions.collectionConfig, provider.getMainWiredTigerTableSettings());
+        kv->setRecordStoreExtraOptions(std::move(extraRecordStoreOptions));
+
+        std::string extraIndexOptions = WiredTigerUtil::concatConfigs(
+            wiredTigerGlobalOptions.indexConfig, provider.getMainWiredTigerTableSettings());
+        kv->setSortedDataInterfaceExtraOptions(std::move(extraIndexOptions));
+=======
+            inStandaloneMode);
+        kv->setRecordStoreExtraOptions(wiredTigerGlobalOptions.collectionConfig);
+        kv->setSortedDataInterfaceExtraOptions(wiredTigerGlobalOptions.indexConfig);
+>>>>>>> fb0593138a4c8bc293b1deb389dacc0889c3bd85
 
         std::unique_ptr<KVEngine> spillWiredTigerKVEngine;
         // enableSpillEngine is a test-only flag that defaults to false for tests to skip opening

@@ -104,6 +104,7 @@ mongo_cc_library(
     name = "transport_layer_mock",
     srcs = [
         "mock_reactor.cpp",
+        "mock_transport_layer_with_mock_reactor.cpp",
         "transport_layer_mock.cpp",
     ],
     deps = [
@@ -164,6 +165,7 @@ mongo_cc_library(
         "//src/mongo/util:processinfo",
         "//src/mongo/util/concurrency:spin_lock",
         "//src/mongo/util/concurrency:thread_pool",
+        "//src/mongo/util/net:connection_purpose",
         "//src/mongo/util/net:ssl_manager",
         "//src/mongo/util/options_parser",
         "//src/third_party/asio",
@@ -401,6 +403,7 @@ mongo_cc_unit_test(
         "message_compressor_manager_test.cpp",
         "message_compressor_registry_test.cpp",
         "mock_reactor_test.cpp",
+        "mock_transport_layer_with_mock_reactor_test.cpp",
         "proxy_protocol_header_parser_test.cpp",
         "proxy_protocol_tlv_ssl_peer_info_test.cpp",
         "service_executor_test.cpp",

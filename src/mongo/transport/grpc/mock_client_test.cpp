@@ -27,6 +27,7 @@ public:
     }
 
     void setUp() override {
+        ServiceContextTest::setUp();
         _reactor = std::make_shared<GRPCReactor>();
         _ioThread = stdx::thread([&]() {
             _reactor->run();
@@ -37,6 +38,7 @@ public:
     void tearDown() override {
         _reactor->stop();
         _ioThread.join();
+        ServiceContextTest::tearDown();
     }
 
     const std::shared_ptr<GRPCReactor>& getReactor() {
@@ -105,7 +107,7 @@ TEST_F(MockClientTest, ConnectTimeout) {
         FailPointEnableBlock fp("grpcHangOnStreamEstablishment");
         auto status =
             client.connect(defaultServerAddress(), getReactor(), Milliseconds(5), {}).getNoThrow();
-        fp->waitForTimesEntered(fp.initialTimesEntered() + 1);
+        fp.waitForOneNewEntry();
         ASSERT_NOT_OK(status);
         ASSERT_EQ(status.getStatus().code(), ErrorCodes::ExceededTimeLimit);
     };
@@ -124,7 +126,7 @@ TEST_F(MockClientTest, ConnectCancelled) {
         FailPointEnableBlock fp("grpcHangOnStreamEstablishment");
         auto connectFut = client.connect(
             defaultServerAddress(), getReactor(), Minutes(30), {}, cancelSource.token());
-        fp->waitForTimesEntered(fp.initialTimesEntered() + 1);
+        fp.waitForOneNewEntry();
         cancelSource.cancel();
         auto status = connectFut.getNoThrow();
         ASSERT_NOT_OK(status);
@@ -143,7 +145,7 @@ TEST_F(MockClientTest, ConnectCancelledByShutdown) {
         client.start();
         FailPointEnableBlock fp("grpcHangOnStreamEstablishment");
         auto connectFut = client.connect(defaultServerAddress(), getReactor(), Minutes(30), {});
-        fp->waitForTimesEntered(fp.initialTimesEntered() + 1);
+        fp.waitForOneNewEntry();
         client.shutdown();
         auto status = connectFut.getNoThrow();
         ASSERT_NOT_OK(status);

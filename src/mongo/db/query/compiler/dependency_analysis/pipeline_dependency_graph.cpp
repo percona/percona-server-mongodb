@@ -13,6 +13,8 @@
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/pipeline/pipeline.h"
 #include "mongo/db/query/compiler/dependency_analysis/document_transformation_helpers.h"
+#include "mongo/db/query/compiler/type_system/matcher_typing.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/util/dynamic_bitset.h"
 #include "mongo/util/string_map.h"
 
@@ -29,6 +31,8 @@
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kQuery
 
 namespace mongo::pipeline::dependency_graph {
+
+namespace ts = type_system;
 namespace {
 /**
  * Strongly typed alias for int to avoid mixing IDs of different types.
@@ -235,6 +239,10 @@ public:
         _dependsOnWholeDocument = true;
     }
 
+    bool contains(FieldId field) const {
+        return _dependsOnWholeDocument || _fields.contains(field);
+    }
+
 private:
     absl::flat_hash_set<FieldId> _fields;
     bool _dependsOnWholeDocument{false};
@@ -432,6 +440,11 @@ void updateMetadataForConstant(FieldMetadata& metadata, const Value& value) {
     metadata.knownToBeMissing = false;
 }
 
+/// Returns an iterator consisting of the individual path components that make up 'path'.
+auto splitPath(PathRef path) {
+    return absl::StrSplit(path, absl::ByChar('.'));
+}
+
 /**
  * Extracts the remaining suffix from a dotted path string after skipping 'count' path components.
  */
@@ -567,6 +580,8 @@ private:
 
 class DependencyGraph::Impl {
 public:
+    using Type = ts::Type;
+
     explicit Impl(const DocumentSourceContainer& container,
                   DocumentSourceContainer::const_iterator endIt,
                   CanPathBeArray canPathBeArray = defaultCanPathBeArray)
@@ -628,6 +643,19 @@ public:
     }
 
     bool canPathBeArray(const DocumentSource* ds, PathRef path) const {
+        if (!canPathBeArrayFromFieldMetadata(ds, path)) {
+            return false;
+        }
+        if (!feature_flags::gFeatureFlagQueryTypeInference.checkEnabled()) {
+            return true;
+        }
+        return getType(ds, path).hasType(BSONType::array);
+    }
+
+    /// Determines whether the field can be an array. For base document fields, which are not
+    /// represented as Field nodes, checks the PathArrayness API. For fields introduced by stages,
+    /// arrayness is determined by inspecting the FieldMetadata associated with the Field node.
+    bool canPathBeArrayFromFieldMetadata(const DocumentSource* ds, PathRef path) const {
         auto stageId = getPreviousStageId(ds);
         if (!stageId) {
             // Empty pipeline - all paths come from the base collection.
@@ -733,6 +761,77 @@ public:
         }
 
         MONGO_UNREACHABLE_TASSERT(11939201);
+    }
+
+    Type getType(const DocumentSource* ds, PathRef path) const {
+        // We first infer type of the whole top-level document and then resolve the type of the
+        // requested path against the result.
+        Type result = Type::anyObject();
+        forEachPossiblyNarrowingStage(ds, path, [&](const DocumentSourceMatch& match) {
+            result = ts::narrowType(std::move(result), match.getMatchExpression(), true);
+            return !result.isNever();
+        });
+
+        for (auto field : splitPath(path)) {
+            if (result.isNever()) {
+                break;
+            }
+            result = ts::resolveFieldAccess(std::move(result), field);
+        }
+        return result;
+    }
+
+    /**
+     * Invokes the callback on each stage that might help us narrow the type of 'path' that is
+     * visible to 'ds'. The callback may return false to indicate that we should exit early, for
+     * example because the type was already narrowed to 'never'.
+     */
+    template <std::predicate<const DocumentSourceMatch&> Callback>
+    void forEachPossiblyNarrowingStage(const DocumentSource* ds,
+                                       PathRef path,
+                                       const Callback& cb) const {
+        // We need to determine the range of relevant stages. Any $match within this range may allow
+        // us to constrain the set of possible types.
+        //
+        // The end of the range is the stage right before the current stage.
+        const StageId end = getPreviousStageId(ds);
+        if (!end) {
+            return;
+        }
+
+        FieldList fullPath;
+        const auto [leaf, _] = lookupField(_stages[end].scope, parsePath(path), &fullPath);
+        fullPath.push_back(leaf);
+
+        // The start of the range is the stage right after the stage that last modified the given
+        // path.
+        const FieldId topLevelFieldId = fullPath.front();
+        const StageId start = [&]() {
+            if (!topLevelFieldId) {
+                return StageId{0};
+            }
+            ScopeId declaringScope = _fields[topLevelFieldId].declaringScope;
+            return StageId{_scopes[declaringScope].stage.value + 1};
+        }();
+
+        // We skip any stage that doesn't depend on the given path.
+        const auto dependsOnPath = [&](const Stage& stage) {
+            for (auto&& field : fullPath) {
+                if (stage.dependencies.contains(field)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        for (StageId stageId = start; stageId <= end; stageId.value++) {
+            const Stage& stage = _stages[stageId];
+            const auto* source = stage.documentSource.get();
+            const auto* match = dynamic_cast<const DocumentSourceMatch*>(source);
+            if (match && dependsOnPath(stage) && !cb(*match)) {
+                return;
+            }
+        }
     }
 
     const DependencyGraph* getSubpipelineGraph(const DocumentSource* ds) const {
@@ -2200,7 +2299,7 @@ private:
      */
     ParsedPath internPath(PathRef path) {
         ParsedPath vec;
-        for (auto s : absl::StrSplit(path, absl::ByChar('.'))) {
+        for (auto s : splitPath(path)) {
             vec.push_back(_strings.intern({s.begin(), s.end()}));
         }
         return vec;
@@ -2212,8 +2311,7 @@ private:
      */
     ParsedPath parsePath(PathRef path) const {
         ParsedPath vec;
-
-        for (auto s : absl::StrSplit(path, absl::ByChar('.'))) {
+        for (auto s : splitPath(path)) {
             auto id = _strings.lookup({s.begin(), s.end()});
             vec.push_back(id);
         }
@@ -2290,6 +2388,24 @@ bool DependencyGraph::canPathBeArray(const DocumentSource* ds, PathRef path) con
 
 boost::optional<Value> DependencyGraph::getConstant(const DocumentSource* ds, PathRef path) const {
     return _impl->getConstant(ds, path);
+}
+
+ts::Type DependencyGraph::getType(const DocumentSource* ds, PathRef path) const {
+    return _impl->getType(ds, path);
+}
+
+ts::Type DependencyGraph::getType_forTest(const DocumentSource* ds, PathRef path) const {
+    return getType(ds, path);
+}
+
+std::vector<const DocumentSource*> DependencyGraph::getPossiblyNarrowingStages_forTest(
+    const DocumentSource* ds, PathRef path) const {
+    std::vector<const DocumentSource*> result;
+    _impl->forEachPossiblyNarrowingStage(ds, path, [&](const DocumentSourceMatch& match) {
+        result.push_back(&match);
+        return true;
+    });
+    return result;
 }
 
 const DependencyGraph* DependencyGraph::getSubpipelineGraph(const DocumentSource* ds) const {

@@ -1867,18 +1867,11 @@ std::unique_ptr<QuerySolutionNode> TextMatchNode::clone() const {
  */
 void GroupNode::appendToString(str::stream* ss, int indent) const {
     addIndent(ss, indent);
-    *ss << "GROUP\n";
+    *ss << nodeStageTypeToString(this) << '\n';
     addIndent(ss, indent + 1);
     *ss << "key = ";
-    auto idx = 0;
-    if (auto exprObj = dynamic_cast<const ExpressionObject*>(groupByExpression.get()); exprObj) {
-        for (auto&& [groupName, expr] : exprObj->getChildExpressions()) {
-            if (idx > 0) {
-                *ss << ", ";
-            }
-            *ss << "{" << groupName << ": " << exprObj->serialize().toString() << "}";
-            ++idx;
-        }
+    if (dynamic_cast<const ExpressionObject*>(groupByExpression.get())) {
+        *ss << groupByExpression->serialize().toString();
     } else {
         *ss << "{_id: " << groupByExpression->serialize().toString() << "}";
     }
@@ -1898,6 +1891,7 @@ void GroupNode::appendToString(str::stream* ss, int indent) const {
             << "}}";
     }
     *ss << "]" << '\n';
+    appendSpecificToString(ss, indent);
     addCommon(ss, indent);
     addIndent(ss, indent + 1);
     *ss << "Child:" << '\n';
@@ -1911,6 +1905,27 @@ std::unique_ptr<QuerySolutionNode> GroupNode::clone() const {
                                             doingMerge,
                                             willBeMerged,
                                             shouldProduceBson);
+    return copy;
+}
+
+/**
+ * StreamingGroupNode.
+ */
+void StreamingGroupNode::appendSpecificToString(str::stream* ss, int indent) const {
+    addIndent(ss, indent + 1);
+    *ss << "streamingKey = [";
+    for (size_t idx = 0; idx < streamingKey.size(); ++idx) {
+        if (idx > 0) {
+            *ss << ", ";
+        }
+        *ss << streamingKey[idx].fullPath();
+    }
+    *ss << "]" << '\n';
+}
+
+std::unique_ptr<QuerySolutionNode> StreamingGroupNode::clone() const {
+    auto copy = std::make_unique<StreamingGroupNode>(
+        children[0]->clone(), groupByExpression, accumulators, shouldProduceBson, streamingKey);
     return copy;
 }
 
@@ -2019,47 +2034,6 @@ void SearchNode::appendToString(str::stream* ss, int indent) const {
         addIndent(ss, indent + 1);
         *ss << "limit = " << limit << '\n';
     }
-}
-
-/**
- * WindowNode.
- */
-std::unique_ptr<QuerySolutionNode> WindowNode::clone() const {
-    return std::make_unique<WindowNode>(children[0]->clone(), partitionBy, sortBy, outputFields);
-}
-
-void WindowNode::appendToString(str::stream* ss, int indent) const {
-    addIndent(ss, indent);
-    *ss << "WINDOW\n";
-    if (partitionBy) {
-        addIndent(ss, indent + 1);
-        *ss << "partitionBy = " << (*partitionBy)->serialize().toString() << '\n';
-    }
-    if (sortBy) {
-        addIndent(ss, indent + 1);
-        *ss << "sortBy = "
-            << sortBy->serialize(SortPattern::SortKeySerialization::kForExplain).toBson().toString()
-            << '\n';
-    }
-    addIndent(ss, indent + 1);
-    *ss << "outputFields = [";
-    for (size_t idx = 0; idx < outputFields.size(); ++idx) {
-        if (idx > 0) {
-            *ss << ", ";
-        }
-        auto& outputField = outputFields[idx];
-        MutableDocument boundsDoc;
-        outputField.expr->bounds().serialize(boundsDoc, query_shape::SerializationOptions{});
-        auto boundsBson = boundsDoc.freeze().toBson();
-        *ss << "{" << outputField.fieldName << ": {" << outputField.expr->getOpName() << ": "
-            << outputField.expr->input()->serialize().toString()
-            << "window: " << boundsBson.toString() << "}}";
-    }
-    *ss << "]" << '\n';
-    addCommon(ss, indent);
-    addIndent(ss, indent + 1);
-    *ss << "Child:" << '\n';
-    children[0]->appendToString(ss, indent + 2);
 }
 
 HashJoinEmbeddingNode::HashJoinEmbeddingNode(std::unique_ptr<QuerySolutionNode> leftChildArg,

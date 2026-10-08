@@ -85,7 +85,8 @@ bool isNodeUnsupportedByCBR(StageType type) {
         case STAGE_GEO_NEAR_2D:
         case STAGE_GEO_NEAR_2DSPHERE:
         case STAGE_SORT_KEY_GENERATOR:
-        case STAGE_RETURN_KEY: {
+        case STAGE_RETURN_KEY:
+        case STAGE_STREAMING_GROUP: {
             return true;
         }
         case STAGE_BATCHED_DELETE:
@@ -118,7 +119,6 @@ bool isNodeUnsupportedByCBR(StageType type) {
         case STAGE_EQ_LOOKUP:
         case STAGE_EQ_LOOKUP_UNWIND:
         case STAGE_SEARCH:
-        case STAGE_WINDOW:
         case STAGE_SENTINEL:
         case STAGE_UNPACK_TS_BUCKET:
         case STAGE_COLLSCAN:
@@ -174,10 +174,10 @@ bool isNodeUnexpectedByCBR(StageType type) {
         case STAGE_UNWIND:
         case STAGE_UPDATE:
         case STAGE_GROUP:
+        case STAGE_STREAMING_GROUP:
         case STAGE_EQ_LOOKUP:
         case STAGE_EQ_LOOKUP_UNWIND:
         case STAGE_SEARCH:
-        case STAGE_WINDOW:
         case STAGE_SENTINEL:
         case STAGE_UNPACK_TS_BUCKET: {
             return true;

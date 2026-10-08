@@ -161,6 +161,9 @@ public:
     /// A type covering BSONType::eoo (missing).
     static Type missing();
 
+    /// A type covering BSONType::object.
+    static Type anyObject();
+
     /// A type covering the type of 'value'. Generally a kSubset, except for singleton types.
     static Type fromValue(const Value& value);
 
@@ -213,8 +216,8 @@ public:
     bool operator==(const Type& other) const;
 
     /**
-     * Renders the type in the debug syntax, such as 'any', 'number|string', '~array' or
-     * '{x: number, ...}'.
+     * Renders the type in the debug syntax, such as 'any', 'number|string', '~array',
+     * '{x: number, ...}' or '~object|{x: number, ...}'.
      */
     std::string toDebugString() const;
 
@@ -268,5 +271,10 @@ Type complement(Type type);
  * Returns 'input' unchanged if it covers no object.
  */
 Type narrowField(Type input, std::string_view fieldName, Type fieldType);
+
+/**
+ * Returns the type describing the value 'fieldName' resolves to in a value of the input type.
+ */
+Type resolveFieldAccess(Type input, std::string_view fieldName);
 
 }  // namespace mongo::pipeline::type_system
