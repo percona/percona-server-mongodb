@@ -1551,7 +1551,7 @@ StatusWith<std::vector<std::string>> InitialSyncerFCB::_getBackupFiles(Operation
 // way to learn which key identifier decrypts a key.db cloned from a differently-keyed sync
 // source. PSMDB-2253.
 Status InitialSyncerFCB::_fetchStorageMetadataFile(std::unique_lock<std::mutex>& lock) {
-    DBClientConnection syncSourceConn{true /* autoReconnect */};
+    DBClientConnection syncSourceConn{DBClientConnectionOptions{.autoReconnect = true}};
     syncSourceConn.connect(_syncSource, "File copy-based initial sync", boost::none);
     auto status = replAuthenticate(&syncSourceConn)
                       .withContext(str::stream() << "Failed to authenticate to " << _syncSource);
@@ -1987,7 +1987,7 @@ void InitialSyncerFCB::_transferFileCallback(
     }
 
     // create connection to the sync source
-    DBClientConnection syncSourceConn{true /* autoReconnect */};
+    DBClientConnection syncSourceConn{DBClientConnectionOptions{.autoReconnect = true}};
     syncSourceConn.connect(_syncSource, "File copy-based initial sync", boost::none);
     status = replAuthenticate(&syncSourceConn)
                  .withContext(str::stream() << "Failed to authenticate to " << _syncSource);
