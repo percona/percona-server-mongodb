@@ -536,7 +536,6 @@ let testCases = {
 
     // Percona commands
     auditGetOptions: {skip: "does not return user data"},
-    createBackup: {skip: "does not return user data"},
 };
 
 commandsRemovedFromMongosSinceLastLTS.forEach(function(cmd) {

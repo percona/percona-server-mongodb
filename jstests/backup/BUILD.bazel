@@ -12,26 +12,6 @@ mongo_js_library(
 
 all_subpackage_javascript_files()
 
-# Shared helper load()ed by the TDE wrongkey tests in jstests/percona/tde; exported so
-# those suites can depend on just this file rather than the whole backup library.
-exports_files([
-    "_backup_helpers.js",
-])
-
-# backup tests start their own mongod's; no external fixture beyond mongod + shell.
-resmoke_suite_test(
-    name = "backup",
-    config = "//buildscripts/resmokeconfig:suites/backup.yml",
-    tags = [
-        "backup",
-        "percona",
-    ],
-    deps = [
-        "//src/mongo/db:mongod",
-        "//src/mongo/shell:mongo",
-    ],
-)
-
 # Encrypted variants: same fixture plus the TDE encryption key.
 resmoke_suite_test(
     name = "backup_tde_cbc",
