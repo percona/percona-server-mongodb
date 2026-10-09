@@ -363,9 +363,9 @@ feature_flags:
     featureFlagSbeEqLookupUnwindHashJoin:
         description: "Enables executing $lookup-$unwind in SBE using the hash join strategy."
         cpp_varname: gFeatureFlagSbeEqLookupUnwindHashJoin
-        default: true
+        default: false
         fcv_gated: false
-        incremental_rollout_phase: rollout
+        incremental_rollout_phase: in_development
 
     featureFlagSbeEqLookupUnwindIndexedLoopJoin:
         description: "Enables executing $lookup-$unwind in SBE using the indexed loop join strategy."
@@ -437,6 +437,13 @@ feature_flags:
         default: true
         incremental_rollout_phase: rollout
 
+    featureFlagSbeUnwind:
+        description: "Feature flag to enable pushing down $unwind stages to SBE."
+        cpp_varname: gFeatureFlagSbeUnwind
+        fcv_gated: false
+        default: false
+        incremental_rollout_phase: in_development
+
     featureFlagLookupWithPipelinesInSbe:
         description: "Feature flag to enable SBE to execute eligible $lookup stages containing subpipelines."
         cpp_varname: gFeatureFlagLookupWithPipelinesInSbe
@@ -496,3 +503,13 @@ feature_flags:
         default: true
         version: 9.0
         fcv_gated: true
+
+    featureFlagClusteredCollScanMultiRange:
+        description:
+            "Feature flag to enable non-contiguous (multi-range) clustered collection scans.
+            When enabled, the planner produces multiple disjoint RecordId ranges from $in and
+            disjoint $or predicates on the cluster key, allowing the scan to seek between
+            ranges rather than scanning the entire min-max span."
+        cpp_varname: gFeatureFlagClusteredCollScanMultiRange
+        fcv_gated: false
+        incremental_rollout_phase: release

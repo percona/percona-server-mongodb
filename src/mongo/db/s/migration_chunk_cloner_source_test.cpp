@@ -187,6 +187,10 @@ public:
         return _coll->getValidatorDoc();
     }
 
+    StatusWith<std::shared_ptr<MatchExpression>> getValidatorFilter() const override {
+        return _coll->getValidatorFilter();
+    }
+
     std::pair<DocumentValidationResult, Status> checkValidation(
         OperationContext* opCtx, const BSONObj& document) const override {
         return _coll->checkValidation(opCtx, document);
@@ -933,6 +937,10 @@ TEST_F(MigrationChunkClonerSourceTest, CorrectDocumentsFetched) {
 
             ASSERT_EQ(1U, modsObj["deleted"].Array().size());
             ASSERT_BSONOBJ_EQ(BSON("_id" << 199), modsObj["deleted"].Array()[0].Obj());
+
+            const auto cloneStats = cloner.getCloneStats();
+            ASSERT_EQ(1, cloneStats.xferModsDeletes);
+            ASSERT_EQ(2, cloneStats.xferModsUpserts);
         }
     }
 
@@ -1183,6 +1191,10 @@ TEST_F(MigrationChunkClonerSourceTest, ManySmallDocumentsTransferMods) {
             ASSERT_OK(cloner.nextModsBatch(operationContext(), &modsBuilder));
             const auto modsObj = modsBuilder.obj();
             ASSERT_EQ(modsObj["reload"].Array().size(), numDocuments);
+
+            const auto cloneStats = cloner.getCloneStats();
+            ASSERT_EQ(0, cloneStats.xferModsDeletes);
+            ASSERT_EQ(numDocuments, cloneStats.xferModsUpserts);
         }
     }
 

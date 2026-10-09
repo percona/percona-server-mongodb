@@ -22,6 +22,7 @@
 #include "mongo/db/tenant_id.h"
 #include "mongo/dbtests/dbtests.h"  // IWYU pragma: keep
 #include "mongo/unittest/death_test.h"
+#include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 
 #include <algorithm>
@@ -44,6 +45,8 @@ using namespace std::literals::string_view_literals;
 using namespace std::literals::string_view_literals;
 namespace mongo::pipeline::dependency_graph {
 namespace {
+
+using Stages = std::vector<const DocumentSource*>;
 
 class PipelineDependencyGraphTest : public unittest::Test {
 protected:
@@ -3720,6 +3723,210 @@ TEST_F(PipelineDependencyGraphTest, GetBaseDocumentFieldAliasExclusionThenRename
         ASSERT_EQ(graph->getBaseDocumentFieldAlias(nullptr, "c"), boost::none);
     });
 }
+
+TEST_F(PipelineDependencyGraphTest, GetTypeAfterUnionWith) {
+    setPipeline(R"([
+        {$match: {x: {$not: {$type: 'array'}}}},
+        {$unionWith: {
+            coll: "coll_c",
+            pipeline: [{$match: {x: {$not: {$type: 'array'}}}}]
+        }}
+    ])");
+    runTest([&] {
+        ASSERT_EQ(graph->getType_forTest(stages[0].get(), "x").toDebugString(), "any");
+        ASSERT_EQ(graph->getType_forTest(stages[1].get(), "x").toDebugString(), "~array");
+        auto* subGraph = graph->getSubpipelineGraph(stages[1].get());
+        ASSERT_TRUE(subGraph);
+        ASSERT_EQ(subGraph->getType_forTest(nullptr, "x").toDebugString(), "~array");
+        // In theory, we could union the types from both branches, but this is currently not
+        // supported.
+        ASSERT_EQ(graph->getType_forTest(nullptr, "x").toDebugString(), "any");
+    });
+}
+
+
+TEST_F(PipelineDependencyGraphTest, GetTypeAfterLookupOnUnrelatedField) {
+    // Similar to the above in the sense that we are dealing with a subpipeline. However in this
+    // case, the subpipeline only affects 'docs.*', so we can keep the narrowed type on 'x'.
+    setPipeline(R"([
+        {$match: {x: {$not: {$type: 'array'}}}},
+        {$lookup: {
+            from: "coll_b",
+            as: "docs",
+            pipeline: [{$match: {x: {$not: {$type: 'array'}}}}]
+        }}
+    ])");
+    runTest([&] {
+        ASSERT_EQ(graph->getType_forTest(nullptr, "x").toDebugString(), "~array");
+        // For now, don't propagate type information from the subpipeline to the top-level pipeline.
+        ASSERT_EQ(graph->getType_forTest(nullptr, "docs.x").toDebugString(), "any");
+        auto* subGraph = graph->getSubpipelineGraph(stages[1].get());
+        ASSERT_TRUE(subGraph);
+        ASSERT_EQ(subGraph->getType_forTest(nullptr, "x").toDebugString(), "~array");
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayNotArrayTypePredicate) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline(R"([
+        {$match: {x: {$type: 'double'}}},
+        {$match: {x: {$not: {$type: 'array'}}}}
+    ])");
+    runTest([&] {
+        ASSERT_TRUE(graph->canPathBeArray(stages[0].get(), "x"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "x"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "x.y"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayNotArrayTypePredicateOnDottedPath) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline(R"([
+        {$match: {'x': {$not: {$type: 'array'}}}},
+        {$match: {'x.y': {$not: {$type: 'array'}}}}
+    ])");
+    runTest([&] {
+        ASSERT_TRUE(graph->canPathBeArray(stages[0].get(), "x"));
+        ASSERT_TRUE(graph->canPathBeArray(stages[0].get(), "x.y"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "x"));
+        // TODO(SERVER-135481,SERVER-134936) We should be able to determine that this is not an
+        // array.
+        ASSERT_TRUE(graph->canPathBeArray(nullptr, "x.y"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayNotArrayTypePredicateAfterRename) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline(R"([
+        {$set: {x: '$y'}},
+        {$match: {x: {$not: {$type: 'array'}}}}
+    ])");
+    runTest([&] {
+        ASSERT_TRUE(graph->canPathBeArray(stages[1].get(), "x"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "x"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayNotArrayTypePredicateBeforeRename) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline(R"([
+        {$match: {y: {$not: {$type: 'array'}}}},
+        {$set: {x: '$y'}}
+    ])");
+    runTest([&] {
+        ASSERT_FALSE(graph->canPathBeArray(stages[1].get(), "y"));
+        ASSERT_TRUE(graph->canPathBeArray(stages[1].get(), "x"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "y"));
+        // TODO(SERVER-135568) We should be able to deduce that "x" can't be an array.
+        ASSERT_TRUE(graph->canPathBeArray(nullptr, "x"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayIgnoresTypeWhenFeatureFlagDisabled) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", false};
+    setPipeline("[{$match: {x: {$not: {$type: 'array'}}}}]");
+    runTest([&] { ASSERT_TRUE(graph->canPathBeArray(nullptr, "x")); });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanPathBeArrayWithTypePredicateMatchingArrayElements) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline("[{$match: {x: {$type: 'double'}}}]");
+    runTest([&] { ASSERT_TRUE(graph->canPathBeArray(nullptr, "x")); });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetTypeSkipsMatchOnUnrelatedDeclaredField) {
+    setPipeline(R"([
+        {$project: {x: '$b', y: '$c'}},
+        {$match: {x: {$not: {$type: 'array'}}}},
+        {$match: {y: {$type: 'number'}}},
+        {$match: {$expr: {$eq: ['$$ROOT', {x: 1}]}}},
+        {$match: {z: {$type: 'string'}}}
+    ])");
+    runTest([&] {
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x"),
+                  (Stages{stages[1].get(), stages[3].get()}));
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "y"),
+                  (Stages{stages[2].get(), stages[3].get()}));
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "z"),
+                  (Stages{stages[3].get(), stages[4].get()}));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetTypeOfDottedPathConsidersMatchesOnPrefix) {
+    setPipeline(R"([
+        {$set: {x: '$b', y: '$c'}},
+        {$match: {x: {$not: {$type: 'array'}}}},
+        {$match: {y: {$type: 'number'}}}
+    ])");
+    runTest([&] {
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x.a"),
+                  (Stages{stages[1].get()}));
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "y.a.b"),
+                  (Stages{stages[2].get()}));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetTypeConsidersMatchesOnPathAndItsPrefixes) {
+    setPipeline(R"([
+        {$set: {'x.y.z': '$a'}},
+        {$match: {'x.y.z': {$type: 'number'}}},
+        {$match: {'x.y': {$type: 'object'}}},
+        {$match: {x: {$type: 'object'}}}
+    ])");
+    runTest([&] {
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x.y.z"),
+                  (Stages{stages[1].get(), stages[2].get(), stages[3].get()}));
+    });
+}
+
+// TODO(SERVER-135797): A $match on any path under 'x' may narrow the type of 'x' and its subpaths,
+// so none of these stages should be skipped.
+TEST_F(PipelineDependencyGraphTest, GetTypeSkipsMatchesOnSubpathsAndSiblings) {
+    setPipeline(R"([
+        {$set: {'x.y': '$a', 'x.z': '$b'}},
+        {$match: {'x.y': {$type: 'number'}}},
+        {$match: {'x.z': {$type: 'number'}}},
+        {$match: {x: {$type: 'object'}}}
+    ])");
+    runTest([&] {
+        // In reality, all three $match stages can help us narrow down the type of 'x'.
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x"),
+                  (Stages{stages[3].get()}));
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x.y"),
+                  (Stages{stages[1].get(), stages[3].get()}));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetTypeConsidersMatchesOnIndexedPaths) {
+    setPipeline(R"([
+        {$set: {'x.y': '$a', w: '$b'}},
+        {$match: {'x.0.y': {$type: 'number'}}},
+        {$match: {'x.0': {$type: 'number'}}},
+        {$match: {'w.0': {$type: 'number'}}}
+    ])");
+    runTest([&] {
+        // A $match on a path with an array index depends on the prefix before the index, i.e. 'x'.
+        for (auto&& path : {"x", "x.y", "x.0", "x.0.y"}) {
+            ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, path),
+                      (Stages{stages[1].get(), stages[2].get()}))
+                << path;
+        }
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetTypeDoesNotSkipMatchesOnOtherBaseDocumentFields) {
+    setPipeline(R"([
+        {$match: {x: {$not: {$type: 'array'}}}},
+        {$match: {y: {$type: 'number'}}}
+    ])");
+    runTest([&] {
+        // TODO(SERVER-135643): Base document fields are not represented in the graph as Field
+        // nodes, so we currently can't tell which stages depend on which base document fields.
+        ASSERT_EQ(graph->getPossiblyNarrowingStages_forTest(nullptr, "x"),
+                  (Stages{stages[0].get(), stages[1].get()}));
+    });
+}
+
 
 }  // namespace
 }  // namespace mongo::pipeline::dependency_graph

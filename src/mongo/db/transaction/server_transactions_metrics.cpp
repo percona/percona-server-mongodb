@@ -4,6 +4,7 @@
 #include "mongo/db/transaction/server_transactions_metrics.h"
 
 #include "mongo/bson/bsonelement.h"
+#include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/bsontypes.h"
 #include "mongo/db/commands/server_status/server_status.h"
 #include "mongo/db/operation_context.h"
@@ -117,27 +118,55 @@ void ServerTransactionsMetrics::incrementTotalCommitted(bool isServerInitiated) 
 }
 
 unsigned long long ServerTransactionsMetrics::getTotalPrepared() const {
-    return _totalPrepared.loadRelaxed();
+    return _totalPreparedInternal.loadRelaxed() + _totalPreparedExternal.loadRelaxed();
 }
 
-void ServerTransactionsMetrics::incrementTotalPrepared() {
-    _totalPrepared.fetchAndAddRelaxed(1);
+unsigned long long ServerTransactionsMetrics::getTotalPreparedInternal() const {
+    return _totalPreparedInternal.loadRelaxed();
+}
+
+unsigned long long ServerTransactionsMetrics::getTotalPreparedExternal() const {
+    return _totalPreparedExternal.loadRelaxed();
+}
+
+void ServerTransactionsMetrics::incrementTotalPrepared(bool isServerInitiated) {
+    (isServerInitiated ? _totalPreparedInternal : _totalPreparedExternal).fetchAndAddRelaxed(1);
 }
 
 unsigned long long ServerTransactionsMetrics::getTotalPreparedThenCommitted() const {
-    return _totalPreparedThenCommitted.loadRelaxed();
+    return _totalPreparedThenCommittedInternal.loadRelaxed() +
+        _totalPreparedThenCommittedExternal.loadRelaxed();
 }
 
-void ServerTransactionsMetrics::incrementTotalPreparedThenCommitted() {
-    _totalPreparedThenCommitted.fetchAndAddRelaxed(1);
+unsigned long long ServerTransactionsMetrics::getTotalPreparedThenCommittedInternal() const {
+    return _totalPreparedThenCommittedInternal.loadRelaxed();
+}
+
+unsigned long long ServerTransactionsMetrics::getTotalPreparedThenCommittedExternal() const {
+    return _totalPreparedThenCommittedExternal.loadRelaxed();
+}
+
+void ServerTransactionsMetrics::incrementTotalPreparedThenCommitted(bool isServerInitiated) {
+    (isServerInitiated ? _totalPreparedThenCommittedInternal : _totalPreparedThenCommittedExternal)
+        .fetchAndAddRelaxed(1);
 }
 
 unsigned long long ServerTransactionsMetrics::getTotalPreparedThenAborted() const {
-    return _totalPreparedThenAborted.loadRelaxed();
+    return _totalPreparedThenAbortedInternal.loadRelaxed() +
+        _totalPreparedThenAbortedExternal.loadRelaxed();
 }
 
-void ServerTransactionsMetrics::incrementTotalPreparedThenAborted() {
-    _totalPreparedThenAborted.fetchAndAddRelaxed(1);
+unsigned long long ServerTransactionsMetrics::getTotalPreparedThenAbortedInternal() const {
+    return _totalPreparedThenAbortedInternal.loadRelaxed();
+}
+
+unsigned long long ServerTransactionsMetrics::getTotalPreparedThenAbortedExternal() const {
+    return _totalPreparedThenAbortedExternal.loadRelaxed();
+}
+
+void ServerTransactionsMetrics::incrementTotalPreparedThenAborted(bool isServerInitiated) {
+    (isServerInitiated ? _totalPreparedThenAbortedInternal : _totalPreparedThenAbortedExternal)
+        .fetchAndAddRelaxed(1);
 }
 
 unsigned long long ServerTransactionsMetrics::getCurrentPrepared() const {
@@ -184,21 +213,44 @@ void ServerTransactionsMetrics::updateStats(TransactionsStats* stats, bool inclu
     stats->setCurrentActive(_currentActive.loadRelaxed());
     stats->setCurrentInactive(_currentInactive.loadRelaxed());
     stats->setCurrentOpen(_currentOpen.loadRelaxed());
-    stats->setTotalAborted(_totalAbortedInternal.loadRelaxed() +
-                           _totalAbortedExternal.loadRelaxed());
-    stats->setTotalAbortedInternal(_totalAbortedInternal.loadRelaxed());
-    stats->setTotalAbortedExternal(_totalAbortedExternal.loadRelaxed());
-    stats->setTotalCommitted(_totalCommittedInternal.loadRelaxed() +
-                             _totalCommittedExternal.loadRelaxed());
-    stats->setTotalCommittedInternal(_totalCommittedInternal.loadRelaxed());
-    stats->setTotalCommittedExternal(_totalCommittedExternal.loadRelaxed());
-    stats->setTotalStarted(_totalStartedInternal.loadRelaxed() +
-                           _totalStartedExternal.loadRelaxed());
-    stats->setTotalStartedInternal(_totalStartedInternal.loadRelaxed());
-    stats->setTotalStartedExternal(_totalStartedExternal.loadRelaxed());
-    stats->setTotalPrepared(_totalPrepared.loadRelaxed());
-    stats->setTotalPreparedThenCommitted(_totalPreparedThenCommitted.loadRelaxed());
-    stats->setTotalPreparedThenAborted(_totalPreparedThenAborted.loadRelaxed());
+    // Load each counter once so the aggregate always equals the sum of its split fields.
+    const auto abortedInternal = _totalAbortedInternal.loadRelaxed();
+    const auto abortedExternal = _totalAbortedExternal.loadRelaxed();
+    stats->setTotalAborted(abortedInternal + abortedExternal);
+    stats->setTotalAbortedInternal(abortedInternal);
+    stats->setTotalAbortedExternal(abortedExternal);
+
+    const auto committedInternal = _totalCommittedInternal.loadRelaxed();
+    const auto committedExternal = _totalCommittedExternal.loadRelaxed();
+    stats->setTotalCommitted(committedInternal + committedExternal);
+    stats->setTotalCommittedInternal(committedInternal);
+    stats->setTotalCommittedExternal(committedExternal);
+
+    const auto startedInternal = _totalStartedInternal.loadRelaxed();
+    const auto startedExternal = _totalStartedExternal.loadRelaxed();
+    stats->setTotalStarted(startedInternal + startedExternal);
+    stats->setTotalStartedInternal(startedInternal);
+    stats->setTotalStartedExternal(startedExternal);
+
+    const auto preparedInternal = _totalPreparedInternal.loadRelaxed();
+    const auto preparedExternal = _totalPreparedExternal.loadRelaxed();
+    stats->setTotalPrepared(preparedInternal + preparedExternal);
+    stats->setTotalPreparedInternal(preparedInternal);
+    stats->setTotalPreparedExternal(preparedExternal);
+
+    const auto preparedThenCommittedInternal = _totalPreparedThenCommittedInternal.loadRelaxed();
+    const auto preparedThenCommittedExternal = _totalPreparedThenCommittedExternal.loadRelaxed();
+    stats->setTotalPreparedThenCommitted(preparedThenCommittedInternal +
+                                         preparedThenCommittedExternal);
+    stats->setTotalPreparedThenCommittedInternal(preparedThenCommittedInternal);
+    stats->setTotalPreparedThenCommittedExternal(preparedThenCommittedExternal);
+
+    const auto preparedThenAbortedInternal = _totalPreparedThenAbortedInternal.loadRelaxed();
+    const auto preparedThenAbortedExternal = _totalPreparedThenAbortedExternal.loadRelaxed();
+    stats->setTotalPreparedThenAborted(preparedThenAbortedInternal + preparedThenAbortedExternal);
+    stats->setTotalPreparedThenAbortedInternal(preparedThenAbortedInternal);
+    stats->setTotalPreparedThenAbortedExternal(preparedThenAbortedExternal);
+
     stats->setCurrentPrepared(_currentPrepared.loadRelaxed());
 
     std::lock_guard<std::mutex> lg(_mutex);
@@ -249,7 +301,15 @@ public:
             stats.setPreciseCheckpointRecovery(recoveryStats);
         }
 
-        return stats.toBSON();
+        // Append the retry-delay latency histogram alongside the IDL-generated TransactionsStats
+        // fields. A variable-length histogram isn't expressible as a fixed strict IDL field, so
+        // it is added as an extra field on the outer "transactions" BSON object.
+        auto retryStats = RetryableWritesStats::get(opCtx);
+        BSONObjBuilder result;
+        result.appendElements(stats.toBSON());
+        retryStats->appendRetriedWriteStats(result);
+
+        return result.obj();
     }
 };
 auto& transactionsSSS = *ServerStatusSectionBuilder<TransactionsSSS>("transactions").forShard();

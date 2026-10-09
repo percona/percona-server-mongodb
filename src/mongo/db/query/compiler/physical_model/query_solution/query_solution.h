@@ -14,6 +14,8 @@
 #include "mongo/db/pipeline/accumulation_statement.h"
 #include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/field_path.h"
+// TODO SERVER-136009: Remove this include. Nothing in this file uses it anymore, but removing it
+// triggers some false positive warnings in unit tests.
 #include "mongo/db/pipeline/window_function/window_function_statement.h"
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/query/compiler/dependency_analysis/dependencies.h"
@@ -1745,11 +1747,11 @@ struct GroupNode : public QuerySolutionNode {
         return false;
     }
 
-    const ProvidedSortSet& providedSorts() const final {
+    const ProvidedSortSet& providedSorts() const override {
         return kEmptySet;
     }
 
-    std::unique_ptr<QuerySolutionNode> clone() const final;
+    std::unique_ptr<QuerySolutionNode> clone() const override;
 
     bool metadataExhausted() const final {
         return true;
@@ -1770,6 +1772,43 @@ struct GroupNode : public QuerySolutionNode {
     // If set to true, generated SBE plan will produce result as BSON object. If false,
     // 'sbe::Object' is produced instead.
     bool shouldProduceBson;
+
+protected:
+    virtual void appendSpecificToString(str::stream* ss, int indent) const {}
+};
+
+// Group node that processes input clustered by the group key.
+struct StreamingGroupNode : public GroupNode {
+    StreamingGroupNode(std::unique_ptr<QuerySolutionNode> child,
+                       boost::intrusive_ptr<Expression> groupByExpression,
+                       std::vector<AccumulationStatement> accs,
+                       bool shouldProduceBson,
+                       std::vector<FieldPath> streamingKey)
+        : GroupNode(std::move(child),
+                    std::move(groupByExpression),
+                    std::move(accs),
+                    false /* doingMerge */,
+                    false /* willBeMerged */,
+                    shouldProduceBson),
+          streamingKey(std::move(streamingKey)) {}
+
+    StageType getType() const override {
+        return STAGE_STREAMING_GROUP;
+    }
+
+    std::unique_ptr<QuerySolutionNode> clone() const final;
+
+    void appendSpecificToString(str::stream* ss, int indent) const override;
+
+    void hash(absl::HashState h) const override {
+        for (const auto& path : streamingKey) {
+            h = absl::HashState::combine(std::move(h), path.fullPath());
+        }
+        GroupNode::hash(std::move(h));
+    }
+
+    // Field paths by which the child is clustered.
+    std::vector<FieldPath> streamingKey;
 };
 
 /**
@@ -2118,66 +2157,6 @@ struct UnpackTsBucketNode : public QuerySolutionNode {
     std::unique_ptr<MatchExpression> eventFilter = nullptr;
     std::unique_ptr<MatchExpression> wholeBucketFilter = nullptr;
     bool includeMeta = false;
-};
-
-struct WindowNode : public QuerySolutionNode {
-    WindowNode(std::unique_ptr<QuerySolutionNode> child,
-               boost::optional<boost::intrusive_ptr<Expression>> partitionByArg,
-               boost::optional<SortPattern> sortByArg,
-               std::vector<WindowFunctionStatement> outputFieldsArg)
-        : QuerySolutionNode(std::move(child)),
-          partitionBy(std::move(partitionByArg)),
-          sortBy(std::move(sortByArg)),
-          outputFields(std::move(outputFieldsArg)) {
-        DepsTracker partitionByDeps;
-        if (partitionBy) {
-            expression::addDependencies(partitionBy->get(), &partitionByDeps);
-        }
-        partitionByRequiredFields = std::move(partitionByDeps.fields);
-
-        DepsTracker sortByDeps;
-        if (sortBy) {
-            sortBy->addDependencies(&sortByDeps);
-        }
-        sortByRequiredFields = std::move(sortByDeps.fields);
-
-        DepsTracker outputDeps;
-        for (auto& outputField : outputFields) {
-            outputField.addDependencies(&outputDeps);
-        }
-        outputRequiredFields = std::move(outputDeps.fields);
-    }
-
-    StageType getType() const override {
-        return STAGE_WINDOW;
-    }
-
-    void appendToString(str::stream* ss, int indent) const override;
-
-    bool fetched() const override {
-        return true;
-    }
-
-    FieldAvailability getFieldAvailability(const std::string& field) const override {
-        return FieldAvailability::kFullyProvided;
-    }
-    bool sortedByDiskLoc() const override {
-        return false;
-    }
-
-    const ProvidedSortSet& providedSorts() const final {
-        return children.back()->providedSorts();
-    }
-
-    std::unique_ptr<QuerySolutionNode> clone() const final;
-
-    boost::optional<boost::intrusive_ptr<Expression>> partitionBy;
-    boost::optional<SortPattern> sortBy;
-    std::vector<WindowFunctionStatement> outputFields;
-
-    OrderedPathSet partitionByRequiredFields;
-    OrderedPathSet sortByRequiredFields;
-    OrderedPathSet outputRequiredFields;
 };
 
 /**

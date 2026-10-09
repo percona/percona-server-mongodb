@@ -115,6 +115,9 @@ void QsnNodeCountAnalyzer::preVisit(const QuerySolutionNode& node) {
         case STAGE_GROUP:
             _counts.set(QsnNodeCounter::kGroup);
             break;
+        case STAGE_STREAMING_GROUP:
+            _counts.set(QsnNodeCounter::kStreamingGroup);
+            break;
         case STAGE_EQ_LOOKUP:
             _counts.set(QsnNodeCounter::kEqLookupNoUnwind);
             break;
@@ -170,7 +173,6 @@ void QsnNodeCountAnalyzer::preVisit(const QuerySolutionNode& node) {
         case STAGE_UNWIND:
         case STAGE_UPDATE:
         case STAGE_VIRTUAL_SCAN:
-        case STAGE_WINDOW:
             break;
     }
 }

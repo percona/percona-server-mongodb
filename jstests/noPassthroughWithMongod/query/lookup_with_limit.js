@@ -3,7 +3,6 @@
  */
 import {flattenQueryPlanTree, getWinningPlanFromExplain} from "jstests/libs/query/analyze_plan.js";
 import {
-    checkSbeFullFeatureFlagEnabled,
     checkSbeFullyEnabled,
     checkSbeRestrictedOrFullyEnabled,
     isDeferredGetExecutorEnabled,
@@ -17,10 +16,14 @@ const frameworkControl = assert.commandWorked(
 const forceClassicEngineSet =
     frameworkControl.internalQueryFrameworkControl === "forceClassicEngine";
 
-const isFeatureFlagSbeFullEnabled = checkSbeFullFeatureFlagEnabled(db);
+const isFeatureFlagSbeFullEnabled =
+    FeatureFlagUtil.isPresentAndEnabled(db, "SbeUnwind") && checkSbeFullyEnabled(db);
 const isSbeEnabled = checkSbeFullyEnabled(db);
 const isSbeGroupLookupOnly = checkSbeRestrictedOrFullyEnabled(db);
-const isLookupUnwindPushdownEnabled = isDeferredGetExecutorEnabled(db) && !forceClassicEngineSet;
+const isLookupUnwindPushdownEnabled =
+    isDeferredGetExecutorEnabled(db) &&
+    FeatureFlagUtil.isPresentAndEnabled(db, "SbeEqLookupUnwindHashJoin") &&
+    !forceClassicEngineSet;
 const isSbeTransformStagesEnabled =
     FeatureFlagUtil.isPresentAndEnabled(db, "SbeTransformStages") && !forceClassicEngineSet;
 

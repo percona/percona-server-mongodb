@@ -84,6 +84,7 @@ protected:
 };
 
 void OplogApplierTest::setUp() {
+    ServiceContextTest::setUp();
     _buffer =
         std::make_unique<OplogBufferBlockingQueue>(kTestOplogBufferSize, kTestOplogBufferCount);
     _applier = std::make_unique<OplogApplierMock>(_buffer.get());
@@ -98,6 +99,7 @@ void OplogApplierTest::tearDown() {
     _opCtxHolder = {};
     _applier = {};
     _buffer = {};
+    ServiceContextTest::tearDown();
 }
 
 const DatabaseName dbName = DatabaseName::createDatabaseName_forTest(boost::none, "test"sv);
@@ -754,7 +756,7 @@ TEST_F(OplogApplierDelayTest, GetNextApplierBatchWaitsForBatchToFill) {
             srcOps.push_back(makeInsertOplogEntry(
                 2, NamespaceString::createNamespaceString_forTest(dbName, "bar")));
             _applier->enqueue(opCtx(), srcOps.cbegin(), srcOps.cend());
-            peekFailPoint->waitForTimesEntered(peekFailPoint.initialTimesEntered() + 1);
+            peekFailPoint.waitForOneNewEntry();
             _mockClock->advance(Milliseconds(5));
         }
         ASSERT(waitForWait());
@@ -784,7 +786,7 @@ TEST_F(OplogApplierDelayTest, GetNextApplierBatchWaitsForBatchToTimeout) {
             srcOps.push_back(makeInsertOplogEntry(
                 2, NamespaceString::createNamespaceString_forTest(dbName, "bar")));
             _applier->enqueue(opCtx(), srcOps.cbegin(), srcOps.cend());
-            peekFailPoint->waitForTimesEntered(peekFailPoint.initialTimesEntered() + 1);
+            peekFailPoint.waitForOneNewEntry();
             _mockClock->advance(Milliseconds(5));
         }
         ASSERT(waitForWait());
@@ -813,7 +815,7 @@ TEST_F(OplogApplierDelayTest, GetNextApplierBatchInterrupted) {
             srcOps.push_back(makeInsertOplogEntry(
                 2, NamespaceString::createNamespaceString_forTest(dbName, "bar")));
             _applier->enqueue(opCtx(), srcOps.cbegin(), srcOps.cend());
-            peekFailPoint->waitForTimesEntered(peekFailPoint.initialTimesEntered() + 1);
+            peekFailPoint.waitForOneNewEntry();
             _mockClock->advance(Milliseconds(5));
         }
         ASSERT(waitForWait());
