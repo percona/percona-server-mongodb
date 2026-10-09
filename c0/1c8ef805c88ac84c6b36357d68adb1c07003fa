@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "bf41dbe634c65e5960162bed5af15ee5eb521a20",
+    "merge_commit": "fb0593138a4c8bc293b1deb389dacc0889c3bd85"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'fb0593138a4' into master",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_init.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in the WiredTigerKVEngine construction block by\ncombining Percona's PSMDB-1283 change with upstream's SERVER-135735\nchange. Kept Percona's extra\n`opCtx->getServiceContext()->getPeriodicRunner()` constructor argument\n(key state verification feature) and adopted upstream's simplified\nsetting of record store / index extra options.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_init.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "c01c8ef805c88ac84c6b36357d68adb1c07003fa"
+    }
+  ]
+}
