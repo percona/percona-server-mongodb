@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 69,
+    "commits_behind": 82,
     "days_behind": 9,
-    "unmerged_oldest_age_days": 9.135152690335648,
-    "files_affected": 505,
-    "total_additions": 21141,
-    "total_deletions": 7736,
+    "unmerged_oldest_age_days": 9.544216933090278,
+    "files_affected": 551,
+    "total_additions": 22448,
+    "total_deletions": 8207,
     "date_range": {
       "first": "2026-09-30T02:58:01+00:00",
-      "last": "2026-10-01T22:27:16+00:00"
+      "last": "2026-10-02T15:20:57+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,136 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "a3f4fab0bdf50dbdd58a85ce6f1631ae50c5d16c",
+      "short_sha": "a3f4fab0bdf",
+      "date": "2026-10-02T15:20:57+00:00",
+      "author": {
+        "name": "Kyle Burgess",
+        "email": "90669224+kyleburgess2025@users.noreply.github.com"
+      },
+      "summary": "SERVER-136142: Record interrupt delinquency stats in system.profile documents (#63727)"
+    },
+    {
+      "sha": "e70c64789b90507741907b1456d381198dd983a2",
+      "short_sha": "e70c64789b9",
+      "date": "2026-10-02T14:33:39+00:00",
+      "author": {
+        "name": "Moustafa Maher",
+        "email": "m.maher@mongodb.com"
+      },
+      "summary": "SERVER-130956 Omit transactions from collection latency stats (#63538)"
+    },
+    {
+      "sha": "58700ebcb6d4d326bd985440a13d88a742e8131d",
+      "short_sha": "58700ebcb6d",
+      "date": "2026-10-02T14:26:54+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-136060 Clean up lingering TODOs (#63651)"
+    },
+    {
+      "sha": "d53af8470e1ffb70a4c92266ad3c8e94197e7d27",
+      "short_sha": "d53af8470e1",
+      "date": "2026-10-02T14:01:58+00:00",
+      "author": {
+        "name": "Mike Nugent",
+        "email": "mike.nugent@mongodb.com"
+      },
+      "summary": "SERVER-136039: Use an options struct when creating NetworkInterfaces (#63553)"
+    },
+    {
+      "sha": "9f04d80a2539ea2ae3b3ae3809b638d82895e2bd",
+      "short_sha": "9f04d80a253",
+      "date": "2026-10-02T12:48:58+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-135892: Incorporate blueprint tree into StageBuilderState (#63596)"
+    },
+    {
+      "sha": "29bf9bbd48b2a5ace84a82c19638732b209fb16b",
+      "short_sha": "29bf9bbd48b",
+      "date": "2026-10-02T12:03:52+00:00",
+      "author": {
+        "name": "Nick Zolnierz",
+        "email": "nicholas.zolnierz@mongodb.com"
+      },
+      "summary": "SERVER-135024 Fix explain test for deferred engine off and SBE Full (#63735)"
+    },
+    {
+      "sha": "e3974e633bb5acdec501155cdb08334502ef39f8",
+      "short_sha": "e3974e633bb",
+      "date": "2026-10-02T10:09:39+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-136195 Add test tags (#63765)"
+    },
+    {
+      "sha": "d84931772a22c9e67088320f488f8b2481ad56ea",
+      "short_sha": "d84931772a2",
+      "date": "2026-10-02T09:40:52+00:00",
+      "author": {
+        "name": "mivanova3",
+        "email": "milena.ivanova@mongodb.com"
+      },
+      "summary": "SERVER-135566 Fix IndexSeekEstimates for point OILs (#63545)"
+    },
+    {
+      "sha": "888764953eda362f28d76bbdc05ff43b56511f0d",
+      "short_sha": "888764953ed",
+      "date": "2026-10-02T09:24:07+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-134936 Implement matcher::narrowPath for dotted paths (#63642)"
+    },
+    {
+      "sha": "9342d004ae27cf7e0dae9cbda71f0c3ae4fa5b4b",
+      "short_sha": "9342d004ae2",
+      "date": "2026-10-02T08:59:10+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-136136 Strengthen collation and placement coverage of updateLookup and $_internalSearchIdLookup metrics tests (#63691)"
+    },
+    {
+      "sha": "40a893fb26cb452eb92d31320d5d9b5bf2d71e54",
+      "short_sha": "40a893fb26c",
+      "date": "2026-10-02T08:09:25+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-128660 Remove multiversion_incompatible tag from command_let_variables.js (#63615)"
+    },
+    {
+      "sha": "7fac162dcfbf1d36fd0dd0b0ee94738de03740f8",
+      "short_sha": "7fac162dcfb",
+      "date": "2026-10-02T08:05:07+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-136084: fold partial constant groups in ExpressionNary::optimize() via foldConstant() (#63629)"
+    },
+    {
+      "sha": "61ccb38d9de5f817bb6e0fbc8418cd83e40cbcf2",
+      "short_sha": "61ccb38d9de",
+      "date": "2026-10-02T08:04:59+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-135979: Bump internalQueryGlobalProfilingLockDeadlineMs in agg_out_on_secondary.js (#63536)"
+    },
     {
       "sha": "95d6677ffd95fdfd4545747c408f95219c050145",
       "short_sha": "95d6677ffd9",
@@ -836,6 +966,7 @@
         "branches": [
           "master",
           "mergai/master-fb0593138a4/conflict",
+          "mergai/master-fb0593138a4/main",
           "mergai/master-fb0593138a4/solution",
           "mongodb"
         ]
@@ -863,10 +994,33 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "d53af8470e1ffb70a4c92266ad3c8e94197e7d27",
+        "short_sha": "d53af8470e1",
+        "date": "2026-10-02T14:01:58+00:00",
+        "author": {
+          "name": "Mike Nugent",
+          "email": "mike.nugent@mongodb.com"
+        },
+        "summary": "SERVER-136039: Use an options struct when creating NetworkInterfaces (#63553)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 26,
+          "num_of_lines": 189,
+          "lines_added": 93,
+          "lines_deleted": 96,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-09 06:12:11",
+  "generated_at": "2026-10-09 16:01:08",
   "branch_name": "master",
   "display_name": "master"
 }
