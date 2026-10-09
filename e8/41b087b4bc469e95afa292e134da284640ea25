@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "bf41dbe634c65e5960162bed5af15ee5eb521a20",
+    "merge_commit": "fb0593138a4c8bc293b1deb389dacc0889c3bd85"
+  },
+  "mergai_version": "0.1.dev1+gb0e595e77",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit 'fb0593138a4' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp": "Modified by human",
+          "src/mongo/db/storage/inmemory/inmemory_init.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): two upstream API changes brought in by the merge\nbroke Percona-specific call sites that the conflict resolution did not\nreach. Adapted Percona's in-memory storage engine init to upstream's\nremoval of WiredTigerUtil::concatConfigs (SERVER-135735), and adapted\nPercona's FCB initial sync to upstream's new\nDBClientConnection(DBClientConnectionOptions) constructor\n(SERVER-134392/134394 repl-lag-metrics merge).\n\nResolved:\n\tsrc/mongo/db/storage/inmemory/inmemory_init.cpp\n\tsrc/mongo/db/repl/initial_sync/initial_syncer_fcb.cpp\n\nCI: build-and-test run 37852084585 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "e841b087b4bc469e95afa292e134da284640ea25"
+    }
+  ]
+}
