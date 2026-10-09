@@ -477,6 +477,7 @@ mongo_cc_library(
 mongo_cc_library(
     name = "query_planner",
     srcs = [
+        "clustered_collection_scan.cpp",
         "distinct_access.cpp",
         "index_tag.cpp",
         "planner_access.cpp",
@@ -494,6 +495,7 @@ mongo_cc_library(
     ],
     deps = [
         ":max_estimated_scan_bytes_metrics",
+        ":query_knobs",
         ":record_id_range",
         "//src/mongo/db:query_expressions",
         "//src/mongo/db/commands/server_status:server_status_core",
@@ -757,6 +759,20 @@ mongo_cc_library(
 )
 
 mongo_cc_unit_test(
+    name = "clustered_collection_scan_test",
+    srcs = [
+        "clustered_collection_scan_test.cpp",
+    ],
+    tags = ["mongo_unittest_third_group"],
+    deps = [
+        ":query_planner",
+        "//src/mongo/db/pipeline",
+        "//src/mongo/db/query/compiler/optimizer/index_bounds_builder:index_bounds_builder_test_fixture",
+        "//src/mongo/unittest",
+    ],
+)
+
+mongo_cc_unit_test(
     name = "query_planner_test",
     srcs = [
         "get_executor_deferred_engine_choice_lowering_test.cpp",
@@ -967,6 +983,8 @@ mongo_cc_library(
         "//src/mongo/db:shard_role_api",
         "//src/mongo/db/fts:base_fts",
         "//src/mongo/db/query/compiler/metadata:path_arrayness",
+        "//src/mongo/db/query/compiler/metadata:schema_type_info",
+        "//src/mongo/db/query/compiler/parsers/matcher:matcher_parser",
         "//src/mongo/db/query/plan_cache:query_plan_cache",
         "//src/mongo/db/query/query_settings",
         "//src/mongo/db/query/query_stats",

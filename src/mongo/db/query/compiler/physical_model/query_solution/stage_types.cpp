@@ -48,6 +48,8 @@ std::string_view nodeStageTypeToString(const QuerySolutionNode* node, bool brief
             return "GEO_NEAR_2DSPHERE"sv;
         case STAGE_GROUP:
             return "GROUP"sv;
+        case STAGE_STREAMING_GROUP:
+            return "STREAMING_GROUP"sv;
         case STAGE_IDHACK:
             return "IDHACK"sv;
         case STAGE_IXSCAN:
@@ -116,8 +118,6 @@ std::string_view nodeStageTypeToString(const QuerySolutionNode* node, bool brief
             return "UNWIND"sv;
         case STAGE_UPDATE:
             return "UPDATE"sv;
-        case STAGE_WINDOW:
-            return "WINDOW"sv;
         case STAGE_HASH_JOIN_EMBEDDING_NODE:
             return brief ? "HJ"sv : "HASH_JOIN_EMBEDDING"sv;
         case STAGE_NESTED_LOOP_JOIN_EMBEDDING_NODE:

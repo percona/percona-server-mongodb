@@ -465,7 +465,7 @@ TEST(AsioTransportLayer, StopAcceptingSessionsDuringListenerStartup) {
     auto startThread = stdx::thread([&] { ASSERT_OK(transportLayer->start()); });
 
     // Wait until the listener thread is paused at the failpoint.
-    (*failPoint)->waitForTimesEntered(failPoint->initialTimesEntered() + 1);
+    failPoint->waitForOneNewEntry();
 
     // Release the failpoint shortly after stopAcceptingSessions() has had time to  set the listener
     // state to kShuttingDown. This is necessary as stopAcceptingSessions cannot exit until the
@@ -1070,7 +1070,7 @@ TEST(AsioTransportLayer, EgressConnectionResetByPeerDuringSessionCtor) {
     Acceptor server(ioContext);
     server.setOnAccept([&](std::shared_ptr<Acceptor::Connection> conn) {
         LOGV2(7598701, "waiting for the client to reach the fail-point");
-        (*fp)->waitForTimesEntered(fp->initialTimesEntered() + 1);
+        fp->waitForOneNewEntry();
         LOGV2(6101604, "handling a connection by resetting it");
         conn->socket.set_option(asio::socket_base::linger(true, 0));
         conn->socket.close();
@@ -1224,6 +1224,7 @@ public:
     };
 
     void setUp() override {
+        ServiceContextTest::setUp();
         auto* svcCtx = getServiceContext();
         svcCtx->getService()->setServiceEntryPoint(
             std::make_unique<test::ServiceEntryPointUnimplemented>());
@@ -1234,6 +1235,7 @@ public:
 
     void tearDown() override {
         getServiceContext()->getTransportLayerManager()->shutdown();
+        ServiceContextTest::tearDown();
     }
 
     AsioTransportLayer& tla() {
@@ -1505,6 +1507,7 @@ public:
     virtual void configureSessionManager(FirstSessionManager& mgr) {}
 
     void setUp() override {
+        ServiceContextTest::setUp();
         auto pf = makePromiseFuture<std::shared_ptr<Session>>();
         auto sessionManager = std::make_unique<FirstSessionManager>(std::move(pf.promise));
         configureSessionManager(*sessionManager);
@@ -1525,6 +1528,7 @@ public:
     void tearDown() override {
         _connThread.reset();
         getServiceContext()->getTransportLayerManager()->shutdown();
+        ServiceContextTest::tearDown();
     }
 
     Client& client() {
@@ -1565,10 +1569,6 @@ private:
     Notification<void> _isReady;
     test::JoinThread _thread;
 };
-
-void waitForTimesEntered(const FailPointEnableBlock& fp, FailPoint::EntryCountT times) {
-    fp->waitForTimesEntered(fp.initialTimesEntered() + times);
-}
 
 TEST_F(IngressAsioNetworkingBatonTest, CanWait) {
     auto opCtx = client().makeOperationContext();
@@ -1665,7 +1665,7 @@ TEST_F(IngressAsioNetworkingBatonTest, AddAndRemoveSessionWhileInPoll) {
 
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
 
         // This thread is an external observer to the baton, so the expected behavior is for
         // `cancelSession` to happen after `addSession`, and thus it must return `true`.
@@ -1701,7 +1701,7 @@ TEST_F(IngressAsioNetworkingBatonTest, CancelSessionTwiceWhileInPoll) {
                 ASSERT_EQ(state, Waitable::TimeoutState::NoTimeout);
             });
 
-            waitForTimesEntered(fp, 1);
+            fp.waitForOneNewEntry();
 
             // We should be able to cancel the session, but the second attempt should return false.
             ASSERT_TRUE(baton->cancelSession(*session));
@@ -1742,7 +1742,7 @@ TEST_F(IngressAsioNetworkingBatonTest, WaitAndNotify) {
         auto baton = opCtx->getBaton()->networking();
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
         baton->schedule([&](Status) { notification.set(); });
     });
 
@@ -1765,7 +1765,7 @@ TEST_F(IngressAsioNetworkingBatonTest, NotifyDuringPollWithSessions) {
     MilestoneThread thread([&](Notification<void>& isReady) {
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
         baton->notify();
     });
 
@@ -1786,7 +1786,7 @@ TEST_F(IngressAsioNetworkingBatonTest, NotifyDuringPollNoSessions) {
     MilestoneThread thread([&](Notification<void>& isReady) {
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
         baton->notify();
     });
 
@@ -1904,7 +1904,7 @@ TEST_F(IngressAsioNetworkingBatonTest, NotifyInterruptsRunUntilBeforeTimeout) {
         auto baton = opCtx->getBaton();
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
         baton->notify();
     });
 
@@ -1972,7 +1972,7 @@ TEST_F(IngressAsioNetworkingBatonTest, AddAndRemoveTimerWhileInPoll) {
 
         FailPointEnableBlock fp("blockAsioNetworkingBatonBeforePoll");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
 
         // This thread is an external observer to the baton, so the expected behavior is for
         // `cancelTimer` to happen after `waitUntil`, thus canceling the timer must return `true`.
@@ -2006,7 +2006,7 @@ TEST_F(IngressAsioNetworkingBatonTest, CancelTimerTwiceWhileInPoll) {
                 ASSERT_EQ(state, Waitable::TimeoutState::NoTimeout);
             });
 
-            waitForTimesEntered(fp, 1);
+            fp.waitForOneNewEntry();
 
             // We should be able to cancel the timer. A second attempt should return false
             ASSERT_TRUE(baton->cancelTimer(*timer));
@@ -2098,7 +2098,7 @@ TEST_F(EgressAsioNetworkingBatonTest, CancelAsyncOperationsInterruptsOngoingOper
         // thread.
         FailPointEnableBlock fp("asioTransportLayerBlockBeforeOpportunisticRead");
         isReady.set();
-        waitForTimesEntered(fp, 1);
+        fp.waitForOneNewEntry();
         es.session()->cancelAsyncOperations();
     });
 
@@ -2126,7 +2126,7 @@ TEST_F(EgressAsioNetworkingBatonTest, AsyncOpsMakeProgressWhenSessionAddedToDeta
 
     FailPointEnableBlock fp("asioTransportLayerBlockBeforeAddSession");
     ready.set();
-    waitForTimesEntered(fp, 1);
+    fp.waitForOneNewEntry();
 
     // Destroying the `opCtx` results in detaching the baton. At this point, the thread running
     // `asyncSourceMessage` has acquired the mutex that orders asynchronous operations (i.e.,
@@ -2207,6 +2207,7 @@ public:
 
     void tearDown() override {
         getServiceContext()->getTransportLayerManager()->shutdown();
+        ServiceContextTest::tearDown();
     }
 
     MockSessionManagerCommonWithHook& sessionManager() {

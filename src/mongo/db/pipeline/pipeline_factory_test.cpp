@@ -127,6 +127,7 @@ void ensureMockGatedViewStageRegistered() {
 class MakePipelineFromViewDefinitionIfrTest : public AggregationContextFixture {
 protected:
     void setUp() override {
+        AggregationContextFixture::setUp();
         ensureMockGatedViewStageRegistered();
     }
 };
@@ -137,8 +138,9 @@ TEST_F(MakePipelineFromViewDefinitionIfrTest,
     NamespaceString backingNss =
         NamespaceString::createNamespaceString_forTest("testdb", "backingColl");
 
-    auto ifrContext = IncrementalFeatureRolloutContext::fromWireForTest(std::vector<BSONObj>{
-        BSON("name" << getMockGatedViewStageFlag().getName() << "value" << false)});
+    auto ifrContext =
+        IncrementalFeatureRolloutContext::fromWireForTest(std::vector<IFRFlagWireEntry>{
+            IFRFlagWireEntry{getMockGatedViewStageFlag().getName(), false}});
 
     auto expCtx =
         ExpressionContextBuilder{}.opCtx(getOpCtx()).ns(viewNss).ifrContext(ifrContext).build();

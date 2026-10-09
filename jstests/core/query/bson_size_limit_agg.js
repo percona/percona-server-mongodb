@@ -1,5 +1,6 @@
 /**
  * Test that different agg stages respect BSON size limits.
+ * Also verifies that SBE's trial-run stash rejects oversized results.
  *
  * @tags: [
  *     # Overflows WT cache on in-memory variants.
@@ -23,6 +24,10 @@
  *     resource_intensive,
  * ]
  */
+
+import {getAggPlanStages} from "jstests/libs/query/analyze_plan.js";
+import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
+import {it} from "jstests/libs/mochalite.js";
 
 const collName = jsTestName();
 const collExact = db[collName + "_exact"];
@@ -60,16 +65,16 @@ assert.commandWorked(
 );
 
 /** Runs an aggregation on `coll`, asserts it returns a valid size document. */
-function assertAggSucceedsWithUserRangeBSON(coll, pipeline, msg) {
+function assertAggSucceedsWithUserRangeBSON(coll, pipeline) {
     const res = coll.aggregate(pipeline).toArray();
-    assert.gte(res.length, 1, msg);
+    assert.gte(res.length, 1, `expected the query to return at least one document`);
     const sz = Object.bsonsize(res[0]);
-    assert.lte(sz, bsonMaxSizeLimit, `${msg}: expected doc size <= 16 MB, got ${sz}`);
+    assert.lte(sz, bsonMaxSizeLimit, `expected doc size <= 16 MB`);
     return res;
 }
 
 /** Runs an aggregation on `coll` and asserts it fails with BSONObjectTooLarge. */
-function assertAggFailsBSONTooLarge(coll, pipeline, msg) {
+function assertAggFailsBSONTooLarge(coll, pipeline, msg = "") {
     assert.throwsWithCode(
         () => coll.aggregate(pipeline).toArray(),
         ErrorCodes.BSONObjectTooLarge,
@@ -86,8 +91,8 @@ function assertAggSucceedsWithInternalRangeBSON(coll, pipeline, msg) {
     const res = coll.aggregate(pipeline).toArray();
     assert.gte(res.length, 1, msg);
     const sz = Object.bsonsize(res[0]);
-    assert.gt(sz, bsonMaxSizeLimit, `${msg}: expected doc size > 16 MB, got ${sz}`);
-    assert.lt(sz, bsonInternalSizeLimit, `${msg}: expected doc size < 16 MB + 16 KB, got ${sz}`);
+    assert.gt(sz, bsonMaxSizeLimit, `${msg}: expected doc size > 16 MB`);
+    assert.lt(sz, bsonInternalSizeLimit, `${msg}: expected doc size < 16 MB + 16 KB`);
     return res;
 }
 
@@ -107,35 +112,35 @@ function testGroupPush() {
     );
 }
 
-function testGroupNonLastStage() {
-    // $group + $push of collExactPlusOne, which pushes the BSON size slightly above 16 MB.
+function testGroupPushNonLastStage() {
+    // Size limit: does not trigger.
+    //
+    // $group + $push that produces a document slightly above 16 MB, but still under the internal limit.
     assertAggSucceedsWithInternalRangeBSON(
         collExactPlusOne,
         [{$group: {_id: null, all: {$push: "$$ROOT"}}}, {$limit: 1}],
         "$group + $push (non-last stage) result just over 16 MB in internal range should succeed",
     );
 
-    // ~20 MB result (collMany) exceeds BSONObjMaxInternalSize - fails.
+    // Size limit: triggers.
+    //
+    // $group + $push that produces a document of approximately 20 MB.
     assertAggFailsBSONTooLarge(
         collMany,
         [{$group: {_id: null, all: {$push: "$$ROOT"}}}, {$limit: 1}],
         "$group + $push (non-last stage) with ~20 MB result should fail with BSONObjectTooLarge",
     );
 
-    // Two groups: "small" (_id: 0, 5 docs × 20 KB ≈ 100 KB) and "large" (_id: 1, 995 docs ×
-    // 20 KB ≈ 20 MB). $limit: 1 returns only the small group.
-    // If size validation ran intra-stage (at group construction time), the pipeline would fail
-    // when the large group is built. Since validation is deferred to the return point only, the
-    // pipeline succeeds.
-    assertAggSucceedsWithUserRangeBSON(
-        collMany,
-        [
-            {$group: {_id: {$cond: [{$lt: ["$_id", 5]}, 0, 1]}, all: {$push: "$data"}}},
-            {$sort: {_id: 1}},
-            {$limit: 1},
-        ],
-        "two groups (small + oversized): returning only the small group should succeed",
-    );
+    // Size limit: does not trigger.
+    //
+    // $group + $push resulting in two documents, the first of 100 KB and the second of 20 MB.
+    // $sort + $limit will then exclude the second and return just the first, which is under the
+    // size limit.
+    assertAggSucceedsWithUserRangeBSON(collMany, [
+        {$group: {_id: {$cond: [{$lt: ["$_id", 5]}, 0, 1]}, all: {$push: "$data"}}},
+        {$sort: {_id: 1}},
+        {$limit: 1},
+    ]);
 }
 
 function testAddFields() {
@@ -157,11 +162,9 @@ function testAddFields() {
 
 function testProject() {
     // Projected doc < 16 MB — succeeds.
-    const r = assertAggSucceedsWithUserRangeBSON(
-        collExact,
-        [{$project: {_id: 0, result: {$concat: [{$toString: "$_id"}, {$toString: "$_id"}]}}}],
-        "$project + $concat: doc < 16 MB should succeed",
-    );
+    const r = assertAggSucceedsWithUserRangeBSON(collExact, [
+        {$project: {_id: 0, result: {$concat: [{$toString: "$_id"}, {$toString: "$_id"}]}}},
+    ]);
     const sz = Object.bsonsize(r[0]);
     assert.lt(sz, bsonMaxSizeLimit, `expected projected doc < 16 MB, got ${sz}`);
 
@@ -180,8 +183,80 @@ function testProject() {
     );
 }
 
-// Run all scenarios
-testGroupPush();
-testGroupNonLastStage();
-testAddFields();
-testProject();
+function testSbeToClassicSplit() {
+    // This query must work in all variants. But we're particularly interested in the
+    // case where the first $project is pushed down to SBE and the second $project stays
+    // in classic, where we expect SBE be able to return an overlarge document to the
+    // classic portion of the query instead of checking the size limit.
+    const pipeline = [
+        {$project: {b: "$x"}},
+        {$_internalInhibitOptimization: {}},
+        {$project: {_id: 1}},
+    ];
+    assertAggSucceedsWithUserRangeBSON(collExact, pipeline);
+    const explain = collExact.explain().aggregate(pipeline);
+    if (checkSbeFullyEnabled(db)) {
+        // First $project is in SBE, and the second one should run in classic.
+        const stages = getAggPlanStages(explain, "$project");
+        assert(stages[0].$project.hasOwnProperty("_id"));
+        assert.eq(stages.length, 1);
+    }
+}
+
+function testTrialRun() {
+    const coll = db[collName + "_trial_run"];
+    coll.drop();
+
+    // Prepare the collection: a small document + two indexes, to trigger multi-planning.
+    assert.commandWorked(coll.insertOne({_id: 1, a: 1, b: 1}));
+    assert.commandWorked(coll.createIndex({a: 1}));
+    assert.commandWorked(coll.createIndex({b: 1}));
+
+    // Run a query that adds a 200 KB field to the document.
+    const pipeline = [{$match: {a: 1, b: 1}}, {$addFields: {extra: "x".repeat(200 * 1024)}}];
+
+    // Activate cache entry.
+    coll.aggregate(pipeline).toArray();
+    coll.aggregate(pipeline).toArray();
+    coll.aggregate(pipeline).toArray();
+
+    // Replace with a near-limit document.
+    const bsonUserLimit = 16 * 1024 * 1024;
+    const paddingSize = bsonUserLimit - 4000;
+    assert.commandWorked(
+        coll.replaceOne({_id: 1}, {_id: 1, a: 1, b: 1, padding: "y".repeat(paddingSize)}),
+    );
+
+    // Hit the active cache entry and execute the trial run. Under SBE, this will
+    // read some documents and stash them, which triggers a different branch for
+    // returning documents to the user. This branch must do its own validation.
+    assertAggFailsBSONTooLarge(coll, pipeline);
+}
+
+function testConvertIntermediaryDocument() {
+    // Size limit: does not trigger. A $convert should be able to turn a document of
+    // exactly max user size into BinData, which is then passed over to a hash function.
+    // Before SERVER-135206, BinData would throw without allowing this valid intermediary
+    // document.
+    assertAggSucceedsWithUserRangeBSON(collExact, [
+        {
+            $project: {
+                _id: 0,
+                hash: {
+                    $hash: {
+                        algorithm: "xxh64",
+                        input: {$convert: {input: "$$ROOT", to: "binData"}},
+                    },
+                },
+            },
+        },
+    ]);
+}
+
+it("$group + $push", testGroupPush);
+it("$group + $push (non-last stage)", testGroupPushNonLastStage);
+it("$addFields", testAddFields);
+it("$project", testProject);
+it("SBE to classic split", testSbeToClassicSplit);
+it("Plan cache trial run", testTrialRun);
+it("$convert (non-last stage)", testConvertIntermediaryDocument);
