@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 82,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.544216933090278,
-    "files_affected": 551,
-    "total_additions": 22448,
-    "total_deletions": 8207,
+    "commits_behind": 93,
+    "days_behind": 12,
+    "unmerged_oldest_age_days": 12.150417706412037,
+    "files_affected": 607,
+    "total_additions": 26239,
+    "total_deletions": 8687,
     "date_range": {
       "first": "2026-09-30T02:58:01+00:00",
-      "last": "2026-10-02T15:20:57+00:00"
+      "last": "2026-10-04T10:10:13+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,116 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "b06c59bd5dd39483e8b8765099a33c8b16fe477d",
+      "short_sha": "b06c59bd5dd",
+      "date": "2026-10-04T10:10:13+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#63823)"
+    },
+    {
+      "sha": "2f3d83b86d6a29a94984bd94ced132ce61514e25",
+      "short_sha": "2f3d83b86d6",
+      "date": "2026-10-02T19:15:58+00:00",
+      "author": {
+        "name": "Oscar Ortega",
+        "email": "114444896+oortegamtzdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-134061 Add Evergreen wiring (#63581)"
+    },
+    {
+      "sha": "f6237042641f3269afa7be734ff00efe93853d7a",
+      "short_sha": "f6237042641",
+      "date": "2026-10-02T18:33:56+00:00",
+      "author": {
+        "name": "Asher Kornfeld",
+        "email": "asher.kornfeld@mongodb.com"
+      },
+      "summary": "SERVER-134393: Add ingress replication metrics (#63382)"
+    },
+    {
+      "sha": "8ba342f71ef250dc38b75b50cd33667819ef9426",
+      "short_sha": "8ba342f71ef",
+      "date": "2026-10-02T18:33:01+00:00",
+      "author": {
+        "name": "Ben Shteinfeld",
+        "email": "ben.shteinfeld@mongodb.com"
+      },
+      "summary": "SERVER-69257 Enumerate a COUNT_SCAN of the _id index for unfiltered counts (#63546)"
+    },
+    {
+      "sha": "dab3ed09d40b724b535f6d77e70ec2ca56ccb4d6",
+      "short_sha": "dab3ed09d40",
+      "date": "2026-10-02T17:54:57+00:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-136208: Update join plan subset logs component to use kQueryJoin (#63780)"
+    },
+    {
+      "sha": "9684594d7cc461660e918e8c98ad571df59c7533",
+      "short_sha": "9684594d7cc",
+      "date": "2026-10-02T17:52:23+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-114269 Remove 8.3 FCV checks in PBT models (#63709)"
+    },
+    {
+      "sha": "e40f71a6b037de4eaa4d16f085156ce31484b94b",
+      "short_sha": "e40f71a6b03",
+      "date": "2026-10-02T17:43:15+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-135705 Clean up error-prone waitForTimesEntered() call sites (#63359)"
+    },
+    {
+      "sha": "380a4480d63712f2b812d38607293076e2dff338",
+      "short_sha": "380a4480d63",
+      "date": "2026-10-02T17:33:39+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-136020 Join tracker on advancer destruction and create RAII BlockWorkers type for unit tests (#63578)"
+    },
+    {
+      "sha": "715875ed45e8372a6516c36234051a6397c433d0",
+      "short_sha": "715875ed45e",
+      "date": "2026-10-02T17:18:57+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-136073 Remove namespace argument from expression-context shape hash helper using getNamespaceString (#63634)"
+    },
+    {
+      "sha": "7125b853f383ac22cdf8ebc9c08c0a55bce98b13",
+      "short_sha": "7125b853f38",
+      "date": "2026-10-02T17:14:48+00:00",
+      "author": {
+        "name": "Erin Liang",
+        "email": "59406045+erl-ang@users.noreply.github.com"
+      },
+      "summary": "SERVER-130442 Enable query_stats_concurrent.js on aubsan and tsan (#63641)"
+    },
+    {
+      "sha": "ab9b3cd3c2b992c429d42eed60a5518eb8e43fc7",
+      "short_sha": "ab9b3cd3c2b",
+      "date": "2026-10-02T15:59:17+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-135739 Antimaterialize hash lookup-unwind without preserveNullAndEmptyArray and includeArrayIndex (#63482)"
+    },
     {
       "sha": "a3f4fab0bdf50dbdd58a85ce6f1631ae50c5d16c",
       "short_sha": "a3f4fab0bdf",
@@ -1020,7 +1130,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-09 16:01:08",
+  "generated_at": "2026-10-12 06:34:06",
   "branch_name": "master",
   "display_name": "master"
 }
