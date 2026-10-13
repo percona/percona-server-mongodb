@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 93,
-    "days_behind": 12,
-    "unmerged_oldest_age_days": 12.150417706412037,
-    "files_affected": 607,
-    "total_additions": 26239,
-    "total_deletions": 8687,
+    "commits_behind": 115,
+    "days_behind": 13,
+    "unmerged_oldest_age_days": 13.13637288909722,
+    "files_affected": 782,
+    "total_additions": 28998,
+    "total_deletions": 10619,
     "date_range": {
       "first": "2026-09-30T02:58:01+00:00",
-      "last": "2026-10-04T10:10:13+00:00"
+      "last": "2026-10-06T03:32:10+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,226 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "0eee68f9da0008bfacc59a94c0012aacd985f6ed",
+      "short_sha": "0eee68f9da0",
+      "date": "2026-10-06T03:32:10+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136178 Close RSM connections to hidden replset members (#63759)\" (#63894)"
+    },
+    {
+      "sha": "2dba8f91186a2ddeea9a72de543747475ccb48e6",
+      "short_sha": "2dba8f91186",
+      "date": "2026-10-05T23:36:44+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: e7f693af4d3914b0a8525cf3a0eb4c1cfebc66d7 from branch mongodb-master (#63826)"
+    },
+    {
+      "sha": "edf8359bf3553e11ba43b098854f6e94e2d532bd",
+      "short_sha": "edf8359bf35",
+      "date": "2026-10-05T23:25:37+00:00",
+      "author": {
+        "name": "Zixuan",
+        "email": "leozzx@users.noreply.github.com"
+      },
+      "summary": "SERVER-133341 Move QI-owned tests into jstests/noPassthrough/query/query-integration (#61482)"
+    },
+    {
+      "sha": "b7e125bb9449d2169bc9c204b47fb1e175ebcc3a",
+      "short_sha": "b7e125bb944",
+      "date": "2026-10-05T22:37:45+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-119919 Use std::unique_ptr UncommittedFastCountChanges decoration (#63747)"
+    },
+    {
+      "sha": "37a9b130d3a7bde2bc4a8f46e5259cc2a565103c",
+      "short_sha": "37a9b130d3a",
+      "date": "2026-10-05T22:05:29+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-131801 Move enums out of IndexBoundsChecker (#63743)"
+    },
+    {
+      "sha": "beeba32dfc1d3a4ee05bbbfee74d562f43500d4f",
+      "short_sha": "beeba32dfc1",
+      "date": "2026-10-05T21:49:11+00:00",
+      "author": {
+        "name": "Ravi Giri",
+        "email": "56813441+raviprakashgiri29@users.noreply.github.com"
+      },
+      "summary": "SERVER-136123 Accept NoSuchTransaction as evidence of a cache-pressure abort (#63667)"
+    },
+    {
+      "sha": "08bcfdc3723f57779823b84ac4c0390c59abfc1d",
+      "short_sha": "08bcfdc3723",
+      "date": "2026-10-05T21:03:31+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-136162 Disable ListIndexesAlwaysIncludesSimpleCollation feature flag (#63749)"
+    },
+    {
+      "sha": "792e389d1973e346330540ed4c4dfb770227aac4",
+      "short_sha": "792e389d197",
+      "date": "2026-10-05T20:52:43+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-122992 Return old value in SizeCountStore::insert() (#63834)"
+    },
+    {
+      "sha": "cd38dd8a706eb937abb006ff81df676411242267",
+      "short_sha": "cd38dd8a706",
+      "date": "2026-10-05T20:46:31+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-134092 Skip checking replicated size and count in validation when atClusterTime is set (#63808)"
+    },
+    {
+      "sha": "6664766302b0b28800479252dcb7c8ed63db584b",
+      "short_sha": "6664766302b",
+      "date": "2026-10-05T20:06:10+00:00",
+      "author": {
+        "name": "Felipe Farinon",
+        "email": "felipe.farinon@mongodb.com"
+      },
+      "summary": "SERVER-136252 Make bson_size_limit_agg account for sharded environments (#63818)"
+    },
+    {
+      "sha": "191f8fe86e63dbd356c8059707fabfc0d887a558",
+      "short_sha": "191f8fe86e6",
+      "date": "2026-10-05T19:31:11+00:00",
+      "author": {
+        "name": "Alex Ambrose",
+        "email": "alex.ambrose@mongodb.com"
+      },
+      "summary": "SERVER-136178 Close RSM connections to hidden replset members (#63759)"
+    },
+    {
+      "sha": "33aea1104594c9abb74334d15d446c2583d4eb71",
+      "short_sha": "33aea110459",
+      "date": "2026-10-05T18:52:53+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-136258: Change dynamic linking names to be unique (#63822)"
+    },
+    {
+      "sha": "f7c95fda6be9acc75326356d0143e3467f0c1bd3",
+      "short_sha": "f7c95fda6be",
+      "date": "2026-10-05T18:47:31+00:00",
+      "author": {
+        "name": "William Zhou",
+        "email": "william.zhou@mongodb.com"
+      },
+      "summary": "SERVER-136032 Bump mongot and rerank extension version to v2.0.9 (#63817)"
+    },
+    {
+      "sha": "66e9fb56b6ba4ddfeadcedc23191acec350fe2f2",
+      "short_sha": "66e9fb56b6b",
+      "date": "2026-10-05T18:30:51+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-122826 Use heterogeneous lookup for removed-field tracking in BSONInfo (#63858)"
+    },
+    {
+      "sha": "5a4bb2c535bafe60a15eccc6d276f04d30ef2ed1",
+      "short_sha": "5a4bb2c535b",
+      "date": "2026-10-05T18:16:26+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-123642 Introduce disagg sharding suite with background replSetReconfig (#63802)"
+    },
+    {
+      "sha": "a75e57f2f3d3a9d04c36a4a19e10bafe5ea63238",
+      "short_sha": "a75e57f2f3d",
+      "date": "2026-10-05T16:18:07+00:00",
+      "author": {
+        "name": "lmestres",
+        "email": "90823901+lmestres@users.noreply.github.com"
+      },
+      "summary": "SERVER-125779 Fix decomission -> decommission typo in ContinuousAddRemoveShard hook (#62209)"
+    },
+    {
+      "sha": "a7cd08b8e8867c9bce95fbb93a87fc49724fa8e4",
+      "short_sha": "a7cd08b8e88",
+      "date": "2026-10-05T15:56:13+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-136205 Disable replicated size and count in upgrade/downgrade passthrough suites (#63781)"
+    },
+    {
+      "sha": "04c94ad0c4e54769147768ba14c9068da137cf16",
+      "short_sha": "04c94ad0c4e",
+      "date": "2026-10-05T15:51:50+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-136286: Remove OTel metrics guard from flusher test (#63833)"
+    },
+    {
+      "sha": "6de801297f00605d8bb1411cb723186cb354882f",
+      "short_sha": "6de801297f0",
+      "date": "2026-10-05T15:14:44+00:00",
+      "author": {
+        "name": "Mathias Stearn",
+        "email": "mathias@mongodb.com"
+      },
+      "summary": "SERVER-136284: Include rust_test(crate=...) targets in changed-file rules_lint (#63842)"
+    },
+    {
+      "sha": "8a7e59c0a4988cd3dc390f728dc18b05f4bd52af",
+      "short_sha": "8a7e59c0a49",
+      "date": "2026-10-05T15:14:20+00:00",
+      "author": {
+        "name": "Mathias Stearn",
+        "email": "mathias@mongodb.com"
+      },
+      "summary": "SERVER-136279: Skip gitignored files in bazel target coverage lint (#63839)"
+    },
+    {
+      "sha": "dd09974a1f0116b5d89cd84768d3437c6be4ef5f",
+      "short_sha": "dd09974a1f0",
+      "date": "2026-10-05T08:20:35+00:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-135980 : Set chunkSize in OperationMemoryUsageTracker (#63682)"
+    },
+    {
+      "sha": "0171397e3a8c3ec6c679d80f93ccb8f159a6e796",
+      "short_sha": "0171397e3a8",
+      "date": "2026-10-05T07:39:15+00:00",
+      "author": {
+        "name": "Matt Kneiser",
+        "email": "matt.kneiser@mongodb.com"
+      },
+      "summary": "SERVER-134808 Allow Invalid UTF-8 Database names again (#62661)"
+    },
     {
       "sha": "b06c59bd5dd39483e8b8765099a33c8b16fe477d",
       "short_sha": "b06c59bd5dd",
@@ -1127,10 +1347,56 @@
           "num_of_dirs": 13
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "08bcfdc3723f57779823b84ac4c0390c59abfc1d",
+        "short_sha": "08bcfdc3723",
+        "date": "2026-10-05T21:03:31+00:00",
+        "author": {
+          "name": "Joan Bruguera Micó (at MongoDB)",
+          "email": "joan.bruguera-mico@mongodb.com"
+        },
+        "summary": "SERVER-136162 Disable ListIndexesAlwaysIncludesSimpleCollation feature flag (#63749)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 26,
+          "num_of_lines": 511,
+          "lines_added": 119,
+          "lines_deleted": 392,
+          "num_of_dirs": 22
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "2dba8f91186a2ddeea9a72de543747475ccb48e6",
+        "short_sha": "2dba8f91186",
+        "date": "2026-10-05T23:36:44+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: e7f693af4d3914b0a8525cf3a0eb4c1cfebc66d7 from branch mongodb-master (#63826)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 47,
+          "num_of_lines": 1725,
+          "lines_added": 1546,
+          "lines_deleted": 179,
+          "num_of_dirs": 21
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-12 06:34:06",
+  "generated_at": "2026-10-13 06:13:57",
   "branch_name": "master",
   "display_name": "master"
 }
