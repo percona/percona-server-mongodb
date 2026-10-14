@@ -56,7 +56,7 @@ a notice will be included in
 | [tcmalloc]                                           | Apache-2.0                        | f3b20f9a07e175c5d897df7b49d9830d4efa6110 |                      | ✗                               |
 | [timelib]                                            | MIT                               | 2022.10                                  |                      | ✗                               |
 | [Unicode Character Database]                         | Unicode-DFS-2016                  | 8.0.0                                    | ✗                    | ✗                               |
-| [valgrind.h]                                         | BSD-4-Clause                      | 093bef43d69236287ccc748591c9560a71181b0a |                      | ✗                               |
+| [valgrind.h]                                         | BSD-4-Clause                      | 3.17.0                                   |                      | ✗                               |
 | [yaml-cpp]                                           | MIT                               | 0.6.3                                    |                      | ✗                               |
 | [zlib]                                               | Zlib                              | 1.3.2                                    | ✗                    | ✗                               |
 | [Zstandard (zstd)]                                   | BSD-3-Clause OR GPL-2.0-only      | 1.5.5                                    | ✗                    | ✗                               |
@@ -92,27 +92,12 @@ a notice will be included in
 [linenoise]: https://github.com/antirez/linenoise
 [pypi/ocspbuilder]: https://pypi.org/project/ocspbuilder/
 [pypi/ocspresponder]: https://pypi.org/project/ocspresponder/
-[snappy]: https://github.com/google/tcmalloc.git
+[snappy]: https://github.com/google/snappy.git
 [tcmalloc]: https://github.com/google/tcmalloc.git
 [timelib]: https://github.com/derickr/timelib.git
 [valgrind.h]: https://sourceware.org/git/valgrind.git
 [yaml-cpp]: https://github.com/jbeder/yaml-cpp.git
 [zlib]: https://zlib.net/fossils/
-
-## WiredTiger Vendored Test Libraries
-
-The following libraries are transitively included by WiredTiger,
-and are used by that component for testing. They don't appear in
-released binary artifacts.
-
-| Name                           |
-| ------------------------------ |
-| pkg:pypi/concurrencytest@0.1.2 |
-| pkg:pypi/discover@0.4.0        |
-| pkg:pypi/extras@0.0.3          |
-| pkg:pypi/python-subunit@0.0.16 |
-| pkg:pypi/testscenarios@0.4     |
-| pkg:pypi/testtools@0.9.34      |
 
 ## Dynamically Linked Libraries
 
@@ -147,6 +132,3 @@ examples and can differ from platform to platform.
    header file which is licensed under a BSD license. This BSD licensed header is the only
    file from Valgrind which is vendored and consumed by MongoDB.
 
-2. <a id="note_wt" href="#ref_wt">^</a>
-   WiredTiger is maintained by MongoDB in a separate repository. As a part of our
-   development process, we periodically ingest the latest snapshot of that repository.

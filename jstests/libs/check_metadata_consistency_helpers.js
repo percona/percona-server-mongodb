@@ -1,6 +1,6 @@
 
 export var MetadataConsistencyChecker = (function() {
-    const run = (mongos) => {
+    const run = (mongos, ignoreInconsistenciesTempWorkaround = false) => {
         const adminDB = mongos.getDB('admin');
 
         // The isTransientError() function is responsible for setting an error as transient and
@@ -31,6 +31,12 @@ export var MetadataConsistencyChecker = (function() {
             if (e.code === ErrorCodes.FailedToSatisfyReadPreference) {
                 // Metadata consistency check can fail with FailedToSatisfyReadPreference error
                 // response when the primary of the shard is permanently down.
+                return true;
+            }
+
+            if (e.code === ErrorCodes.SnapshotUnavailable) {
+                // Metadata consistency check can fail with SnapshotUnavailable due to a newly
+                // elected primary not being able to satisfy snapshot reads yet (see SERVER-132175).
                 return true;
             }
 
@@ -70,6 +76,21 @@ export var MetadataConsistencyChecker = (function() {
                         inconsistencies.splice(i, 1);  // Remove inconsistency
                     }
                 }
+            }
+
+            // Temporary workaround: tolerate these inconsistencies until linked tickets are fixed.
+            const knownInconsistencyTempWorkaround = [
+                // TODO(SERVER-130694): Fix false positives and remove inconsistency type
+                "MalformedTimeseriesBucketsCollection",
+            ];
+            if (ignoreInconsistenciesTempWorkaround) {
+                inconsistencies = inconsistencies.filter((inconsistency) => {
+                    if (!knownInconsistencyTempWorkaround.includes(inconsistency.type)) {
+                        return true;
+                    }
+                    jsTest.log(`Ignored metadata inconsistency (workaround): ${tojson(inconsistency)}`);
+                    return false;
+                });
             }
 
             assert.eq(0,
