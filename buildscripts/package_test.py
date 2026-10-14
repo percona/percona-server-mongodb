@@ -36,6 +36,14 @@ formatter = logging.Formatter('[%(asctime)s]%(levelname)s:%(message)s')
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
+# The Evergreen API serves artifact lists from a secondary node
+# (DEVPROD-32223), so artifacts attached by a recently-finished task can be
+# missing from the response due to replication lag. Retry the "Packages"
+# artifact lookup with exponential backoff before giving up (BF-45409).
+NUM_ARTIFACT_URL_RETRIES = 8
+ARTIFACT_URL_RETRY_INITIAL_DELAY_SECS = 15
+ARTIFACT_URL_RETRY_MAX_DELAY_SECS = 120
+
 
 def download_packages_from_build(build_id: str, download_dir: Path) -> Path:
     """
@@ -48,29 +56,52 @@ def download_packages_from_build(build_id: str, download_dir: Path) -> Path:
     logging.info("Fetching packages artifact from Evergreen API for build: %s", build_id)
 
     evg_api = evergreen_conn.get_evergreen_api()
-    tasks = evg_api.tasks_by_build(build_id)
 
-    package_task = None
-    for task in tasks:
-        if task.display_name == "package":
-            package_task = task
-            break
-
-    if package_task is None:
-        raise RuntimeError(f"Could not find 'package' task in build {build_id}")
-
-    logging.info("Found package task: %s", package_task.task_id)
-
+    # The Evergreen API may serve a stale artifact list for the package task
+    # due to secondary replication lag (DEVPROD-32223, BF-45409). Retry the
+    # "Packages" artifact lookup, refetching the task each attempt.
     packages_url = None
-    for artifact in package_task.artifacts:
-        if artifact.name == "Packages":
-            packages_url = artifact.url
-            logging.info("Found Packages artifact URL: %s", packages_url)
+    package_task = None
+    for attempt in range(NUM_ARTIFACT_URL_RETRIES):
+        tasks = evg_api.tasks_by_build(build_id)
+        package_task = None
+        for task in tasks:
+            if task.display_name == "package":
+                package_task = task
+                break
+
+        if package_task is None:
+            raise RuntimeError(f"Could not find 'package' task in build {build_id}")
+        if attempt == 0:
+            logging.info("Found package task: %s", package_task.task_id)
+
+        for artifact in package_task.artifacts:
+            if artifact.name == "Packages":
+                packages_url = artifact.url
+                break
+
+        if packages_url is not None:
             break
 
-    if packages_url is None:
-        raise RuntimeError(
-            f"Could not find 'Packages' artifact for package task {package_task.task_id}")
+        if attempt + 1 >= NUM_ARTIFACT_URL_RETRIES:
+            raise RuntimeError(
+                f"Could not find 'Packages' artifact for package task {package_task.task_id}")
+        delay = min(
+            ARTIFACT_URL_RETRY_INITIAL_DELAY_SECS * (2**attempt),
+            ARTIFACT_URL_RETRY_MAX_DELAY_SECS,
+        )
+        logging.warning(
+            "Could not find 'Packages' artifact for package task %s on attempt %d of %d. "
+            "This can happen when the Evergreen API's secondary node lags behind on "
+            "recently attached artifacts; retrying in %ds.",
+            package_task.task_id,
+            attempt + 1,
+            NUM_ARTIFACT_URL_RETRIES,
+            delay,
+        )
+        time.sleep(delay)
+
+    logging.info("Found Packages artifact URL: %s", packages_url)
 
     # Download the packages file
     download_dir.mkdir(parents=True, exist_ok=True)
@@ -306,12 +337,48 @@ def run_test(test: Test, client: DockerClient) -> Tuple[Test, Result]:
 
     commands: List[str] = ["export PYTHONIOENCODING=UTF-8"]
 
+    # Custom builds (see etc/evergreen_yml_components/custom_builds/README.md) may link
+    # the produced packages against libraries installed on the host but not in the
+    # stock container image (e.g. a system OpenSSL 3, mounted into the container
+    # below). Register the library directories with the dynamic linker so the
+    # installed binaries resolve them no matter how they are launched (the test starts
+    # mongod via a systemctl emulator, which does not propagate this process's
+    # environment). A no-op unless the variant sets the custom_ld_library_path
+    # expansion.
+    custom_ld_library_path = os.environ.get("custom_ld_library_path")
+    if custom_ld_library_path:
+        ld_dirs = " ".join(f"'{d}'" for d in custom_ld_library_path.split(":"))
+        commands.append(
+            f"printf '%s\\n' {ld_dirs} > /etc/ld.so.conf.d/zz-mongo-custom-build.conf && ldconfig")
+
     if test.os_name.startswith('rhel'):
         # RHEL distros need EPEL for Compass dependencies
         commands += [
             "yum -y install yum-utils epel-release",
             "yum-config-manager --enable epel",
         ]
+
+    if test.os_name.startswith('debian11'):
+        # Debian 11 (bullseye) reached end-of-life on 2026-08-31
+        # (https://www.debian.org/News/2026/20260831) and its repositories are being
+        # moved to archive.debian.org. The security repository is in a partially-pruned
+        # state in the meantime: its release files still list packages whose .debs have
+        # been removed from the pool (404 on install), and it has not yet been mirrored
+        # to archive.debian.org. The container image ships no curl/wget, so probe
+        # archive.debian.org with apt itself: point bullseye-security at
+        # archive.debian.org, tolerate a failed update, and check whether the security
+        # index was actually fetched. If archive.debian.org does not serve
+        # bullseye-security yet, fall back to a pinned pre-EOL snapshot.debian.org
+        # timestamp, which retains the complete security pool. Once the archive mirror
+        # is populated, the snapshot fallback becomes dead code and the final
+        # archive.debian.org layout matches the debian92/debian10 handling.
+        commands += [
+            "sed -i 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list",
+            "apt-get update -o Acquire::Check-Valid-Until=false || true",
+            "if ! ls /var/lib/apt/lists/*archive.debian.org_debian-security_dists_bullseye-security* > /dev/null 2>&1; then "
+            "sed -i 's|archive.debian.org/debian-security|snapshot.debian.org/archive/debian-security/20260831T033337Z|g' /etc/apt/sources.list; fi",
+        ]
+        test.update_command += " -o Acquire::Check-Valid-Until=false"
 
     commands += [
         test.update_command,
@@ -349,15 +416,26 @@ def run_test(test: Test, client: DockerClient) -> Tuple[Test, Result]:
     container: Container | None = None
     try:
         image = get_image(test, client)
+        # Mount the custom build's library prefix (e.g. a system OpenSSL 3) into the
+        # container; the ld.so.conf.d command above makes the linker find it.
+        # A no-op unless the variant sets the mongo_openssl_root expansion.
+        volumes = [
+            f'{test_external_root}:{test_docker_root}',
+            '/etc/pki/entitlement/:/run/secrets/etc-pki-entitlement:ro',
+            '/etc/pki/consumer/:/run/secrets/etc-pki-consumer:ro',
+            '/etc/rhsm:/run/secrets/rhsm:ro',
+            '/etc/yum.repos.d/redhat.repo:/run/secrets/redhat.repo:ro',
+            '/etc/yum.repos.d/redhat-rhsm.repo:/run/secrets/redhat-rhsm.repo:ro',
+        ]
+        openssl_root = os.environ.get("mongo_openssl_root")
+        if openssl_root:
+            volumes.append(f"{openssl_root}:{openssl_root}:ro")
         container = client.containers.run(
-            image, command=f"bash -c \"{join_commands(commands)}\"", auto_remove=True, detach=True,
-            volumes=[
-                f'{test_external_root}:{test_docker_root}',
-                '/etc/pki/entitlement/:/run/secrets/etc-pki-entitlement',
-                '/etc/rhsm:/run/secrets/rhsm',
-                '/etc/yum.repos.d/redhat.repo:/run/secrets/redhat.repo',
-                '/etc/yum.repos.d/redhat-rhsm.repo:/run/secrets/redhat-rhsm.repo'
-            ],
+            image,
+            command=f"bash -c \"{join_commands(commands)}\"",
+            auto_remove=True,
+            detach=True,
+            volumes=volumes,
             user="root",
         )
         for log in container.logs(stream=True):
