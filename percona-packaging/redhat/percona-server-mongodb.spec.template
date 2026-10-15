@@ -21,6 +21,18 @@
 %global _find_debuginfo_dwz_opts %{nil}
 %endif
 
+# the default zstd -19 payload takes 10-15 min single-threaded on the big
+# debuginfo packages. rpm >= 4.17 (el10) can thread it (T) at the same size;
+# rpm 4.16 (el9, al2023) ignores T, so drop to -9 there: ~19x faster for
+# ~14% bigger rpms. el8 keeps its default xz.
+%if 0%{?rhel} >= 10
+%global _binary_payload w19T.zstdio
+%else
+%if 0%{?rhel} == 9 || 0%{?amzn} == 2023
+%global _binary_payload w9.zstdio
+%endif
+%endif
+
 #
 Name:           percona-server-mongodb
 Version:        @@VERSION@@
