@@ -202,8 +202,10 @@ generate_release_sbom() {
           else
               error("no dependency entry found matching \($psmdb_purl_branch)")
           end
-        | (.dependencies[].dependsOn[] | select(. == $mdb_purl_branch)) |= $mdb_purl_release
-        | (.dependencies[].dependsOn[] | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
+        # newer upstream SBOMs omit `dependsOn` for dependencies that have none; skip
+        # those, but a non-array `dependsOn` still makes jq fail
+        | (.dependencies[] | select(.dependsOn != null) | .dependsOn[] | select(. == $mdb_purl_branch)) |= $mdb_purl_release
+        | (.dependencies[] | select(.dependsOn != null) | .dependsOn[] | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
         "$src" > "$dst" || abort '`generate_release_sbom`: `jq` failed'
 }
 
