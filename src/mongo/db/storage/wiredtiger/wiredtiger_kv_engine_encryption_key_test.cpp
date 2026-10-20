@@ -74,6 +74,10 @@ std::ostream& operator<<(std::ostream& os, const Key& key) {
 }  // namespace encryption
 namespace {
 using namespace encryption;
+// Disambiguate from the namespace-scope `mongo::KeyState` enum (introduced upstream in
+// SERVER-131801 by moving it out of IndexBoundsChecker), which otherwise clashes with
+// `mongo::encryption::KeyState` brought in by the `using namespace encryption;` above.
+using KeyState = encryption::KeyState;
 
 EncryptionGlobalParams encryptionParamsKeyFile(const std::string& keyFilePath) {
     EncryptionGlobalParams params;
