@@ -1,0 +1,212 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7e53213bac17d2168918c61358bc954ed865ddfa",
+    "merge_commit": "0eee68f9da0008bfacc59a94c0012aacd985f6ed"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "0eee68f9da0008bfacc59a94c0012aacd985f6ed",
+    "merged_commits": [
+      "0eee68f9da0008bfacc59a94c0012aacd985f6ed",
+      "2dba8f91186a2ddeea9a72de543747475ccb48e6",
+      "edf8359bf3553e11ba43b098854f6e94e2d532bd",
+      "b7e125bb9449d2169bc9c204b47fb1e175ebcc3a",
+      "37a9b130d3a7bde2bc4a8f46e5259cc2a565103c",
+      "beeba32dfc1d3a4ee05bbbfee74d562f43500d4f",
+      "08bcfdc3723f57779823b84ac4c0390c59abfc1d",
+      "792e389d1973e346330540ed4c4dfb770227aac4",
+      "cd38dd8a706eb937abb006ff81df676411242267",
+      "6664766302b0b28800479252dcb7c8ed63db584b",
+      "191f8fe86e63dbd356c8059707fabfc0d887a558",
+      "33aea1104594c9abb74334d15d446c2583d4eb71",
+      "f7c95fda6be9acc75326356d0143e3467f0c1bd3",
+      "66e9fb56b6ba4ddfeadcedc23191acec350fe2f2",
+      "5a4bb2c535bafe60a15eccc6d276f04d30ef2ed1",
+      "a75e57f2f3d3a9d04c36a4a19e10bafe5ea63238",
+      "a7cd08b8e8867c9bce95fbb93a87fc49724fa8e4",
+      "04c94ad0c4e54769147768ba14c9068da137cf16",
+      "6de801297f00605d8bb1411cb723186cb354882f",
+      "8a7e59c0a4988cd3dc390f728dc18b05f4bd52af",
+      "dd09974a1f0116b5d89cd84768d3437c6be4ef5f",
+      "0171397e3a8c3ec6c679d80f93ccb8f159a6e796",
+      "b06c59bd5dd39483e8b8765099a33c8b16fe477d",
+      "2f3d83b86d6a29a94984bd94ced132ce61514e25",
+      "f6237042641f3269afa7be734ff00efe93853d7a",
+      "8ba342f71ef250dc38b75b50cd33667819ef9426",
+      "dab3ed09d40b724b535f6d77e70ec2ca56ccb4d6",
+      "9684594d7cc461660e918e8c98ad571df59c7533",
+      "e40f71a6b037de4eaa4d16f085156ce31484b94b",
+      "380a4480d63712f2b812d38607293076e2dff338",
+      "715875ed45e8372a6516c36234051a6397c433d0",
+      "7125b853f383ac22cdf8ebc9c08c0a55bce98b13",
+      "ab9b3cd3c2b992c429d42eed60a5518eb8e43fc7",
+      "a3f4fab0bdf50dbdd58a85ce6f1631ae50c5d16c",
+      "e70c64789b90507741907b1456d381198dd983a2",
+      "58700ebcb6d4d326bd985440a13d88a742e8131d",
+      "d53af8470e1ffb70a4c92266ad3c8e94197e7d27",
+      "9f04d80a2539ea2ae3b3ae3809b638d82895e2bd",
+      "29bf9bbd48b2a5ace84a82c19638732b209fb16b",
+      "e3974e633bb5acdec501155cdb08334502ef39f8",
+      "d84931772a22c9e67088320f488f8b2481ad56ea",
+      "888764953eda362f28d76bbdc05ff43b56511f0d",
+      "9342d004ae27cf7e0dae9cbda71f0c3ae4fa5b4b",
+      "40a893fb26cb452eb92d31320d5d9b5bf2d71e54",
+      "7fac162dcfbf1d36fd0dd0b0ee94738de03740f8",
+      "61ccb38d9de5f817bb6e0fbc8418cd83e40cbcf2",
+      "95d6677ffd95fdfd4545747c408f95219c050145",
+      "b40bc58321f72a8d697b7ab3451c420cb7d85efe",
+      "77d3cfae2c40602e1accbfc2f748c52f782ba312",
+      "abe892535425f3e87acd91ccf2ac23010b99a979",
+      "cf553a09535fdf3a2f01908a368ef9c452982d7f",
+      "a198a6440d71002f390a624483ac720726cc2ac5"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "buildscripts/resmokelib/core/programs.py",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/shell/servers.js",
+        "src/mongo/transport/BUILD.bazel",
+        "src/mongo/util/net/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 52558,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.36223249999999996,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 4082,
+        "cacheReadInputTokens": 78085,
+        "cacheCreationInputTokens": 35376,
+        "webSearchRequests": 0,
+        "costUSD": 0.36223249999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 85,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 4082,
+            "cache_read": 78085,
+            "cache_creation": 35376
+          },
+          "cost_usd": 0.36223249999999996
+        }
+      }
+    },
+    "text_result": "I've inspected the actual `diff base \u2192 merge commit` diff for all eleven auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Profiling metrics** (`op_debug.cpp`, `curop_test.cpp`): new top-level `numInterruptChecks` field and a conditional `delinquencyInfo` sub-document for non-nested operations, in both `append()` and `appendStaged()`, with new test coverage.\n- **Test-harness flag toggle** (`programs.py`, `servers.js`): disables `featureFlagListIndexesAlwaysIncludesSimpleCollation` for mongod \u2265 9.0 (TODO SERVER-136165).\n- **Startup/validation refactor** (`startup_recovery.cpp`): removes the `openDbDuringStartup` / `openDbForOfflineValidation` / `logOfflineValidateResults` helpers; call sites open databases directly.\n- **WiredTiger bump** (`conn_api.c`, `wiredtiger.h.in`): connection API macro renames, new OTel statistics config options, a new eviction stat, and mechanical stat-ID renumbering.\n- **Small adjustments**: `mongod_main.cpp` network-interface options form; two single-dep `BUILD.bazel` additions; `pipelined_applier_advancer_test.cpp` switch to `unittest::JoinThread`.\n\nAll files auto-merged cleanly via the ort strategy \u2014 no conflicts, so no Percona-specific resolution was needed. The response flags the profiling and offline-validation changes as the main things for reviewers to double-check against Percona customizations, and notes the two `BUILD.bazel` edits are unrelated to the integration-test `fixture` attributes mentioned in the conflict hints.",
+    "response": {
+      "summary": "Upstream merge pulling in a batch of MongoDB changes since the fork diverged at fb0593138a4. The most visible themes are: (1) interrupt-check and delinquency metrics in operation profiling \u2014 op_debug.cpp now emits a top-level 'numInterruptChecks' field and a 'delinquencyInfo' sub-document for non-nested operations (both in append() and appendStaged()), with new curop_test.cpp coverage; (2) temporarily disabling the featureFlagListIndexesAlwaysIncludesSimpleCollation flag for 9.0+ mongod in test harnesses (resmoke programs.py and shell servers.js) under TODO SERVER-136165; (3) a refactor of offline-validation/startup database opening in startup_recovery.cpp that removes the openDbDuringStartup/openDbForOfflineValidation helpers; (4) a WiredTiger third-party update (stat ID renumbering, new OTel statistics config options, connection API macro cleanups); plus small build-dependency and networking-API adjustments. All listed files were auto-merged cleanly by the ort strategy with no conflicts.",
+      "auto_merged": {
+        "buildscripts/resmokelib/core/programs.py": "Adds a block in mongod_program that, for bin versions >= 9.0, sets the suite parameter featureFlagListIndexesAlwaysIncludesSimpleCollation to \"false\", with a TODO SERVER-136165 comment to later remove or re-enable it.",
+        "src/mongo/db/curop_test.cpp": "Adds 'numInterruptChecks' to the expected field list in OptionalAdditiveMetricsNotDisplayedIfUninitialized, and adds two new tests \u2014 AppendIncludesDelinquentStatsIfNonZero and AppendStagedIncludesDelinquentFields \u2014 verifying that OpDebug::append / appendStaged emit numInterruptChecks always and a delinquencyInfo sub-document (totalDelinquentAcquisitions, totalAcquisitionDelinquencyMillis, maxAcquisitionDelinquencyMillis, overdueInterruptChecks/overdueInterruptTotalMillis/overdueInterruptApproxMaxMillis) only when delinquent stats are non-zero, gated by featureFlagRecordDelinquentMetrics and overdueInterruptCheckSamplingRate.",
+        "src/mongo/db/mongod_main.cpp": "In makeReplicaSetNodeExecutor, updates the executor::makeNetworkInterface call for \"ReplNodeDbWorkerNetwork\" to pass the sharding egress hooks via the new designated-initializer options form ({.metadataHook = makeShardingEgressHooksList(serviceContext)}) instead of the previous positional (nullptr, hooks) arguments.",
+        "src/mongo/db/op_debug.cpp": "In OpDebug::append, for top-level operations (no parent curop) appends a 'numInterruptChecks' field and, when delinquent acquisitions or overdue interrupt checks are non-zero, a 'delinquencyInfo' sub-object built via appendDelinquentInfo (reporting acquisitions only outside multi-document transactions). The same two fields ('numInterruptChecks' and 'delinquencyInfo') are added as addIfNeeded stages in OpDebug::appendStaged with the equivalent parent/transaction/non-zero guards.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Refactors the PipelinedApplierAdvancer tests to use unittest::JoinThread (new include mongo/unittest/join_thread.h) instead of raw stdx::thread, removing the manual ON_BLOCK_EXIT cleanup blocks that called tracker.onWorkerAbandonment(), shutdownThread.join() and advancer.shutdownAndJoin(); shutdown threads are now assigned as unittest::JoinThread which handles joining on destruction.",
+        "src/mongo/db/startup_recovery.cpp": "Removes the openDbDuringStartup and openDbForOfflineValidation helper functions and the logOfflineValidateResults helper, along with the mongo/stdx/unordered_set.h and mongo/util/hex.h includes. Call sites now obtain DatabaseHolder::get(opCtx) locally and call databaseHolder->openDb(...) directly. offlineValidateCollection inlines the validate-result logging. offlineValidateParallel no longer tracks unopenedDbNames or skips databases that failed to open, and unconditionally sets allValidationComplete/allResultsValid to true.",
+        "src/mongo/shell/servers.js": "In appendSetParameterArgs, for mongod with programMajorMinorVersion >= 900, pushes --setParameter featureFlagListIndexesAlwaysIncludesSimpleCollation=false, with a TODO SERVER-136165 comment (mirrors the resmoke programs.py change).",
+        "src/mongo/transport/BUILD.bazel": "Adds //src/mongo/util/net:connection_purpose to the deps of a mongo_cc_library target (alongside the existing ssl_manager dep).",
+        "src/mongo/util/net/BUILD.bazel": "Adds //src/mongo/otel/metrics:metrics_attributes to the deps of a mongo_cc_library target (alongside //src/mongo:base).",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "WiredTiger update: replaces API_END_RET / API_END_RET_NOTFOUND_MAP with the connection-specific CONNECTION_API_END_RET / CONNECTION_API_END_RET_NOTFOUND_MAP macros across the connection API functions, and changes __conn_dump_error_log to use CONNECTION_API_CALL_NOCONF instead of CONNECTION_API_CALL_NOCONF_NOERRCLEAR.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated WiredTiger header update: removes the #ifndef DOXYGEN guard around cursor->checkpoint_id, expands the session statistics config documentation to describe the new otel_ options (otel_counters, otel_gauges, otel_histograms, otel_none) and reorders the allowed statistics option list, adds a new WT_STAT_CONN_EVICTION_SERVER_SKIP_PAGES_RESTORED_UNCHANGED (1174) statistic, and renumbers the subsequent WT_STAT_CONN_* statistic ID macros accordingly."
+      },
+      "review_notes": "All eleven files were auto-merged by the ort strategy with no conflicts, so no Percona-specific conflict resolution was required here. Points worth a reviewer's attention: (1) op_debug.cpp adds new profiling fields (numInterruptChecks / delinquencyInfo) \u2014 confirm this interacts correctly with any Percona profiling/audit customizations. (2) startup_recovery.cpp drops the defensive openDbForOfflineValidation path that tolerated un-openable databases during offline validation; offline validation now unconditionally reports complete/valid \u2014 verify this does not regress Percona hot-backup/validation behavior. (3) The featureFlagListIndexesAlwaysIncludesSimpleCollation=false toggle is test-harness only (resmoke + shell). (4) The wiredtiger.h.in change is a large but purely mechanical stat-ID renumbering plus doc/API additions from the third-party WiredTiger bump; the only substantive conn_api.c change is the macro rename. The two BUILD.bazel edits are single added deps and are unrelated to the Percona integration-test 'fixture' attributes called out in the conflict hints (those targets were not touched by this merge)."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diff for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me view the full output."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs I need. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've inspected the actual `diff base \u2192 merge commit` diff for all eleven auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Profiling metrics** (`op_debug.cpp`, `curop_test.cpp`): new top-level `numInterruptChecks` field and a conditional `delinquencyInfo` sub-document for non-nested operations, in both `append()` and `appendStaged()`, with new test coverage.\n- **Test-harness flag toggle** (`programs.py`, `servers.js`): disables `featureFlagListIndexesAlwaysIncludesSimpleCollation` for mongod \u2265 9.0 (TODO SERVER-136165).\n- **Startup/validation refactor** (`startup_recovery.cpp`): removes the `openDbDuringStartup` / `openDbForOfflineValidation` / `logOfflineValidateResults` helpers; call sites open databases directly.\n- **WiredTiger bump** (`conn_api.c`, `wiredtiger.h.in`): connection API macro renames, new OTel statistics config options, a new eviction stat, and mechanical stat-ID renumbering.\n- **Small adjustments**: `mongod_main.cpp` network-interface options form; two single-dep `BUILD.bazel` additions; `pipelined_applier_advancer_test.cpp` switch to `unittest::JoinThread`.\n\nAll files auto-merged cleanly via the ort strategy \u2014 no conflicts, so no Percona-specific resolution was needed. The response flags the profiling and offline-validation changes as the main things for reviewers to double-check against Percona customizations, and notes the two `BUILD.bazel` edits are unrelated to the integration-test `fixture` attributes mentioned in the conflict hints."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261020_105400_454781.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.304 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "0eee68f9da0008bfacc59a94c0012aacd985f6ed",
+    "short_sha": "0eee68f9da0",
+    "strategy": null,
+    "summary": "Cutting here yields a coherent ~52-commit batch squarely in the target band. Crucially, SERVER-136178 'Close RSM connections' (191f8fe8) and its auto-revert (this commit, 0eee68f9) are both in range, so ending on the revert keeps the revert paired with its original in the same batch - they cancel out instead of importing a feature that is immediately undone. It also sweeps in the clean, atomic WiredTiger vendored import 2dba8f91 just before it. Stopping earlier (e.g. on the WT import at 2dba8f91, or before it) would include the RSM original while excluding its revert, leaving the fork half-applied. Stopping later at the next WT import (e0c857633, ~77 commits) overshoots the band and would split the SERVER-135489 revert pair (59dc55ce / a4909d7e), both of which sit safely beyond this boundary and stay together for the next batch. The commit after this one (30a595bd) is unrelated PBT work, so this is a genuinely clean stopping point, and it is several days inside the window edge so it is settled, not freshly-landed churn.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/39410706525"
+  }
+}
