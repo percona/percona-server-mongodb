@@ -9,8 +9,10 @@
 #include "mongo/db/replicated_fast_count/size_count_timestamp_store.h"
 #include "mongo/db/rss/stub_persistence_provider.h"
 #include "mongo/db/storage/record_store.h"
+#include "mongo/util/fail_point.h"
 #include "mongo/util/uuid.h"
 
+#include <functional>
 #include <list>
 #include <memory>
 #include <utility>
@@ -410,6 +412,12 @@ repl::OplogEntry makeCreateOplogEntry(Timestamp ts, NsAndUUID userColl);
 repl::OplogEntry makeDropOplogEntry(Timestamp ts, NsAndUUID userColl);
 
 /**
+ * Returns a no-op watermark oplog entry that mirrors the shape of the entry written by
+ * `flusher::writeWatermark()`.
+ */
+repl::OplogEntry makeWatermarkOplogEntry(Timestamp ts);
+
+/**
  * Generates an importCollection command oplog entry for 'userColl' with the inputted 'numRecords',
  * 'dataSize', and 'dryRun' values.
  */
@@ -424,16 +432,15 @@ void writeToOplog(OperationContext* opCtx, const repl::OplogEntry& oplogEntry);
 /**
  * Inserts an entry into `store` for the provided `uuid`.
  */
-// TODO(SERVER-122992): Assert return value is false.
-void insertSizeCountEntry(OperationContext* opCtx,
-                          SizeCountStore& store,
-                          UUID uuid,
-                          const SizeCountStore::Entry& entry);
+boost::optional<SizeCountStore::Entry> insertSizeCountEntry(OperationContext* opCtx,
+                                                            SizeCountStore& store,
+                                                            UUID uuid,
+                                                            const SizeCountStore::Entry& entry);
 
 /**
  * Inserts a timestamp into `store`.
  */
-// TODO(SERVER-122992): Assert return value is false.
+// TODO(SERVER-136271): Return boost::optional<Timestamp>.
 void insertSizeCountTimestamp(OperationContext* opCtx,
                               SizeCountTimestampStore& store,
                               Timestamp timestamp);
@@ -469,4 +476,35 @@ struct ContainerFastCountStores {
  * `ReplicatedFastCountTestPersistenceProvider`.
  */
 ContainerFastCountStores createContainerFastCountStores(OperationContext* opCtx);
+
+/**
+ * Registers an OpObserver so oplog writes are actually written to the oplog.
+ *
+ * This is useful in tests that call `waitForFlush()` and expect the oplog tailer to see one or more
+ * watermark entries.
+ */
+void registerOpObserverForTest(ServiceContext* service);
+
+/**
+ * Requests a flush using the `requestFlush` function until the valid-as-of timestamp in
+ * `timestampStore` advances from the value read when this function was called, then returns the
+ * new valid-as-of timestamp.
+ *
+ * This function blocks the calling thread.
+ *
+ * If the valid-as-of timestamp does not advance within 30 seconds, this function throws an
+ * exception.
+ */
+Timestamp waitForFlush(OperationContext* opCtx,
+                       SizeCountTimestampStore& timestampStore,
+                       std::function<void()> requestFlush);
+
+/**
+ * Requests a flush using the `requestFlush` function until the failpoint `fp` has been entered once
+ * more than when this function was called.
+ *
+ * This function blocks the calling thread.
+ */
+void waitForFlushFailpoint(FailPointEnableBlock& fp, std::function<void()> requestFlush);
+
 }  // namespace mongo::replicated_fast_count::test_helpers

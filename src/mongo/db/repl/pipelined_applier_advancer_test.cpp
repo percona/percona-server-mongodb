@@ -10,6 +10,7 @@
 #include "mongo/platform/waitable_atomic.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/unittest/death_test.h"
+#include "mongo/unittest/join_thread.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
@@ -76,10 +77,6 @@ TEST_F(PipelinedApplierAdvancerTest, PublishesInFifoOrderAfterEveryWorkerComplet
     tracker.onWorkerCompletion(second);
 
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
-    ON_BLOCK_EXIT([&] {
-        tracker.onWorkerAbandonment();
-        advancer.shutdownAndJoin();
-    });
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierBatchWait");
         advancer.startup();
@@ -104,10 +101,6 @@ TEST_F(PipelinedApplierAdvancerTest, PublishesReadyBatchesThenStopsAtTheFirstInc
     auto middle = tracker.addBatch(batchTime(2), 1);
     tracker.addBatch(batchTime(3), 0);
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
-    ON_BLOCK_EXIT([&] {
-        tracker.onWorkerAbandonment();
-        advancer.shutdownAndJoin();
-    });
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierBatchWait");
         advancer.startup();
@@ -129,10 +122,6 @@ TEST_F(PipelinedApplierAdvancerTest, BackstopPublishesCompletionWithoutNotificat
         record(batch);
         publicationFinished.store(true);
         publicationFinished.notifyAll();
-    });
-    ON_BLOCK_EXIT([&] {
-        tracker.onWorkerAbandonment();
-        advancer.shutdownAndJoin();
     });
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierBatchWait");
@@ -164,16 +153,11 @@ TEST_F(PipelinedApplierAdvancerTest, PublicationDoesNotHoldTrackerMutexAndShutdo
         record(batch);
     });
     WaitableAtomic<bool> shutdownFinished{false};
-    stdx::thread shutdownThread;
+    unittest::JoinThread shutdownThread;
     ON_BLOCK_EXIT([&] {
         // Keep the release set even if cleanup runs before the callback starts.
         releasePublication.store(true);
         releasePublication.notifyAll();
-        tracker.onWorkerAbandonment();
-        if (shutdownThread.joinable()) {
-            shutdownThread.join();
-        }
-        advancer.shutdownAndJoin();
     });
     tracker.addBatch(batchTime(1), 0);
     advancer.startup();
@@ -188,11 +172,11 @@ TEST_F(PipelinedApplierAdvancerTest, PublicationDoesNotHoldTrackerMutexAndShutdo
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierIdleWait");
         // Run shutdown separately because it must wait for the callback this thread will release.
-        shutdownThread = stdx::thread([&] {
+        shutdownThread = unittest::JoinThread{[&] {
             advancer.shutdownAndJoin();
             shutdownFinished.store(true);
             shutdownFinished.notifyAll();
-        });
+        }};
         beforeWait.waitForOneNewEntry();
         // The failpoint confirms shutdown reached its idle wait, not just that it was scheduled.
         ASSERT_FALSE(shutdownFinished.load());
@@ -211,22 +195,15 @@ TEST_F(PipelinedApplierAdvancerTest, AbandonmentStopsShutdownWithoutPublishingPa
     tracker.addBatch(batchTime(2), 0);
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
     WaitableAtomic<bool> shutdownFinished{false};
-    stdx::thread shutdownThread;
-    ON_BLOCK_EXIT([&] {
-        tracker.onWorkerAbandonment();
-        if (shutdownThread.joinable()) {
-            shutdownThread.join();
-        }
-        advancer.shutdownAndJoin();
-    });
+    unittest::JoinThread shutdownThread;
     advancer.startup();
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierIdleWait");
-        shutdownThread = stdx::thread([&] {
+        shutdownThread = unittest::JoinThread{[&] {
             advancer.shutdownAndJoin();
             shutdownFinished.store(true);
             shutdownFinished.notifyAll();
-        });
+        }};
         beforeWait.waitForOneNewEntry();
     }
     tracker.onWorkerAbandonment();
@@ -251,27 +228,22 @@ TEST_F(PipelinedApplierAdvancerTest, AbandonmentDuringPublicationStillJoinsThePu
         record(batch);
     });
     WaitableAtomic<bool> shutdownFinished{false};
-    stdx::thread shutdownThread;
+    unittest::JoinThread shutdownThread;
     ON_BLOCK_EXIT([&] {
         // Keep the release set even if cleanup runs before the callback starts.
         releasePublication.store(true);
         releasePublication.notifyAll();
-        tracker.onWorkerAbandonment();
-        if (shutdownThread.joinable()) {
-            shutdownThread.join();
-        }
-        advancer.shutdownAndJoin();
     });
     advancer.startup();
     ASSERT_EQ(publicationStarted.waitFor(false, Seconds(10)), boost::optional<bool>{true});
 
     // One worker abandons the later batch while the first batch is still publishing.
     tracker.onWorkerAbandonment();
-    shutdownThread = stdx::thread([&] {
+    shutdownThread = unittest::JoinThread{[&] {
         advancer.shutdownAndJoin();
         shutdownFinished.store(true);
         shutdownFinished.notifyAll();
-    });
+    }};
     const auto deadline = Date_t::now() + Seconds(10);
     while (!tracker.isShutdown()) {
         ASSERT_LT(Date_t::now(), deadline);

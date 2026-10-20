@@ -274,6 +274,21 @@ def _get_bazel_query_options(bazel_options: Sequence[str]) -> tuple[str, ...]:
     return tuple(query_options)
 
 
+def _gitignored_files(files: Sequence[str]) -> frozenset[str]:
+    """Return the subset of `files` that are ignored by git (pattern-matched and untracked)."""
+    result = subprocess.run(
+        ["git", "check-ignore", "--stdin", "-z"],
+        input="\0".join(files),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    # check-ignore exits 1 when no paths are ignored, which is not an error.
+    if result.returncode not in (0, 1):
+        raise subprocess.CalledProcessError(result.returncode, result.args, output=result.stderr)
+    return frozenset(f for f in result.stdout.split("\0") if f)
+
+
 def create_build_files_in_new_js_dirs() -> None:
     base_dirs = ["src/mongo/db/modules/enterprise/jstests", "jstests"]
     for base_dir in base_dirs:
@@ -400,9 +415,12 @@ class LintRunner:
             typed_files_in_targets_set.add(clean_file)
 
         # Create a new list of files that are in all_typed_files but not in typed_files_in_targets
+        ignored = _gitignored_files(all_typed_files)
         new_list = []
         for file in all_typed_files:
             if file not in typed_files_in_targets_set and file not in exempt_list:
+                if file in ignored:
+                    continue
                 if not any(subpath in file for subpath in exempted_subpaths):
                     new_list.append(file)
 
@@ -862,10 +880,15 @@ def _get_rules_lint_targets_for_source_labels(
 
     for source_label in source_labels:
         owner_rules = f'kind(".* rule", same_pkg_direct_rdeps({source_label}))'
+        # rust_test targets created with `crate = ":lib"` compile the library's sources (including
+        # #[cfg(test)] modules) but depend on the library rule rather than on the individual source
+        # files, so same_pkg_direct_rdeps on the source does not find them.
+        crate_test_rules = f'attr("crate", ".*", same_pkg_direct_rdeps({owner_rules}))'
+        relevant_rules = f"({owner_rules} union {crate_test_rules})"
         # Manual targets are often negative analysis fixtures. They intentionally fail during
         # analysis and must not be pulled into the rules_lint build just because they depend on a
         # changed source file.
-        query = f'{owner_rules} except attr("tags", "manual", {owner_rules})'
+        query = f'{relevant_rules} except attr("tags", "manual", {relevant_rules})'
         query_options = _get_bazel_query_options(bazel_options)
         result = subprocess.run(
             [

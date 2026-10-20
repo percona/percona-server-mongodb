@@ -99,6 +99,12 @@ public:
 class MetricNames {
 public:
     // Networking & Observability Team Metrics
+    static constexpr MetricName kReplicationPrimaryPeerEstablishedTime =
+        MetricNameMaker::make("mongodb.network.repl.source.connection_established_time");
+    static constexpr MetricName kReplicationPrimaryLogicalBytesOut =
+        MetricNameMaker::make("mongodb.network.repl.source.bytes_out");
+    static constexpr MetricName kReplicationPrimaryPhysicalBytesOut =
+        MetricNameMaker::make("mongodb.network.repl.source.physical_bytes_out");
     static constexpr MetricName kReplicationSecondaryReceiveQueueBytes =
         MetricNameMaker::make("mongodb.network.repl.secondary.receive_queue");
     static constexpr MetricName kReplicationSecondaryReceiveQueueSize =
@@ -597,6 +603,13 @@ public:
         "mongodb.serverStatus.metrics.replicatedFastCount.flush.retriedCount");
     static constexpr MetricName kReplicatedFastCountTailerRetriedScanCount = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.replicatedFastCount.tailer.retriedScanCount");
+    static constexpr MetricName kReplicatedFastCountWatermarksWritten =
+        MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.watermarksWritten");
+    static constexpr MetricName kReplicatedFastCountTailerWatermarksSeen = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.tailer.watermarksSeen");
+    static constexpr MetricName kReplicatedFastCountWatermarkAwaitTimeMsTotal =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.replicatedFastCount.flush.watermarkAwaitTime.total");
 
     static constexpr MetricName kInternodeConsistencyHashMismatchInsert = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.repl.internodeConsistency.hashMismatch.insert");

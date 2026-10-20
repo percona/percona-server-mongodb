@@ -427,6 +427,18 @@ Type Type::anyObject() {
     return Type(BSONType::object, Extent::kAll);
 }
 
+Type Type::anyArray() {
+    return Type(BSONType::array, Extent::kAll);
+}
+
+Type Type::someArray() {
+    return Type(BSONType::array, Extent::kSubset);
+}
+
+Type Type::anyScalar() {
+    return complement(unionType(Type::anyObject(), Type::anyArray()));
+}
+
 Type Type::fromValue(const Value& value) {
     return Type(TypeSet::fromValue(value));
 }
@@ -478,6 +490,24 @@ Type Type::getField(std::string_view fieldName) const {
             "Type should include object to be able to have a field",
             _typeSet.hasType(BSONType::object));
     return getFieldType(_shape, fieldName);
+}
+
+bool Type::canPathBeArray(const FieldRef& path) const {
+    Type current = *this;
+    for (size_t i = 0; i < path.numParts(); ++i) {
+        if (current.hasType(BSONType::array)) {
+            return true;
+        }
+        if (!current.hasType(BSONType::object)) {
+            return false;
+        }
+
+        current = current.getField(path.getPart(i));
+        if (current.hasType(BSONType::array)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void Type::setField(std::string_view fieldName, Type fieldType) {

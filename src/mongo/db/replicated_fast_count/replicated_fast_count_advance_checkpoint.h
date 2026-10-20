@@ -4,6 +4,7 @@
 #pragma once
 
 #include "mongo/db/operation_context.h"
+#include "mongo/db/replicated_fast_count/replicated_fast_count_metrics.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_streaming_oplog_delta_accumulator.h"
 #include "mongo/db/replicated_fast_count/size_count_store.h"
 #include "mongo/db/replicated_fast_count/size_count_timestamp_store.h"
@@ -59,12 +60,13 @@ ReplicatedMetadataCheckpointSnapshot materializeCheckpointSnapshot(
  * Persists a materialized checkpoint snapshot to the `sizeCountStore` and updates the valid-as-of
  * timestamp in `timestampStore`.
  *
- * Returns the number of writes to the `sizeCountStore`.
+ * Returns the counts of the writes performed to the `SizeCountStore`.
  */
-size_t persistCheckpointSnapshot(OperationContext* opCtx,
-                                 const ReplicatedMetadataCheckpointSnapshot& checkpoint,
-                                 SizeCountStore& sizeCountStore,
-                                 SizeCountTimestampStore& timestampStore);
+CheckpointWriteCounts persistCheckpointSnapshot(
+    OperationContext* opCtx,
+    const ReplicatedMetadataCheckpointSnapshot& checkpoint,
+    SizeCountStore& sizeCountStore,
+    SizeCountTimestampStore& timestampStore);
 
 
 /**
@@ -77,6 +79,7 @@ size_t persistCheckpointSnapshot(OperationContext* opCtx,
  * advances its global valid-as-of timestamp, even in absence of oplog entries with size and count
  * deltas, to ensure forward progress through the oplog.
  */
+// TODO(SERVER-134962): Remove this function and rename files.
 size_t advanceCheckpoint(OperationContext* opCtx,
                          SizeCountStore& sizeCountStore,
                          SizeCountTimestampStore& timestampStore);
