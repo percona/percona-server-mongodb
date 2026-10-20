@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 268,
-    "days_behind": 19,
-    "unmerged_oldest_age_days": 19.13661087784722,
-    "files_affected": 2593,
-    "total_additions": 76414,
-    "total_deletions": 37859,
+    "commits_behind": 285,
+    "days_behind": 20,
+    "unmerged_oldest_age_days": 20.13425122111111,
+    "files_affected": 2739,
+    "total_additions": 77996,
+    "total_deletions": 40125,
     "date_range": {
       "first": "2026-09-30T02:58:01+00:00",
-      "last": "2026-10-12T01:13:10+00:00"
+      "last": "2026-10-13T03:51:59+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,176 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "946f8834518b2b54ae4b18af388449feeb1215df",
+      "short_sha": "946f8834518",
+      "date": "2026-10-13T03:51:59+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 07cd9cda869e7efd1a52bbf64912aee82fdcae71 from branch mongodb-master (#64246)"
+    },
+    {
+      "sha": "47e2e68ee0616358ad84f9630cf6c4e7a1fa06f5",
+      "short_sha": "47e2e68ee06",
+      "date": "2026-10-13T03:49:11+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-136259 Use QSN nss for stage builder arrayness checks (#64232)"
+    },
+    {
+      "sha": "16a5231cbc3e970089d54cd719d19d1b470aa7a1",
+      "short_sha": "16a5231cbc3",
+      "date": "2026-10-12T21:29:50+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-135148 flexible ServiceContextTest setUp (#63103)"
+    },
+    {
+      "sha": "eacfc4ae5b10a5101591f1975c94bc32dbcb4990",
+      "short_sha": "eacfc4ae5b1",
+      "date": "2026-10-12T21:19:58+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-136709 Synchronize phase and buildMethod changes (#64187)"
+    },
+    {
+      "sha": "a77339e0291c8e1ebcc910a0361180d238e8f1cb",
+      "short_sha": "a77339e0291",
+      "date": "2026-10-12T21:03:31+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-119036 Remove deferred get executor=off cases in unit tests (#64126)"
+    },
+    {
+      "sha": "901af05d99d066807abcd2a38f1ba90ba6c19ec2",
+      "short_sha": "901af05d99d",
+      "date": "2026-10-12T20:24:59+00:00",
+      "author": {
+        "name": "Erwin Pe",
+        "email": "erwin.pe@mongodb.com"
+      },
+      "summary": "SERVER-135923 Update vendored libmongocrypt (#64193)"
+    },
+    {
+      "sha": "4fe83ce6ce7f87e2ad27ee1097abe2e651d836e9",
+      "short_sha": "4fe83ce6ce7",
+      "date": "2026-10-12T20:22:42+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-136830 Update metrics to use floating point durations (#64265)"
+    },
+    {
+      "sha": "22979dd3396c70259b1ce1c9d30637f5cfe9c511",
+      "short_sha": "22979dd3396",
+      "date": "2026-10-12T20:15:58+00:00",
+      "author": {
+        "name": "Billy Donahue",
+        "email": "BillyDonahue@users.noreply.github.com"
+      },
+      "summary": "SERVER-136009 fix gcc false positive in fast count manager test (#64275)"
+    },
+    {
+      "sha": "112b2674b8fb24f6916b1227a3090511b5a509ff",
+      "short_sha": "112b2674b8f",
+      "date": "2026-10-12T20:02:22+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-135807 Create feature flag (#64258)"
+    },
+    {
+      "sha": "92d3488e71e0cd6aa95adba67549c7ce561f0cc4",
+      "short_sha": "92d3488e71e",
+      "date": "2026-10-12T19:14:32+00:00",
+      "author": {
+        "name": "Sarah Kelley",
+        "email": "sarah.kelley@mongodb.com"
+      },
+      "summary": "SERVER-136676: Combine lower/upper bound failover write metric (#64144)"
+    },
+    {
+      "sha": "5ae37cf4729e02799e89b0a245d11ef3c14e2ec3",
+      "short_sha": "5ae37cf4729",
+      "date": "2026-10-12T18:00:16+00:00",
+      "author": {
+        "name": "Anja Kalaba",
+        "email": "anja.kalaba@mongodb.com"
+      },
+      "summary": "SERVER-136722 Include kFinalizeMigration duration in the MoveRangeCoordinator termination log (#64196)"
+    },
+    {
+      "sha": "ac5033bb549d9c478d7707f2d2186e237705b1e0",
+      "short_sha": "ac5033bb549",
+      "date": "2026-10-12T17:39:42+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-136751: Restore editor clang-format wrapper with Windows test guard (#64208)"
+    },
+    {
+      "sha": "9b3a80d48f7fb0fe86ae658bb9e121c0a4e04db3",
+      "short_sha": "9b3a80d48f7",
+      "date": "2026-10-12T17:24:16+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-136731: Fix fuzztest ubsan denylist regex (#64198)"
+    },
+    {
+      "sha": "8bbe71a4b4464ced4e7754b164291e00c2a46a4d",
+      "short_sha": "8bbe71a4b44",
+      "date": "2026-10-12T15:43:52+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#64219)"
+    },
+    {
+      "sha": "c09382d77add719caf479e8b3da8962b02cce969",
+      "short_sha": "c09382d77ad",
+      "date": "2026-10-12T12:08:18+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-136745 Relax report_post_batch_resume_token PBRT asserts when replicated fast count is enabled (#64176)"
+    },
+    {
+      "sha": "02bc43c2ac91695825961d8e4cd8f5241be9df58",
+      "short_sha": "02bc43c2ac9",
+      "date": "2026-10-12T08:12:53+00:00",
+      "author": {
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
+      },
+      "summary": "SERVER-116447 Report query settings in query profiler (#63849)"
+    },
+    {
+      "sha": "36d0dca2c96bffb1d59ca128b3329a37e077a6e5",
+      "short_sha": "36d0dca2c96",
+      "date": "2026-10-12T05:44:25+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136293 Add golden tests for dotted local/foreign field in hash… (#63850)\" (#64240)"
+    },
     {
       "sha": "e1929b755d5e055f7dff0d5e03b54c318c3bbadb",
       "short_sha": "e1929b755d5",
@@ -3194,10 +3364,56 @@
           "num_of_dirs": 14
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "16a5231cbc3e970089d54cd719d19d1b470aa7a1",
+        "short_sha": "16a5231cbc3",
+        "date": "2026-10-12T21:29:50+00:00",
+        "author": {
+          "name": "Billy Donahue",
+          "email": "BillyDonahue@users.noreply.github.com"
+        },
+        "summary": "SERVER-135148 flexible ServiceContextTest setUp (#63103)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 213,
+          "num_of_lines": 4720,
+          "lines_added": 2738,
+          "lines_deleted": 1982,
+          "num_of_dirs": 62
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "946f8834518b2b54ae4b18af388449feeb1215df",
+        "short_sha": "946f8834518",
+        "date": "2026-10-13T03:51:59+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 07cd9cda869e7efd1a52bbf64912aee82fdcae71 from branch mongodb-master (#64246)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 33,
+          "num_of_lines": 3288,
+          "lines_added": 2379,
+          "lines_deleted": 909,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-19 06:14:11",
+  "generated_at": "2026-10-20 06:10:48",
   "branch_name": "master",
   "display_name": "master"
 }
