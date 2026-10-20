@@ -74,6 +74,7 @@ std::ostream& operator<<(std::ostream& os, const Key& key) {
 }  // namespace encryption
 namespace {
 using namespace encryption;
+using encryption::KeyState;  // disambiguate from mongo::KeyState (index_bounds.h)
 
 EncryptionGlobalParams encryptionParamsKeyFile(const std::string& keyFilePath) {
     EncryptionGlobalParams params;
