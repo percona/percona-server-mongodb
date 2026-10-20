@@ -11,22 +11,6 @@
         "phase": "pre-build"
       }
     ],
-<<<<<<< HEAD
-||||||| 0eee68f9da0
-    "tools": [
-      {
-        "name": "Endor Labs Inc",
-        "version": "v1.7.1149"
-      }
-    ],
-=======
-    "tools": [
-      {
-        "name": "Endor Labs Inc",
-        "version": "v1.7.1177"
-      }
-    ],
->>>>>>> b6a358e6c6929ad13b05570d06863457417d0634
     "component": {
       "type": "application",
       "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
