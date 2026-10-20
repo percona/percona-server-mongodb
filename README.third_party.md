@@ -45,15 +45,9 @@ a notice will be included in
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [json-c]                                             | MIT                                            | 0.17                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
-<<<<<<< HEAD
 | [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
-| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
-| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
-||||||| 0eee68f9da0
-| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
-=======
 | [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public-Domain | 2.1.0                                    |                      |                                 |
->>>>>>> b6a358e6c6929ad13b05570d06863457417d0634
+| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
 | [libunwind]                                          | MIT                                            | 1.8.1                                    |                      | ✗                               |
 | [linenoise]                                          | BSD-2-Clause                                   | 6cdc775807e57b2c3fd64bd207814f8ee1fe35f3 |                      | ✗                               |
