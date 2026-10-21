@@ -1,0 +1,308 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1a6bbfc318493477c9526f7bcd29f2d7bbce734a",
+    "merge_commit": "b6a358e6c6929ad13b05570d06863457417d0634"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "1a6bbfc318493477c9526f7bcd29f2d7bbce734a",
+    "theirs_commit": "b6a358e6c6929ad13b05570d06863457417d0634",
+    "base_commit": "0eee68f9da0008bfacc59a94c0012aacd985f6ed",
+    "files": [
+      "README.third_party.md",
+      "jstests/suites/backup-restore/BUILD.bazel",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "README.third_party.md": "both modified",
+      "jstests/suites/backup-restore/BUILD.bazel": "deleted by us",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "README.third_party.md": "diff --cc README.third_party.md\nindex d015fccbce6,ff2b1affccd..00000000000\n--- a/README.third_party.md\n+++ b/README.third_party.md\n@@@ -48,3 -47,1 +48,9 @@@ a notice will be included i\n++<<<<<<< HEAD\n +| [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | \u2717                    | \u2717                               |\n +| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |\n +| [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | \u2717                               |\n++||||||| 0eee68f9da0\n++| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |\n++=======\n+ | [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public-Domain | 2.1.0                                    |                      |                                 |\n++>>>>>>> b6a358e6c6929ad13b05570d06863457417d0634",
+      "sbom.json": "diff --cc sbom.json\nindex cb93bc3b727,e095e89671d..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -14,0 -14,6 +14,16 @@@\n++<<<<<<< HEAD\n++||||||| 0eee68f9da0\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1149\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1177\"\n+       }\n+     ],\n++>>>>>>> b6a358e6c6929ad13b05570d06863457417d0634"
+    },
+    "their_commits": {
+      "README.third_party.md": [
+        "2eb4b367802d9d04b20e5d122a64e3b79d98d255"
+      ],
+      "jstests/suites/backup-restore/BUILD.bazel": [
+        "75a2dd3bf2bd97ef304e117d04dd08d990576231"
+      ],
+      "sbom.json": [
+        "2eb4b367802d9d04b20e5d122a64e3b79d98d255"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "b6a358e6c6929ad13b05570d06863457417d0634",
+    "merged_commits": [
+      "b6a358e6c6929ad13b05570d06863457417d0634",
+      "e937747cb9e08f4db29be5727ec938f696ed86af",
+      "ef4f9958b4f89aa1d602948e8fe69e83b26b6165",
+      "e1fa5dc3b9ef9a7c23411a03a9ae0ded55197350",
+      "192af3deafefa493bbf608a5aa7550daf05f5aed",
+      "35f2d56aaecc1e1b9cc576e86549a279d761eb88",
+      "75a2dd3bf2bd97ef304e117d04dd08d990576231",
+      "5427c8015fa578498fda7a5d6ba0d531b0c3722f",
+      "72f784e8c19229003fb56d8702c92937fc31c57f",
+      "22e9cc68e4ec1d122cec5c33955316fc42fae892",
+      "043b69e380be2bb38c314e67aa00d061d773c1a4",
+      "a5f01668d04f29c86e6b9a797f6b0e5f2ab70a1f",
+      "af4d2132ff57a3d398e087ef078fd27e89c8829e",
+      "8feb0a277eb717251ac1e4eb7c38171f7101d73a",
+      "82a03ca64a6e44cc66f73ca262012945999a7d03",
+      "3b4cae6375a72d9daec3b5b37a23bd2c94a3a503",
+      "0ed964eb366e8287713a4e0d5af7b4b9ad9b50d1",
+      "ca4195f2e118d89c2fafc6d497f833a867f8aa84",
+      "041bb8cb635795a7e2a4bed8165ea9dbb9cb241e",
+      "a4909d7e7e6755854c48eb68562ba80cd7a2dc56",
+      "9ab63da95d8c675302fbc5dd5c28d741216df681",
+      "6ed998dca397a644efc8058e881dd4759d1c711a",
+      "4f4c051010d4a2b9bd0f40e8602a2e77607b3cdc",
+      "93062449ac367486d059109018b52726df3dc33e",
+      "e83332d5b6c38e107fae85cd30cc3a9f85ff0519",
+      "e0c857633b652504433ea61a3b01b4342f0f0229",
+      "9ae5c3bc9f9905dc4268cb50ce6b26c5008a94cf",
+      "89cc25261cd1200f052631caa213aeab9e8af7d8",
+      "1846cab8360a0e6ea2f640e4b8826e1268e66287",
+      "006b8877b4ddd21b2dfa317e724d6c01f849845c",
+      "5d71b23606078883472f3ad2a4f1462a877b6556",
+      "35cda2e9e7259b842020109a672425f516150f01",
+      "df0feb6df6934dfa01c364baf741a73ea69b82db",
+      "59dc55ceacb4b6421c06c00d6f7471e344b31414",
+      "2eb4b367802d9d04b20e5d122a64e3b79d98d255",
+      "ef110e855fb05340c0ab1a528a3147b60d83fa07",
+      "a88dc91b7ea714a020689d2b10403b1ed261a202",
+      "ac7c611326268bd4774c7b9362855f960daa7e96",
+      "3f6bac5755de1427ea05e76756b4a4bcecf5562d",
+      "ba39c5beeb12cead2e94e67e2045d1317a6c23dc",
+      "8e2f6e2bd2b7a85d650782e7e7d10d56364c5b30",
+      "4e7364f8b36fcd383e2e3eb39cf668799030dbb6",
+      "2925400bb856e973ff84cbff78d48a3a7524f161",
+      "2d3ba8a0c41e395eac7cf76c90f0298e60ed1e95",
+      "4345f57fb7c22d9556d41b1874766b7bb07d2529",
+      "b74b4906c60ff9282b0ec31f591f7292822b9581",
+      "79f09d0ec2f3ed1000458bd8d5a1f9a15f92abb4",
+      "5db88d0d38279ec7239e3f3de8b22e986d105f7f",
+      "85ef787c6f4a0befe714ba9f70f730d66251f8ac",
+      "30a595bde21ef8ddf65d34a2328b4e709a742061"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py",
+        "buildscripts/idl/idl_schema.yml",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/executor/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/util/stacktrace_test.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b6a358e6c69' into master",
+        "resolved": {
+          "README.third_party.md": "Resolved by human",
+          "jstests/suites/backup-restore/BUILD.bazel": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts. In README.third_party.md kept Percona's\nlibarchive and libkmip third-party entries while adopting upstream's\ncorrected 'Public-Domain' license spelling for libdwarf. In sbom.json\nremoved the metadata.tools (Endor Labs) section entirely per Percona's\nmanually-assembled SBOM policy. For jstests/suites/backup-\nrestore/BUILD.bazel, kept Percona's deliberate deletion of the whole\nbackup-restore test suite (PSMDB-1965) rather than restoring upstream's\ntag-rename modification.\n\nResolved:\n\tREADME.third_party.md\n\tsbom.json\n\tjstests/suites/backup-restore/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "f0dfc47659ee69170297277e610824dc45050184"
+    },
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit 'b6a358e6c69' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): upstream SERVER-131801 moved the `KeyState` enum\nout of `IndexBoundsChecker` to namespace scope (`mongo::KeyState` in\nindex_bounds.h). The Percona encryption test does `using namespace\nencryption;` in its anonymous namespace, so unqualified `KeyState`\nbecame ambiguous between the new `mongo::KeyState` and Percona's\n`mongo::encryption::KeyState`, failing the build of\nwiredtiger_kv_engine_encryption_key_test. Added a local `using KeyState\n= encryption::KeyState;` alias in that anonymous namespace to\ndisambiguate all uses.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp\n\nCI: build-and-test run 39469887403 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "28bb33e65452344982beadeaee16c7c95519d807"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 54523,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.33755425000000006,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 4299,
+        "cacheReadInputTokens": 59036,
+        "cacheCreationInputTokens": 32085,
+        "webSearchRequests": 0,
+        "costUSD": 0.33755425000000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 284,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 4299,
+            "cache_read": 59036,
+            "cache_creation": 32085
+          },
+          "cost_usd": 0.33755425000000006
+        }
+      }
+    },
+    "text_result": "I've read the real `diff base \u2192 merge commit` diffs for every file under `merge_context.auto_merged.files` and written the JSON response to the response file.\n\nSummary of what this merge introduces:\n\n- **Core code change** (`curop.cpp`/`curop.h`/`op_debug.cpp`/`curop_test.cpp`): makes CurOp's cross-thread debug reporting thread-safe via a new `lockCrossThreadDebugInfo()` mutex guarding `storageStats`, `planCacheShapeHash` and `planCacheKey`; adds `OpDebug` querySettings accessors and a new `querySettings` field in `reportState()`; plus a new concurrency unit test.\n- **WiredTiger header**: mechanical addition of four new btree obsolete-on-disk-KV statistics with renumbering of subsequent `WT_STAT_DSRC_*` constants.\n- **BUILD.bazel files**: added/adjusted test and library targets and deps; `mongos_test` tag changed from `ci-release-critical` to `ci-all-variants`.\n- **stacktrace_test.cpp**: new tests for sink/log routing and ordering.\n- **Tooling/docs/metadata**: lint file-collection tweak, IDL schema README reference update, and license/metadata string normalizations in `README.third_party.md` and `sbom.json`.\n\nThe two conflicting files (`README.third_party.md`, `sbom.json`) are described as resolved per the conflict hints, and I noted in `review_notes` that `jstests/suites/backup-restore/BUILD.bazel` was \"deleted by us\" and is not part of the auto-merged code changes.",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the Percona fork. The main code change makes CurOp's cross-thread debug reporting thread-safe: a new per-CurOp mutex (lockCrossThreadDebugInfo()) now guards the OpDebug members 'storageStats', 'planCacheShapeHash' and 'planCacheKey' that reportDebugInfo() may read from another thread, plus OpDebug gains querySettings get/set accessors and CurOp::reportState() now emits a 'querySettings' field. The merge also refreshes the vendored WiredTiger header (wiredtiger.h.in) with two new btree obsolete-on-disk-KV statistics and renumbering, adds/adjusts several BUILD.bazel test and library targets, adds new stacktrace unit tests, tweaks lint file collection, updates IDL schema doc references, and applies licensing/metadata string normalizations in README.third_party.md and sbom.json. The two conflicting files (README.third_party.md, sbom.json) were resolved per the conflict hints.",
+      "auto_merged": {
+        "README.third_party.md": "Normalizes two license strings in the third-party table: libdwarf's 'Public Domain' becomes 'Public-Domain', and pypi/ocspresponder's 'Apache-2.0, OTHER' becomes 'Apache-2.0'. The conflict around the libdwarf row was resolved keeping the Percona-specific rows (libarchive, libkmip) while applying upstream's 'Public-Domain' spelling.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds a new py_test target 'wrapper_util_test' (srcs = wrapper_util_test.py, deps = :wrapper_hook).",
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py": "In get_files_to_lint(), subtracts the output of 'git ls-files --deleted' from the tracked-files set so unstaged deletions (still listed in the index) are no longer returned for linting.",
+        "buildscripts/idl/idl_schema.yml": "Updates two documentation references, replacing 'the FCV and Feature Flag README (FCV_AND_FEATURE_FLAG_README.md)' with 'src/mongo/db/README.md' in the descriptions of the feature-flag property and the fcv_context_unaware/signature property.",
+        "sbom.json": "Normalizes license metadata: 'Public Domain' -> 'Public-Domain' for libdwarf; drops 'acknowledgement: declared' from several license entries; for ocspresponder/ocspbuilder collapses duplicate Apache-2.0/OTHER/MIT license entries to a single id entry with acknowledgement 'concluded' and removes clearlydefined.io/deps.dev evidence external references; and removes the trailing empty 'vulnerabilities: []' array. Per the conflict hints the Endor Labs 'tools' entry (upstream bumped v1.7.1149 -> v1.7.1177) and Percona's supplier settings are resolved on Percona's side.",
+        "src/mongo/db/BUILD.bazel": "Adds dependency '//src/mongo/db/pipeline:document_source_cursor_test_util' to a mongo_cc_unit_test target.",
+        "src/mongo/db/curop.cpp": "Makes cross-thread debug reporting thread-safe. Includes query_settings_gen.h. _fetchStorageStatsIfNecessary() now takes lockCrossThreadDebugInfo() before updating _debug.storageStats. reportState() appends a 'querySettings' field when _debug.getQuerySettings().toBSON() is non-empty. reportDebugInfo() now reads planCacheShapeHash/planCacheKey and storageStats inside narrow critical sections guarded by lockCrossThreadDebugInfo().",
+        "src/mongo/db/curop.h": "Adds <mutex> include, a new std::mutex _crossThreadDebugInfoMutex member, and a lockCrossThreadDebugInfo() method returning a std::unique_lock guarding the OpDebug members 'storageStats', 'planCacheShapeHash' and 'planCacheKey'. Updates class/method comments documenting that these members may be read cross-thread and that their mutators must hold this lock (and must not acquire the Client lock while holding it).",
+        "src/mongo/db/curop_test.cpp": "Adds includes (scopeguard.h, <thread>) and a new test ReportDebugInfoIsSynchronizedWithCrossThreadDebugInfoMutations that spins a writer thread mutating planCacheShapeHash/planCacheKey/storageStats under lockCrossThreadDebugInfo() while the main thread repeatedly calls reportDebugInfo(), asserting the reported values are observed consistently.",
+        "src/mongo/db/op_debug.cpp": "Adds OpDebug::getQuerySettings() returning the stored _querySettings, and OpDebug::setQuerySettings() which takes the Client lock before move-assigning the settings.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds a new mongo_cc_unit_test 'aggregation_context_fixture_test', adds ':document_source_cursor_test_util' as a dependency of a mongo_cc_benchmark target, and adds a new mongo_cc_library 'document_source_cursor_test_util' (hdrs = document_source_cursor_test_util.h).",
+        "src/mongo/executor/BUILD.bazel": "Adds source files mock_async_client_factory_test.cpp and network_interface_tl_test.cpp to a mongo_cc_unit_test, plus the deps //src/mongo/transport:transport_layer_manager and //src/mongo/transport:transport_layer_mock.",
+        "src/mongo/s/BUILD.bazel": "Adds dependency '//src/mongo/db/stats:server_initiated_transaction' to a mongo_cc_library, and changes the mongos_test resmoke_suite_test tag from 'ci-release-critical' to 'ci-all-variants'.",
+        "src/mongo/util/stacktrace_test.cpp": "Adds new StackTrace unit tests (Log, LogWithError, Sink, SinkWithError, NullSink, NullSinkWithError) with helper functions singleLogIndex() and countOccurrences() and log-id constants, verifying where traces/errors are written (sink vs logv2) and their ordering.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Refreshes the vendored WiredTiger header: adds new data-source statistic constants WT_STAT_DSRC_BTREE_OBSOLETE_ONDISK_KV_BYTES, _BYTES_MIXED, _ANALYZED and _PAGES, and renumbers the subsequent WT_STAT_DSRC_* constants accordingly."
+      },
+      "review_notes": "The wiredtiger.h.in change is a mechanical statistic-enum addition and renumbering from the upstream WiredTiger import; verify no Percona code hardcodes the affected numeric WT_STAT_DSRC values. Two files required conflict resolution: README.third_party.md (both modified; Percona rows kept, upstream 'Public-Domain' spelling applied) and sbom.json (both modified; per hints the Endor Labs tools entry and Percona supplier handled on Percona's side). jstests/suites/backup-restore/BUILD.bazel was 'deleted by us' and is not part of the auto-merged code changes. The CurOp/OpDebug synchronization change is the only behavioral code change and should be reviewed for correctness of the new locking around reportDebugInfo() and the added querySettings reporting."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe what this merge introduces."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough information. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the real `diff base \u2192 merge commit` diffs for every file under `merge_context.auto_merged.files` and written the JSON response to the response file.\n\nSummary of what this merge introduces:\n\n- **Core code change** (`curop.cpp`/`curop.h`/`op_debug.cpp`/`curop_test.cpp`): makes CurOp's cross-thread debug reporting thread-safe via a new `lockCrossThreadDebugInfo()` mutex guarding `storageStats`, `planCacheShapeHash` and `planCacheKey`; adds `OpDebug` querySettings accessors and a new `querySettings` field in `reportState()`; plus a new concurrency unit test.\n- **WiredTiger header**: mechanical addition of four new btree obsolete-on-disk-KV statistics with renumbering of subsequent `WT_STAT_DSRC_*` constants.\n- **BUILD.bazel files**: added/adjusted test and library targets and deps; `mongos_test` tag changed from `ci-release-critical` to `ci-all-variants`.\n- **stacktrace_test.cpp**: new tests for sink/log routing and ordering.\n- **Tooling/docs/metadata**: lint file-collection tweak, IDL schema README reference update, and license/metadata string normalizations in `README.third_party.md` and `sbom.json`.\n\nThe two conflicting files (`README.third_party.md`, `sbom.json`) are described as resolved per the conflict hints, and I noted in `review_notes` that `jstests/suites/backup-restore/BUILD.bazel` was \"deleted by us\" and is not part of the auto-merged code changes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261020_175032_829149.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.304 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "b6a358e6c6929ad13b05570d06863457417d0634",
+    "short_sha": "b6a358e6c69",
+    "strategy": "huge_commit",
+    "summary": "This WiredTiger vendored import lands at position 50 in the window, squarely in the ~50-commit target band, and third-party imports are ideal merge boundaries: they touch a well-isolated set of files and nothing right after depends on them, making them easy to validate post-merge. It also keeps revert pairs intact. The SERVER-135489 analyzeShardKey original (59dc55ce) and its revert (a4909d7e) both fall before this cut, so they cancel out within the batch. Conversely the SERVER-111404 RBE-sysroot original (75f73291), its revert (d2b258b7), and later reapply (0e7ee687) all fall after this cut, so that back-and-forth is left for a later batch to import settled rather than splitting it. No coherent unit of work is split across the boundary.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/39469095865"
+  },
+  "note_index": [
+    {
+      "sha": "986f48e76e8e768c12951062a7e13ec19e2850b9",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "solutions[1]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "49dd25d7a5bbf44dec05d9b4e4a057e2a78e73ea",
+      "message": "Merge commit 'b6a358e6c69' into master"
+    },
+    {
+      "sha": "f0dfc47659ee69170297277e610824dc45050184",
+      "message": "Resolve conflicts for merge commit 'b6a358e6c69' into master"
+    },
+    {
+      "sha": "28bb33e65452344982beadeaee16c7c95519d807",
+      "message": "Fix 'build-and-test' failure for merge commit 'b6a358e6c69' into 'master'"
+    }
+  ]
+}
