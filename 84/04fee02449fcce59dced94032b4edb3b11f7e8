@@ -1,0 +1,356 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "95852b525c0c3b1a7d3521ae566d602a76c7c80e",
+    "merge_commit": "af7dbf27c2bd023462beaea06b21402d2d1d9dc4"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "95852b525c0c3b1a7d3521ae566d602a76c7c80e",
+    "theirs_commit": "af7dbf27c2bd023462beaea06b21402d2d1d9dc4",
+    "base_commit": "23b284e06c94c629fd474ba0c388c4591ba84cd5",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\nindex 4551aa92e84,5f2e19f3cbe..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n@@@ -1355,7 -887,1 +1355,13 @@@ void WiredTigerKVEngine::cleanShutdown(\n++<<<<<<< HEAD\n +    // Since shutting down the WT_CONNECTION will close all WT_SESSIONS, we shouldn't also try to\n +    // directly close this session.\n +    if (_backupSession) {\n +        _backupSession->dropSessionBeforeDeleting();\n +    }\n +\n +    syncSizeInfo(/*syncToDisk=*/true);\n++||||||| 23b284e06c9\n++    syncSizeInfo(/*syncToDisk=*/true);\n++=======\n+     syncSizeInfo(/*sync=*/true);\n++>>>>>>> af7dbf27c2bd023462beaea06b21402d2d1d9dc4"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": [
+        "af7dbf27c2bd023462beaea06b21402d2d1d9dc4",
+        "7fb32a620a4646e4662b88b0c64fa986fb64f74a",
+        "6ade96ece6b2da617350206f010906cacc4f7021"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "af7dbf27c2bd023462beaea06b21402d2d1d9dc4",
+    "merged_commits": [
+      "af7dbf27c2bd023462beaea06b21402d2d1d9dc4",
+      "d7ad92b277898e170605baabaccd22e905f3eddc",
+      "932fe7eda6cfcfa1e09c4dbcb783bf374c3610a5",
+      "7fb32a620a4646e4662b88b0c64fa986fb64f74a",
+      "b3bcdadabfcc12e875c917e8e8a4d707b6b8a63f",
+      "2445844276bedb982868007ea1275d05fa8d32d5",
+      "a5c7764a89e0aa7980a754e10ca5d824e5c4c5a0",
+      "623cb17b8d3b115a7caf36acad8a9e185dd27d1c",
+      "70f2c270c4607c4c7d09cadb1cb506f333ab3639",
+      "9eb774d59cfc98f60890cc073166d15cacda1606",
+      "416eb4b12126a1647c46d2e82ddbb614c1be5b4e",
+      "412a5772d0ae2a6a5deae447c81114f147119787",
+      "d8bb2bbff68ec36b8da50c78d04ba1765dd2bd5e",
+      "101fa9e7c1c6c6c6f58b548b9d2eedb3182abc56",
+      "9126cdda08248967f36fb7df485f915dd6a98b97",
+      "0e7ee6870e92f01bb2cf38fb037b0746d3416459",
+      "ab46be14e1a6562c2310ce8848f8c8e1e807721d",
+      "cc794375031254dfe4257fe3ae65aea3805837f1",
+      "04655dfe33c20df2a9098f10d32114e556df2834",
+      "7898707481e59d4f4922f6709c71730d53abb894",
+      "cb68f04501434c73628d6f5e0ff3112c26bed132",
+      "f7b479b46714a3730430b2ea02bb89e04d66bece",
+      "c7975883f275bb0f01cfd64441a353273cad50d8",
+      "c3db1ce73ff707a94144af0239082058c439b691",
+      "5c2dd05256b94b49a67e1dc7f89e5bf78f95be9d",
+      "f7dad5653162fa5df4c2dda1d724f4c3f35582ac",
+      "de69315be92afd804b2a12d25f2f80ae79190f16",
+      "0b5cacfb72b5a8f88354526e3ed5bdeaa0d36ac8",
+      "3f4e6eb00020d62047653e00761275983593f955",
+      "90aa440152276606922474c1fa90dcf46830a6f9",
+      "835cd61c212289b71c707effe8ed7482f3d9c02f",
+      "b92f0268dd0c5641ebb52f0cb19941c1ff87ba5a",
+      "431c13c6c1940507c8d0e4f61c403e77906f9384",
+      "794ee25f386f9643876f77f51ecb8c60464c3091",
+      "1745d4bd0d395e1e87f71855bc8b4ab725d4eef4",
+      "38e58feda2979652fb9b2c01939c1c7bdb4cc0d2",
+      "439684314cb025bdbec648e8923d2dc676eb5cb8",
+      "6cc8597c4abeacdcaf03fc218cb4f7868673f921",
+      "6ade96ece6b2da617350206f010906cacc4f7021",
+      "c49434196b95835b825ad09ccb1582d1ff9e58e9",
+      "77a3951d9d9d310c25d52378f121612808f78bb0",
+      "8e2688ba30fb556036f4b30e4ad8273922d24602",
+      "f0bb9d9c107ee72665990cafda9f7717e499df92",
+      "479bc9d54064f77902d0dce0f5c039f27c5235a0",
+      "9dc698f278fd9676f79617af32ca9f5ec5a31995",
+      "27060207946ce0efac1b9be52cad0ca59ad2fc1a",
+      "101f43d7166eee0386f9562e146ff3fcb4bef2f8",
+      "054565898d4493c7f2a086ea81656bb71c3ca91c",
+      "cfd187a12edbd249581ef9de4edcb1fa9e10d6a0"
+    ],
+    "important_files_modified": [
+      "buildscripts/resmokeconfig/suites/aggregation_ese.yml",
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/auth/authorization_backend_local.cpp",
+        "src/mongo/db/auth/authorization_manager_impl.cpp",
+        "src/mongo/db/auth/authorization_manager_test.cpp",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/index_builds/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_init.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/s/mongos_main.cpp"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'af7dbf27c2b' into master",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in wiredtiger_kv_engine.cpp's\ncleanShutdown by combining the HEAD-side backup session cleanup with\nupstream's renamed syncSizeInfo argument comment.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "626b78034b89b7860dbe4ae7b66f479f275700fd"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 119296,
+    "num_turns": 13,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.6032065000000002,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 26,
+        "outputTokens": 8867,
+        "cacheReadInputTokens": 316878,
+        "cacheCreationInputTokens": 35674,
+        "webSearchRequests": 0,
+        "costUSD": 0.6032065000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1340,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 26,
+            "output": 8867,
+            "cache_read": 316878,
+            "cache_creation": 35674
+          },
+          "cost_usd": 0.6032065000000002
+        }
+      }
+    },
+    "text_result": "I read the real `diff base \u2192 merge commit` diff for every file in the changeset and wrote the JSON response.\n\n**What this merge introduces:**\n\nThe dominant change is a mechanical **upstream clang-tidy-style refactor** \u2014 trailing argument-annotation comments (`value /* name */`) rewritten as leading annotations (`/*name=*/value`) \u2014 across most of the auto-merged files (auth, mongod/mongos main, replication_coordinator_impl, storage_engine_impl, curop_test, etc.). No behavioral effect.\n\nThe few substantive upstream changes:\n- **startup_recovery.cpp** \u2014 new `validateAndLogOperation()` helper that runs offline/startup collection validation as its own `CurOp`, so a slow validation emits a \"Slow query\" log line like the real `validate` command (plus new includes).\n- **error_codes.yml** \u2014 reworded comment for code 529 (`ZeroCEEstimate`); entry itself unchanged.\n- **Three BUILD.bazel files** \u2014 added deps/sources (`server_status_metric`, `window_function_avg.cpp`, `intent_registry`).\n- **aggregation_ese.yml** \u2014 adds `fcv_suite_selftest.js` to roots.\n\nThe only conflict (`wiredtiger_kv_engine.cpp`) is purely the upstream annotation rename `syncToDisk` \u2192 `sync` on the `syncSizeInfo` call colliding with the fork's adjacent backup-session shutdown block \u2014 resolution keeps the Percona code and adopts upstream's `/*sync=*/true` annotation.\n\nResponse written to `.cache/mergai/response_20261021_205538_414980.json`.",
+    "response": {
+      "summary": "This merge pulls in upstream MongoDB changes that are dominated by a mechanical clang-tidy-style refactor: trailing argument-annotation comments of the form `value /* name */` are rewritten to the leading `/*name=*/value` form across many files. On top of that cosmetic sweep there are a few substantive upstream changes: startup_recovery.cpp gains a new `validateAndLogOperation()` helper so that offline (startup) collection validation runs as its own CurOp operation and emits a 'Slow query' log line like the 'validate' command; error_codes.yml rewords the comment documenting the internal ZeroCEEstimate (code 529) error; three BUILD.bazel files add missing deps/sources; and the aggregation_ese.yml resmoke suite adds a selftest file to its roots. The one textual conflict, in wiredtiger_kv_engine.cpp, is only over an argument-annotation rename (`syncToDisk` -> `sync`) colliding with the fork's adjacent backup-session shutdown code.",
+      "auto_merged": {
+        "src/mongo/base/error_codes.yml": "Rewords only the explanatory comment for error code 529 (ZeroCEEstimate). The old text described it as the cost-based ranker estimating an index scan produces zero rows and abandoning cost-based ranking; the new text describes sampling estimating an index scan scans zero keys and treating the plan as non-estimable so the multi-planner ranks it. The code/name entry itself is unchanged.",
+        "src/mongo/db/auth/authorization_backend_local.cpp": "Pure style change: converts trailing argument comments to leading annotations in makeResolveRoleOption/getUserObject/getUserDescription, e.g. `setPrivileges(true /* shouldEnable */)` -> `setPrivileges(/*shouldEnable=*/true)` and the two `setRestrictions`/`setIgnoreUnknown(true /* shouldEnable */)` calls. No behavioral change.",
+        "src/mongo/db/auth/authorization_manager_impl.cpp": "Style-only change in createSystemUserHandle: `generateUniversalPrivileges(&privileges, boost::none /* tenantId */)` -> `generateUniversalPrivileges(&privileges, /*tenantId=*/boost::none)`.",
+        "src/mongo/db/auth/authorization_manager_test.cpp": "Style-only change in testAuthzBackendResolveRoles: `setPrivileges`/`setRestrictions`/`setDirectOnly(true /* shouldEnable */)` rewritten to the `/*shouldEnable=*/true` leading-annotation form.",
+        "src/mongo/db/curop_test.cpp": "Style-only refactor of multiple CursorMetrics constructor call sites, converting each trailing `value /* name */` argument comment to the leading `/*name=*/value` form (keysExamined, docsExamined, bytesRead, readingTimeMicros, workingTimeMillis, hasSortStage, usedDisk, fromMultiPlanner, fromPlanCache). Argument values stay in position; where the old comment labels were out of order relative to the parameters, the new annotations label them correctly.",
+        "src/mongo/db/index_builds/BUILD.bazel": "Adds the dependency `//src/mongo/db/commands/server_status:server_status_metric` to a mongo_cc_unit_test target's deps list.",
+        "src/mongo/db/mongod_main.cpp": "Style-only changes: `insertDocument(... nullptr /* OpDebug */ ...)` -> `/*OpDebug=*/nullptr`, `grid->shutdown(..., false /* isMongos */)` -> `/*isMongos=*/false`, and `shutDownCollectionCatalogAndGlobalStorageEngineCleanly(..., true /* memLeakAllowed */)` -> `/*memLeakAllowed=*/true`.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the source `//src/mongo/db/pipeline/window_function:window_function_avg.cpp` to a mongo_cc_library's srcs list.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "Style-only changes converting trailing argument comments to leading annotations: `nullptr /*resolvedAggRequest*/` -> `/*aggRequest=*/nullptr`, `boost::none /* shardCursorsSortSpec */` -> `/*shardCursorsSortSpec=*/boost::none`, and `{} /* cacheKeyFilterFunc */` -> `/*cacheKeyFilterFunc=*/{}`.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds the dependency `:intent_registry` to a mongo_cc_unit_test target's deps list.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "Style-only refactor converting trailing argument comments to leading annotations at many call sites, e.g. `_reportUpstream(std::move(lock), false /*prioritized*/)` -> `/*prioritized=*/false` (and the `!p`/`p` variants), `fetchNextMetadata(..., true /* fallbackToLogical */)` -> `/*fallbackToLogical=*/true`, `_waitUntilOpTime(..., false /* waitForLastApplied */)`, `_doReplSetReconfig(..., false /* force */, true /* skipSafetyChecks */)`, `storeLocalConfigDocument(..., ... /* writeOplog */)`, etc. No behavioral change.",
+        "src/mongo/db/shard_role/shard_catalog/collection_catalog_helper.cpp": "Style-only change in dropDatabase: `dropCollectionsWithPrefix(opCtx, dbName, \"\" /*collectionNamePrefix*/)` -> `/*collectionNamePrefix=*/\"\"`.",
+        "src/mongo/db/startup_recovery.cpp": "Substantive change: adds includes (commands.h, curop.h, profile_settings.h) and a new `validateAndLogOperation()` helper that wraps `collection_validation::validate()` in its own CurOp. It pushes a CurOp, builds a synthetic `validate` command object, calls setGenericOpRequestDetails using the registered 'validate' command (so log redaction/reporting matches the real command), ensureStarted(), and on block exit calls completeAndLogOperation with the database's profile filter so a validation slower than slowms produces a 'Slow query' log line (logging failures are caught and logged as 13618301). offlineValidateCollection() now calls validateAndLogOperation() instead of collection_validation::validate() directly. Also one annotation tweak: appendToResultObj(..., /*debug=*/false) -> /*debugging=*/false.",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp": "Style-only changes: `buildRawMDBCatalogEntry(ident, BSONObj() /* idxIdent */, ...)` -> `/*idxIdent=*/BSONObj()`, and `boost::none /* storageEngineIndexOptions */` -> `/*storageEngineIndexOptions=*/boost::none`.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Style-only changes converting trailing argument comments to leading annotations: `getRecordStore(..., boost::none /* uuid */)` -> `/*uuid=*/boost::none`, two `dropIdent(ru, ident, false /* identHasSizeInfo */)` -> `/*identHasSizeInfo=*/false`, and the TimestampMonitor job's `true /*isKillableByStepdown*/` -> `/*isKillableByStepdown=*/true`.",
+        "src/mongo/db/storage/storage_engine_init.cpp": "Style-only change in reinitializeStorageEngine: `shutdownGlobalStorageEngineCleanly(service, false /* memLeakAllowed */)` -> `/*memLeakAllowed=*/false`.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Upstream side of this file is style-only: in cleanShutdown `syncSizeInfo(/*syncToDisk=*/true)` -> `syncSizeInfo(/*sync=*/true)`; the WiredTigerSessionSweeper ctor `BackgroundJob(false /* deleteSelf */)` -> `BackgroundJob(/*selfDelete=*/false)`; and two KVBackupBlock constructions have their `0 /* offset */` / `0 /* length */` comments rewritten to `/*offset=*/0` / `/*length=*/0`. The merge conflict here is purely between this `syncToDisk`->`sync` annotation rename and the fork's adjacent backup-session shutdown block (`_backupSession->dropSessionBeforeDeleting()`); resolution should keep the Percona backup-session code and adopt upstream's `/*sync=*/true` annotation on the syncSizeInfo call.",
+        "src/mongo/s/mongos_main.cpp": "Style-only change in cleanupTask: `grid->shutdown(opCtx, &shutdownTimeElapsedBuilder, true /* isMongos */)` -> `/*isMongos=*/true`."
+      },
+      "review_notes": "The vast majority of this merge is a mechanical annotation-style refactor (trailing `value /* name */` -> leading `/*name=*/value`) with no behavioral effect; reviewers can skim those. Focus review on: (1) startup_recovery.cpp, which adds real new behavior (offline/startup collection validation now runs as a CurOp and emits a 'Slow query' log line) and new includes; (2) the three BUILD.bazel dep/src additions (server_status_metric, window_function_avg.cpp, intent_registry) which must match the upstream code that now needs them; and (3) the wiredtiger_kv_engine.cpp conflict resolution -- verify the Percona backup-session block (`_backupSession->dropSessionBeforeDeleting()` and the preceding syncSizeInfo) is preserved and that upstream's `syncSizeInfo` annotation rename (`syncToDisk` -> `sync`) is applied without reintroducing a conflict marker. error_codes.yml only reworded a comment for code 529; no code/name changed."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the real diffs for the files in this merge before writing the description."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read. The merge is an upstream clang-tidy-style refactor (converting trailing `arg /* name */` annotations to leading `/*name=*/arg`), plus a couple of substantive upstream changes. Writing the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the real `diff base \u2192 merge commit` diff for every file in the changeset and wrote the JSON response.\n\n**What this merge introduces:**\n\nThe dominant change is a mechanical **upstream clang-tidy-style refactor** \u2014 trailing argument-annotation comments (`value /* name */`) rewritten as leading annotations (`/*name=*/value`) \u2014 across most of the auto-merged files (auth, mongod/mongos main, replication_coordinator_impl, storage_engine_impl, curop_test, etc.). No behavioral effect.\n\nThe few substantive upstream changes:\n- **startup_recovery.cpp** \u2014 new `validateAndLogOperation()` helper that runs offline/startup collection validation as its own `CurOp`, so a slow validation emits a \"Slow query\" log line like the real `validate` command (plus new includes).\n- **error_codes.yml** \u2014 reworded comment for code 529 (`ZeroCEEstimate`); entry itself unchanged.\n- **Three BUILD.bazel files** \u2014 added deps/sources (`server_status_metric`, `window_function_avg.cpp`, `intent_registry`).\n- **aggregation_ese.yml** \u2014 adds `fcv_suite_selftest.js` to roots.\n\nThe only conflict (`wiredtiger_kv_engine.cpp`) is purely the upstream annotation rename `syncToDisk` \u2192 `sync` on the `syncSizeInfo` call colliding with the fork's adjacent backup-session shutdown block \u2014 resolution keeps the Percona code and adopts upstream's `/*sync=*/true` annotation.\n\nResponse written to `.cache/mergai/response_20261021_205538_414980.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261021_205538_414851.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.306 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "af7dbf27c2bd023462beaea06b21402d2d1d9dc4",
+    "short_sha": "af7dbf27c2b",
+    "strategy": "huge_commit",
+    "summary": "This cuts a batch of ~49 commits ending on an ideal boundary. af7dbf27c2 (SERVER-136326 'Move trailing named-argument comments in front of arguments') is a huge (1126-file) but purely mechanical, self-contained refactor and is the LAST commit of the SERVER-136326 argument-comment series (6ade96ec/6cc8597c/43968431/38e58fed earlier, plus b3bcdada and 7fb32a62 just before it). Ending here completes that series atomically rather than splitting it, and a big mechanical regen-style commit is easy to validate post-merge. It also keeps revert pairs intact: SERVER-135262 (101f43d7) and its revert (04655dfe), and SERVER-136634 editor clang-format (70f2c270) and its revert (932fe7ed), all fall inside this batch and cancel out. The later revert pairs that are still open at the window edge - SERVER-136631 QEMP IFR delete (64033a22) / revert (cfee1994), and SERVER-136216 SBE blueprint (b01c20c1) / revert (93df3e08) - are left wholly for the next batch so they will be taken together rather than imported-then-removed. The next WT import (46db7a3c) would otherwise be a tempting boundary, but stopping there (index ~60) would pull in b01c20c1 while leaving its revert beyond the cut, so af7dbf27c2 is the cleaner stopping point within the target size band.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/39674037476"
+  },
+  "note_index": [
+    {
+      "sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "2c968b0092baf81535c74bc12e758953cd943b11",
+      "message": "Merge commit 'af7dbf27c2b' into master"
+    },
+    {
+      "sha": "626b78034b89b7860dbe4ae7b66f479f275700fd",
+      "message": "Resolve conflicts for merge commit 'af7dbf27c2b' into master"
+    }
+  ]
+}
