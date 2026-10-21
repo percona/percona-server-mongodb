@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 208,
+    "commits_behind": 209,
     "days_behind": 15,
-    "unmerged_oldest_age_days": 14.837636453912037,
+    "unmerged_oldest_age_days": 15.107194863229166,
     "files_affected": 2430,
-    "total_additions": 60038,
+    "total_additions": 60063,
     "total_deletions": 33371,
     "date_range": {
       "first": "2026-10-06T10:04:52+00:00",
-      "last": "2026-10-14T04:22:52+00:00"
+      "last": "2026-10-14T05:09:44+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,16 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "48992665b0dddbcaf4904178b7c0a5cf30e15c70",
+      "short_sha": "48992665b0d",
+      "date": "2026-10-14T05:09:44+00:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-136927: Stop create_todo_tickets from scanning its own test fixtures (#64355)"
+    },
     {
       "sha": "3aaf0c1b098e485929ed60c9b99d4d2247cde99a",
       "short_sha": "3aaf0c1b098",
@@ -2507,7 +2517,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-21 06:10:49",
+  "generated_at": "2026-10-21 12:38:56",
   "branch_name": "master",
   "display_name": "master"
 }
