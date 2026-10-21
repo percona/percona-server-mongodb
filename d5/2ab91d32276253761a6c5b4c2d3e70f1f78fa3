@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e1cc61914d5dc17594e8a00aed84401c78434618",
+    "merge_commit": "23b284e06c94c629fd474ba0c388c4591ba84cd5"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '23b284e06c9' into master",
+        "resolved": {
+          "bazel/wrapper_hook/wrapper_hook.py": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved the conflict in _prepare_bazel_configuration by keeping\nupstream's new check_evergreen_release_distro(configured_args) call\nwhile preserving Percona's deliberate removal of\nengflow_auth(configured_args).\n\nResolved:\n\tbazel/wrapper_hook/wrapper_hook.py\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "d52ab91d32276253761a6c5b4c2d3e70f1f78fa3"
+    }
+  ]
+}
