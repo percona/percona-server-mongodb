@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 167,
-    "days_behind": 13,
-    "unmerged_oldest_age_days": 13.811436688888888,
-    "files_affected": 2225,
-    "total_additions": 49551,
-    "total_deletions": 20824,
+    "commits_behind": 186,
+    "days_behind": 14,
+    "unmerged_oldest_age_days": 14.02992163423611,
+    "files_affected": 2381,
+    "total_additions": 61747,
+    "total_deletions": 23737,
     "date_range": {
       "first": "2026-10-07T19:42:48+00:00",
-      "last": "2026-10-14T13:59:08+00:00"
+      "last": "2026-10-14T20:03:01+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,196 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "50a9dc4edd85d0b4d49cdfa09e030559e74bfd31",
+      "short_sha": "50a9dc4edd8",
+      "date": "2026-10-14T20:03:01+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136472: Add fuzztest utility for SBE that generates nested documents (#63888)\" (#64430)"
+    },
+    {
+      "sha": "f2fa6e37e3ff324f769aa64907b11e70a11ff461",
+      "short_sha": "f2fa6e37e3f",
+      "date": "2026-10-14T19:56:01+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-136948 Add golden $lookup-$unwind stage builder tests (#64373)"
+    },
+    {
+      "sha": "f05d22e259433a4aa53bd64b749d10b8319e43ee",
+      "short_sha": "f05d22e2594",
+      "date": "2026-10-14T19:45:23+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-136941: Give the multi-range clustered scan its own blueprint node (#64400)"
+    },
+    {
+      "sha": "d4786017e0eca5ec45bc43e241ebb3f1aadaba76",
+      "short_sha": "d4786017e0e",
+      "date": "2026-10-14T19:41:02+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-135665: Move retryable write metrics tests to jscore (#64039)"
+    },
+    {
+      "sha": "6cdd5b2b1622586094a9df332f160ede5416e776",
+      "short_sha": "6cdd5b2b162",
+      "date": "2026-10-14T18:43:42+00:00",
+      "author": {
+        "name": "Cole Harbeck",
+        "email": "cole.harbeck@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-135540: Add instrument for observable mutex wait cycle time in microseconds (#63240)\" (#64419)"
+    },
+    {
+      "sha": "b31c9bfc1b56fc458d0dff32cb24b145a2722e1e",
+      "short_sha": "b31c9bfc1b5",
+      "date": "2026-10-14T18:36:30+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-135764 Add sequential (let*) binding mode to the SBE project stage (#63390)"
+    },
+    {
+      "sha": "0bc7535ba1e0da2fdfa018c2834b33cf7af16e5e",
+      "short_sha": "0bc7535ba1e",
+      "date": "2026-10-14T17:56:43+00:00",
+      "author": {
+        "name": "Jordan Glassley",
+        "email": "jordan.glassley@mongodb.com"
+      },
+      "summary": "SERVER-126312 Remove getReplicationWriteConcern helper and revert to previous state (#64294)"
+    },
+    {
+      "sha": "fb398792c50903f452a26587e591c2b0a2c657cf",
+      "short_sha": "fb398792c50",
+      "date": "2026-10-14T17:20:50+00:00",
+      "author": {
+        "name": "Zac Codiamat",
+        "email": "zac.codiamat@mongodb.com"
+      },
+      "summary": "SERVER-131267: Use toolchain python3.13 in testing README (#64405)"
+    },
+    {
+      "sha": "9ab6ba2797023dd87500d861f295377047bcdc3e",
+      "short_sha": "9ab6ba27970",
+      "date": "2026-10-14T17:01:19+00:00",
+      "author": {
+        "name": "Mickey J Winters",
+        "email": "314083+mjrb@users.noreply.github.com"
+      },
+      "summary": "SERVER-136735: Add featureFlagReferentialIntegrity (#64188)"
+    },
+    {
+      "sha": "b69230cfe7e91cbb45c4a76f584bbe7aa63bbd91",
+      "short_sha": "b69230cfe7e",
+      "date": "2026-10-14T17:01:04+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-136938 Remove unused PlanStageMetadataSlots (#64297)"
+    },
+    {
+      "sha": "3f4e11118162d88480637d58f9d7c2302d943eb6",
+      "short_sha": "3f4e1111816",
+      "date": "2026-10-14T17:00:48+00:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-136829 Use requires_fcv_90 tag in query_memory_* jstests (#64279)"
+    },
+    {
+      "sha": "3a58fa5d8652eae5b46be7f1cd17ae7cd17f6e46",
+      "short_sha": "3a58fa5d865",
+      "date": "2026-10-14T16:57:15+00:00",
+      "author": {
+        "name": "Oscar Ortega",
+        "email": "114444896+oortegamtzdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-135728 jscore tests running dropDatabase() + validation (#63792)"
+    },
+    {
+      "sha": "23e3efd51b6432a62dc7bbfdf3df4d4a72d5b542",
+      "short_sha": "23e3efd51b6",
+      "date": "2026-10-14T15:57:18+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-130972 Refactor PersistentSampleLoader class (#63472)"
+    },
+    {
+      "sha": "5cb7e5468a2c575819cc85b29cf286aa61c1c549",
+      "short_sha": "5cb7e5468a2",
+      "date": "2026-10-14T15:38:18+00:00",
+      "author": {
+        "name": "Junhson Jean-Baptiste",
+        "email": "junhson.jeanbaptiste@mongodb.com"
+      },
+      "summary": "SERVER-127476: require mode param for analyze command (#64212)"
+    },
+    {
+      "sha": "83f374703c962e2d5ab4c7bc50a0c6aaa656ed36",
+      "short_sha": "83f374703c9",
+      "date": "2026-10-14T15:23:17+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-136472: Add fuzztest utility for SBE that generates nested documents (#63888)"
+    },
+    {
+      "sha": "b32929688388d39932ed3b0041d9d7cd75201674",
+      "short_sha": "b3292968838",
+      "date": "2026-10-14T15:18:50+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-134914 Do not update the session record from a non-terminal atomic batch entry (#64218)"
+    },
+    {
+      "sha": "1c24bcf1bec9a07b0c8418fdc512be3761958377",
+      "short_sha": "1c24bcf1bec",
+      "date": "2026-10-14T15:11:41+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-136631 Delete outdated QEMP IFR suites (#64368)"
+    },
+    {
+      "sha": "2f92f699d20152e3a5b81ae8757f3579db68737d",
+      "short_sha": "2f92f699d20",
+      "date": "2026-10-14T14:36:49+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-114563 Reenable mongos_sessions_passthrough suite under TSAN (#64302)"
+    },
+    {
+      "sha": "c7183f38b210ab239c62bd0ec307c0ebe7a54d8a",
+      "short_sha": "c7183f38b21",
+      "date": "2026-10-14T14:27:41+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-136520 Remove restriction in createCommandForMergingShard (#64086)"
+    },
     {
       "sha": "79ef02ae3f4b1d4fa0123d85dc8bd9be4bf9f9eb",
       "short_sha": "79ef02ae3f4",
@@ -2001,10 +2191,56 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "5cb7e5468a2c575819cc85b29cf286aa61c1c549",
+        "short_sha": "5cb7e5468a2",
+        "date": "2026-10-14T15:38:18+00:00",
+        "author": {
+          "name": "Junhson Jean-Baptiste",
+          "email": "junhson.jeanbaptiste@mongodb.com"
+        },
+        "summary": "SERVER-127476: require mode param for analyze command (#64212)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 24,
+          "num_of_lines": 439,
+          "lines_added": 296,
+          "lines_deleted": 143,
+          "num_of_dirs": 11
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "f2fa6e37e3ff324f769aa64907b11e70a11ff461",
+        "short_sha": "f2fa6e37e3f",
+        "date": "2026-10-14T19:56:01+00:00",
+        "author": {
+          "name": "Evan Bergeron",
+          "email": "evanbergeron@users.noreply.github.com"
+        },
+        "summary": "SERVER-136948 Add golden $lookup-$unwind stage builder tests (#64373)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 62,
+          "num_of_lines": 8545,
+          "lines_added": 8471,
+          "lines_deleted": 74,
+          "num_of_dirs": 2
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-21 15:10:56",
+  "generated_at": "2026-10-21 20:25:32",
   "branch_name": "master",
   "display_name": "master"
 }
