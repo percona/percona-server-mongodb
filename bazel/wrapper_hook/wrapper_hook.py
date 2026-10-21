@@ -202,15 +202,9 @@ def _prepare_bazel_configuration(
     if any(arg.startswith("--test_sharding_strategy") for arg in configured_args):
         configured_args.append("--//bazel/resmoke:support_extended_shard_count=False")
 
-<<<<<<< HEAD
-||||||| b6a358e6c69
-    engflow_auth(configured_args)
-=======
     from bazel.wrapper_hook.release_distro import check_evergreen_release_distro
 
     check_evergreen_release_distro(configured_args)
-    engflow_auth(configured_args)
->>>>>>> 23b284e06c94c629fd474ba0c388c4591ba84cd5
     write_workstation_bazelrc(configured_args)
     write_wrapper_hook_bazelrc(configured_args)
     check_resource()
