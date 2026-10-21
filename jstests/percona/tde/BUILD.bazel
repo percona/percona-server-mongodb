@@ -178,7 +178,6 @@ resmoke_suite_test(
     # tde_cbc/tde_gcm use both a valid (ekf) and a deliberately wrong (ekfw) key, and the
     # wrongkey tests load()/share the backup helper.
     data = [
-        "//jstests/backup:_backup_helpers.js",
         "//jstests/percona/tde:ekf",
         "//jstests/percona/tde:ekfw",
     ],
@@ -197,7 +196,6 @@ resmoke_suite_test(
     name = "tde_gcm",
     config = "//buildscripts/resmokeconfig:suites/tde_gcm.yml",
     data = [
-        "//jstests/backup:_backup_helpers.js",
         "//jstests/percona/tde:ekf",
         "//jstests/percona/tde:ekfw",
     ],

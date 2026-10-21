@@ -309,13 +309,9 @@ void shellHistoryAdd(const char* line) {
     // via runCommand.
     static pcre::Regex hiddenCommands(
         "(run|admin)Command\\s*\\(\\s*{\\s*(createUser|updateUser)\\s*:");
-    // Hide createBackup command if it contains s3 credentials
-    static pcre::Regex hiddenCreateBackup(
-        "(run|admin)Command\\s*\\(\\s*{\\s*createBackup\\s*:.*s3.*(accessKeyId|secretAccessKey)");
-
     static pcre::Regex hiddenFLEConstructor(".*Mongo\\(([\\s\\S]*)secretAccessKey([\\s\\S]*)");
     if (!hiddenHelpers.matchView(line) && !hiddenCommands.matchView(line) &&
-        !hiddenCreateBackup.matchView(line) && !hiddenFLEConstructor.matchView(line)) {
+        !hiddenFLEConstructor.matchView(line)) {
         linenoiseHistoryAdd(line);
     }
 }
