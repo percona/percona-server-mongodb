@@ -24,6 +24,7 @@
 #include "mongo/db/operation_context_options_gen.h"
 #include "mongo/db/profile_filter.h"
 #include "mongo/db/profile_settings.h"
+#include "mongo/db/query/query_settings/query_settings_gen.h"
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/db/service_context.h"
@@ -489,6 +490,7 @@ void CurOp::_fetchStorageStatsIfNecessary(Date_t deadline, bool isFinal) {
                             Lock::GlobalLockOptions{.skipRSTLLock = true});
         auto storageStats =
             shard_role_details::getRecoveryUnit(opCtx)->computeOperationStatisticsSinceLastCall();
+        auto debugInfoLock = lockCrossThreadDebugInfo();
         if (_debug.storageStats == nullptr) {
             _debug.storageStats = std::move(storageStats);
         } else if (storageStats != nullptr) {
@@ -1286,6 +1288,10 @@ void CurOp::reportState(BSONObjBuilder* builder,
     if (auto&& queryShapeHash = _debug.getQueryShapeHash()) {
         builder->append("queryShapeHash", queryShapeHash->toHexString());
     }
+
+    if (const auto settings = _debug.getQuerySettings().toBSON(); !settings.isEmpty()) {
+        builder->append("querySettings", settings);
+    }
 }
 
 bool CurOp::_shouldDBProfileWithRateLimit(long long slowMS) {
@@ -1332,11 +1338,17 @@ void CurOp::reportDebugInfo(BSONObjBuilder* builder) {
         }
     }
 
-    if (_debug.planCacheShapeHash) {
-        builder->append("planCacheShapeHash", zeroPaddedHex(*_debug.planCacheShapeHash));
-    }
-    if (_debug.planCacheKey) {
-        builder->append("planCacheKey", zeroPaddedHex(*_debug.planCacheKey));
+    {
+        // These OpDebug members may be mutated on the operation's thread; read them under the
+        // cross-thread debug info lock. Keep the critical section narrow, as this runs while the
+        // lock manager buckets are held, and mutators on the operation's thread block on it.
+        auto debugInfoLock = lockCrossThreadDebugInfo();
+        if (_debug.planCacheShapeHash) {
+            builder->append("planCacheShapeHash", zeroPaddedHex(*_debug.planCacheShapeHash));
+        }
+        if (_debug.planCacheKey) {
+            builder->append("planCacheKey", zeroPaddedHex(*_debug.planCacheKey));
+        }
     }
 
     if (!_planSummary.empty()) {
@@ -1352,8 +1364,11 @@ void CurOp::reportDebugInfo(BSONObjBuilder* builder) {
 
     // Only report storage statistics that have already been gathered; do not call into the storage
     // engine from here, as this runs while the lock manager buckets are held.
-    if (_debug.storageStats) {
-        builder->append("storage", _debug.storageStats->toBSON());
+    {
+        auto debugInfoLock = lockCrossThreadDebugInfo();
+        if (_debug.storageStats) {
+            builder->append("storage", _debug.storageStats->toBSON());
+        }
     }
 }
 
