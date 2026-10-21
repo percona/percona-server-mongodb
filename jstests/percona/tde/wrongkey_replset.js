@@ -26,6 +26,7 @@ rs.startSet({
 rs.initiate();
 var primary = rs.getPrimary();
 fillData(primary);
+rs.awaitReplication();
 var secondary = rs.getSecondary();
 var hashesOrig = computeHashes(secondary);
 
