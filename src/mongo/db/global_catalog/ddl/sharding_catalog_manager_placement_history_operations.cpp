@@ -313,7 +313,7 @@ void setInitializationMetadataOnPlacementHistory(OperationContext* opCtx,
     auto& executor = Grid::get(opCtx)->getExecutorPool()->getFixedExecutor();
 
     txn_api::SyncTransactionWithRetries txn(
-        opCtx, executor, nullptr /* resourceYielder */, inlineExecutor);
+        opCtx, executor, /*resourceYielder=*/nullptr, inlineExecutor);
     txn.run(opCtx, transactionChain);
 
     LOGV2(7068807,
@@ -341,8 +341,8 @@ void bumpInitializationTimeOnPlacementHistory(OperationContext* opCtx,
                  << NamespacePlacementType::kShardsFieldName << BSONArray()),
             BSON("$set" << BSON(NamespacePlacementType::kTimestampFieldName
                                 << newInitializationTime)),
-            false /* upsert */,
-            true /* multi */);
+            /*upsert=*/false,
+            /*multi=*/true);
 
         auto updateResponse = txnClient.runCRUDOpSync(updateRequest, {});
         uassertStatusOK(updateResponse.toStatus());
@@ -373,7 +373,7 @@ void bumpInitializationTimeOnPlacementHistory(OperationContext* opCtx,
     auto& executor = Grid::get(opCtx)->getExecutorPool()->getFixedExecutor();
 
     txn_api::SyncTransactionWithRetries txn(
-        opCtx, executor, nullptr /* resourceYielder */, inlineExecutor);
+        opCtx, executor, /*resourceYielder=*/nullptr, inlineExecutor);
     txn.run(opCtx, transactionChain);
 
     LOGV2(10678201,
@@ -991,11 +991,10 @@ private:
             _expCtx);
 
         // b. Merge the placement of each matched namespace into a single set field.
-        auto unwindShardsStage =
-            DocumentSourceUnwind::create(_expCtx,
-                                         std::string("shards"),
-                                         false /* preserveNullAndEmptyArrays */,
-                                         boost::none /* indexPath */);
+        auto unwindShardsStage = DocumentSourceUnwind::create(_expCtx,
+                                                              std::string("shards"),
+                                                              /*includeNullIfEmptyOrMissing=*/false,
+                                                              /*includeArrayIndex=*/boost::none);
 
         auto mergeAllGroupsInASingleShardListSpec =
             BSON("_id" << "" << "shards" << BSON("$addToSet" << "$shards"));
@@ -1194,9 +1193,9 @@ HistoricalPlacement ShardingCatalogManager::getHistoricalPlacement(
         opCtx,
         shard_role_details::getLocker(opCtx),
         NamespaceString::kConfigsvrPlacementHistoryNamespace,
-        "getHistoricalPlacement" /* reason */,
+        /*reason=*/"getHistoricalPlacement",
         MODE_IS,
-        true /*waitForRecovery*/);
+        /*waitForRecovery=*/true);
 
     // If 'atClusterTime' is greater than current config time, then we can not return correct
     // placement history and early exit with HistoricalPlacementStatus::FutureClusterTime.

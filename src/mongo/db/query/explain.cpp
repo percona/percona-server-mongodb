@@ -346,7 +346,7 @@ void generateExecutionInfo(PlanExecutor* exec,
     generateSinglePlanExecutionInfo(explainer.getWinningPlanStats(verbosity),
                                     totalTimeMicros,
                                     &execBob,
-                                    false /* isTrialPeriodInfo */);
+                                    /*isTrialPeriodInfo=*/false);
 
     // Also generate exec stats for all plans, if the verbosity level is high enough. These stats
     // reflect what happened during the trial period that ranked the plans.
@@ -361,13 +361,13 @@ void generateExecutionInfo(PlanExecutor* exec,
         if (explainer.areThereRejectedPlansToExplain()) {
             BSONObjBuilder planBob(allPlansBob.subobjStart());
             generateSinglePlanExecutionInfo(
-                *winningPlanTrialStats, boost::none, &planBob, true /* isTrialPeriodInfo */);
+                *winningPlanTrialStats, boost::none, &planBob, /*isTrialPeriodInfo=*/true);
             planBob.doneFast();
 
             for (auto&& stats : explainer.getRejectedPlansStats(verbosity)) {
                 BSONObjBuilder planBob(allPlansBob.subobjStart());
                 generateSinglePlanExecutionInfo(
-                    stats, boost::none, &planBob, true /* isTrialPeriodInfo */);
+                    stats, boost::none, &planBob, /*isTrialPeriodInfo=*/true);
                 planBob.doneFast();
             }
         }
@@ -409,18 +409,19 @@ void appendPlanRankerChoice(const PlanSelectionStrategy decidingPlanRanker,
 
     planRankerBob.append("chosenRanker", getPlanSelectionStrategyName(decidingPlanRanker));
     if (decidingPlanRanker == PlanSelectionStrategy::kSinglePlan ||
-        decidingPlanRanker == PlanSelectionStrategy::kCachedPlan) {
-        // No ranking took place (single candidate solution, count scan, cached plan). singlePlan
-        // is the only valid reason for those strategies, so it is derived here as a constant
-        // function of the recorded strategy - collapsing the plumbing for the several no-ranking
-        // paths to zero - rather than reconstructed from which statistics happen to be present.
+        decidingPlanRanker == PlanSelectionStrategy::kCachedPlan ||
+        decidingPlanRanker == PlanSelectionStrategy::kExpress) {
+        // No ranking took place (single candidate solution, count scan, cached plan, express
+        // execution). singlePlan is the only valid reason for those strategies, so it is derived
+        // here as a constant function of the recorded strategy - collapsing the plumbing for the
+        // several no-ranking paths to zero - rather than reconstructed from which statistics happen
+        // to be present.
         // TODO SERVER-132012 SERVER-132079: make the caller pass kSinglePlan at the point of
         // decision.
         planRankerBob.append("reason", getPlanRankerReasonName(PlanRankerReason::kSinglePlan));
     } else {
         // A strategy decided, so it must have recorded why (it populated the same explain data
-        // this value comes from). Express plans are single plans that no strategy ranks, so they
-        // always take the branch above.
+        // this value comes from).
         // TODO SERVER-134550 Remove the condition on SBE explainer and the extra bool parameter.
         tassert(13237700,
                 "a ranking strategy decided the winning plan but recorded no reason",
@@ -823,7 +824,7 @@ void Explain::planCacheEntryToBSON(const PlanCacheEntry& entry, BSONObjBuilder* 
         for (auto&& stats : execStats) {
             BSONObjBuilder planBob(creationBuilder.subobjStart());
             generateSinglePlanExecutionInfo(
-                stats, boost::none, &planBob, false /* isTrialPeriodInfo */);
+                stats, boost::none, &planBob, /*isTrialPeriodInfo=*/false);
             planBob.doneFast();
         }
         explain_common::appendIfRoom(creationBuilder.arr(), "creationExecStats", out);

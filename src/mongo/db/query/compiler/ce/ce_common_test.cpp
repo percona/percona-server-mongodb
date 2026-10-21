@@ -38,7 +38,7 @@ static size_t countUniqueKeysBtree(
 
     BtreeKeyGenerator keyGen(fieldNames,
                              fixed,
-                             false /* isSparse */,
+                             /*isSetSparseByUser=*/false,
                              key_string::Version::kLatestVersion,
                              Ordering::make(BSONObj()));
 
@@ -46,7 +46,7 @@ static size_t countUniqueKeysBtree(
     for (const auto& doc : docs) {
         SharedBufferFragmentBuilder allocator(BufBuilder::kDefaultInitSizeBytes);
         KeyStringSet docKeys;
-        keyGen.getKeys(allocator, doc, false /* skipMultikey */, &docKeys, nullptr);
+        keyGen.getKeys(allocator, doc, /*skipMultikey=*/false, &docKeys, nullptr);
         allKeys.insert(docKeys.begin(), docKeys.end());
     }
 
@@ -229,35 +229,39 @@ TEST(CountNDV, DifferentNumericTypesAreNotDistinguished) {
                fromjson("{a: NumberDecimal('1.00000')}")});
 }
 
-DEATH_TEST(CountNDVDeathTest, ThrowsOnEmptyArray, "non-array path became multikey during yield") {
+DEATH_TEST(CountNDVDeathTest,
+           ThrowsOnEmptyArray,
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a"}}, {fromjson("{a: []}")});
 }
 
 DEATH_TEST(CountNDVDeathTest,
            ThrowsOnNonEmptyArray,
-           "non-array path became multikey during yield") {
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a"}}, {fromjson("{a: [1, 2, 3]}")});
 }
 
 DEATH_TEST(CountNDVDeathTest,
            ThrowsOnNestedEmptyArray,
-           "non-array path became multikey during yield") {
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a.b"}}, {fromjson("{a: {b: []}}")});
 }
 
-DEATH_TEST(CountNDVDeathTest, ThrowsOnNestedArray, "non-array path became multikey during yield") {
+DEATH_TEST(CountNDVDeathTest,
+           ThrowsOnNestedArray,
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a.b"}}, {fromjson("{a: {b: [1, 2, 3]}}")});
 }
 
 DEATH_TEST(CountNDVDeathTest,
            ThrowsOnEmptyArrayInTraversal,
-           "non-array path became multikey during yield") {
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a.b"}}, {fromjson("{a: []}")});
 }
 
 DEATH_TEST(CountNDVDeathTest,
            ThrowsOnArrayInTraversal,
-           "non-array path became multikey during yield") {
+           "non-array path became multikey while the query was suspended") {
     countNDV({{.path = "a.b"}}, {fromjson("{a: [{b: 1}]}")});
 }
 

@@ -80,9 +80,9 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> MultiPlanner::makeExecutor(
                                            yieldPolicy(),
                                            plannerOptions(),
                                            std::move(nss),
-                                           nullptr /* querySolution */,
+                                           /*qs=*/nullptr,
                                            cachedPlanHash(),
-                                           boost::none /* replanReason */,
+                                           /*replanReason=*/boost::none,
                                            planSelectionStrategy());
     }
 
@@ -96,7 +96,7 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> MultiPlanner::makeExecutor(
     return prepareSbePlanExecutor(std::move(canonicalQuery),
                                   std::move(_winningSolution),
                                   std::move(*_sbePlanAndData),
-                                  false /*isFromPlanCache*/,
+                                  /*isFromPlanCache=*/false,
                                   cachedPlanHash(),
                                   std::move(_multiPlanStage));
 }

@@ -287,10 +287,10 @@ TEST_F(ReplCoordHBV1Test, RestartingHeartbeatsShouldOnlyCancelScheduledHeartbeat
     // Receive a request from node3 saying it's the primary, so that we restart scheduled
     // heartbeats.
     receiveHeartbeatFrom(rsConfig,
-                         3 /* senderId */,
+                         /*sourceId=*/3,
                          HostAndPort("node3", 12345),
-                         1 /* term */,
-                         3 /* currentPrimaryId */);
+                         /*term=*/1,
+                         /*currentPrimaryId=*/3);
 
     enterNetwork();
 
@@ -348,10 +348,10 @@ TEST_F(ReplCoordHBV1Test,
 
     // We're a secondary and we receive a request from node3 saying it's the primary.
     receiveHeartbeatFrom(rsConfig,
-                         3 /* senderId */,
+                         /*sourceId=*/3,
                          HostAndPort("node3", 12345),
-                         1 /* term */,
-                         3 /* currentPrimaryId */);
+                         /*term=*/1,
+                         /*currentPrimaryId=*/3);
 
     enterNetwork();
     std::set<std::string> expectedHosts{"node2", "node3"};
@@ -373,10 +373,10 @@ TEST_F(ReplCoordHBV1Test,
 
     // Heartbeat in a stale term shouldn't re-schedule heartbeats.
     receiveHeartbeatFrom(rsConfig,
-                         3 /* senderId */,
+                         /*sourceId=*/3,
                          HostAndPort("node3", 12345),
-                         0 /* term */,
-                         3 /* currentPrimaryId */);
+                         /*term=*/0,
+                         /*currentPrimaryId=*/3);
     enterNetwork();
     ASSERT_FALSE(getNet()->hasReadyRequests());
     exitNetwork();
@@ -411,10 +411,10 @@ TEST_F(
 
     // Node 2 thinks 3 is the primary. We don't restart heartbeats for that.
     receiveHeartbeatFrom(getReplCoord()->getConfig(),
-                         2 /* senderId */,
+                         /*sourceId=*/2,
                          HostAndPort("node3", 12345),
-                         0 /* term */,
-                         3 /* currentPrimaryId */);
+                         /*term=*/0,
+                         /*currentPrimaryId=*/3);
 
     {
         enterNetwork();
@@ -753,7 +753,7 @@ TEST_F(ReplCoordHBV1ReconfigTest,
         if (field == "t") {
             continue;
         } else if (field == "config") {
-            finalRes.append("config", makeConfigObj(initConfigVersion + 1, boost::none /* term */));
+            finalRes.append("config", makeConfigObj(initConfigVersion + 1, /*term=*/boost::none));
         } else {
             finalRes.append(origResObj[field]);
         }
@@ -1591,7 +1591,7 @@ TEST_F(ReplCoordHBV1Test, handleHeartbeatResponseForTestEnqueuesValidHandle) {
     stdx::thread heartbeatReponseThread([&] {
         Client::initThread("handleHeartbeatResponseForTest",
                            getGlobalServiceContext()->getService());
-        getReplCoord()->handleHeartbeatResponse_forTest(hbRespObj, 1 /* targetIndex */);
+        getReplCoord()->handleHeartbeatResponse_forTest(hbRespObj, /*targetIndex=*/1);
     });
 
     failpoint->waitForTimesEntered(timesEntered + 1);
@@ -1877,20 +1877,20 @@ void HBStepdownAndReconfigTest::sendHBResponse(int targetIndex,
 
 void HBStepdownAndReconfigTest::sendHBResponseWithNewConfig() {
     // Send a heartbeat response from a secondary, with newer config.
-    sendHBResponse(2 /* targetIndex */,
-                   1 /* term */,
-                   3 /* configVersion */,
-                   1 /* configTerm */,
-                   true /* includeConfig */);
+    sendHBResponse(/*targetIndex=*/2,
+                   /*term=*/1,
+                   /*configVersion=*/3,
+                   /*configTerm=*/1,
+                   /*includeConfig=*/true);
 }
 
 void HBStepdownAndReconfigTest::sendHBResponseWithNewTerm() {
     // Send a heartbeat response from a secondary, with higher term.
-    sendHBResponse(1 /* targetIndex */,
-                   2 /* term */,
-                   2 /* configVersion */,
-                   1 /* configTerm */,
-                   false /* includeConfig */);
+    sendHBResponse(/*targetIndex=*/1,
+                   /*term=*/2,
+                   /*configVersion=*/2,
+                   /*configTerm=*/1,
+                   /*includeConfig=*/false);
 }
 
 Future<void> HBStepdownAndReconfigTest::startReconfigCommand() {

@@ -226,8 +226,8 @@ public:
                 nss,
                 ReadPreferenceSetting(ReadPreference::PrimaryOnly, TagSet::primaryOnly()),
                 requests,
-                false /*allowPartialResults*/,
-                nullptr /* RoutingContext */,
+                /*allowPartialResults=*/false,
+                /*routingCtx=*/nullptr,
                 Shard::RetryPolicy::kIdempotent,
                 std::move(opKeys));
 

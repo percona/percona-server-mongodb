@@ -233,7 +233,7 @@ bool OrderedIntervalList::boundsOverlapObjectTypeBracket() const {
         BSONObjBuilder objBracketBounds;
         objBracketBounds.appendMinForType("", stdx::to_underlying(BSONType::object));
         objBracketBounds.appendMaxForType("", stdx::to_underlying(BSONType::object));
-        return Interval(objBracketBounds.obj(), false /*startIncluded*/, false /*endIncluded*/);
+        return Interval(objBracketBounds.obj(), /*startIncluded=*/false, /*endIncluded=*/false);
     }();
 
     // Determine whether any of the ordered intervals overlap with the object type bracket. Because
@@ -280,7 +280,7 @@ void OrderedIntervalList::complement() {
     // We will build up a list of intervals that represents the inversion of those in the OIL.
     vector<Interval> newIntervals;
     for (const auto& curInt : intervals) {
-        if ((0 != curInt.start.woCompare(curBoundary, /*compareFieldNames*/ false) ||
+        if ((0 != curInt.start.woCompare(curBoundary, /*rules=*/false) ||
              (!curInclusive && !curInt.startInclusive))) {
             // Make a new interval from 'curBoundary' to the start of 'curInterval'.
             BSONObjBuilder intBob;
@@ -300,7 +300,7 @@ void OrderedIntervalList::complement() {
     maxBob.appendMaxKey("");
     BSONObj maxObj = maxBob.obj();
     BSONElement maxKey = maxObj.firstElement();
-    if (0 != maxKey.woCompare(curBoundary, /*compareFieldNames*/ false) || !curInclusive) {
+    if (0 != maxKey.woCompare(curBoundary, /*rules=*/false) || !curInclusive) {
         BSONObjBuilder intBob;
         intBob.append(curBoundary);
         intBob.append(maxKey);

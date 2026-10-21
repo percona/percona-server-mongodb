@@ -196,7 +196,7 @@ TEST_F(FeatureCompatibilityVersionTestFixture, ResolveStartNewUpgrade) {
         multiversion::GenericFCV::kLastLTS,
         boost::none,
         lastChangeTimestamp,
-        false /* isCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/false);
 
     SetFeatureCompatibilityVersion request(multiversion::GenericFCV::kLatest);
     auto result = FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
@@ -220,7 +220,7 @@ TEST_F(FeatureCompatibilityVersionTestFixture, ResolveReturnToOriginalFCVBeforeC
         multiversion::GenericFCV::kUpgradingFromLastLTSToLatest,
         SetFCVPhaseEnum::kStart,
         lastChangeTimestamp,
-        false /* isCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/false);
 
     SetFeatureCompatibilityVersion request(multiversion::GenericFCV::kLastLTS);
     auto result = FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
@@ -242,7 +242,7 @@ TEST_F(FeatureCompatibilityVersionTestFixture, ResolveReturnToOriginalFCVDuringC
         multiversion::GenericFCV::kUpgradingFromLastLTSToLatest,
         SetFCVPhaseEnum::kStart,
         Timestamp(10, 10),
-        true /* isCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/true);
 
     SetFeatureCompatibilityVersion request(multiversion::GenericFCV::kLastLTS);
     ASSERT_THROWS_CODE(
@@ -349,7 +349,7 @@ TEST_P(SetFeatureCompatibilityVersionParamTestFixture, ResolveResumeInterruptedU
         multiversion::GenericFCV::kUpgradingFromLastLTSToLatest,
         params.phase,
         lastChangeTimestamp,
-        params.isCleaningServerMetadata /* isCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/params.isCleaningServerMetadata);
 
     SetFeatureCompatibilityVersion request(multiversion::GenericFCV::kLatest);
     auto result = FeatureCompatibilityVersion::validateSetFeatureCompatibilityVersionRequest(
@@ -406,7 +406,7 @@ TEST_P(UpdateDocumentPreviousVersionTestFixture, UpdateDocumentPreviousVersion) 
         multiversion::GenericFCV::kUpgradingFromLastLTSToLatest,
         params.phase,
         ts,
-        params.phase >= SetFCVPhaseEnum::kEnableTargetFeatures /* setIsCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/params.phase >= SetFCVPhaseEnum::kEnableTargetFeatures);
 
     auto docResult =
         FeatureCompatibilityVersion::findFeatureCompatibilityVersionDocument(operationContext());
@@ -470,9 +470,9 @@ TEST_F(FeatureCompatibilityVersionTestFixture, UpdateDocumentClearsPreviousVersi
     FeatureCompatibilityVersion::updateFeatureCompatibilityVersionDocument(
         operationContext(),
         multiversion::GenericFCV::kLatest,
-        boost::none /* phase */,
+        /*phase=*/boost::none,
         ts,
-        boost::none /* setIsCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/boost::none);
 
     auto docResult =
         FeatureCompatibilityVersion::findFeatureCompatibilityVersionDocument(operationContext());
@@ -494,7 +494,7 @@ TEST_F(FeatureCompatibilityVersionTestFixture,
         multiversion::GenericFCV::kUpgradingFromLastLTSToLatest,
         SetFCVPhaseEnum::kPrepare,
         ts,
-        boost::none /* setIsCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/boost::none);
 
     auto docResult =
         FeatureCompatibilityVersion::findFeatureCompatibilityVersionDocument(operationContext());
@@ -519,8 +519,7 @@ void seedFcvDocAtPhase(OperationContext* opCtx,
         version,
         phase,
         Timestamp(1, 1),
-        phase &&
-            *phase >= SetFCVPhaseEnum::kEnableTargetFeatures /* setIsCleaningServerMetadata */);
+        /*setIsCleaningServerMetadata=*/phase && *phase >= SetFCVPhaseEnum::kEnableTargetFeatures);
     // The FCV op observer that normally mirrors disk writes to in-memory FCV does not run in
     // unit tests. Replicate its effect here so callers see consistent in-memory state.
     auto docResult = FeatureCompatibilityVersion::findFeatureCompatibilityVersionDocument(opCtx);

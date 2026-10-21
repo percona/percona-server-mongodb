@@ -111,15 +111,15 @@ TEST_F(ClusterBulkWriteTest, FireAndForgetRequestGetsReplyWithOnlyOkStatus) {
     const auto expectedBulkCommandReplySection =
         BulkWriteCommandReply(
             BulkWriteCommandResponseCursor(
-                0 /* cursorId */,
-                {} /* firstBatch */,
+                /*id=*/0,
+                /*firstBatch=*/{},
                 NamespaceString::createNamespaceString_forTest("admin.$cmd.bulkWrite")),
-            0 /*nErrors*/,
-            0 /*nInserted*/,
-            0 /*nMatched*/,
-            0 /*nModified*/,
-            0 /*nUpserted*/,
-            0 /*nDeleted*/)
+            /*nErrors=*/0,
+            /*nInserted=*/0,
+            /*nMatched=*/0,
+            /*nModified=*/0,
+            /*nUpserted=*/0,
+            /*nDeleted=*/0)
             .toBSON();
     for (const auto& response : bulkCmdresponses) {
         ASSERT_FALSE(response.shouldRunAgainForExhaust);

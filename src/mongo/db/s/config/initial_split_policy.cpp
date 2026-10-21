@@ -71,7 +71,7 @@ std::vector<ShardId> getAllNonDrainingShardIds(OperationContext* opCtx) {
             return Grid::get(opCtx)->catalogClient()->getAllShards(
                 opCtx,
                 repl::ReadConcernArgs::kMajority,
-                BSON(ShardType::draining.ne(true)) /* excludeDraining */);
+                /*filter=*/BSON(ShardType::draining.ne(true)));
         } catch (DBException& ex) {
             ex.addContext("Cannot retrieve updated shard list from config server");
             throw;
@@ -911,7 +911,7 @@ SamplingBasedSplitPolicy::SampleDocumentPipeline SamplingBasedSplitPolicy::_make
                       .tmpDir(boost::filesystem::path(storageGlobalParams.dbpath) / "_tmp")
                       .build();
     return pipeline_factory::makePipeline(
-        aggRequest, expCtx, boost::none /* shardCursorsSortSpec */, opts);
+        aggRequest, expCtx, /*shardCursorsSortSpec=*/boost::none, opts);
 }
 
 SamplingBasedSplitPolicy::PipelineDocumentSource::PipelineDocumentSource(

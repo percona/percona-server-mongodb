@@ -101,7 +101,7 @@ std::function<void(LiteParsedPipeline&)> makeLookupViewBinder(
         PipelineResolver::resolveInvolvedNamespacesOnLiteParsedPipeline(&liteParsedPipeline,
                                                                         userNss,
                                                                         resolvedNamespaces,
-                                                                        /*bindOnly*/ true,
+                                                                        /*bindOnly=*/true,
                                                                         viewPrefixLength);
     };
 }
@@ -145,7 +145,7 @@ LookUpStage::LookUpStage(std::string_view stageName,
       _additionalFilter(additionalFilter.getOwned()),
       _sharedState(std::move(sharedState)),
       _memoryTracker(
-          OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForStage(*pExpCtx)) {
+          OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForStage(*pExpCtx)) {
     if (!hasLocalFieldForeignFieldJoin()) {
         // When local/foreignFields are included, we cannot enable the cache because the $match
         // is a correlated prefix that will not be detected. Here, local/foreignFields are absent,
@@ -497,7 +497,7 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipeline(
             return pExpCtx->getMongoProcessInterface()->finalizeAndMaybePreparePipelineForExecution(
                 fromExpCtx,
                 std::move(parsedPipeline),
-                true /* attachCursorAfterOptimizing */,
+                /*attachCursorAfterOptimizing=*/true,
                 pipeline_optimization::optimizeAndValidatePipeline,
                 shardTargetingPolicy);
         } catch (const ExceptionFor<ErrorCodes::CommandOnShardedViewNotSupportedOnMongod>& e) {
@@ -509,7 +509,7 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipeline(
                 isRawDataOperation(pExpCtx->getOperationContext()) && e->isTimeseries()
                     ? std::vector<BSONObj>{}
                     : e->getBsonPipeline(),
-                true /* attachCursorAfterOptimizing */,
+                /*attachCursorAfterOptimizing=*/true,
                 shardTargetingPolicy,
                 pipeline_optimization::optimizeAndValidatePipeline);
         }
@@ -530,7 +530,7 @@ std::unique_ptr<mongo::Pipeline> LookUpStage::buildPipeline(
         // a stage constraint of PositionRequirement::kCustom will only perform validation checks
         // when 'alreadyOptimized' is true. If we avoid this check we could potentially try to
         // execute invalid pipelines.
-        pipeline->validateCommon(true /* alreadyOptimized */);
+        pipeline->validateCommon(/*alreadyOptimized=*/true);
     };
 
     try {

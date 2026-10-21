@@ -10,9 +10,10 @@ import {getPlanStage, getWinningPlanFromExplain} from "jstests/libs/query/analyz
 import {ceEqual} from "jstests/libs/query/cbr_utils.js";
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
-// TODO SERVER-92589: Remove this exemption
+// SBE explain does not report CBR estimates for the winning plan, which this test asserts on.
+// TODO SERVER-130179: Remove this early exit once SBE explain reports these estimates.
 if (checkSbeFullyEnabled(db)) {
-    jsTestLog(`Skipping ${jsTestName()} as SBE executor is not supported yet`);
+    jsTestLog(`Skipping ${jsTestName()}: SBE explain lacks CBR estimates for the winning plan`);
     quit();
 }
 
@@ -30,7 +31,7 @@ coll.createIndexes([{a: 1}]);
 assert.commandWorked(coll.runCommand({analyze: collName, key: "a"}));
 assert.commandWorked(coll.runCommand({analyze: collName, key: "b"}));
 
-function runTest({query, sort, skip, limit, expectedCard, expectFallback}) {
+function runTest({query, sort, skip, limit, expectedCard}) {
     assert.commandWorked(
         db.adminCommand({
             setParameter: 1,
@@ -51,12 +52,6 @@ function runTest({query, sort, skip, limit, expectedCard, expectFallback}) {
     }
     const explain = cmd.explain();
     const plan = getWinningPlanFromExplain(explain);
-    if (expectFallback) {
-        // A predicate the histogram estimates as zero (ZeroCEEstimate) falls back to the
-        // multi-planner, which does not cost the plan.
-        assert(!plan.hasOwnProperty("cardinalityEstimate"), plan);
-        return;
-    }
     assert(plan.hasOwnProperty("cardinalityEstimate"), plan);
     assert(ceEqual(expectedCard, plan.cardinalityEstimate), plan);
 }
@@ -70,22 +65,21 @@ try {
     runTest({query: {a: {$gt: 500}}, limit: 0, expectedCard: 499.4});
     // Negative limit same effect as positive value
     runTest({query: {a: {$gt: 500}}, limit: -10, expectedCard: 10});
-    // The predicate matches nothing (max value in dataset: 999), so the histogram estimates an
-    // ZeroCEEstimate and CBR falls back to the multi-planner.
-    runTest({query: {a: {$gt: 10000}}, limit: 5, expectFallback: true});
+    // Approximate-source (Histogram) zero is clamped to 1 by
+    // CardinalityEstimator::clampZeroEstimates, so cases that would naturally produce
+    // cardinality 0 report 1.
+    runTest({query: {a: {$gt: 10000}}, limit: 5, expectedCard: 1});
 
     runTest({query: {a: {$gt: 500}}, skip: 1, expectedCard: 498.4});
     runTest({query: {a: {$gt: 500}}, skip: 100, expectedCard: 399.4});
-    // A skip-derived zero (skip >= child estimate) is trusted arithmetic, not an "unobserved
-    // data" zero, so CBR still costs the plan and clampZeroEstimates floors it to 1.
     runTest({query: {a: {$gt: 500}}, skip: 500, expectedCard: 1});
-    runTest({query: {a: {$gt: 10000}}, skip: 5, expectFallback: true});
+    runTest({query: {a: {$gt: 10000}}, skip: 5, expectedCard: 1});
     runTest({query: {a: {$gt: 500}}, skip: 0, expectedCard: 499.4});
 
     runTest({query: {a: {$gt: 500}}, skip: 100, limit: 100, expectedCard: 100});
     runTest({query: {a: {$gt: 500}}, skip: 450, limit: 100, expectedCard: 49.4});
     runTest({query: {a: {$gt: 500}}, skip: 500, limit: 100, expectedCard: 1});
-    runTest({query: {a: {$gt: 10000}}, skip: 100, limit: 100, expectFallback: true});
+    runTest({query: {a: {$gt: 10000}}, skip: 100, limit: 100, expectedCard: 1});
     runTest({query: {}, sort: {b: 1}, limit: 42, expectedCard: 42});
     runTest({query: {}, sort: {b: 1}, limit: 1001, expectedCard: 1000});
     runTest({query: {}, sort: {b: 1}, limit: 0, expectedCard: 1000});

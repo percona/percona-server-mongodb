@@ -148,8 +148,8 @@ CoordinatorCommitMonitor::queryRemainingOperationTime() const {
                             requests,
                             ReadPreferenceSetting(ReadPreference::PrimaryOnly),
                             Shard::RetryPolicy::kIdempotent,
-                            nullptr /* resourceYielder */,
-                            {} /* designatedHostMap */);
+                            /*resourceYielder=*/nullptr,
+                            /*designatedHostsMap=*/{});
 
 
     auto minTimeToEnterCriticalSection = Milliseconds::max();

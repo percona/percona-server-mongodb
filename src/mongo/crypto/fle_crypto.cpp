@@ -748,8 +748,7 @@ FLE2InsertUpdatePayloadV2 EDCClientPayload::serializeInsertUpdatePayloadV2ForRan
     FLE2InsertUpdatePayloadV2 iupayload;
 
     iupayload.setEncryptedTokens(
-        StateCollectionTokensV2(escDataCounterkey, false /* isLeaf */, boost::none)
-            .encrypt(ecocToken));
+        StateCollectionTokensV2(escDataCounterkey, /*leaf=*/false, boost::none).encrypt(ecocToken));
 
     iupayload.setEdcDerivedToken(std::move(edcDataCounterkey));
     iupayload.setEscDerivedToken(std::move(escDataCounterkey));
@@ -2191,7 +2190,7 @@ BSONObj ESCCollectionAnchorPadding::generateNullAnchorDocument(
     const AnchorPaddingKeyToken& keyToken,
     const AnchorPaddingValueToken& valueToken,
     uint64_t apos,
-    uint64_t /* cpos */) {
+    /*cpos=*/uint64_t) {
     auto block = generateNullAnchorId(hmacCtx, keyToken);
 
     constexpr uint64_t ignored{0};
@@ -4723,8 +4722,8 @@ StatusWith<std::vector<uint8_t>> FLEUtil::encryptData(ConstDataRange key,
 
     uint32_t written;
     if (!fle2alg->do_encrypt(crypto,
-                             iv.get() /* iv */,
-                             NULL /* aad */,
+                             /*iv=*/iv.get(),
+                             /*aad=*/NULL,
                              MongoCryptBuffer::borrow(key).get(),
                              MongoCryptBuffer::borrow(plainText).get(),
                              out.get(),

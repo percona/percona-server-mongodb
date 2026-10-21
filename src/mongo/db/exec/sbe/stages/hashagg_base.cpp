@@ -80,7 +80,7 @@ typename HashAggBaseStage<Derived>::SpilledRow HashAggBaseStage<Derived>::deseri
 
     keyBuffer.reset();
     auto key = value::MaterializedRow::deserializeFromKeyString(
-        decodeKeyString(record.id, typeBits), &keyBuffer, numKeys /*numPrefixValuesToRead*/);
+        decodeKeyString(record.id, typeBits), &keyBuffer, /*numPrefixValsToRead=*/numKeys);
     return std::make_pair(std::move(key), std::move(val));
 }
 
@@ -124,11 +124,11 @@ int64_t HashAggBaseStage<Derived>::spillRowToDisk(const value::MaterializedRow& 
     if (collator) {
         // The keystring cannot always be deserialized back to the original keys when a collation is
         // in use, so we also store the unmodified key in the data part of the spilled record.
-        spilledBytes = _recordStore->upsertToRecordStore(_opCtx, rid, key, val, false /*update*/);
+        spilledBytes = _recordStore->upsertToRecordStore(_opCtx, rid, key, val, /*update=*/false);
     } else {
         auto typeBits = kb.getTypeBits();
         spilledBytes =
-            _recordStore->upsertToRecordStore(_opCtx, rid, val, typeBits, false /*update*/);
+            _recordStore->upsertToRecordStore(_opCtx, rid, val, typeBits, /*update=*/false);
     }
 
     return spilledBytes;
@@ -173,9 +173,12 @@ void HashAggBaseStage<Derived>::spill() {
 
     auto spilledDataStorageIncrease =
         static_cast<Derived*>(this)->getHashAggStats()->spillingStats.updateSpillingStats(
-            1 /* spills */, spilledBytes, spilledRecords, _recordStore->storageSize(_opCtx));
+            /*additionalSpills=*/1,
+            spilledBytes,
+            spilledRecords,
+            _recordStore->storageSize(_opCtx));
     groupCounters.incrementPerSpilling(
-        1 /* spills */, spilledBytes, spilledRecords, spilledDataStorageIncrease);
+        /*spills=*/1, spilledBytes, spilledRecords, spilledDataStorageIncrease);
     _recordStore->updateSpillStorageStatsForOperation(_opCtx);
 }
 

@@ -139,7 +139,7 @@ private:
  */
 void validateHistogramTypeCounts(const TypeCounts& tc,
                                  const ScalarHistogram& s,
-                                 std::function<bool(int64_t /*tc*/, int64_t /*s*/)> isValid,
+                                 std::function<bool(/*tc=*/int64_t, /*s=*/int64_t)> isValid,
                                  int64_t nanCount = 0) {
 
     // Ensure that all histogrammable type brackets are accounted for in the histogram.
@@ -167,7 +167,7 @@ void validateHistogramTypeCounts(const TypeCounts& tc,
     // Ensure that all histogrammable type counts are accounted for in the type counters.
     // While typeCount include types for nans but nans are in a separate counts the typeCounts needs
     // to subtract nan counts.
-    const double totalTC = getTotalCount(tc, true /* histogrammable*/) - nanCount;
+    const double totalTC = getTotalCount(tc, /*isHistogrammable=*/true) - nanCount;
     const double totalCard = s.getCardinality();
     if (!isValid(totalTC, totalCard)) {
         uasserted(7105701,
@@ -183,7 +183,7 @@ void validateHistogramTypeCounts(const TypeCounts& tc,
  */
 void validateHistogramFrequencies(const ScalarHistogram& ls,
                                   const ScalarHistogram& rs,
-                                  std::function<bool(int64_t /*ls*/, int64_t /*rs*/)> isValid) {
+                                  std::function<bool(/*ls=*/int64_t, /*rs=*/int64_t)> isValid) {
     // Ensure that the total cardinality of the histograms is comparatively correct.
     const double cardL = ls.getCardinality();
     const double cardR = rs.getCardinality();

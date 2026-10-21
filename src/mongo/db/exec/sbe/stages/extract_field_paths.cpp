@@ -14,7 +14,7 @@ ExtractFieldPathsStage::ExtractFieldPathsStage(std::unique_ptr<PlanStage> input,
                                                PlanNodeId planNodeId,
                                                bool participateInTrialRunTracking)
     : PlanStage("extract_field_paths"sv,
-                nullptr /* yieldPolicy */,
+                /*yieldPolicy=*/nullptr,
                 planNodeId,
                 participateInTrialRunTracking),
       _inputs(std::move(inputs)),
@@ -41,8 +41,8 @@ void ExtractFieldPathsStage::constructRoot() {
     for (size_t i = 0; i < _outputs.size(); ++i) {
         _recorders.emplace_back();
         _root->add(_outputs[i].first,
-                   nullptr /* filterRecorder */,
-                   &_recorders.back() /* outProjRecorder */);
+                   /*outFilterRecorder=*/nullptr,
+                   /*outProjRecorder=*/&_recorders.back());
     }
 }
 
@@ -114,10 +114,10 @@ PlanState ExtractFieldPathsStage::getNext() {
                 inputVal,
                 value::bitcastTo<const char*>(inputVal),
                 walk,
-                true /*traverseArrays*/);
+                /*traverseArrays=*/true);
         } else if (value::TypeTags::Object == inputTag) {
             value::walkObject<value::ScalarProjectionPositionInfoRecorder>(
-                _root.get(), inputVal, walk, true /*traverseArrays*/);
+                _root.get(), inputVal, walk, /*traverseArrays=*/true);
         }
 
     } else {
@@ -134,7 +134,7 @@ PlanState ExtractFieldPathsStage::getNext() {
                         childVal,
                         value::bitcastTo<const char*>(childVal),
                         walk,
-                        true /* traverseArrays */);
+                        /*traverseArrays=*/true);
                 }
             }
         } else {
@@ -147,7 +147,7 @@ PlanState ExtractFieldPathsStage::getNext() {
                         childVal,
                         value::bitcastTo<const char*>(childVal),
                         walk,
-                        true /* traverseArrays */);
+                        /*traverseArrays=*/true);
                 }
             }
         }

@@ -225,7 +225,7 @@ ScopedCollectionFilter CollectionShardingRuntime::getOwnershipFilter(
         _getMetadataWithVersionCheckAt(opCtx,
                                        repl::ReadConcernArgs::get(opCtx).getArgsAtClusterTime(),
                                        optReceivedShardVersion,
-                                       true /* preserveRange */,
+                                       /*preserveRange=*/true,
                                        supportNonVersionedOperations);
 
     return {std::move(metadata)};
@@ -238,7 +238,7 @@ ScopedCollectionFilter CollectionShardingRuntime::getOwnershipFilter(
     return _getMetadataWithVersionCheckAt(opCtx,
                                           repl::ReadConcernArgs::get(opCtx).getArgsAtClusterTime(),
                                           receivedShardVersion,
-                                          true /* preserveRange */);
+                                          /*preserveRange=*/true);
 }
 
 ScopedCollectionDescription CollectionShardingRuntime::getCollectionDescription(
@@ -260,13 +260,13 @@ ScopedCollectionDescription CollectionShardingRuntime::getCollectionDescription(
 
     auto& oss = OperationShardingState::get(opCtx);
 
-    auto optMetadata = _getCurrentMetadataIfKnown(boost::none, false /* preserveRange */);
+    auto optMetadata = _getCurrentMetadataIfKnown(boost::none, /*preserveRange=*/false);
     const auto receivedShardVersion{oss.getShardVersion(_nss)};
     uassert(
         StaleConfigInfo(_nss,
                         receivedShardVersion ? *receivedShardVersion
                                              : ShardVersionPlacementIgnored(),
-                        boost::none /* wantedVersion */,
+                        /*wanted=*/boost::none,
                         ShardingState::get(_serviceContext)->shardId()),
         str::stream() << "sharding status of collection " << _nss.toStringForErrorMsg()
                       << " is not currently available for description and needs to be recovered "
@@ -277,7 +277,7 @@ ScopedCollectionDescription CollectionShardingRuntime::getCollectionDescription(
 }
 
 boost::optional<CollectionMetadata> CollectionShardingRuntime::getCurrentMetadataIfKnown() const {
-    auto optMetadata = _getCurrentMetadataIfKnown(boost::none, false /* preserveRange */);
+    auto optMetadata = _getCurrentMetadataIfKnown(boost::none, /*preserveRange=*/false);
     if (!optMetadata)
         return boost::none;
     return optMetadata->get();
@@ -293,7 +293,7 @@ void CollectionShardingRuntime::checkShardVersionOrThrow(OperationContext* opCtx
 void CollectionShardingRuntime::checkShardVersionOrThrow(
     OperationContext* opCtx, const ShardVersion& receivedShardVersion) const {
     (void)_getMetadataWithVersionCheckAt(
-        opCtx, boost::none, receivedShardVersion, false /* preserveRange */);
+        opCtx, boost::none, receivedShardVersion, /*preserveRange=*/false);
 }
 
 void CollectionShardingRuntime::enterCriticalSectionCatchUpPhase(OperationContext* opCtx,
@@ -471,7 +471,7 @@ Status CollectionShardingRuntime::waitForClean(OperationContext* opCtx,
             if (refreshMetadataIfUnknown && self->_metadataType == MetadataType::kUnknown) {
                 uasserted(StaleConfigInfo(nss,
                                           ShardVersionPlacementIgnored(),
-                                          boost::none /* wantedVersion */,
+                                          /*wanted=*/boost::none,
                                           ShardingState::get(opCtx)->shardId()),
                           str::stream() << "Filtering metadata for " << nss.toStringForErrorMsg()
                                         << " is not known; recovering before waiting for orphan "
@@ -595,7 +595,7 @@ CollectionShardingRuntime::_getMetadataWithVersionCheckAt(
     alwaysThrowStaleConfigInfo.execute([&](const auto&) {
         uasserted(StaleConfigInfo(_nss,
                                   receivedShardVersion,
-                                  boost::none /* wantedVersion */,
+                                  /*wanted=*/boost::none,
                                   ShardingState::get(opCtx)->shardId()),
                   "Failing with StaleConfig as alwaysThrowStaleConfigInfo is enabled");
     });
@@ -613,7 +613,7 @@ CollectionShardingRuntime::_getMetadataWithVersionCheckAt(
         std::string reason = _critSec.getReason() ? _critSec.getReason()->toString() : "unknown";
         uassert(StaleConfigInfo(_nss,
                                 receivedShardVersion,
-                                boost::none /* wantedVersion */,
+                                /*wanted=*/boost::none,
                                 ShardingState::get(opCtx)->shardId(),
                                 std::move(criticalSectionSignal),
                                 shard_role_details::getLocker(opCtx)->isWriteLocked()
@@ -627,7 +627,7 @@ CollectionShardingRuntime::_getMetadataWithVersionCheckAt(
     auto optCurrentMetadata = _getCurrentMetadataIfKnown(atClusterTime, preserveRange);
     uassert(StaleConfigInfo(_nss,
                             receivedShardVersion,
-                            boost::none /* wantedVersion */,
+                            /*wanted=*/boost::none,
                             ShardingState::get(opCtx)->shardId()),
             str::stream() << "sharding status of collection " << _nss.toStringForErrorMsg()
                           << " is not currently known and needs to be recovered",

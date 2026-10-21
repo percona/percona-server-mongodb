@@ -19,8 +19,9 @@ namespace mongo {
  * member.
  */
 enum class PlanRankerReason {
-    // A single candidate solution (or a cached plan): no ranking ran. The only valid reason for
-    // chosenRanker "none"; derived at explain emission rather than recorded by a strategy.
+    // A single candidate solution (or a cached plan or express path): no ranking ran. The only
+    // reason emitted for the no-ranking strategies (chosenRanker singlePlan, cachedPlan or
+    // express); derived at explain emission rather than recorded by a strategy.
     kSinglePlan,
     // featureFlagCostBasedRanker is off, so planning was rewritten to the multi-planner.
     kCBRFeatureFlagDisabled,
@@ -32,7 +33,8 @@ enum class PlanRankerReason {
     // TODO SERVER-133066 remove when the limitation is removed
     kHistogramCEInternalColl,
     // CBR was engaged but could not estimate the cardinality or cost of a node in some candidate
-    // plan (any node the estimators reject with ErrorCodes::UnsupportedCbrNode - see
+    // plan (any node the estimators reject with ErrorCodes::UnsupportedCbrNode, or an index scan
+    // that sampling estimated to scan zero keys, rejected with ErrorCodes::ZeroCEEstimate - see
     // cardinality_estimator.cpp), so ranking fell back to multi-planning.
     kCBRInestimableNode,
     // The multi-planning trial exited early because one plan reached EOF or filled a batch

@@ -154,7 +154,7 @@ public:
                              *coll,
                              stmts.cbegin(),
                              stmts.cend(),
-                             /*recordIds*/ {},
+                             /*recordIds=*/{},
                              /*fromMigrate=*/std::vector<bool>(stmts.size(), false),
                              /*defaultFromMigrate=*/false);
         assertCounts(0, 0, 0);
@@ -226,7 +226,7 @@ public:
         mockRouter->resetCounts();
 
         WriteUnitOfWork wuow(opCtx.get());
-        opObserver.onDropDatabase(opCtx.get(), dbname, false /*fromMigrate*/);
+        opObserver.onDropDatabase(opCtx.get(), dbname, /*markFromMigrate=*/false);
         assertCounts(0, 0, 0);
         wuow.commit();
 

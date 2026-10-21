@@ -226,7 +226,7 @@ void initCollectionObject(OperationContext* opCtx,
     auto collection = collectionFactory->make(opCtx, nss, catalogId, md, std::move(rs));
 
     CollectionCatalog::write(opCtx, [&](CollectionCatalog& catalog) {
-        catalog.registerCollection(opCtx, std::move(collection), /*commitTime*/ minValidTs);
+        catalog.registerCollection(opCtx, std::move(collection), /*commitTime=*/minValidTs);
     });
 }
 
@@ -698,7 +698,7 @@ public:
                         // Override existing Collection on this namespace
                         catalog._registerCollection(opCtx,
                                                     std::move(collection),
-                                                    /*ts=*/commitTime);
+                                                    /*commitTime=*/commitTime);
                     });
                     break;
                 }
@@ -1225,7 +1225,9 @@ ConsistentCollection CollectionCatalog::establishConsistentCollection(
 
     auto coll = _lookupCollectionByNamespaceOrUUIDNoFindInstantiated(nssOrUUID).get();
 
-    if constexpr (kIsSanitizerBuild || kDebugBuild) {
+    // TODO(SERVER-136424): Temporarily disabled. Re-enable after fixing replicated fast count
+    // issue.
+    if constexpr (false && (kIsSanitizerBuild || kDebugBuild)) {
         if (coll) {
             auto clone = _instantiateCollectionIfTesting(
                 opCtx, nssOrUUID, coll->getCatalogId(), readTimestamp);

@@ -6,19 +6,14 @@
  * ]
  */
 
-import {
-    assertChosenRanker,
-    ChosenRanker,
-    getRejectedPlans,
-    getWinningPlanFromExplain,
-    PlanRankerReason,
-} from "jstests/libs/query/analyze_plan.js";
+import {getRejectedPlans, getWinningPlanFromExplain} from "jstests/libs/query/analyze_plan.js";
 import {ceEqual} from "jstests/libs/query/cbr_utils.js";
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
-// TODO SERVER-92589: Remove this exemption
+// SBE explain does not report CBR estimates for the winning plan, which this test asserts on.
+// TODO SERVER-130179: Remove this early exit once SBE explain reports these estimates.
 if (checkSbeFullyEnabled(db)) {
-    jsTestLog(`Skipping ${jsTestName()} as SBE executor is not supported yet`);
+    jsTestLog(`Skipping ${jsTestName()}: SBE explain lacks CBR estimates for the winning plan`);
     quit();
 }
 
@@ -80,6 +75,10 @@ try {
         {query: {a: 90}, expectedCE: 46},
         {query: {a: {$gt: 5}}, expectedCE: 4372},
         {query: {a: {$lt: 5}}, expectedCE: 486},
+        // Check non existing value (max value in dataset: 98).
+        // An approximate-source (Histogram) zero is clamped to 1 by
+        // CardinalityEstimator::clampZeroEstimates.
+        {query: {a: 250}, expectedCE: 1},
         // CollScan with sargable filter should use histogram
         {query: {b: 4}, expectedCE: 1030},
         {query: {b: {$gt: 3}}, expectedCE: 1030},
@@ -101,15 +100,6 @@ try {
         {query: {a: {$ne: 90}}, expectedCE: 4906},
     ];
     testCases.forEach((tc) => assertQueryUsesHistograms(tc));
-
-    // Check non existing value (max value in dataset: 98). The histogram estimates zero on the
-    // scan nodes (ZeroCEEstimate), so CBR hands the plans to the multi-planner instead of
-    // costing them.
-    assertChosenRanker(
-        coll.find({a: 250}).explain(),
-        ChosenRanker.kMultiPlanning,
-        PlanRankerReason.kCBRInestimableNode,
-    );
 } finally {
     // Ensure that query knob doesn't leak into other testcases in the suite.
     assert.commandWorked(db.adminCommand({setParameter: 1, featureFlagCostBasedRanker: false}));

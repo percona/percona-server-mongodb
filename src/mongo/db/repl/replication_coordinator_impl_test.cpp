@@ -12,6 +12,7 @@
 #include "mongo/db/repl/bson_extract_optime.h"
 #include "mongo/db/repl/data_replicator_external_state_impl.h"
 #include "mongo/db/repl/hello/hello_response.h"
+#include "mongo/db/repl/intent_guard.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
@@ -202,7 +203,7 @@ TEST_F(ReplCoordTest, IsWritablePrimaryFalseDuringStepdown) {
     const auto response =
         getReplCoord()->awaitHelloResponse(opCtx.get(), {}, boost::none, boost::none);
     ASSERT_TRUE(response->isConfigSet());
-    BSONObj responseObj = response->toBSON(false /*useLegacyResponseFields*/);
+    BSONObj responseObj = response->toBSON(/*useLegacyResponseFields=*/false);
     ASSERT_FALSE(responseObj["isWritablePrimary"].Bool());
     ASSERT_FALSE(responseObj["secondary"].Bool());
     ASSERT_FALSE(responseObj.hasField("isreplicaset"));
@@ -1948,11 +1949,21 @@ TEST_F(ReplCoordTest, ConcurrentStepDownShouldNotSignalTheSameFinishEventMoreTha
 
     auto replExec = getReplExec();
 
-    // Prevent _stepDownFinish() from running and becoming secondary by blocking in this
-    // exclusive task.
-    const auto opCtx = makeOperationContext();
+    // Prevent _stepDownFinish() from completing and becoming secondary. With intent registration,
+    // hold a write intent, which the stepdown must wait to drain. The client must be unkillable
+    // during stepdown so the stepdown cannot interrupt this operation and release the intent
+    // early. Without intent registration, hold the RSTL in mode X, which the stepdown must acquire.
+    // TODO SERVER-106669: Remove the RSTL path when featureFlagIntentRegistration is removed.
+    auto client = getServiceContext()->getService()->makeClient("stepDownBlocker");
+    client->setOperationUnkillable_ForTest();
+    const auto opCtx = client->makeOperationContext();
+    boost::optional<rss::consensus::WriteIntentGuard> writeIntent;
     boost::optional<ReplicationStateTransitionLockGuard> transitionGuard;
-    transitionGuard.emplace(opCtx.get(), MODE_X);
+    if (gFeatureFlagIntentRegistration.isEnabled()) {
+        writeIntent.emplace(opCtx.get());
+    } else {
+        transitionGuard.emplace(opCtx.get(), MODE_X);
+    }
 
     TopologyCoordinator::UpdateTermResult termUpdated2;
     auto updateTermEvh2 = getReplCoord()->updateTerm_forTest(2, &termUpdated2);
@@ -1978,6 +1989,7 @@ TEST_F(ReplCoordTest, ConcurrentStepDownShouldNotSignalTheSameFinishEventMoreTha
                   ReplicationMetrics::get(svcCtx).getNumStepDownsCausedByHigherTerm_forTesting());
 
     // Unblock the tasks for updateTerm and _stepDownFinish.
+    writeIntent.reset();
     transitionGuard.reset();
 
     // Wait stepdown to finish and term 3 to be installed.
@@ -2582,13 +2594,13 @@ TEST_F(ReplCoordTest, CancelElectionTimeoutIfSyncSourceKnowsThePrimary) {
     net->advanceTime(net->now() + Milliseconds(10));
     net->exitNetwork();
 
-    ReplSetMetadata rsMeta(0, OpTimeAndWallTime(), OpTime(), 1, 0, OID(), 1, false /* isPrimary */);
+    ReplSetMetadata rsMeta(0, OpTimeAndWallTime(), OpTime(), 1, 0, OID(), 1, /*isPrimary=*/false);
 
     // If currentPrimaryIndex is -1, don't reschedule.
     state.processMetadata(
         rsMeta,
         OplogQueryMetadata(
-            OpTimeAndWallTime(), OpTime(), OpTime(), 1, -1 /* currentPrimaryIndex */, 1, ""));
+            OpTimeAndWallTime(), OpTime(), OpTime(), 1, /*currentPrimaryIndex=*/-1, 1, ""));
 
     ASSERT_EQUALS(getReplCoord()->getElectionTimeout_forTest(), electionTimeout);
 
@@ -2596,7 +2608,7 @@ TEST_F(ReplCoordTest, CancelElectionTimeoutIfSyncSourceKnowsThePrimary) {
     state.processMetadata(
         rsMeta,
         OplogQueryMetadata(
-            OpTimeAndWallTime(), OpTime(), OpTime(), 1, 1 /* currentPrimaryIndex */, 1, ""));
+            OpTimeAndWallTime(), OpTime(), OpTime(), 1, /*currentPrimaryIndex=*/1, 1, ""));
 
     // Since we advanced the clock, the new election timeout is after the old one.
     ASSERT_GREATER_THAN(getReplCoord()->getElectionTimeout_forTest(), electionTimeout);
@@ -2631,11 +2643,11 @@ TEST_F(ReplCoordTest, ShouldChangeSyncSource) {
                                   OpTime(Timestamp(1, 1), 1),
                                   OpTime(Timestamp(1, 1), 1),
                                   1,
-                                  0 /* currentPrimaryIndex */,
+                                  /*currentPrimaryIndex=*/0,
                                   1,
                                   "");
     ReplSetMetadata rsMeta(
-        0, OpTimeAndWallTime(), OpTime(), 1, 0, replicaSetId, 1, true /* isPrimary */);
+        0, OpTimeAndWallTime(), OpTime(), 1, 0, replicaSetId, 1, /*isPrimary=*/true);
 
     ASSERT_EQ(getReplCoord()->shouldChangeSyncSource(
                   HostAndPort("node1", 12345), rsMeta, opMetaData, OpTime(), OpTime()),
@@ -5364,7 +5376,7 @@ TEST_F(ReplCoordTest, HelloResponseMentionsLackOfReplicaSetConfig) {
     const auto response =
         getReplCoord()->awaitHelloResponse(opCtx.get(), {}, boost::none, boost::none);
     ASSERT_FALSE(response->isConfigSet());
-    BSONObj responseObj = response->toBSON(false /*useLegacyResponseFields*/);
+    BSONObj responseObj = response->toBSON(/*useLegacyResponseFields=*/false);
     ASSERT_FALSE(responseObj["isWritablePrimary"].Bool());
     ASSERT_FALSE(responseObj["secondary"].Bool());
     ASSERT_TRUE(responseObj["isreplicaset"].Bool());
@@ -5501,7 +5513,7 @@ TEST_F(ReplCoordTest, LogAMessageWhenShutDownBeforeReplicationStartUpFinished) {
     unittest::LogCaptureGuard logs;
     {
         auto opCtx = makeOperationContext();
-        getReplCoord()->shutdown(opCtx.get(), nullptr /* shutdownTimeElapsedBuilder */);
+        getReplCoord()->shutdown(opCtx.get(), /*shutdownTimeElapsedBuilder=*/nullptr);
     }
     logs.stop();
     ASSERT_EQUALS(1, logs.countTextContaining("shutdown() called before startup() finished"));
@@ -5785,7 +5797,7 @@ TEST_F(ReplCoordTest, AwaitHelloResponseReturnsOnReplSetReconfig) {
     // respond to the waiting HelloResponse.
     Status status(ErrorCodes::InternalError, "Not Set");
     stdx::thread reconfigThread(
-        [&] { doReplSetReconfig(getReplCoord(), &status, true /* force */); });
+        [&] { doReplSetReconfig(getReplCoord(), &status, /*force=*/true); });
     replyToReceivedHeartbeatV1();
     reconfigThread.join();
     ASSERT_OK(status);
@@ -5928,7 +5940,7 @@ TEST_F(ReplCoordTest, AwaitHelloResponseReturnsOnReplSetReconfigOnSecondary) {
     // respond to the waiting hello request.
     Status status(ErrorCodes::InternalError, "Not Set");
     stdx::thread reconfigThread(
-        [&] { doReplSetReconfigToFewer(getReplCoord(), &status, true /* force */); });
+        [&] { doReplSetReconfigToFewer(getReplCoord(), &status, /*force=*/true); });
     replyToReceivedHeartbeatV1();
     reconfigThread.join();
     ASSERT_OK(status);
@@ -5967,7 +5979,7 @@ TEST_F(
     // reconfig to fewer nodes
     Status status(ErrorCodes::InternalError, "Not Set");
     stdx::thread reconfigThread(
-        [&] { doReplSetReconfigToFewer(getReplCoord(), &status, true /* force */); });
+        [&] { doReplSetReconfigToFewer(getReplCoord(), &status, /*force=*/true); });
 
     replyToReceivedHeartbeatV1();
 
@@ -6036,7 +6048,7 @@ TEST_F(ReplCoordTest,
     // reconfig to three nodes
     Status status(ErrorCodes::InternalError, "Not Set");
     stdx::thread reconfigThread(
-        [&] { doReplSetReconfig(getReplCoord(), &status, true /* force */); });
+        [&] { doReplSetReconfig(getReplCoord(), &status, /*force=*/true); });
 
     replyToReceivedHeartbeatV1();
     reconfigThread.join();
@@ -7749,7 +7761,7 @@ TEST_F(ReplCoordTest, AdvanceCommittedSnapshotWhenLeavingStartup2WithACommitPoin
     getStorageInterface()->allDurableTimestamp = oplogTip.getTimestamp();
 
     // Simulate advancing the commit point while in STARTUP2 state.
-    getReplCoord()->advanceCommitPoint({oplogTip, wallTime}, true /* fromSyncSource */);
+    getReplCoord()->advanceCommitPoint({oplogTip, wallTime}, /*fromSyncSource=*/true);
     ASSERT_EQUALS(oplogTip, getReplCoord()->getLastCommittedOpTime());
     ASSERT_EQUALS(OpTime(), getReplCoord()->getCurrentCommittedSnapshotOpTime())
         << "the committed snapshot is expected to be skipped while in STARTUP2";
@@ -8956,11 +8968,10 @@ TEST_F(ReplCoordTest, ShouldChooseNearestNodeAsSyncSourceWhenSecondaryAndChainin
     // new sync source.
     for (auto i = 0; i < 2; i++) {
         hbResp.setState(MemberState::RS_PRIMARY);
-        replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 1 /* targetIndex */, primaryPing);
+        replCoord->handleHeartbeatResponse_forTest(hbResp.toBSON(), /*targetIndex=*/1, primaryPing);
         hbResp.setState(MemberState::RS_SECONDARY);
         replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 2 /* targetIndex */, nearestNodePing);
+            hbResp.toBSON(), /*targetIndex=*/2, nearestNodePing);
     }
 
     // We expect to sync from the closest node, since our read preference should be set to
@@ -9004,11 +9015,10 @@ TEST_F(ReplCoordTest, ShouldChoosePrimaryAsSyncSourceWhenSecondaryAndChainingNot
     // new sync source.
     for (auto i = 0; i < 2; i++) {
         hbResp.setState(MemberState::RS_PRIMARY);
-        replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 1 /* targetIndex */, primaryPing);
+        replCoord->handleHeartbeatResponse_forTest(hbResp.toBSON(), /*targetIndex=*/1, primaryPing);
         hbResp.setState(MemberState::RS_SECONDARY);
         replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 2 /* targetIndex */, nearestNodePing);
+            hbResp.toBSON(), /*targetIndex=*/2, nearestNodePing);
     }
 
     // We expect to sync from the primary even though it is farther away, since our read preference
@@ -9061,9 +9071,9 @@ TEST_F(ReplCoordTest, ShouldChooseNearestNodeAsSyncSourceWhenPrimaryAndChainingA
     // new sync source.
     for (auto i = 0; i < 2; i++) {
         replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 1 /* targetIndex */, furthestNodePing);
+            hbResp.toBSON(), /*targetIndex=*/1, furthestNodePing);
         replCoord->handleHeartbeatResponse_forTest(
-            hbResp.toBSON(), 2 /* targetIndex */, nearestNodePing);
+            hbResp.toBSON(), /*targetIndex=*/2, nearestNodePing);
     }
 
     // We expect to sync from the closest node, since our read preference should be set to
@@ -9198,7 +9208,7 @@ TEST_F(ReplCoordTest, IgnoreNonNullDurableOpTimeOrWallTimeForArbiterFromHeartbea
 
     unittest::LogCaptureGuard logs;
     repl->handleHeartbeatResponse_forTest(
-        hbResp.toBSON(), 1 /* targetIndex */, Milliseconds(5) /* ping */);
+        hbResp.toBSON(), /*targetIndex=*/1, /*ping=*/Milliseconds(5));
 
     auto memberDataVector = repl->getMemberData();
     for (const auto& member : memberDataVector) {
@@ -9419,9 +9429,9 @@ TEST_F(ReplCoordTest, GetLastWrittenDuringRollback) {
     // getLastWritten should always return a valid opTime if the node is not in
     // ROLLBACK.
     ASSERT_EQUALS(time1,
-                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(false /*rollbackSafe*/).opTime);
+                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/false).opTime);
     ASSERT_EQUALS(time1,
-                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(true /*rollbackSafe*/).opTime);
+                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/true).opTime);
     const auto opCtx = makeOperationContext();
 
     // Set the node to ROLLBACK state.
@@ -9433,9 +9443,9 @@ TEST_F(ReplCoordTest, GetLastWrittenDuringRollback) {
 
     // getLastWritten with rollbackSafe=true will return a null opTime if the node is in ROLLBACK.
     ASSERT_EQUALS(time1,
-                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(false /*rollbackSafe*/).opTime);
+                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/false).opTime);
     ASSERT_TRUE(
-        getReplCoord()->getMyLastWrittenOpTimeAndWallTime(true /*rollbackSafe*/).opTime.isNull());
+        getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/true).opTime.isNull());
     ASSERT_EQUALS(time1, getReplCoord()->getMyLastAppliedOpTimeAndWallTime().opTime);
 
     // Remove the node.
@@ -9470,9 +9480,9 @@ TEST_F(ReplCoordTest, GetLastWrittenDuringRollback) {
     // getLastWritten with rollbackSafe=true will return a null opTime while the node is in REMOVED
     // state.
     ASSERT_EQUALS(time1,
-                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(false /*rollbackSafe*/).opTime);
+                  getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/false).opTime);
     ASSERT_TRUE(
-        getReplCoord()->getMyLastWrittenOpTimeAndWallTime(true /*rollbackSafe*/).opTime.isNull());
+        getReplCoord()->getMyLastWrittenOpTimeAndWallTime(/*rollbackSafe=*/true).opTime.isNull());
     ASSERT_EQUALS(time1, getReplCoord()->getMyLastAppliedOpTimeAndWallTime().opTime);
 }
 

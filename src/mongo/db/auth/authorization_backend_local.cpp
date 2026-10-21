@@ -242,10 +242,10 @@ ResolveRoleOption makeResolveRoleOption(PrivilegeFormat showPrivileges,
                                         AuthenticationRestrictionsFormat showRestrictions) {
     auto option = ResolveRoleOption::kRoles();
     if (showPrivileges != PrivilegeFormat::kOmit) {
-        option.setPrivileges(true /* shouldEnable */);
+        option.setPrivileges(/*shouldEnable=*/true);
     }
     if (showRestrictions != AuthenticationRestrictionsFormat::kOmit) {
-        option.setRestrictions(true /* shouldEnable */);
+        option.setRestrictions(/*shouldEnable=*/true);
     }
 
     return option;
@@ -522,7 +522,7 @@ StatusWith<User> AuthorizationBackendLocal::getUserObject(
 
         // Update ResolveRoleOption to skip emitting warning logs for unknown roles, since they came
         // from an external source.
-        options.setIgnoreUnknown(true /* shouldEnable */);
+        options.setIgnoreUnknown(/*shouldEnable=*/true);
     }
 
     if (auto tenant = userName.tenantId()) {
@@ -582,7 +582,7 @@ Status AuthorizationBackendLocal::getUserDescription(
     } else {
         // Set ResolveRoleOption to include the ignoreUnknownFlag so that external roles that don't
         // exist do not generate warning logs.
-        options.setIgnoreUnknown(true /* shouldEnable */);
+        options.setIgnoreUnknown(/*shouldEnable=*/true);
 
         uassert(ErrorCodes::BadValue,
                 "Illegal combination of pre-defined roles with tenant identifier",

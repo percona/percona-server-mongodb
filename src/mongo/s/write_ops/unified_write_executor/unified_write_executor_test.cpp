@@ -255,30 +255,28 @@ TEST_F(UnifiedWriteExecutorTest, BulkWriteBasic) {
     expectCollectionRoutingRequest(nss2, shardId2);
 
     // First batch of ops for shard1
-    expectBulkWriteShardRequest({BSON("insert" << 0 << "document" << BSON("x" << 1))} /* opList */,
-                                {nss1} /* nssList */,
-                                shardId1 /* shardId */,
-                                {BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)} /* replyItems */,
-                                0 /* nErrors */,
-                                1 /* nInserted */,
-                                0 /* nMatched */,
-                                0 /* nModified */,
-                                0 /* nUpserted */,
-                                0 /* nDelete */
-    );
+    expectBulkWriteShardRequest(/*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 1))},
+                                /*nssList=*/{nss1},
+                                /*shardId=*/shardId1,
+                                /*replyItems=*/{BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)},
+                                /*nErrors=*/0,
+                                /*nInserted=*/1,
+                                /*nMatched=*/0,
+                                /*nModified=*/0,
+                                /*nUpserted=*/0,
+                                /*nDeleted=*/0);
 
     // Second batch of ops for shard 2
-    expectBulkWriteShardRequest({BSON("insert" << 0 << "document" << BSON("x" << 2))} /* opList */,
-                                {nss2} /* nssList */,
-                                shardId2 /* shardId */,
-                                {BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)} /* replyItems */,
-                                0 /* nErrors */,
-                                1 /* nInserted */,
-                                0 /* nMatched */,
-                                0 /* nModified */,
-                                0 /* nUpserted */,
-                                0 /* nDelete */
-    );
+    expectBulkWriteShardRequest(/*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 2))},
+                                /*nssList=*/{nss2},
+                                /*shardId=*/shardId2,
+                                /*replyItems=*/{BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)},
+                                /*nErrors=*/0,
+                                /*nInserted=*/1,
+                                /*nMatched=*/0,
+                                /*nModified=*/0,
+                                /*nUpserted=*/0,
+                                /*nDeleted=*/0);
 
     future.default_timed_get();
 }
@@ -413,18 +411,18 @@ TEST_F(UnifiedWriteExecutorTest, BulkWriteImplicitCollectionCreation) {
 
     // First try implicit create collection error
     expectBulkWriteShardRequest(
-        {BSON("insert" << 0 << "document" << BSON("x" << 1))} /* opList */,
-        {nss1} /* nssList */,
-        shardId1 /* shardId */,
+        /*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 1))},
+        /*nssList=*/{nss1},
+        /*shardId=*/shardId1,
+        /*replyItems=*/
         {BSON("ok" << 0.0 << "idx" << 0 << "code" << ErrorCodes::CannotImplicitlyCreateCollection
-                   << "ns" << nss1.toString_forTest() << "n" << 0)} /* replyItems */,
-        1 /* nErrors */,
-        0 /* nInserted */,
-        0 /* nMatched */,
-        0 /* nModified */,
-        0 /* nUpserted */,
-        0 /* nDelete */
-    );
+                   << "ns" << nss1.toString_forTest() << "n" << 0)},
+        /*nErrors=*/1,
+        /*nInserted=*/0,
+        /*nMatched=*/0,
+        /*nModified=*/0,
+        /*nUpserted=*/0,
+        /*nDeleted=*/0);
 
     // Create collection explicitly
     onCommandForPoolExecutor([&](const executor::RemoteCommandRequest& request) {
@@ -440,17 +438,16 @@ TEST_F(UnifiedWriteExecutorTest, BulkWriteImplicitCollectionCreation) {
     expectCollectionRoutingRequest(nss1, shardId1);
 
     // Second try successful
-    expectBulkWriteShardRequest({BSON("insert" << 0 << "document" << BSON("x" << 1))} /* opList */,
-                                {nss1} /* nssList */,
-                                shardId1 /* shardId */,
-                                {BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)} /* replyItems */,
-                                0 /* nErrors */,
-                                1 /* nInserted */,
-                                0 /* nMatched */,
-                                0 /* nModified */,
-                                0 /* nUpserted */,
-                                0 /* nDelete */
-    );
+    expectBulkWriteShardRequest(/*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 1))},
+                                /*nssList=*/{nss1},
+                                /*shardId=*/shardId1,
+                                /*replyItems=*/{BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)},
+                                /*nErrors=*/0,
+                                /*nInserted=*/1,
+                                /*nMatched=*/0,
+                                /*nModified=*/0,
+                                /*nUpserted=*/0,
+                                /*nDeleted=*/0);
 
     future.default_timed_get();
 }
@@ -488,19 +485,19 @@ TEST_F(UnifiedWriteExecutorTest, OrderedBulkWriteErrorsAndStops) {
 
     // First batch, then errors and stops
     expectBulkWriteShardRequest(
-        {BSON("insert" << 0 << "document" << BSON("x" << 1))} /* opList */,
-        {nss1} /* nssList */,
-        shardId1 /* shardId */,
+        /*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 1))},
+        /*nssList=*/{nss1},
+        /*shardId=*/shardId1,
+        /*replyItems=*/
         {BSON("ok" << 0.0 << "idx" << 0 << "code" << ErrorCodes::BadValue << "errmsg"
                    << "failed"
-                   << "n" << 0)} /* replyItems */,
-        1 /* nErrors */,
-        0 /* nInserted */,
-        0 /* nMatched */,
-        0 /* nModified */,
-        0 /* nUpserted */,
-        0 /* nDelete */
-    );
+                   << "n" << 0)},
+        /*nErrors=*/1,
+        /*nInserted=*/0,
+        /*nMatched=*/0,
+        /*nModified=*/0,
+        /*nUpserted=*/0,
+        /*nDeleted=*/0);
 
     future.default_timed_get();
 }
@@ -540,32 +537,31 @@ TEST_F(UnifiedWriteExecutorTest, UnorderedBulkWriteErrorsAndStops) {
 
     // First batch, returns an error.
     expectBulkWriteShardRequest(
-        {BSON("insert" << 0 << "document" << BSON("x" << 1))} /* opList */,
-        {nss1} /* nssList */,
-        shardId1 /* shardId */,
+        /*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 1))},
+        /*nssList=*/{nss1},
+        /*shardId=*/shardId1,
+        /*replyItems=*/
         {BSON("ok" << 0.0 << "idx" << 0 << "code" << ErrorCodes::BadValue << "errmsg"
                    << "failed"
-                   << "n" << 0)} /* replyItems */,
-        1 /* nErrors */,
-        0 /* nInserted */,
-        0 /* nMatched */,
-        0 /* nModified */,
-        0 /* nUpserted */,
-        0 /* nDelete */
-    );
+                   << "n" << 0)},
+        /*nErrors=*/1,
+        /*nInserted=*/0,
+        /*nMatched=*/0,
+        /*nModified=*/0,
+        /*nUpserted=*/0,
+        /*nDeleted=*/0);
 
     // Second batch of ops for shard 2
-    expectBulkWriteShardRequest({BSON("insert" << 0 << "document" << BSON("x" << 2))} /* opList */,
-                                {nss2} /* nssList */,
-                                shardId2 /* shardId */,
-                                {BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)} /* replyItems */,
-                                0 /* nErrors */,
-                                1 /* nInserted */,
-                                0 /* nMatched */,
-                                0 /* nModified */,
-                                0 /* nUpserted */,
-                                0 /* nDelete */
-    );
+    expectBulkWriteShardRequest(/*opList=*/{BSON("insert" << 0 << "document" << BSON("x" << 2))},
+                                /*nssList=*/{nss2},
+                                /*shardId=*/shardId2,
+                                /*replyItems=*/{BSON("ok" << 1.0 << "idx" << 0 << "n" << 1)},
+                                /*nErrors=*/0,
+                                /*nInserted=*/1,
+                                /*nMatched=*/0,
+                                /*nModified=*/0,
+                                /*nUpserted=*/0,
+                                /*nDeleted=*/0);
 
     future.default_timed_get();
 }

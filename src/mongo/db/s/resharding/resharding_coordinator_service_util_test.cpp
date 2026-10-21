@@ -224,8 +224,7 @@ TEST_F(ReshardingCoordinatorServiceUtilTest,
         BSON(CollectionType::kNssFieldName << NamespaceStringUtil::serialize(
                  NamespaceString::createNamespaceString_forTest("db.foo"),
                  SerializationContext::stateDefault())),
-        false  // multi
-    );
+        /*multiDelete=*/false);
     BSONObjBuilder resultOneDelete;
     resultOneDelete.append("n", 1);
     ASSERT_DOES_NOT_THROW(
@@ -252,8 +251,7 @@ TEST_F(ReshardingCoordinatorServiceUtilTest,
                  SerializationContext::stateDefault())),
         BSON("key" << 1 << "value" << 2),
         false,  // upsert
-        false   // multi
-    );
+        /*multi=*/false);
     BSONObjBuilder resultOneUpdate;
     resultOneUpdate.append("n", 1);
     ASSERT_DOES_NOT_THROW(
@@ -376,7 +374,7 @@ TEST_F(ReshardingCoordinatorServiceUtilTest,
     BSONObj collation = BSON("locale" << "simple");
 
     auto collType = createTempReshardingCollectionType(
-        opCtx.get(), coordinatorDoc, chunkVersion, collation, /*isUnsplittable*/ boost::none);
+        opCtx.get(), coordinatorDoc, chunkVersion, collation, /*isUnsplittable=*/boost::none);
 
     ASSERT_FALSE(collType.getReshardingFields().has_value());
 }
@@ -504,7 +502,7 @@ TEST_P(ReshardingCoordinatorServiceUtilProvenanceTest,
                               CollectionPlacement(10, 1));
 
     auto collType = createTempReshardingCollectionType(
-        opCtx.get(), doc, chunkVersion, BSONObj() /* collation */, boost::none);
+        opCtx.get(), doc, chunkVersion, /*collation=*/BSONObj(), boost::none);
 
     const bool expectMigrationsBlocked =
         isOrdinaryReshardCollection(GetParam()) || isRewriteCollection(GetParam());

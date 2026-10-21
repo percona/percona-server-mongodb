@@ -738,6 +738,7 @@ err_code_t MozJSScriptEngine::resetRealm(wasm_mozjs_error_t* err) {
     _emitBytesUsed = 0;
     _emitByteLimit = kDefaultEmitByteLimitBytes;
     _status = Status::OK();
+    _printBudget.reset();
 
     // Release all child-realm GC roots BEFORE allocating the new realm. Without this,
     // the live-set is nearly doubled during JS_NewGlobalObject, risking OOM under
@@ -945,7 +946,7 @@ err_code_t MozJSScriptEngine::invokeFunction(uint64_t handle,
             BSONElement next = it.next();
 
             JS::RootedValue value(_cx);
-            ValueReader(_cx, &value).fromBSONElementUnowned(next, false /*readOnlyArgs*/);
+            ValueReader(_cx, &value).fromBSONElementUnowned(next, /*readOnlyArgs=*/false);
 
             if (!args.append(value)) {
                 if (err) {
@@ -1190,7 +1191,7 @@ err_code_t MozJSScriptEngine::setGlobal(const char* name,
     for (BSONObjIterator it(value); it.more();) {
         BSONElement elem = it.next();
         JS::RootedValue val(_cx);
-        ValueReader(_cx, &val).fromBSONElement(elem, value, false /* readOnlyArgs */);
+        ValueReader(_cx, &val).fromBSONElement(elem, value, /*readOnlyArgs=*/false);
 
         if (!chk.ok(JS_DefineProperty(_cx, jsObj, elem.fieldName(), val, JSPROP_ENUMERATE),
                     SM_E_INTERNAL)) {
@@ -1465,6 +1466,7 @@ err_code_t MozJSScriptEngine::reset(wasm_mozjs_error_t* err) {
     _emitBytesUsed = 0;
     _emitByteLimit = kDefaultEmitByteLimitBytes;
     _status = Status::OK();
+    _printBudget.reset();
 
     // Skip the ~1 ms GC for cheap scopes, but collect when meaningful host-BSON garbage
     // may be pinned by dead proxies (see _notePinnedHostBytes) so a parked, reused bridge
@@ -1732,6 +1734,10 @@ bool MozJSScriptEngine::isJavaScriptProtectionEnabled() const {
 
 bool MozJSScriptEngine::requiresOwnedObjects() const {
     return false;
+}
+
+JSPrintBudget* MozJSScriptEngine::printBudget() {
+    return &_printBudget;
 }
 
 void MozJSScriptEngine::newFunction(std::string_view raw, JS::MutableHandleValue out) {
