@@ -121,7 +121,7 @@ void scanDocument(const mutablebson::Document& doc,
                 // We need to recursively validate the _id field while ensuring we disallow
                 // top-level $-prefix fields in the _id object.
                 scanDocument(currElem,
-                             true /* deep */,
+                             /*deep=*/true,
                              0 /* recursionLevel - forces _id fields to be treated as top-level. */,
                              false /* Top-level _id fields cannot be $-prefixed. */,
                              shouldValidate,
@@ -197,7 +197,7 @@ void scanDocument(mutablebson::ConstElement elem,
         BSONElement bsonElem = elem.getValue();
         if (bsonElem.binDataType() == BinDataType::Column) {
             int len = 0;
-            const char* buf = bsonElem.binData(len /*out*/);
+            const char* buf = bsonElem.binData(len);
             auto status = validateBSONColumn(buf, len);
             if (!status.isOK()) {
                 uasserted(ErrorCodes::InvalidBSONColumn,

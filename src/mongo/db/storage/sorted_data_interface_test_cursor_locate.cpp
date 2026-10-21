@@ -779,41 +779,41 @@ TEST_F(SortedDataInterfaceTest, Locate3Descending) {
         buildEntry(5));
     ASSERT_EQ(cursor->next(recoveryUnit()), buildEntry(7));
 
-    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*forward*/ false);
+    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*isForward=*/false);
     ASSERT_EQ(
         cursor->seek(recoveryUnit(),
-                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive*/ false)
+                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive=*/false)
                          .finishAndGetBuffer()),
         buildEntry(4));
 
-    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*forward*/ false);
+    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*isForward=*/false);
     ASSERT_EQ(
         cursor->seek(recoveryUnit(),
-                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive*/ true)
+                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive=*/true)
                          .finishAndGetBuffer()),
         buildEntry(5));
     ASSERT_EQ(cursor->next(recoveryUnit()), buildEntry(4));
 
-    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*forward*/ false);
+    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*isForward=*/false);
     ASSERT_EQ(
         cursor->seek(recoveryUnit(),
-                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive*/ false)
+                     makeKeyStringForSeek(sorted.get(), BSON("" << 5), false, /*inclusive=*/false)
                          .finishAndGetBuffer()),
         buildEntry(4));
     ASSERT_EQ(cursor->next(recoveryUnit()), buildEntry(3));
 
-    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*forward*/ false);
+    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*isForward=*/false);
     ASSERT_EQ(
         cursor->seek(recoveryUnit(),
-                     makeKeyStringForSeek(sorted.get(), BSON("" << 6), false, /*inclusive*/ true)
+                     makeKeyStringForSeek(sorted.get(), BSON("" << 6), false, /*inclusive=*/true)
                          .finishAndGetBuffer()),
         buildEntry(5));
     ASSERT_EQ(cursor->next(recoveryUnit()), buildEntry(4));
 
-    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*forward*/ false);
+    cursor = sorted->newCursor(opCtx(), recoveryUnit(), /*isForward=*/false);
     ASSERT_EQ(
         cursor->seek(recoveryUnit(),
-                     makeKeyStringForSeek(sorted.get(), BSON("" << 500), false, /*inclusive*/ true)
+                     makeKeyStringForSeek(sorted.get(), BSON("" << 500), false, /*inclusive=*/true)
                          .finishAndGetBuffer()),
         buildEntry(9));
     ASSERT_EQ(cursor->next(recoveryUnit()), buildEntry(8));

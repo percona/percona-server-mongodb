@@ -351,8 +351,8 @@ lowerToSbePlanStageTree(OperationContext* opCtx,
                                                       baseCQ,
                                                       mca,
                                                       sbeYieldPolicy.get(),
-                                                      false /*preparingFromCache*/,
-                                                      nullptr /*remoteCursors*/);
+                                                      /*preparingFromSbeCache=*/false,
+                                                      /*remoteCursors=*/nullptr);
     }
     return std::make_pair(std::move(planStagesAndData), std::move(sbeYieldPolicy));
 }
@@ -396,7 +396,7 @@ void pushDownSbeEligibleSuffix(OperationContext* opCtx,
         attachPipelineStages(
             mca,
             suffix,
-            false /* needsMerge */,
+            /*needsMerge=*/false,
             &prefix,
             std::make_unique<QueryPlannerParams>(QueryPlannerParams::ArgsForPushDownStagesDecision{
                 .opCtx = opCtx,
@@ -423,7 +423,7 @@ void pushDownSbeEligibleSuffix(OperationContext* opCtx,
             soln = QueryPlanner::extendWithAggPipeline(prefix,
                                                        std::move(soln),
                                                        plannerParams.secondaryCollectionsInfo,
-                                                       false /* skipOptimization */);
+                                                       /*skipProjectGroupOptimization=*/false);
         }
         // Remove any of the stages pushed down via attachPipelineStages, from the pipeline 'suffix'
         // so they are not executed twice (once in SBE and again in classic). Only the remaining
@@ -610,8 +610,8 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> checkPlanCacheForPlan(
                                                                        mca,
                                                                        hit->baseNode,
                                                                        *winnerSoln,
-                                                                       nullptr /*estimates*/,
-                                                                       true /*prepare*/,
+                                                                       /*estimates=*/nullptr,
+                                                                       /*prepare=*/true,
                                                                        metrics);
 
     size_t plannerOptions = QueryPlannerParams::DEFAULT;
@@ -619,21 +619,21 @@ std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> checkPlanCacheForPlan(
         plannerOptions |= QueryPlannerParams::RETURN_OWNED_DATA;
     }
     auto exec = plan_executor_factory::make(opCtx,
-                                            nullptr /* cq */,
+                                            /*cq=*/nullptr,
                                             std::move(winnerSoln),
                                             std::move(planStagesAndData),
                                             mca,
                                             plannerOptions,
                                             mca.getMainCollection()->ns(),
                                             std::move(sbeYieldPolicy),
-                                            true /* isFromPlanCache */,
-                                            false /* cachedPlanHash */,
-                                            true /*usedJoinOpt*/,
-                                            {} /* rejectedPlans */,
-                                            nullptr /* remoteCursors */,
-                                            nullptr /* remoteExplains */,
-                                            nullptr /* classicRuntimePlannerStage */,
-                                            boost::none /* maybeExplainData */,
+                                            /*isFromPlanCache=*/true,
+                                            /*cachedPlanHash=*/false,
+                                            /*usedJoinOpt=*/true,
+                                            /*rejectedJoinPlans=*/{},
+                                            /*remoteCursors=*/nullptr,
+                                            /*remoteExplains=*/nullptr,
+                                            /*classicRuntimePlannerStage=*/nullptr,
+                                            /*maybeExplainData=*/boost::none,
                                             PlanSelectionStrategy::kJoinCachedPlan);
     return exec;
 }
@@ -847,7 +847,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                              costEstimator,
                                              hintedStrat ? std::move(*hintedStrat)
                                                          : getEnumerationStrategy(qkc),
-                                             cacheWinningPlan /* populateCachedJoinPlan */,
+                                             /*populateCachedPlan=*/cacheWinningPlan,
                                              *metrics.planEnumerationMetrics);
         }
 
@@ -864,8 +864,8 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                                 qkc.getRandomJoinOrderSeed(),
                                                 getPlanTreeShape(qkc.getJoinPlanTreeShape()),
                                                 getJoinMethod(qkc.getJoinMethod()),
-                                                false /* enableHJOrderPruning */,
-                                                3 /* maxRandomHintRetries */,
+                                                /*enableHJOrderPruning=*/false,
+                                                /*maxRandomHintRetries=*/3,
                                                 *metrics.planEnumerationMetrics);
     }();
     uassertStatusOK(swReordered.getStatus());
@@ -948,7 +948,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                                                        reordered.baseNode,
                                                                        *reordered.soln,
                                                                        &reordered.estimates,
-                                                                       true /* prepare */,
+                                                                       /*prepare=*/true,
                                                                        metrics);
 
     sbe::DebugPrintInfo debugPrintInfo{};
@@ -983,7 +983,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                                                               baseNode,
                                                               *soln,
                                                               &reordered.estimates,
-                                                              false /* prepare */,
+                                                              /*prepare=*/false,
                                                               rejectedMetrics);
             rejectedPlans.push_back(JoinOptPlan{.soln = std::move(soln),
                                                 .stage = std::move(stagesAndData.first),
@@ -1021,20 +1021,20 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // data's estimates alongside the join-reordering estimates. We actually have several
     // canonical queries, so we don't try to pass one in.
     auto exec = plan_executor_factory::make(opCtx,
-                                            nullptr /* cq */,
+                                            /*cq=*/nullptr,
                                             std::move(reordered.soln),
                                             std::move(planStagesAndData),
                                             mca,
                                             plannerOptions,
                                             mca.getMainCollection()->ns(),
                                             std::move(sbeYieldPolicy),
-                                            false /* isFromPlanCache */,
-                                            false /* cachedPlanHash */,
-                                            true /*usedJoinOpt*/,
+                                            /*isFromPlanCache=*/false,
+                                            /*cachedPlanHash=*/false,
+                                            /*usedJoinOpt=*/true,
                                             std::move(rejectedPlans),
-                                            nullptr /* remoteCursors */,
-                                            nullptr /* remoteExplains */,
-                                            nullptr /* classicRuntimePlannerStage */,
+                                            /*remoteCursors=*/nullptr,
+                                            /*remoteExplains=*/nullptr,
+                                            /*classicRuntimePlannerStage=*/nullptr,
                                             std::move(maybeExplainData),
                                             PlanSelectionStrategy::kJoinOptimization);
 

@@ -166,8 +166,8 @@ public:
                                                false,
                                                epoch,
                                                Timestamp(1, 1),
-                                               boost::none /* timeseriesFields */,
-                                               boost::none /* reshardingFields */,
+                                               /*timeseriesFields=*/boost::none,
+                                               /*reshardingFields=*/boost::none,
                                                false,
                                                chunks);
 
@@ -264,7 +264,7 @@ TEST_F(EstablishCursorsTest, SingleRemoteRespondsWithInvalidMessage) {
                                        ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                                        remotes,
                                        false,  // allowPartialResults
-                                       nullptr /* RoutingContext */,
+                                       /*routingCtx=*/nullptr,
                                        Shard::RetryPolicy::kIdempotent,
                                        {},  // providedOpKeys
                                        designatedHosts),
@@ -305,7 +305,7 @@ TEST_F(EstablishCursorsTest, SingleRemoteRespondsWithSuccessWithRoutingContext) 
                                         _nss,
                                         ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                                         remotes,
-                                        false /* allowPartialResults */,
+                                        /*allowPartialResults=*/false,
                                         routingCtx.get());
         ASSERT_EQUALS(remotes.size(), cursors.size());
         routingCtx->validateOnContextEnd();
@@ -339,7 +339,7 @@ TEST_F(EstablishCursorsTest, SingleRemoteRespondsWithDesignatedHost) {
                                         ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                                         remotes,
                                         false,  // allowPartialResults
-                                        nullptr /* RoutingContext */,
+                                        /*routingCtx=*/nullptr,
                                         Shard::RetryPolicy::kIdempotent,
                                         {},  // providedOpKeys
                                         designatedHosts);
@@ -764,7 +764,7 @@ TEST_F(EstablishCursorsTest,
                                        ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                                        remotes,
                                        false,  // allowPartialResults
-                                       nullptr /* RoutingContext */,
+                                       /*routingCtx=*/nullptr,
                                        Shard::RetryPolicy::kIdempotent,
                                        providedOpKeys),
                       ExceptionFor<ErrorCodes::FailedToParse>);
@@ -829,7 +829,7 @@ TEST_F(EstablishCursorsTest, AcceptsCustomOpKeys) {
                                        ReadPreferenceSetting{ReadPreference::PrimaryOnly},
                                        remotes,
                                        false,  // allowPartialResults
-                                       nullptr /* RoutingContext */,
+                                       /*routingCtx=*/nullptr,
                                        Shard::RetryPolicy::kIdempotent,
                                        providedOpKeys),
                       ExceptionFor<ErrorCodes::FailedToParse>);

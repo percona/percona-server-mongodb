@@ -36,14 +36,14 @@ IndexEntry createIndexEntry(BSONObj keyPattern) {
     return IndexEntry(keyPattern,
                       IndexNames::nameToType(IndexNames::findPluginName(keyPattern)),
                       IndexConfig::kLatestIndexVersion,
-                      false /*multikey*/,
-                      {} /*mutikeyPaths*/,
-                      {} /*multikeyPathSet*/,
-                      false /*sparse*/,
-                      false /*unique*/,
+                      /*mk=*/false,
+                      /*mkp=*/{},
+                      /*multikeyPathSet=*/{},
+                      /*sp=*/false,
+                      /*unq=*/false,
                       IndexEntry::Identifier{"ident"},
-                      BSONObj() /*infoObj*/,
-                      nullptr /*wildcardProjection*/);
+                      /*io=*/BSONObj(),
+                      /*wildcardProjection=*/nullptr);
 }
 
 void BM_NoIndexes(benchmark::State& state) {

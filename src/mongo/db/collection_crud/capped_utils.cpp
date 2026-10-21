@@ -211,7 +211,7 @@ void cloneCollectionAsCapped(OperationContext* opCtx,
                 // commit.
                 if (!BatchedWriteContext::get(opCtx).writesAreBatched()) {
                     auto oplogInfo = LocalOplogInfo::get(opCtx);
-                    auto oplogSlots = oplogInfo->getNextOpTimes(opCtx, /*batchSize=*/1);
+                    auto oplogSlots = oplogInfo->getNextOpTimes(opCtx, /*count=*/1);
                     insertStmt.oplogSlot = oplogSlots.front();
                 }
             }
@@ -219,8 +219,8 @@ void cloneCollectionAsCapped(OperationContext* opCtx,
             uassertStatusOK(collection_internal::insertDocument(opCtx,
                                                                 toCollection.getCollectionPtr(),
                                                                 std::move(insertStmt),
-                                                                nullptr /* OpDebug */,
-                                                                true /*fromMigrate*/));
+                                                                /*OpDebug=*/nullptr,
+                                                                /*fromMigrate=*/true));
             wunit.commit();
 
             // Go to the next document
@@ -384,7 +384,7 @@ void convertToCapped(OperationContext* opCtx,
         }
     }
 
-    cloneCollectionAsCapped(opCtx, db, sourceAcq, tmpAcq, size, true /* temp */, targetUUID);
+    cloneCollectionAsCapped(opCtx, db, sourceAcq, tmpAcq, size, /*temp=*/true, targetUUID);
 
     RenameCollectionOptions options;
     options.dropTarget = true;

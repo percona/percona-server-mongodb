@@ -96,8 +96,8 @@ public:
                                          false,
                                          epoch,
                                          timestamp,
-                                         boost::none /* timeseriesFields */,
-                                         boost::none /* reshardingFields */,
+                                         /*timeseriesFields=*/boost::none,
+                                         /*reshardingFields=*/boost::none,
 
                                          true,
                                          {std::move(chunk)})));
@@ -119,8 +119,8 @@ public:
                                          false,
                                          newVersion.epoch(),
                                          newVersion.getTimestamp(),
-                                         boost::none /* timeseriesFields */,
-                                         boost::none /* reshardingFields */,
+                                         /*timeseriesFields=*/boost::none,
+                                         /*reshardingFields=*/boost::none,
                                          true,
                                          {std::move(chunk)})));
         return CollectionMetadata{cm, metadata.shardId()};
@@ -162,8 +162,8 @@ public:
                                                      false,
                                                      epoch,
                                                      timestamp,
-                                                     boost::none /* timeseriesFields */,
-                                                     boost::none /* reshardingFields */,
+                                                     /*timeseriesFields=*/boost::none,
+                                                     /*reshardingFields=*/boost::none,
                                                      true,
                                                      chunks)));
         return CollectionMetadata(std::move(cm), std::move(collectionShardId));
@@ -278,7 +278,7 @@ void runWithinTxn(OperationContext* opCtx,
 
     txnParticipant.beginOrContinue(opCtx,
                                    {txnNumber},
-                                   false /* autocommit */,
+                                   /*autocommit=*/false,
                                    TransactionParticipant::TransactionActions::kStart,
                                    transactionRuntimeContext);
 
@@ -957,7 +957,7 @@ TEST_F(CollectionShardingRuntimeTest, WaiterIsWokenForMatchingUntrackedAuthorita
     OperationContext* opCtx = operationContext();
 
     ASSERT_EQ(ChunkVersion::UNTRACKED() <=> ChunkVersion::UNTRACKED(),
-              std::partial_ordering::unordered);
+              std::partial_ordering::equivalent);
 
     auto future = csr.registerWaiterForChunkVersion(
         opCtx, ShardVersionFactory::make(ChunkVersion::UNTRACKED()));
@@ -981,7 +981,7 @@ TEST_F(CollectionShardingRuntimeTest, WaiterIsWokenForMatchingTrackedZeroChunksA
     ASSERT_EQ(trackedZeroChunks.minorVersion(), 0u);
     ASSERT_NE(trackedZeroChunks, ChunkVersion::UNTRACKED());
 
-    ASSERT_EQ(trackedZeroChunks <=> trackedZeroChunks, std::partial_ordering::unordered);
+    ASSERT_EQ(trackedZeroChunks <=> trackedZeroChunks, std::partial_ordering::equivalent);
 
     auto future =
         csr.registerWaiterForChunkVersion(opCtx, ShardVersionFactory::make(trackedZeroChunks));
@@ -1436,7 +1436,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
         uuid(),
         ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << MAXKEY)),
         Date_t::max(),
-        false /* isAuthoritative */);
+        /*refreshMetadataIfUnknown=*/false);
     ASSERT_EQ(status.code(), ErrorCodes::ConflictingOperationInProgress);
 }
 
@@ -1471,7 +1471,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
         randomUuid,
         ChunkRange(BSON(kShardKey << MINKEY), BSON(kShardKey << MAXKEY)),
         Date_t::max(),
-        true /* isAuthoritative */);
+        /*refreshMetadataIfUnknown=*/true);
     ASSERT_EQ(status.code(), ErrorCodes::ConflictingOperationInProgress);
 }
 
@@ -1525,7 +1525,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
 
     const auto task = createRangeDeletionTask(opCtx, kTestNss, uuid(), range, 0);
     auto taskCompletionFuture = registerAndCreatePersistentTask(
-        opCtx, task, SemiFuture<void>::makeReady() /* waitForActiveQueries */);
+        opCtx, task, /*waitForActiveQueriesToComplete=*/SemiFuture<void>::makeReady());
 
     opCtx->setDeadlineAfterNowBy(Milliseconds(100), ErrorCodes::MaxTimeMSExpired);
     auto status =
@@ -1550,10 +1550,10 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
     const auto task2 = createRangeDeletionTask(opCtx, kTestNss, uuid(), range2, 0);
 
     auto cleanupCompleteFirst = registerAndCreatePersistentTask(
-        opCtx, task1, SemiFuture<void>::makeReady() /* waitForActiveQueries */);
+        opCtx, task1, /*waitForActiveQueriesToComplete=*/SemiFuture<void>::makeReady());
 
     auto cleanupCompleteSecond = registerAndCreatePersistentTask(
-        opCtx, task2, SemiFuture<void>::makeReady() /* waitForActiveQueries */);
+        opCtx, task2, /*waitForActiveQueriesToComplete=*/SemiFuture<void>::makeReady());
 
     auto status = CollectionShardingRuntime::waitForClean(
         opCtx,
@@ -1580,7 +1580,7 @@ TEST_F(CollectionShardingRuntimeWithRangeDeleterTest,
     const auto task = createRangeDeletionTask(opCtx, kTestNss, uuid(), range, 0);
 
     auto cleanupComplete = registerAndCreatePersistentTask(
-        opCtx, task, SemiFuture<void>::makeReady() /* waitForActiveQueries */);
+        opCtx, task, /*waitForActiveQueriesToComplete=*/SemiFuture<void>::makeReady());
 
     auto status =
         CollectionShardingRuntime::waitForClean(opCtx, kTestNss, uuid(), range, Date_t::max());
@@ -1697,7 +1697,7 @@ TEST_F(CollectionShardingRuntimeTest,
     }
 
     auto oplogEntry = makeInvalidateCollectionMetadataOplogEntry(
-        kTestNss, collUuid, true /* forDroppedCollection */);
+        kTestNss, collUuid, /*forDroppedCollection=*/true);
     ShardServerOpObserver observer;
     observer.onInvalidateCollectionMetadata(opCtx, oplogEntry);
 
@@ -1748,7 +1748,7 @@ TEST_F(CollectionShardingRuntimeTest, OnSetAllowChunkOperationsTracksOplogEntryA
     const auto collUuid = UUID::gen();
 
     auto oplogEntry =
-        makeSetAllowChunkOperationsOplogEntry(kTestNss, collUuid, false /* allowChunkOperations */);
+        makeSetAllowChunkOperationsOplogEntry(kTestNss, collUuid, /*allowChunkOperations=*/false);
     ShardServerOpObserver observer;
     observer.onSetAllowChunkOperations(opCtx, oplogEntry);
 

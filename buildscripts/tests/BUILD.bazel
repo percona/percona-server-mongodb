@@ -140,6 +140,15 @@ py_test(
 )
 
 py_test(
+    name = "test_gdb_rbe_sysroot",
+    srcs = ["test_gdb_rbe_sysroot.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//buildscripts:gdb_rbe_sysroot",
+    ],
+)
+
+py_test(
     name = "test_local_rbe_container_url",
     srcs = ["test_local_rbe_container_url.py"],
     visibility = ["//visibility:public"],
@@ -338,6 +347,19 @@ py_test(
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts:feature_flag_tags_check",
+    ],
+)
+
+py_test(
+    name = "test_fully_disabled_feature_flag_tags_check",
+    srcs = ["test_fully_disabled_feature_flag_tags_check.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//buildscripts:fully_disabled_feature_flag_tags_check",
+        dependency(
+            "pyyaml",
+            group = "core",
+        ),
     ],
 )
 

@@ -172,7 +172,7 @@ TEST_F(ExpressionContextTest, DontInitializeUnreferencedVariables) {
     auto opCtx = makeOperationContext();
     std::vector<BSONObj> pipeline;
     pipeline.push_back(BSON("$match" << BSON("a" << 1)));
-    AggregateCommandRequest acr({} /*nss*/, pipeline);
+    AggregateCommandRequest acr(/*nss=*/{}, pipeline);
     auto expCtx = ExpressionContextBuilder{}.fromRequest(opCtx.get(), acr).build();
     pipeline_factory::makePipeline(pipeline, expCtx, pipeline_factory::kOptionsMinimal);
     expCtx->initializeReferencedSystemVariables();
@@ -188,7 +188,7 @@ TEST_F(ExpressionContextTest, ErrorsIfClusterTimeUsedInStandalone) {
                                           opCtx->getServiceContext(), repl::ReplSettings()));
     std::vector<BSONObj> pipeline;
     pipeline.push_back(BSON("$project" << BSON("a" << "$$CLUSTER_TIME")));
-    AggregateCommandRequest acr({} /*nss*/, pipeline);
+    AggregateCommandRequest acr(/*nss=*/{}, pipeline);
     auto expCtx = ExpressionContextBuilder{}.fromRequest(opCtx.get(), acr).build();
     ASSERT_THROWS_CODE(
         pipeline_factory::makePipeline(pipeline, expCtx, pipeline_factory::kOptionsMinimal),
@@ -612,7 +612,7 @@ protected:
     // the default unittest client has no session at all, which counts as internal.
     ServiceContext::UniqueClient makeExternalClient() {
         return getServiceContext()->getService()->makeClient(
-            "external", transport::MockSession::create(/*transportLayer=*/nullptr));
+            "external", transport::MockSession::create(/*tl=*/nullptr));
     }
 };
 
@@ -685,7 +685,7 @@ TEST_F(ExpressionContextTest, StageMemoryTrackerUnaffectedByExpressionFallbackEx
                       .build();
 
     auto stageTracker =
-        OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForStage(*expCtx);
+        OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForStage(*expCtx);
     stageTracker.add(100);  // Exceeds the per-query limit via the operation-tracker base chain.
     ASSERT_FALSE(stageTracker.withinMemoryLimit(opCtx.get()));
     stageTracker.add(-100);

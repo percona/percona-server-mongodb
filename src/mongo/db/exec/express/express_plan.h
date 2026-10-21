@@ -441,8 +441,10 @@ private:
                                                                    const Collection& collection) {
         const IndexCatalog* catalog = collection.getIndexCatalog();
         const auto entry = catalog->findIdIndex(opCtx);
-        tassert(8884401, "Missing _id index on non-clustered collection", entry);
 
+        // Throw QueryPlanKilled in case the index entry is missing.
+        uassert(
+            ErrorCodes::QueryPlanKilled, "Missing _id index on non-clustered collection", entry);
         return entry;
     }
 
@@ -694,15 +696,15 @@ public:
         // Now seek to the first matching key in the index.
         auto sortedAccessMethod = _indexCatalogEntry->accessMethod()->asSortedData();
         auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
-        auto indexCursor = sortedAccessMethod->newCursor(opCtx, ru, true /* forward */);
-        indexCursor->setEndPosition(endKey, true /* endKeyInclusive */);
+        auto indexCursor = sortedAccessMethod->newCursor(opCtx, ru, /*isForward=*/true);
+        indexCursor->setEndPosition(endKey, /*inclusive=*/true);
         key_string::Builder builder(
             sortedAccessMethod->getSortedDataInterface()->getKeyStringVersion());
         auto keyStringForSeek = IndexEntryComparison::makeKeyStringFromBSONKeyForSeek(
             startKey,
             sortedAccessMethod->getSortedDataInterface()->getOrdering(),
-            true /* forward */,
-            true /* startKeyInclusive */,
+            /*isForward=*/true,
+            /*inclusive=*/true,
             builder);
 
         auto keyEntry = indexCursor->seekForKeyValueView(ru, keyStringForSeek);
@@ -736,7 +738,7 @@ public:
         }
 
         auto progress =
-            continuation(collection, *keyEntry.getRecordId(), std::move(obj), nullptr /*cursor*/);
+            continuation(collection, *keyEntry.getRecordId(), std::move(obj), /*cursor=*/nullptr);
 
         // Only advance the iterator if the continuation completely processed its item, as indicated
         // by its return value.
@@ -948,12 +950,12 @@ public:
                                               obj,
                                               doc,
                                               _isUserInitiatedWrite,
-                                              nullptr /* cq */,
+                                              /*cq=*/nullptr,
                                               rid,
                                               _updateDriver,
                                               _request,
                                               shouldWriteToOrphan,
-                                              nullptr /* updatedRecordIds*/,
+                                              /*updatedRecordIds=*/nullptr,
                                               cursor);
                 if (docWasModified) {
                     _stats->incDocsUpdated(1);  // explains are also treated as though they wrote

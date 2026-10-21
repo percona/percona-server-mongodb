@@ -119,7 +119,7 @@ public:
         PipelineD::buildAndAttachInnerQueryExecutorAndBindCatalogInfoToPipeline(
             collections,
             expCtx->getNamespaceString(),
-            nullptr /*resolvedAggRequest*/,
+            /*aggRequest=*/nullptr,
             pipeline.get(),
             stasher);
         return pipeline;
@@ -211,7 +211,7 @@ protected:
                 operationContext(), kTestNss, AcquisitionPrerequisites::OperationType::kRead),
             MODE_IS);
         auto collections = MultipleCollectionAccessor(
-            std::move(coll), {}, false /* isAnySecondaryNamespaceAViewOrNotFullyLocal */);
+            std::move(coll), {}, /*isAnySecondaryNamespaceAViewOrNotFullyLocal=*/false);
 
         auto transactionResourcesStasher =
             make_intrusive<ShardRoleTransactionResourcesStasherForPipeline>();
@@ -236,7 +236,7 @@ protected:
             std::make_shared<exec::agg::InternalSearchIdLookUpStage::SearchIdLookupMetrics>();
         auto executor = std::make_unique<exec::agg::InternalSearchIdLookUpLocalReadExecutor>(
             catalogResourceHandle,
-            boost::none /* view */,
+            /*view=*/boost::none,
             exec::SingleDocumentLookupStatsRecorder::makeSearchIdLookupAggregationRecorder());
         exec::agg::StagePtr stage = make_intrusive<exec::agg::InternalSearchIdLookUpStage>(
             DocumentSourceInternalSearchIdLookUp::kStageName,
@@ -303,8 +303,8 @@ TEST_F(InternalSearchIdLookupWithCatalogTest,
     auto [sharedStasher, collections] = createCatalogResources();
     auto catalogResourceHandle = make_intrusive<DSInternalSearchIdLookUpCatalogResourceHandle>(
         sharedStasher, collections.getMainCollectionAcquisition());
-    auto executor =
-        exec::agg::buildIdLookupExecutor(expCtx, catalogResourceHandle, boost::none /* view */);
+    auto executor = exec::agg::buildIdLookupExecutor(
+        expCtx, catalogResourceHandle, /*viewPipeline=*/boost::none);
     // No Express fast path: the executor is the local-read executor itself.
     ASSERT_TRUE(
         dynamic_cast<const exec::agg::InternalSearchIdLookUpLocalReadExecutor*>(executor.get()));
@@ -332,8 +332,8 @@ TEST_F(InternalSearchIdLookupWithCatalogTest, BuildIdLookupExecutorReturnsSbeWhe
     auto [sharedStasher, collections] = createCatalogResources();
     auto catalogResourceHandle = make_intrusive<DSInternalSearchIdLookUpCatalogResourceHandle>(
         sharedStasher, collections.getMainCollectionAcquisition());
-    auto executor =
-        exec::agg::buildIdLookupExecutor(expCtx, catalogResourceHandle, boost::none /* view */);
+    auto executor = exec::agg::buildIdLookupExecutor(
+        expCtx, catalogResourceHandle, /*viewPipeline=*/boost::none);
 
     // Flag on + no view: SBE with local-read fallback for _ids SBE declines (kNotHandled).
     auto* chain = dynamic_cast<const exec::agg::PrimaryWithFallbackSingleDocumentLookupExecutor*>(
@@ -866,9 +866,9 @@ protected:
                                                false,
                                                epoch,
                                                timestamp,
-                                               boost::none /* timeseriesFields */,
-                                               boost::none /* reshardingFields */,
-                                               true /* allowMigrations */,
+                                               /*timeseriesFields=*/boost::none,
+                                               /*reshardingFields=*/boost::none,
+                                               /*allowMigrations=*/true,
                                                {ownedChunk, orphanChunk});
 
         CurrentChunkManager cm(makeStandaloneRoutingTableHistory(std::move(rt)));
@@ -895,7 +895,7 @@ protected:
             scopedSetShardRole.emplace(opCtx,
                                        kTestNss,
                                        ShardVersionFactory::make(*metadata),
-                                       boost::none /* databaseVersion */);
+                                       /*databaseVersion=*/boost::none);
         }
 
         auto coll =
@@ -905,7 +905,7 @@ protected:
                               MODE_IS);
 
         auto collections = MultipleCollectionAccessor(
-            std::move(coll), {}, false /* isAnySecondaryNamespaceAViewOrNotFullyLocal */);
+            std::move(coll), {}, /*isAnySecondaryNamespaceAViewOrNotFullyLocal=*/false);
 
         auto transactionResourcesStasher =
             make_intrusive<ShardRoleTransactionResourcesStasherForPipeline>();

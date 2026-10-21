@@ -184,7 +184,7 @@ ComparableDatabaseVersion ComparableDatabaseVersion::makeComparableDatabaseVersi
 
 ComparableDatabaseVersion
 ComparableDatabaseVersion::makeComparableDatabaseVersionForForcedRefresh() {
-    return ComparableDatabaseVersion(boost::none /* version */,
+    return ComparableDatabaseVersion(/*version=*/boost::none,
                                      _disambiguatingSequenceNumSource.fetchAndAdd(1),
                                      _forcedRefreshSequenceNumSource.addAndFetch(2) - 1);
 }
@@ -514,7 +514,7 @@ StatusWith<CollectionRoutingInfo> CatalogCache::getCollectionRoutingInfoAt(
 StatusWith<CollectionRoutingInfo> CatalogCache::getCollectionRoutingInfo(OperationContext* opCtx,
                                                                          const NamespaceString& nss,
                                                                          bool allowLocks) {
-    return _getCollectionRoutingInfoAt(opCtx, nss, boost::none /* atClusterTime */, allowLocks);
+    return _getCollectionRoutingInfoAt(opCtx, nss, /*optAtClusterTime=*/boost::none, allowLocks);
 }
 
 void CatalogCache::_triggerPlacementVersionRefresh(const NamespaceString& nss) {

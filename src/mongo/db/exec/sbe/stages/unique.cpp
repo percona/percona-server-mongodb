@@ -42,7 +42,7 @@ UniqueStage::UniqueStage(std::unique_ptr<PlanStage> input,
                          value::SlotVector keys,
                          PlanNodeId planNodeId,
                          bool participateInTrialRunTracking)
-    : PlanStage("unique"sv, nullptr /* yieldPolicy */, planNodeId, participateInTrialRunTracking),
+    : PlanStage("unique"sv, /*yieldPolicy=*/nullptr, planNodeId, participateInTrialRunTracking),
       _keySlots(keys),
       _dedupReporter(OperationMemoryUsageTracker::createDeduplicatorReporter(
           [](int64_t deduplicatedBytes, int64_t deduplicatedRecords) {
@@ -63,7 +63,7 @@ void UniqueStage::prepare(CompileCtx& ctx) {
         _inKeyAccessors.emplace_back(_children[0]->getAccessor(ctx, keySlot));
     }
 
-    _memoryTracker = OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForSBE(
+    _memoryTracker = OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForSBE(
         _opCtx, loadMemoryLimit(StageMemoryLimit::SBEUniqueStageMaxMemoryBytes));
 }
 
@@ -180,7 +180,7 @@ UniqueRoaringStage::UniqueRoaringStage(std::unique_ptr<PlanStage> input,
                                        PlanNodeId planNodeId,
                                        bool participateInTrialRunTracking)
     : PlanStage(
-          "unique_roaring"sv, nullptr /* yieldPolicy */, planNodeId, participateInTrialRunTracking),
+          "unique_roaring"sv, /*yieldPolicy=*/nullptr, planNodeId, participateInTrialRunTracking),
       _keySlot(key),
       _seen(static_cast<size_t>(internalRoaringBitmapsThreshold.load()),
             static_cast<size_t>(internalRoaringBitmapsBatchSize.load()),
@@ -203,7 +203,7 @@ std::unique_ptr<PlanStage> UniqueRoaringStage::clone() const {
 void UniqueRoaringStage::prepare(CompileCtx& ctx) {
     _children[0]->prepare(ctx);
     _inKeyAccessor = _children[0]->getAccessor(ctx, _keySlot);
-    _memoryTracker = OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForSBE(
+    _memoryTracker = OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForSBE(
         _opCtx, loadMemoryLimit(StageMemoryLimit::SBEUniqueStageMaxMemoryBytes));
 }
 

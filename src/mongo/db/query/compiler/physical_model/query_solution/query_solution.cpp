@@ -196,24 +196,24 @@ void summaryStringRecursive(const QuerySolutionNode* node,
                             bool includeNss = false) {
     if (auto joinNode = dynamic_cast<const BinaryJoinEmbeddingNode*>(node)) {
         // Join node!
-        sb << nodeStageTypeToString(node, true /* brief */);
+        sb << nodeStageTypeToString(node, /*brief=*/true);
         sb << "( ";
         sb << (joinNode->leftEmbeddingField ? joinNode->leftEmbeddingField->fullPath()
                                             : std::string{"_"})
            << " = ( ";
-        summaryStringRecursive(joinNode->children[0].get(), sb, true /* includeNss */);
+        summaryStringRecursive(joinNode->children[0].get(), sb, /*includeNss=*/true);
         sb << " ), "
            << (joinNode->rightEmbeddingField ? joinNode->rightEmbeddingField->fullPath()
                                              : std::string{"_"})
            << " = ( ";
-        summaryStringRecursive(joinNode->children[1].get(), sb, true /* includeNss */);
+        summaryStringRecursive(joinNode->children[1].get(), sb, /*includeNss=*/true);
         sb << " ) )";
         return;
     }
 
     if (node->children.empty()) {
         // Leaf node!
-        sb << nodeStageTypeToString(node, true /* brief */);
+        sb << nodeStageTypeToString(node, /*brief=*/true);
         if (includeNss) {
             if (auto nss = getNamespace(node); nss) {
                 sb << " ["
@@ -727,7 +727,7 @@ std::unique_ptr<QuerySolutionNode> MergeSortNode::clone() const {
 
 void FetchNode::appendToString(str::stream* ss, int indent) const {
     addIndent(ss, indent);
-    *ss << "FETCH\n";
+    *ss << nodeStageTypeToString(this) << '\n';
     addIndent(ss, indent + 1);
     *ss << "ns = " << toStringForLogging(nss) << '\n';
     if (nullptr != filter) {
@@ -745,6 +745,16 @@ void FetchNode::appendToString(str::stream* ss, int indent) const {
 
 std::unique_ptr<QuerySolutionNode> FetchNode::clone() const {
     auto copy = std::make_unique<FetchNode>(this->nss);
+    cloneBaseData(copy.get());
+    return copy;
+}
+
+//
+// BatchedFetchNode
+//
+
+std::unique_ptr<QuerySolutionNode> BatchedFetchNode::clone() const {
+    auto copy = std::make_unique<BatchedFetchNode>(this->nss);
     cloneBaseData(copy.get());
     return copy;
 }
@@ -1298,6 +1308,7 @@ std::unique_ptr<QuerySolutionNode> IndexScanNode::clone() const {
 
     // nss and index fields are initialized in the constructor
     copy->direction = this->direction;
+    copy->allowBatching = this->allowBatching;
     copy->addKeyMetadata = this->addKeyMetadata;
     copy->shouldDedup = this->shouldDedup;
     copy->bounds = this->bounds;
@@ -1750,7 +1761,7 @@ void DistinctNode::computeProperties() {
     // Note that we don't need to save the returned multikey fields for a DISTINCT_SCAN. They are
     // only needed for explodeForSort(), which works on IXSCAN but not DISTINCT_SCAN.
     sortSet = computeSortsAndMultikeyPathsForScan(
-                  index, direction, bounds, queryCollator, nullptr /* iets */)
+                  index, direction, bounds, queryCollator, /*iets=*/nullptr)
                   .first;
 }
 

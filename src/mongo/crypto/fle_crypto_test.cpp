@@ -1628,8 +1628,7 @@ TEST_F(ServiceContextTest, FLE_EDC_ServerSide_Range_Payloads_V2) {
     iupayload.setServerDerivedFromDataToken(serverDerivedFromDataToken);
 
     auto encryptedTokens =
-        StateCollectionTokensV2(escDataCounterkey, false /* isLeaf */, boost::none)
-            .encrypt(ecocToken);
+        StateCollectionTokensV2(escDataCounterkey, /*leaf=*/false, boost::none).encrypt(ecocToken);
     ASSERT_EQ(encryptedTokens.toCDR().length(), crypto::aesCTRIVSize + sizeof(PrfBlock) + 1);
     iupayload.setEncryptedTokens(encryptedTokens);
     iupayload.setIndexKeyId(indexKeyId);
@@ -1849,7 +1848,7 @@ static FLE2InsertUpdatePayloadV2 generateTestIUPV2ForTextSearch(BSONElement elem
             StateCollectionTokensV2(ESCDerivedFromDataTokenAndContentionFactorToken(
                                         exact.getEscDerivedToken().asPrfBlock()),
                                     boost::none,
-                                    1 /* msize */)
+                                    /*msize=*/1)
                 .encrypt(ecocToken));
     }
     return iupayload;
@@ -1896,7 +1895,7 @@ static void generateTextTokenSetsForIUPV2(FLE2InsertUpdatePayloadV2& iupayload,
                 StateCollectionTokensV2(ESCDerivedFromDataTokenAndContentionFactorToken(
                                             ts.getEscDerivedToken().asPrfBlock()),
                                         boost::none,
-                                        0 /* msize */)
+                                        /*msize=*/0)
                     .encrypt(ecocToken));
         } else if (type == QueryTypeEnum::Suffix) {
             tsts.getSuffixTokenSets().push_back({});
@@ -1918,7 +1917,7 @@ static void generateTextTokenSetsForIUPV2(FLE2InsertUpdatePayloadV2& iupayload,
                 StateCollectionTokensV2(ESCDerivedFromDataTokenAndContentionFactorToken(
                                             ts.getEscDerivedToken().asPrfBlock()),
                                         boost::none,
-                                        0 /* msize */)
+                                        /*msize=*/0)
                     .encrypt(ecocToken));
         } else if (type == QueryTypeEnum::Prefix) {
             tsts.getPrefixTokenSets().push_back({});
@@ -1940,7 +1939,7 @@ static void generateTextTokenSetsForIUPV2(FLE2InsertUpdatePayloadV2& iupayload,
                 StateCollectionTokensV2(ESCDerivedFromDataTokenAndContentionFactorToken(
                                             ts.getEscDerivedToken().asPrfBlock()),
                                         boost::none,
-                                        0 /* msize */)
+                                        /*msize=*/0)
                     .encrypt(ecocToken));
         }
     }
@@ -3082,7 +3081,7 @@ TEST_F(ServiceContextTest, FLE_Update_Basic) {
 
     auto clientEncryptedDoc = client.encryptPlaceholders(inputDoc, markedDoc, keyVault);
 
-    auto finalDoc = encryptDocument(clientEncryptedDoc, true /*finalizeForUpdate*/);
+    auto finalDoc = encryptDocument(clientEncryptedDoc, /*finalizeForUpdate=*/true);
     std::cout << finalDoc << std::endl;
 
     ASSERT_TRUE(finalDoc["$set"]["encrypted"].isBinData(BinDataType::Encrypt));
@@ -3119,7 +3118,7 @@ TEST_F(ServiceContextTest, FLE_Update_BadPush) {
     auto clientEncryptedDoc = client.encryptPlaceholders(inputDoc, markedDoc, keyVault);
 
     ASSERT_THROWS_CODE(
-        encryptDocument(clientEncryptedDoc, true /*finalizeForUpdate*/), DBException, 6371511);
+        encryptDocument(clientEncryptedDoc, /*finalizeForUpdate=*/true), DBException, 6371511);
 }
 
 TEST_F(ServiceContextTest, FLE_Update_PushToSafeContent) {
@@ -3136,7 +3135,7 @@ TEST_F(ServiceContextTest, FLE_Update_PushToSafeContent) {
     auto clientEncryptedDoc = client.encryptPlaceholders(inputDoc, markedDoc, keyVault);
 
     ASSERT_THROWS_CODE(
-        encryptDocument(clientEncryptedDoc, true /*finalizeForUpdate*/), DBException, 6371511);
+        encryptDocument(clientEncryptedDoc, /*finalizeForUpdate=*/true), DBException, 6371511);
 }
 
 TEST_F(ServiceContextTest, FLE_Update_PushToOtherfield) {
@@ -3151,7 +3150,7 @@ TEST_F(ServiceContextTest, FLE_Update_PushToOtherfield) {
     auto markedDoc = BSON("$push" << BSON("abc" << 123) << "$set" << placeholderDoc);
     auto clientEncryptedDoc = client.encryptPlaceholders(inputDoc, markedDoc, keyVault);
 
-    auto finalDoc = encryptDocument(clientEncryptedDoc, true /*finalizeForUpdate*/);
+    auto finalDoc = encryptDocument(clientEncryptedDoc, /*finalizeForUpdate=*/true);
     std::cout << finalDoc << std::endl;
 
     ASSERT_TRUE(finalDoc["$set"]["encrypted"].isBinData(BinDataType::Encrypt));

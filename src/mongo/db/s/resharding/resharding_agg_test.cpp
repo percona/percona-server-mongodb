@@ -1606,19 +1606,19 @@ TEST_F(ReshardingAggWithStorageTest, RetryableFindAndModifyWithImageLookup) {
                                   repl::OpTypeEnum::kUpdate,
                                   kCrudNs,
                                   kCrudUUID,
-                                  false /* fromMigrate */,
+                                  /*fromMigrate=*/false,
                                   boost::none,  // checkExistenceForDiffInsert
                                   boost::none,  // versionContext
-                                  0 /* version */,
+                                  /*version=*/0,
                                   BSON("$set" << BSON("y" << 1)), /* o1 */
                                   BSON("_id" << 2),               /* o2 */
                                   sessionInfo,
-                                  boost::none /* upsert */,
-                                  {} /* date */,
+                                  /*isUpsert=*/boost::none,
+                                  /*wallClockTime=*/{},
                                   {1}, /* statementIds */
-                                  boost::none /* prevWrite */,
-                                  boost::none /* preImage */,
-                                  boost::none /* postImage */,
+                                  /*prevWriteOpTimeInTransaction=*/boost::none,
+                                  /*preImageOpTime=*/boost::none,
+                                  /*postImageOpTime=*/boost::none,
                                   kMyShardId,
                                   Value(id.toBSON()),
                                   repl::RetryImageEnum::kPreImage);

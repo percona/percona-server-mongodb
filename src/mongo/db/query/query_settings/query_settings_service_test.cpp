@@ -208,7 +208,7 @@ public:
 
         {
             QuerySettingsService::initializeForShard(getServiceContext(),
-                                                     nullptr /* setClusterParameterImplFn */);
+                                                     /*setClusterParameterFn=*/nullptr);
             assertQuerySettingsLookupWithoutRejectionCheckForShard(cmdBSON, deferredShape);
             assertQuerySettingsLookupWithRejectionCheckForShard(cmdBSON, deferredShape);
         }
@@ -265,7 +265,7 @@ public:
         ASSERT_EQ(service().lookupQuerySettingsWithRejectionCheck(
                       expCtx(),
                       hashForShape(deferredShape),
-                      boost::none /* querySettingsFromOriginalCommand */),
+                      /*querySettingsFromOriginalCommand=*/boost::none),
                   forceClassicEngineSettings);
 
         // Simulate performing QuerySettings lookup on the shard in sharded cluster.
@@ -283,7 +283,7 @@ public:
             ASSERT_EQ(service().lookupQuerySettingsWithRejectionCheck(
                           expCtx(),
                           hashForShape(deferredShape),
-                          boost::none /* querySettingsFromOriginalCommand */),
+                          /*querySettingsFromOriginalCommand=*/boost::none),
                       QuerySettings());
         }
     }
@@ -331,12 +331,12 @@ public:
             ASSERT_DOES_NOT_THROW(service().lookupQuerySettingsWithRejectionCheck(
                 expCtx(),
                 hashForShape(deferredShape),
-                boost::none /* querySettingsFromOriginalCommand */));
+                /*querySettingsFromOriginalCommand=*/boost::none));
         } else {
             ASSERT_THROWS_CODE(service().lookupQuerySettingsWithRejectionCheck(
                                    expCtx(),
                                    hashForShape(deferredShape),
-                                   boost::none /* querySettingsFromOriginalCommand */),
+                                   /*querySettingsFromOriginalCommand=*/boost::none),
                                DBException,
                                ErrorCodes::QueryRejectedBySettings);
         }
@@ -349,7 +349,7 @@ public:
             ASSERT_DOES_NOT_THROW(service().lookupQuerySettingsWithRejectionCheck(
                 expCtx(),
                 hashForShape(deferredShape),
-                boost::none /* querySettingsFromOriginalCommand */));
+                /*querySettingsFromOriginalCommand=*/boost::none));
         }
     }
 
@@ -608,7 +608,7 @@ TEST_F(QuerySettingsServiceTest, MergeClusterAndUserQuerySettingsOnRouter) {
 
 TEST_F(QuerySettingsServiceTest, MergeClusterAndUserQuerySettingsOnShard) {
     QuerySettingsService::initializeForShard(getServiceContext(),
-                                             nullptr /* setClusterParameterImplFn */);
+                                             /*setClusterParameterFn=*/nullptr);
 
     auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
     auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());
@@ -658,7 +658,7 @@ TEST_F(QuerySettingsServiceTest, LookupValidatesUserSuppliedQuerySettings) {
     QuerySettings duplicateHints =
         makeQuerySettings({IndexHintSpec(makeNsSpec("testCollA"sv), {IndexHint(BSON("a" << 1))}),
                            IndexHintSpec(makeNsSpec("testCollA"sv), {IndexHint(BSON("b" << 1))})},
-                          false /* setFramework */);
+                          /*setFramework=*/false);
     ASSERT_THROWS_CODE(
         service().lookupQuerySettingsWithRejectionCheck(expCtx(), hash, duplicateHints),
         DBException,
@@ -698,7 +698,7 @@ TEST_F(QuerySettingsServiceTest, MergeQuerySettingsMaxTimeMS) {
 
 TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsIsAppliedOnLookup) {
     QuerySettingsService::initializeForShard(getServiceContext(),
-                                             nullptr /* setClusterParameterImplFn */);
+                                             /*setClusterParameterFn=*/nullptr);
 
     auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
     auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());
@@ -725,7 +725,7 @@ TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsIsAppliedOnLookup) {
 
 TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsLoosensExistingDeadline) {
     QuerySettingsService::initializeForShard(getServiceContext(),
-                                             nullptr /* setClusterParameterImplFn */);
+                                             /*setClusterParameterFn=*/nullptr);
 
     auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
     auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());
@@ -756,7 +756,7 @@ TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsLoosensExistingDeadline) {
 
 TEST_F(QuerySettingsServiceTest, MaxTimeMSZeroRemovesDeadline) {
     QuerySettingsService::initializeForShard(getServiceContext(),
-                                             nullptr /* setClusterParameterImplFn */);
+                                             /*setClusterParameterFn=*/nullptr);
 
     auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
     auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());
@@ -786,7 +786,7 @@ TEST_F(QuerySettingsServiceTest, MaxTimeMSZeroRemovesDeadline) {
 
 TEST_F(QuerySettingsServiceTest, MaxTimeMSFromSettingsIsNotAppliedForExplain) {
     QuerySettingsService::initializeForShard(getServiceContext(),
-                                             nullptr /* setClusterParameterImplFn */);
+                                             /*setClusterParameterFn=*/nullptr);
 
     auto findCmdBSON = fromjson("{find: 'exampleColl', '$db': 'foo'}");
     auto findCmd = query_request_helper::makeFromFindCommandForTests(findCmdBSON, nss());

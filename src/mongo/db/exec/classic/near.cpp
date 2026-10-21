@@ -43,7 +43,7 @@ NearStage::NearStage(ExpressionContext* expCtx,
                     sorter::kLatestChecksumVersion,
                     static_cast<int64_t>(internalQuerySpillingMinAvailableDiskSpaceBytes.load()))
               : nullptr,
-          /*settings=*/{}),
+          /*checkInput=*/true),
       _stageType(type),
       _nextInterval(nullptr),
       _memoryTracker(OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForStage(
@@ -297,7 +297,7 @@ void NearStage::updateSpillingStats() {
         _specificStats.spillingStats.getSpilledRecords();
 
     auto spilledDataStorageIncrease =
-        _specificStats.spillingStats.updateSpillingStats(1 /*spills*/,
+        _specificStats.spillingStats.updateSpillingStats(/*additionalSpills=*/1,
                                                          additionalSpilledBytes,
                                                          additionalSpilledRecords,
                                                          _sorterFileStats.bytesSpilled());

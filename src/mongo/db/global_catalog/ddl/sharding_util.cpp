@@ -110,8 +110,8 @@ std::vector<AsyncRequestsSender::Response> processShardResponses(
                                 requests,
                                 ReadPreferenceSetting(ReadPreference::PrimaryOnly),
                                 Shard::RetryPolicy::kIdempotentOrCursorInvalidated,
-                                nullptr /* resourceYielder */,
-                                {} /* designatedHostsMap */);
+                                /*resourceYielder=*/nullptr,
+                                /*designatedHostsMap=*/{});
 
         while (!ars.done()) {
             // Retrieve the responses and throw at the first failure.
@@ -357,7 +357,7 @@ ShardId selectLeastLoadedNonDrainingShard(OperationContext* opCtx) {
             return Grid::get(opCtx)->catalogClient()->getAllShards(
                 opCtx,
                 repl::ReadConcernArgs::kSnapshot,
-                BSON(ShardType::draining.ne(true)) /* excludeDraining */);
+                /*filter=*/BSON(ShardType::draining.ne(true)));
         } catch (DBException& ex) {
             ex.addContext("Cannot retrieve updated shard list from config server");
             throw;
@@ -386,7 +386,7 @@ ShardId selectLeastLoadedNonDrainingShard(OperationContext* opCtx) {
                                                                   command.toBSON(),
                                                                   shardIds,
                                                                   executor,
-                                                                  false /* throwOnError */);
+                                                                  /*throwOnError=*/false);
 
     auto candidateShardId = shardIds.front();
     auto candidateSize = std::numeric_limits<long long>::max();

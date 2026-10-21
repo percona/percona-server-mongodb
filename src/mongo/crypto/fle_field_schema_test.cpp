@@ -109,7 +109,7 @@ TEST(FLE2EncryptionPlaceholder, NonRangeAlgorithmWithSparsity) {
 }
 
 TEST(FLE2EncryptionPlaceholder, TextSearchRoundTrip) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
     spec.setSuffixSpec(FLE2SuffixInsertSpec(10, 1));
     spec.setPrefixSpec(FLE2PrefixInsertSpec(20, 2));
     spec.setSubstringSpec(FLE2SubstringInsertSpec(300, 30, 3));
@@ -392,7 +392,7 @@ TEST(FLE2RangeInsertSpec, PrecisionApplicability) {
 }
 
 TEST(FLE2TextSearchInsertSpec, MissingSubspec) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
     ASSERT_THROWS_CODE(FLE2TextSearchInsertSpec::parse(
                            spec.toBSON(), IDLParserContext("FLE2TextSearchInsertSpec")),
                        DBException,
@@ -400,8 +400,9 @@ TEST(FLE2TextSearchInsertSpec, MissingSubspec) {
 }
 
 TEST(FLE2TextSearchInsertSpec, SubstringSpecUpperBoundLessThanLowerBound) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
-    spec.setSubstringSpec(FLE2SubstringInsertSpec(100, 1 /*ub*/, 10 /*lb*/));
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
+    spec.setSubstringSpec(
+        FLE2SubstringInsertSpec(100, /*maxQueryLength=*/1, /*minQueryLength=*/10));
     ASSERT_THROWS_CODE(FLE2TextSearchInsertSpec::parse(
                            spec.toBSON(), IDLParserContext("FLE2TextSearchInsertSpec")),
                        DBException,
@@ -409,8 +410,9 @@ TEST(FLE2TextSearchInsertSpec, SubstringSpecUpperBoundLessThanLowerBound) {
 }
 
 TEST(FLE2TextSearchInsertSpec, SubstringSpecUpperBoundGreaterThanMaxLen) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
-    spec.setSubstringSpec(FLE2SubstringInsertSpec(10 /*mlen*/, 100 /*ub*/, 1 /*lb*/));
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
+    spec.setSubstringSpec(
+        FLE2SubstringInsertSpec(/*maxLength=*/10, /*maxQueryLength=*/100, /*minQueryLength=*/1));
     ASSERT_THROWS_CODE(FLE2TextSearchInsertSpec::parse(
                            spec.toBSON(), IDLParserContext("FLE2TextSearchInsertSpec")),
                        DBException,
@@ -418,8 +420,8 @@ TEST(FLE2TextSearchInsertSpec, SubstringSpecUpperBoundGreaterThanMaxLen) {
 }
 
 TEST(FLE2TextSearchInsertSpec, SuffixSpecUpperBoundLessThanLowerBound) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
-    spec.setSuffixSpec(FLE2SuffixInsertSpec(1 /*ub*/, 10 /*lb*/));
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
+    spec.setSuffixSpec(FLE2SuffixInsertSpec(/*maxQueryLength=*/1, /*minQueryLength=*/10));
     ASSERT_THROWS_CODE(FLE2TextSearchInsertSpec::parse(
                            spec.toBSON(), IDLParserContext("FLE2TextSearchInsertSpec")),
                        DBException,
@@ -427,8 +429,8 @@ TEST(FLE2TextSearchInsertSpec, SuffixSpecUpperBoundLessThanLowerBound) {
 }
 
 TEST(FLE2TextSearchInsertSpec, PrefixSpecUpperBoundLessThanLowerBound) {
-    FLE2TextSearchInsertSpec spec("foo", false /*casefold*/, true /*diacriticfold*/);
-    spec.setPrefixSpec(FLE2PrefixInsertSpec(1 /*ub*/, 10 /*lb*/));
+    FLE2TextSearchInsertSpec spec("foo", /*casefold=*/false, /*diacriticfold=*/true);
+    spec.setPrefixSpec(FLE2PrefixInsertSpec(/*maxQueryLength=*/1, /*minQueryLength=*/10));
     ASSERT_THROWS_CODE(FLE2TextSearchInsertSpec::parse(
                            spec.toBSON(), IDLParserContext("FLE2TextSearchInsertSpec")),
                        DBException,

@@ -65,7 +65,7 @@ void TimeseriesWriteOpsInternalTest::_setUpRetryableWrites(
     auto txnParticipant = TransactionParticipant::get(_opCtx);
     txnParticipant.beginOrContinue(_opCtx,
                                    {*_opCtx->getTxnNumber()},
-                                   boost::none /* autocommit */,
+                                   /*autocommit=*/boost::none,
                                    TransactionParticipant::TransactionActions::kNone);
 }
 
@@ -170,7 +170,7 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatch) {
                                                   filteredUserBatch,
                                                   /*startIndex=*/0,
                                                   /*numDocsToStage=*/filteredUserBatch.size(),
-                                                  /*docsToRetry=*/{},
+                                                  /*indices=*/{},
                                                   bucket_catalog::AllowQueryBasedReopening::kAllow,
                                                   errorsAndIndices);
     ASSERT_OK(swWriteBatches);
@@ -225,7 +225,7 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatchWithStm
                                                   filteredUserBatch,
                                                   /*startIndex=*/0,
                                                   /*numDocsToStage=*/filteredUserBatch.size(),
-                                                  /*docsToRetry=*/{},
+                                                  /*indices=*/{},
                                                   bucket_catalog::AllowQueryBasedReopening::kAllow,
                                                   errorsAndIndices);
     ASSERT_OK(swWriteBatches);
@@ -281,7 +281,7 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestRewriteIndicesForSubsetOfBatchWithSin
                                                   filteredUserBatch,
                                                   /*startIndex=*/0,
                                                   /*numDocsToStage=*/filteredUserBatch.size(),
-                                                  /*docsToRetry=*/{},
+                                                  /*indices=*/{},
                                                   bucket_catalog::AllowQueryBasedReopening::kAllow,
                                                   errorsAndIndices);
     ASSERT_OK(swWriteBatches);
@@ -332,7 +332,7 @@ TEST_F(TimeseriesWriteOpsInternalTest, TestProcessErrorsForSubsetOfBatchWithErro
                                                   filteredUserBatch,
                                                   /*startIndex=*/0,
                                                   /*numDocsToStage=*/filteredUserBatch.size(),
-                                                  /*docsToRetry=*/{},
+                                                  /*indices=*/{},
                                                   bucket_catalog::AllowQueryBasedReopening::kAllow,
                                                   errorsAndIndices);
     ASSERT_OK(swWriteBatches);

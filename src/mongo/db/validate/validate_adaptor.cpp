@@ -436,11 +436,11 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
     bool validDocument{true};
     {
         boost::optional<std::string> bsonValidationDescription;
-        const Status bsonValidationStatus = validateBSON(record.data.data(),
-                                                         record.data.size(),
-                                                         _validateState->getBSONValidateMode(),
-                                                         validationVersion,
-                                                         &bsonValidationDescription);
+        Status bsonValidationStatus = validateBSON(record.data.data(),
+                                                   record.data.size(),
+                                                   _validateState->getBSONValidateMode(),
+                                                   validationVersion,
+                                                   &bsonValidationDescription);
 
         if (!bsonValidationStatus.isOK()) {
             switch (bsonValidationStatus.code()) {
@@ -452,7 +452,23 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
                                           "reason"_attr = bsonValidationStatus);
                     compliantDocument = false;
                     results.addWarning(_describeBSONNonConformantResult(bsonValidationDescription));
-                    break;
+                    // Non Conformant BSON may trigger on the first non-compliant field, this can
+                    // mask corruption past that point in the document. In the event that
+                    // non-conformance triggers a warning, run a check for structural integrity of
+                    // the BSON document, if that fails, additionally log as an error.
+                    // TODO: SERVER-136504 Remove second structural check when full/extended
+                    // validation no longer early exit.
+                    bsonValidationStatus = validateBSON(record.data.data(),
+                                                        record.data.size(),
+                                                        BSONValidateModeEnum::kDefault,
+                                                        validationVersion,
+                                                        &bsonValidationDescription);
+                    if (bsonValidationStatus.isOK()) {
+                        // Structurally sound, only log as warning.
+                        break;
+                    }
+                    // Log error and skip subsequent checks.
+                    [[fallthrough]];
                 default:
                     // The failing check is named in the returned error message via the
                     // description passed back out-of-band, so the message stays bounded rather
@@ -712,6 +728,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
     ON_BLOCK_EXIT([&]() { _progress.finished(); });
 
     _numRecords = 0;
+    _sliceStorageStats.reset();
     int64_t dataSizeTotal{0};
     int64_t numRecords{0};
 
@@ -829,6 +846,8 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                                                                     opts,
                                                                     _progress,
                                                                     validationVersion);
+                        innerResults.storageStats = shard_role_details::getRecoveryUnit(workerOpCtx)
+                                                        ->computeOperationStatisticsSinceLastCall();
                         rsSliceResults[i].promise.emplaceValue(std::move(innerResults));
 
                     } catch (const DBException& e) {
@@ -859,6 +878,13 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
                 _keyBasedIndexConsistency.merge(ir.keyStringIndexConsistency);
                 dataSizeTotal += ir.dataSizeTotal;
                 numRecords += ir.validateResults.getNumRecords().value_or(0);
+                if (ir.storageStats) {
+                    if (_sliceStorageStats) {
+                        *_sliceStorageStats += *ir.storageStats;
+                    } else {
+                        _sliceStorageStats = ir.storageStats->clone();
+                    }
+                }
             }
 
             for (const auto& ir : implResults) {
@@ -897,6 +923,7 @@ void ValidateAdaptor::traverseRecordStore(OperationContext* opCtx,
     }
 
     _numRecords = numRecords;
+    validateResults.setDataSize(dataSizeTotal);
 
     if (_validateState->getFirstRecordId().isNull()) {
         // The collection-level checks below all require the totals from a real traversal, so skip

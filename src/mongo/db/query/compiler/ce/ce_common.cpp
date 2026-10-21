@@ -28,7 +28,7 @@ public:
         tassert(11214702, "Vectors must be the same size", l.size() == r.size());
 
         for (size_t i = 0; i < l.size(); i++) {
-            auto cmp = l[i].woCompare(r[i], false, nullptr /* stringComparator */);
+            auto cmp = l[i].woCompare(r[i], false, /*comparator=*/nullptr);
             if (cmp != 0) {
                 return cmp < 0;
             }
@@ -95,8 +95,8 @@ public:
                 uasserted(
                     ErrorCodes::QueryPlanKilled,
                     str::stream()
-                        << "query plan killed :: non-array path became multikey during yield: "
-                           "path="
+                        << "query plan killed :: non-array path became multikey while the query "
+                           "was suspended: path="
                         << field.path.fullPath());
             }
             if (elt.element().eoo() && !field.isExprEq) {

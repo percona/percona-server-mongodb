@@ -74,14 +74,14 @@ private:
         return IndexEntry(keyPattern,
                           IndexNames::nameToType(IndexNames::findPluginName(keyPattern)),
                           IndexConfig::kLatestIndexVersion,
-                          false /*multikey*/,
-                          {} /*mutikeyPaths*/,
-                          {} /*multikeyPathSet*/,
-                          false /*sparse*/,
-                          false /*unique*/,
+                          /*mk=*/false,
+                          /*mkp=*/{},
+                          /*multikeyPathSet=*/{},
+                          /*sp=*/false,
+                          /*unq=*/false,
                           IndexEntry::Identifier{indexName},
-                          BSONObj() /*infoObj*/,
-                          nullptr /*wildcardProjection*/,
+                          /*io=*/BSONObj(),
+                          /*wildcardProjection=*/nullptr,
                           std::move(iceStorage));
     }
 };

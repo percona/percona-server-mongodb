@@ -14,9 +14,10 @@ import {
 } from "jstests/libs/query/analyze_plan.js";
 import {checkSbeFullyEnabled} from "jstests/libs/query/sbe_util.js";
 
-// TODO SERVER-92589: Remove this exemption
+// SBE explain does not report CBR estimates for the winning plan, which this test asserts on.
+// TODO SERVER-130179: Remove this early exit once SBE explain reports these estimates.
 if (checkSbeFullyEnabled(db)) {
-    jsTestLog(`Skipping ${jsTestName()} as SBE executor is not supported yet`);
+    jsTestLog(`Skipping ${jsTestName()}: SBE explain lacks CBR estimates for the winning plan`);
     quit();
 }
 
@@ -32,10 +33,9 @@ function testNonExistentColl() {
     assert(!nonExistentCollPlan.hasOwnProperty("cardinalityEstimate"));
 }
 
-// A zero IXSCAN estimate aborts CBR (ZeroCEEstimate); the multi-planner ranks the plans uncosted.
-function assertNoPlanCosted(explainRoot) {
+function assertAllPlansHaveZeroCE(explainRoot) {
     [getWinningPlanFromExplain(explainRoot), ...getRejectedPlans(explainRoot)].forEach((plan) => {
-        assert(!plan.hasOwnProperty("cardinalityEstimate"), plan);
+        assert.eq(plan.cardinalityEstimate, 0, plan);
     });
 }
 
@@ -57,12 +57,12 @@ function testEmptyColl() {
     assert.commandWorked(coll.createIndex({a: 1}));
     const emptyCollIndexPlan = getWinningPlanFromExplain(coll.find({a: 1}).explain());
     assert(isIxscan(db, emptyCollIndexPlan), emptyCollIndexPlan);
-    assert(!emptyCollIndexPlan.hasOwnProperty("cardinalityEstimate"), emptyCollIndexPlan);
+    assert.eq(emptyCollIndexPlan.cardinalityEstimate, 0, emptyCollIndexPlan);
 
     // Index intersection
     assert.commandWorked(coll.createIndex({b: 1}));
     const emptyCollIntersectionExp = coll.find({a: 1, b: 1}).explain();
-    assertNoPlanCosted(emptyCollIntersectionExp);
+    assertAllPlansHaveZeroCE(emptyCollIntersectionExp);
 
     // Index union
     const emptyCollUnionExp = coll
@@ -73,13 +73,13 @@ function testEmptyColl() {
             ],
         })
         .explain();
-    assertNoPlanCosted(emptyCollUnionExp);
+    assertAllPlansHaveZeroCE(emptyCollUnionExp);
 
     // Test limit and skip with empty collection
     const emptyCollLimitPlan = getWinningPlanFromExplain(coll.find({a: 1}).limit(5).explain());
-    assert(!emptyCollLimitPlan.hasOwnProperty("cardinalityEstimate"), emptyCollLimitPlan);
+    assert.eq(emptyCollLimitPlan.cardinalityEstimate, 0, emptyCollLimitPlan);
     const emptyCollSkipPlan = getWinningPlanFromExplain(coll.find({a: 1}).skip(5).explain());
-    assert(!emptyCollSkipPlan.hasOwnProperty("cardinalityEstimate"), emptyCollSkipPlan);
+    assert.eq(emptyCollSkipPlan.cardinalityEstimate, 0, emptyCollSkipPlan);
 
     // Cleanup indexes created in this testcase
     assert.commandWorked(coll.dropIndex({a: 1}));

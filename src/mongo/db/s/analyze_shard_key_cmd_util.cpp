@@ -190,7 +190,9 @@ AggregateCommandRequest makeAggregateRequestForCardinalityAndFrequency(const Nam
                                                                        int numMostCommonValues,
                                                                        int64_t numDocsTotal,
                                                                        int64_t numDocsToSample) {
-    uassertStatusOK(validateIndexKey(hintIndexKey));
+    // Validate only the shard key prefix. Additional fields are not needed for calculating metrics.
+    uassertStatusOK(
+        validateIndexKey(hintIndexKey.filterFieldsUndotted(shardKey, true /* inFilter */)));
 
     std::vector<BSONObj> pipeline;
 
@@ -308,7 +310,7 @@ void runLocalAggregate(OperationContext* opCtx,
                        std::function<void(const BSONObj&)> callbackFn) {
     DBDirectClient client(opCtx);
     auto cursor = uassertStatusOK(DBClientCursor::fromAggregationRequest(
-        &client, aggRequest, true /* secondaryOk */, false /* useExhaust*/));
+        &client, aggRequest, /*secondaryOk=*/true, /*useExhaust=*/false));
 
     while (cursor->more()) {
         auto doc = cursor->next();
@@ -418,6 +420,8 @@ struct IndexSpec {
  * - It must not be partial since such an index omits documents do not match the specified
  *   filter.
  * - It must not be multi-key since a shard key field cannot be an array.
+ * - It must not have descending fields within the shard key prefix since they are unsupported by
+ * shardCollection.
  */
 boost::optional<IndexSpec> findCompatiblePrefixedIndex(OperationContext* opCtx,
                                                        const CollectionPtr& collection,
@@ -456,6 +460,14 @@ boost::optional<IndexSpec> findCompatiblePrefixedIndex(OperationContext* opCtx,
         }
 
         if (!shardKey.isFieldNamePrefixOf(indexKey)) {
+            continue;
+        }
+        // Skip indexes whose shard key prefix has a numeric field other than 1.
+        const auto indexKeyPrefix = indexKey.filterFieldsUndotted(shardKey, true /* inFilter */);
+        if (std::any_of(
+                indexKeyPrefix.begin(), indexKeyPrefix.end(), [](const BSONElement& element) {
+                    return element.isNumber() && element.safeNumberInt() != 1;
+                })) {
             continue;
         }
         if (!compatibleIndexSpec.has_value() ||
@@ -547,7 +559,7 @@ CardinalityFrequencyMetrics calculateCardinalityAndFrequencyUnique(OperationCont
     pipeline.push_back(BSON("$match" << BSONObj()));
     pipeline.push_back(BSON("$limit" << numMostCommonValues));
     AggregateCommandRequest aggRequest(nss, pipeline);
-    setReadWriteConcern(opCtx, aggRequest, true /* setRC */, false /* setWC */);
+    setReadWriteConcern(opCtx, aggRequest, /*setRC=*/true, /*setWC=*/false);
 
     runAggregate(opCtx, aggRequest, [&](const BSONObj& doc) {
         auto value = bson::extractElementsBasedOnTemplate(doc.getOwned(), shardKey);
@@ -882,7 +894,7 @@ CollStatsMetrics calculateCollStats(OperationContext* opCtx, const NamespaceStri
                                << BSON("$sum" << "$storageStats.count") << kNumOrphanDocsFieldName
                                << BSON("$sum" << "$storageStats.numOrphanDocs"))));
     AggregateCommandRequest aggRequest(nss, pipeline);
-    setReadWriteConcern(opCtx, aggRequest, true /* setRC */, false /* setWC */);
+    setReadWriteConcern(opCtx, aggRequest, /*setRC=*/true, /*setWC=*/false);
 
     auto isShardedCollection = [&] {
         if (serverGlobalParams.clusterRole.has(ClusterRole::ShardServer)) {
@@ -955,8 +967,8 @@ std::pair<BSONObj, Timestamp> generateSplitPoints(OperationContext* opCtx,
                                                           nss,
                                                           shardKeyPattern,
                                                           gNumShardKeyRanges.load(),
-                                                          boost::none /*zones*/,
-                                                          boost::none /*availableShardIds*/,
+                                                          /*zones=*/boost::none,
+                                                          /*availableShardIds=*/boost::none,
                                                           gNumSamplesPerShardKeyRange.load());
     auto splitPoints = [&] {
         try {
@@ -1219,7 +1231,7 @@ std::pair<ReadDistributionMetrics, WriteDistributionMetrics> calculateReadWriteD
     pipeline.push_back(
         BSON(DocumentSourceAnalyzeShardKeyReadWriteDistribution::kStageName << spec.toBSON()));
     AggregateCommandRequest aggRequest(nss, pipeline);
-    setReadWriteConcern(opCtx, aggRequest, true /* setRC */, false /* setWC */);
+    setReadWriteConcern(opCtx, aggRequest, /*setRC=*/true, /*setWC=*/false);
 
     runAggregate(opCtx, aggRequest, [&](const BSONObj& doc) {
         const auto response = DocumentSourceAnalyzeShardKeyReadWriteDistributionResponse::parse(

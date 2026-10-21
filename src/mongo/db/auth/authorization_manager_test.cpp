@@ -676,7 +676,7 @@ TEST_F(AuthorizationManagerTest, testAuthzBackendResolveRoles) {
     ASSERT_FALSE(resolvedData.restrictions.has_value());
 
     // Resolve privileges and roles, no restrictions.
-    option.setPrivileges(true /* shouldEnable */);
+    option.setPrivileges(/*shouldEnable=*/true);
     swResolvedData = mockBackend->resolveRoles_forTest(opCtx.get(), roleNames, option);
     ASSERT_OK(swResolvedData.getStatus());
     resolvedData = swResolvedData.getValue();
@@ -686,7 +686,7 @@ TEST_F(AuthorizationManagerTest, testAuthzBackendResolveRoles) {
     ASSERT_FALSE(resolvedData.restrictions.has_value());
 
     // Resolve all roles, privileges, and restrictions.
-    option.setRestrictions(true /* shouldEnable */);
+    option.setRestrictions(/*shouldEnable=*/true);
     swResolvedData = mockBackend->resolveRoles_forTest(opCtx.get(), roleNames, option);
     ASSERT_OK(swResolvedData.getStatus());
     resolvedData = swResolvedData.getValue();
@@ -696,7 +696,7 @@ TEST_F(AuthorizationManagerTest, testAuthzBackendResolveRoles) {
     ASSERT_TRUE(resolvedData.restrictions.has_value());
 
     // Resolve only direct roles, privileges, and restrictions.
-    option.setDirectOnly(true /* shouldEnable */);
+    option.setDirectOnly(/*shouldEnable=*/true);
     swResolvedData = mockBackend->resolveRoles_forTest(opCtx.get(), roleNames, option);
     ASSERT_OK(swResolvedData.getStatus());
     resolvedData = swResolvedData.getValue();

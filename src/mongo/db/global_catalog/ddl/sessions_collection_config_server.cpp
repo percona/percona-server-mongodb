@@ -121,8 +121,8 @@ void SessionsCollectionConfigServer::_generateIndexesIfNeeded(OperationContext* 
             // the sessions collection as sharded, guaranteeing the retrieval of a
             // valid routing table.
             uassert(StaleConfigInfo(nss,
-                                    cri.getCollectionVersion() /* receivedVersion */,
-                                    ShardVersion::UNTRACKED() /* wantedVersion */,
+                                    /*received=*/cri.getCollectionVersion(),
+                                    /*wanted=*/ShardVersion::UNTRACKED(),
                                     ShardingState::get(opCtx)->shardId()),
                     str::stream() << "Collection " << nss.toStringForErrorMsg()
                                   << " is not sharded",
@@ -137,10 +137,10 @@ void SessionsCollectionConfigServer::_generateIndexesIfNeeded(OperationContext* 
                 SessionsCollection::generateCreateIndexesCmd(),
                 ReadPreferenceSetting(ReadPreference::PrimaryOnly),
                 Shard::RetryPolicy::kStrictlyNotIdempotent,
-                BSONObj() /*query*/,
-                BSONObj() /*collation*/,
-                boost::none /*letParameters*/,
-                boost::none /*runtimeConstants*/);
+                /*query=*/BSONObj(),
+                /*collation=*/BSONObj(),
+                /*letParameters=*/boost::none,
+                /*runtimeConstants=*/boost::none);
 
             for (auto& shardResult : shardResults) {
                 const auto shardResponse = uassertStatusOK(std::move(shardResult.swResponse));

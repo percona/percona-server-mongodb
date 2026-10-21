@@ -171,7 +171,7 @@ public:
         CollectionCatalog::write(operationContext(), [&](CollectionCatalog& catalog) {
             catalog.registerCollection(operationContext(),
                                        std::move(collection),
-                                       /*ts=*/boost::none);
+                                       /*commitTime=*/boost::none);
         });
 
         wuow.commit();
@@ -335,7 +335,7 @@ protected:
                                                      nss,
                                                      metadata,
                                                      storageMetadata,
-                                                     /*generateNewUUID*/ true,
+                                                     /*generateNewUUID=*/true,
                                                      getMDBCatalog());
         if (res.isOK()) {
             wuow.commit();

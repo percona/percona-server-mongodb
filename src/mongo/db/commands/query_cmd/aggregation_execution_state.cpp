@@ -181,7 +181,7 @@ public:
                 LiteParsedPipeline resolvedViewLitePipeline(
                     resolvedView.getValue().getResolvedNamespace(),
                     resolvedView.getValue().getBsonPipeline(),
-                    /*makeSubpipelineOwned=*/false,
+                    /*isRunningAgainstView_ForHybridSearch=*/false,
                     resolvedViewLpOpts);
 
                 const auto& resolvedViewInvolvedNamespaces =
@@ -806,7 +806,7 @@ ScopedSetShardRole ResolvedViewAggExState::setShardRole(const CollectionRoutingI
             sv.setPlacementConflictTime_DEPRECATED(*optPlacementConflictTimestamp);
         }
         return ScopedSetShardRole(
-            _opCtx, underlyingNss, sv /*shardVersion*/, boost::none /*databaseVersion*/);
+            _opCtx, underlyingNss, /*shardVersion=*/sv, /*databaseVersion=*/boost::none);
     } else {
         auto sv = ShardVersion::UNTRACKED();
         auto dbv = cri.getDbVersion();
@@ -815,7 +815,7 @@ ScopedSetShardRole ResolvedViewAggExState::setShardRole(const CollectionRoutingI
             dbv.setPlacementConflictTime_DEPRECATED(*optPlacementConflictTimestamp);
         }
         return ScopedSetShardRole(
-            _opCtx, underlyingNss, sv /*shardVersion*/, dbv /*databaseVersion*/);
+            _opCtx, underlyingNss, /*shardVersion=*/sv, /*databaseVersion=*/dbv);
     }
 }
 
@@ -854,11 +854,11 @@ void AggCatalogState::maybeProactivelyResolveInvolvedNamespaces(AggExState& aggE
 
     if (mainIsView) {
         auto mainViewResolved = uassertStatusOK(
-            resolveView(opCtx, aggExState.getExecutionNss(), boost::none /* timeSeriesCollator */));
+            resolveView(opCtx, aggExState.getExecutionNss(), /*timeSeriesCollator=*/boost::none));
         operationCollationSpec = mainViewResolved.getDefaultCollation();
         LiteParsedPipeline mainViewLpp(mainViewResolved.getResolvedNamespace(),
                                        mainViewResolved.getBsonPipeline(),
-                                       /*makeSubpipelineOwned=*/false,
+                                       /*isRunningAgainstView_ForHybridSearch=*/false,
                                        LiteParserOptions{.ifrContext = ifrContext});
         const auto& namespacesSet = mainViewLpp.getInvolvedNamespaces();
         std::deque<NamespaceString> namespaces(namespacesSet.begin(), namespacesSet.end());
@@ -917,7 +917,7 @@ void AggCatalogState::maybeProactivelyResolveInvolvedNamespaces(AggExState& aggE
 
     if (shouldExpandMainView()) {
         auto topLevelResolved = uassertStatusOK(
-            resolveView(opCtx, aggExState.getExecutionNss(), boost::none /* timeSeriesCollator */));
+            resolveView(opCtx, aggExState.getExecutionNss(), /*timeSeriesCollator=*/boost::none));
         topLevelResolved.setAdditionalResolvedNamespaces(std::move(viewEntries));
         uassertStatusOK(Status(std::move(topLevelResolved),
                                "Involved namespaces include views; kickback to mongos with "

@@ -110,27 +110,27 @@ TEST_F(ClusterBulkWriteUWETest, FireAndForgetRequestGetsReplyWithOnlyOkStatus) {
     const BSONObj expectedReplySections[2] = {
         BulkWriteCommandReply(
             BulkWriteCommandResponseCursor(
-                0 /* cursorId */,
-                {} /* firstBatch */,
+                /*id=*/0,
+                /*firstBatch=*/{},
                 NamespaceString::createNamespaceString_forTest("admin.$cmd.bulkWrite")),
-            0 /*nErrors*/,
-            1 /*nInserted*/,
-            0 /*nMatched*/,
-            0 /*nModified*/,
-            0 /*nUpserted*/,
-            0 /*nDeleted*/)
+            /*nErrors=*/0,
+            /*nInserted=*/1,
+            /*nMatched=*/0,
+            /*nModified=*/0,
+            /*nUpserted=*/0,
+            /*nDeleted=*/0)
             .toBSON(),
         BulkWriteCommandReply(
             BulkWriteCommandResponseCursor(
-                0 /* cursorId */,
-                {} /* firstBatch */,
+                /*id=*/0,
+                /*firstBatch=*/{},
                 NamespaceString::createNamespaceString_forTest("admin.$cmd.bulkWrite")),
-            0 /*nErrors*/,
-            2 /*nInserted*/,
-            0 /*nMatched*/,
-            0 /*nModified*/,
-            0 /*nUpserted*/,
-            0 /*nDeleted*/)
+            /*nErrors=*/0,
+            /*nInserted=*/2,
+            /*nMatched=*/0,
+            /*nModified=*/0,
+            /*nUpserted=*/0,
+            /*nDeleted=*/0)
             .toBSON()};
 
     for (size_t i = 0; i < bulkCmdresponses.size(); ++i) {

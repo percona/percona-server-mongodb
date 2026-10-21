@@ -31,10 +31,10 @@ CompactHashAggStage::CompactHashAggStage(std::unique_ptr<PlanStage> input,
     : HashAggBaseStage("compactGroup"sv,
                        yieldPolicy,
                        planNodeId,
-                       nullptr /* _collatorAccessor */,
+                       /*_collatorAccessor=*/nullptr,
                        participateInTrialRunTracking,
                        false /* allowDiskUse; the compact stage does not spill */,
-                       false /* forceIncreasedSpilling */),
+                       /*forceIncreasedSpilling=*/false),
       _gbs(std::move(gbs)),
       _collatorSlot(collatorSlot),
       _optimizedClose(optimizedClose) {
@@ -83,10 +83,7 @@ void CompactHashAggStage::prepare(CompileCtx& ctx) {
 
     _compiled = true;
 
-    // Use a chunked tracker so that memory-usage stats are only pushed to CurOp when usage crosses
-    // a chunk boundary, rather than on every add(). Reporting on every add() is a per-document
-    // cost on the grouping hot path that does not scale with the amount of tracked memory.
-    _memoryTracker = OperationMemoryUsageTracker::createChunkedSimpleMemoryUsageTrackerForSBE(
+    _memoryTracker = OperationMemoryUsageTracker::createSimpleMemoryUsageTrackerForSBE(
         _opCtx, loadMemoryLimit(StageMemoryLimit::QuerySBEAggApproxMemoryUseInBytesBeforeSpill));
 }
 

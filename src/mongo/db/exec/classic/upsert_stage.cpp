@@ -169,7 +169,7 @@ PlanStage::StageState UpsertStage::_performInsert(const BSONObj& newDocument, Wo
                 }
                 uasserted(WouldChangeOwningShardInfo(_params.request->getQuery(),
                                                      newDocument,
-                                                     true /* upsert */,
+                                                     /*shouldUpsert=*/true,
                                                      collectionPtr()->ns(),
                                                      collectionPtr()->uuid()),
                           "The document we are inserting belongs on a different shard");
@@ -198,7 +198,7 @@ PlanStage::StageState UpsertStage::_performInsert(const BSONObj& newDocument, Wo
                 }
                 if (!BatchedWriteContext::get(opCtx()).writesAreBatched()) {
                     auto oplogInfo = LocalOplogInfo::get(opCtx());
-                    auto oplogSlots = oplogInfo->getNextOpTimes(opCtx(), /*batchSize=*/1);
+                    auto oplogSlots = oplogInfo->getNextOpTimes(opCtx(), /*count=*/1);
                     insertStmt.oplogSlot = oplogSlots.front();
                 }
             }
@@ -279,7 +279,7 @@ void UpsertStage::_assertDocumentToBeInsertedIsValid(const mutablebson::Document
                                          true, /* allowTopLevelDollarPrefixes */
                                          true, /* Should validate for storage */
                                          &containsDotsAndDollarsField,
-                                         false /* fromOplogApplication */);
+                                         /*fromOplogApplication=*/false);
         if (containsDotsAndDollarsField)
             _params.driver->setContainsDotsAndDollarsField(true);
 

@@ -153,8 +153,8 @@ protected:
     /* Generates 3 mergeable chunks per shard for the given collection */
     std::vector<ChunkType> generateMergeableChunks(const UUID& collUuid) {
         return generateChunks(collUuid,
-                              false /*allChunksAreSupportedForHistoryOnShard0*/,
-                              false /*allChunksAreSupportedForHistoryOnShard1*/);
+                              /*allAreSupportedForHistoryOnShard0=*/false,
+                              /*allAreSupportedForHistoryOnShard1=*/false);
     }
 
     void setupCollectionWithCustomBalancingFields(const NamespaceString& nss,
@@ -176,7 +176,7 @@ protected:
                                      NamespaceString::kConfigsvrCollectionsNamespace,
                                      BSON(CollectionType::kNssFieldName << nss.toString_forTest()),
                                      BSON("$set" << setBuilder.obj()),
-                                     false /*upsert*/));
+                                     /*upsert=*/false));
     }
 
     void assertAutomergerConsidersCollectionsWithMergeableChunks(
@@ -256,12 +256,11 @@ TEST_F(AutoMergerPolicyTest, FetchCollectionsWithMergeableChunks) {
         const auto collUuid = UUID::gen();
         const auto nss = NamespaceString::createNamespaceString_forTest("test.coll1");
         const auto chunks = generateChunks(collUuid,
-                                           false /*allChunksAreSupportedForHistoryOnShard0*/,
-                                           false /*allChunksAreSupportedForHistoryOnShard1*/
-        );
+                                           /*allAreSupportedForHistoryOnShard0=*/false,
+                                           /*allAreSupportedForHistoryOnShard1=*/false);
 
         setupCollectionWithCustomBalancingFields(
-            nss, chunks, false /*defragmentCollection*/, true /*enableAutoMerge*/);
+            nss, chunks, /*defragmentCollection=*/false, /*enableAutoMerge=*/true);
 
         expectedNamespacesPerShard[_shard0].push_back(nss);
         expectedNamespacesPerShard[_shard1].push_back(nss);
@@ -276,12 +275,11 @@ TEST_F(AutoMergerPolicyTest, FetchCollectionsWithMergeableChunks) {
         const auto collUuid = UUID::gen();
         const auto nss = NamespaceString::createNamespaceString_forTest("test.coll2");
         const auto chunks = generateChunks(collUuid,
-                                           false /*allChunksAreSupportedForHistoryOnShard0*/,
-                                           false /*allChunksAreSupportedForHistoryOnShard1*/
-        );
+                                           /*allAreSupportedForHistoryOnShard0=*/false,
+                                           /*allAreSupportedForHistoryOnShard1=*/false);
 
         setupCollectionWithCustomBalancingFields(
-            nss, chunks, true /*defragmentCollection*/, true /*enableAutoMerge*/);
+            nss, chunks, /*defragmentCollection=*/true, /*enableAutoMerge=*/true);
 
         // No expected namespaces for shard0 and shard1 because defragmentation is enabled.
     }
@@ -295,11 +293,11 @@ TEST_F(AutoMergerPolicyTest, FetchCollectionsWithMergeableChunks) {
         const auto collUuid = UUID::gen();
         const auto nss = NamespaceString::createNamespaceString_forTest("test.coll3");
         const auto chunks = generateChunks(collUuid,
-                                           false /*allChunksAreSupportedForHistoryOnShard0*/,
-                                           false /*allChunksAreSupportedForHistoryOnShard1*/);
+                                           /*allAreSupportedForHistoryOnShard0=*/false,
+                                           /*allAreSupportedForHistoryOnShard1=*/false);
 
         setupCollectionWithCustomBalancingFields(
-            nss, chunks, false /*defragmentCollection*/, false /*enableAutoMerge*/);
+            nss, chunks, /*defragmentCollection=*/false, /*enableAutoMerge=*/false);
 
         // No expected namespaces for shard0 and shard1 because automerger is disabled.
     }
@@ -313,11 +311,11 @@ TEST_F(AutoMergerPolicyTest, FetchCollectionsWithMergeableChunks) {
         const auto collUuid = UUID::gen();
         const auto nss = NamespaceString::createNamespaceString_forTest("test.coll5");
         const auto chunks = generateChunks(collUuid,
-                                           true /*allChunksAreSupportedForHistoryOnShard0*/,
-                                           false /*allChunksAreSupportedForHistoryOnShard1*/);
+                                           /*allAreSupportedForHistoryOnShard0=*/true,
+                                           /*allAreSupportedForHistoryOnShard1=*/false);
 
         setupCollectionWithCustomBalancingFields(
-            nss, chunks, false /*defragmentCollection*/, true /*enableAutoMerge*/);
+            nss, chunks, /*defragmentCollection=*/false, /*enableAutoMerge=*/true);
 
         expectedNamespacesPerShard[_shard1].push_back(nss);
         // No expected namespaces for shard0 because all chunks are supported for history.

@@ -163,18 +163,8 @@ bool shouldInvalidateCollectionMetadataLocally(const InvalidateCollectionMetadat
         // The in-memory metadata already reflects what's on disk, nothing to do.
         return false;
     } else if (compareResult == std::partial_ordering::unordered) {
-        // Both sides agree the collection is untracked, so there is nothing to reconcile.
-        if (currentShardVersion == ChunkVersion::UNTRACKED() &&
-            diskShardVersion == ChunkVersion::UNTRACKED()) {
-            return false;
-        }
-
-        // Neither side has ever had a shard version, so there's nothing to reconcile either.
-        if (!currentShardVersion.isSet() && !diskShardVersion.isSet()) {
-            return false;
-        }
-
-        // Any other unordered relationship should not happen; clear anyway and surface it.
+        // Unordered versions are not equivalent, so clear the metadata and surface the unexpected
+        // relationship.
         warnUnexpectedVersionRelationship(
             "invalidateCollectionMetadata disk shard version is unordered with the in-memory shard "
             "version",
@@ -840,7 +830,7 @@ void ShardServerOpObserver::onDropDatabaseMetadata(OperationContext* opCtx,
             LOGV2_INFO(13247700,
                        "Clearing collection metadata after dropDatabase metadata commit",
                        logAttrs(nss));
-            scopedCsr->clearCollectionMetadata(opCtx, true /* collIsDropped */);
+            scopedCsr->clearCollectionMetadata(opCtx, /*collIsDropped=*/true);
         }
     }
 }
@@ -1002,7 +992,7 @@ void ShardServerOpObserver::onUpdateCollectionMetadata(OperationContext* opCtx,
                                                 currentMetadata->getUUID(),
                                                 collPlacementVersion.epoch(),
                                                 collPlacementVersion.getTimestamp()),
-            true /* forceAllowGaps */),
+            /*forceAllowGaps=*/true),
         CollectionShardingRuntime::NoRoutingTableAs::kUnowned);
 }
 

@@ -31,7 +31,7 @@ VectorClockMetadataHook::VectorClockMetadataHook(ServiceContext* service) : _ser
 
 Status VectorClockMetadataHook::writeRequestMetadata(OperationContext* opCtx,
                                                      BSONObjBuilder* metadataBob) {
-    VectorClock::get(_service)->gossipOut(opCtx, metadataBob, true /* forceInternal */);
+    VectorClock::get(_service)->gossipOut(opCtx, metadataBob, /*forceInternal=*/true);
     return Status::OK();
 }
 
@@ -56,8 +56,8 @@ Status VectorClockMetadataHook::readReplyMetadata(OperationContext* opCtx,
         metadataObj, IDLParserContext("VectorClockComponents"));
     VectorClock::get(_service)->gossipIn(opCtx,
                                          receivedComponents,
-                                         false /* couldBeUnauthorized */,
-                                         true /* defaultIsInternalClient */);
+                                         /*couldBeUnauthenticated=*/false,
+                                         /*defaultIsInternalClient=*/true);
     return Status::OK();
 }
 
