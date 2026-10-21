@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "95852b525c0c3b1a7d3521ae566d602a76c7c80e",
+    "merge_commit": "af7dbf27c2bd023462beaea06b21402d2d1d9dc4"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'af7dbf27c2b' into master",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved a both-modified conflict in wiredtiger_kv_engine.cpp's\ncleanShutdown by combining the HEAD-side backup session cleanup with\nupstream's renamed syncSizeInfo argument comment.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "626b78034b89b7860dbe4ae7b66f479f275700fd"
+    }
+  ]
+}
