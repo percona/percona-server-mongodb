@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1a6bbfc318493477c9526f7bcd29f2d7bbce734a",
+    "merge_commit": "b6a358e6c6929ad13b05570d06863457417d0634"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'b6a358e6c69' into master",
+        "resolved": {
+          "README.third_party.md": "Resolved by human",
+          "jstests/suites/backup-restore/BUILD.bazel": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts. In README.third_party.md kept Percona's\nlibarchive and libkmip third-party entries while adopting upstream's\ncorrected 'Public-Domain' license spelling for libdwarf. In sbom.json\nremoved the metadata.tools (Endor Labs) section entirely per Percona's\nmanually-assembled SBOM policy. For jstests/suites/backup-\nrestore/BUILD.bazel, kept Percona's deliberate deletion of the whole\nbackup-restore test suite (PSMDB-1965) rather than restoring upstream's\ntag-rename modification.\n\nResolved:\n\tREADME.third_party.md\n\tsbom.json\n\tjstests/suites/backup-restore/BUILD.bazel\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "f0dfc47659ee69170297277e610824dc45050184"
+    }
+  ]
+}
