@@ -1,0 +1,193 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "e1cc61914d5dc17594e8a00aed84401c78434618",
+    "merge_commit": "23b284e06c94c629fd474ba0c388c4591ba84cd5"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "e1cc61914d5dc17594e8a00aed84401c78434618",
+    "theirs_commit": "23b284e06c94c629fd474ba0c388c4591ba84cd5",
+    "base_commit": "b6a358e6c6929ad13b05570d06863457417d0634",
+    "files": [
+      "bazel/wrapper_hook/wrapper_hook.py"
+    ],
+    "conflict_types": {
+      "bazel/wrapper_hook/wrapper_hook.py": "both modified"
+    },
+    "diffs": {
+      "bazel/wrapper_hook/wrapper_hook.py": "diff --cc bazel/wrapper_hook/wrapper_hook.py\nindex bbd2b8bb2fb,3b39a6365c7..00000000000\n--- a/bazel/wrapper_hook/wrapper_hook.py\n+++ b/bazel/wrapper_hook/wrapper_hook.py\n@@@ -205,0 -163,4 +205,9 @@@ def _prepare_bazel_configuration\n++<<<<<<< HEAD\n++||||||| b6a358e6c69\n++    engflow_auth(configured_args)\n++=======\n+     from bazel.wrapper_hook.release_distro import check_evergreen_release_distro\n+ \n+     check_evergreen_release_distro(configured_args)\n+     engflow_auth(configured_args)\n++>>>>>>> 23b284e06c94c629fd474ba0c388c4591ba84cd5"
+    },
+    "their_commits": {
+      "bazel/wrapper_hook/wrapper_hook.py": [
+        "0d9257dcace50fcf016997883499e4ec234e62f9"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "23b284e06c94c629fd474ba0c388c4591ba84cd5",
+    "merged_commits": [
+      "23b284e06c94c629fd474ba0c388c4591ba84cd5",
+      "8fe51586b4d88067766f7ecb8164e5e8f7fc73b6",
+      "9c2a6c9e0dd1c1b452e786359eed8bceeff5d2af",
+      "ffca2002f673d0bf1c7ef7c4aa23c285147441ae",
+      "b585d7990126b1c6e07bd4f2f70f9535565ef076",
+      "b9cb04174ae431e86ca694f2015d47d55be47391",
+      "0d9257dcace50fcf016997883499e4ec234e62f9",
+      "109bf3234f92dcc4d91dec909e0a70dc26235d4e",
+      "e4bc64c5d4218aac5927be8efb81c77a7a514e0d",
+      "1d4e317d38a6f2d7a5f6e94121da655443690562",
+      "777b6b02eb9f9d89fc6cd00f147d9493d7781824",
+      "5a806866eb8b18cd70067d97b9c0ed247b6229a1",
+      "7a1b7efe59f870881929b0b31ea46fe3067d142c",
+      "4a9c0c1ef1686f1bebf1d832a2f21be6dc0d26e8",
+      "013c90c781f5900bd2f42813fdad76c668f32fab",
+      "35d362a7389658c2328679d20f8d5fab8498f5e3",
+      "677158f66d7a32bf9a38ef48cb9ae457f1e04bde",
+      "995f294bb2dac984d2fe03ec306512f54a2effe5",
+      "64028fd3af405fa31f4136b16f14ae3b6606c690",
+      "6b925c52917aae0dbb99e290a334a0e7e0b525c1",
+      "073954c273b23d34f93d2d6ad59b0cf4705a5a26",
+      "c04702d01e628840415e841169c343e3837408c2",
+      "c3a7ad255b0076d2ffc13c93185557de742bc65b",
+      "7a7dd91ccd24d3b39dec4ac426b321780f3ccbae",
+      "32abad4c0cfd6e7a706400bd3a1ab3992c7f3a0a",
+      "4858a635ed8929621012b3fcd67c3b765d7c6701",
+      "1d222f83db80081608dd60415dd9a4294f6e96a9",
+      "dc0b46e0dc2107c6f4b55374806fc673a08e6dbf",
+      "fd348c28c2f6cc7b7cd137858343b265e4b6d499",
+      "4994262c55bd244149ab227472b2bca184888a03",
+      "d2b258b7cc7c10112f695f862966739b1778d640",
+      "0bb642d9bddbfab1171dcc96b1dfcdff22a572d0",
+      "a45101be6ecb0a2e4800b3230e0cfe2e079ac97b",
+      "0cf6f1560e4168125c3716036393fda1e90ea9ca",
+      "75f732912542e0e8fced74fb64ff16d11b3250f2",
+      "09aea0313380d3616e40d11859a1063f3cd4251b",
+      "b856085625d4945c1c25e2fb220b20dac8cb5b4e",
+      "fb3d6068299ed458217f475dd25759c1b697ac19"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/config/BUILD.bazel",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "bazel/wrapper_hook/wrapper_hook.py",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/client/BUILD.bazel",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 38717,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.199343,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2931,
+        "cacheReadInputTokens": 43526,
+        "cacheCreationInputTokens": 16684,
+        "webSearchRequests": 0,
+        "costUSD": 0.199343,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 170,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2931,
+            "cache_read": 43526,
+            "cache_creation": 16684
+          },
+          "cost_usd": 0.199343
+        }
+      }
+    },
+    "text_result": "I read the prompt, retrieved the real `diff base \u2192 merge commit` diff for every file in `merge_context.auto_merged.files`, and wrote the JSON response.\n\nSummary of what this merge pulls in:\n\n- **wrapper_hook.py** (the only conflict, \"both modified\") \u2014 resolved by taking upstream's new Evergreen release-distro validation (`check_evergreen_release_distro`) wrapped in `ReleaseDistroError` handling, while preserving the retained `engflow_auth` call. No conflict markers remain.\n- **BUILD.bazel files** \u2014 new `:release_distro` py_library + test, two new test targets in `bazel/config`, and assorted upstream dependency additions in `client`, `query`, `repl`, `s`, and `transport`.\n- **error_codes.yml** \u2014 new internal planner error code 529 `ZeroCEEstimate`.\n- **curop.h** \u2014 `setTickSource_forTest` annotation changed from `MONGO_MOD_PRIVATE` to `MONGO_MOD_PUBLIC`.\n- **replicaset.py** \u2014 TODO comment update only (SERVER-119066 \u2192 SERVER-132991).\n\nThe response was written to `response_20261021_151714_426890.json`. Each file description is backed by lines I actually saw in the diff, and no Percona-specific code appears affected.",
+    "response": {
+      "summary": "Merges upstream MongoDB changes into the PSMDB master branch. The main functional addition is an Evergreen release-distro validation step in the Bazel wrapper hook (new release_distro module plus its Bazel targets), alongside build-graph (BUILD.bazel) dependency additions across several components, a new ZeroCEEstimate planner error code, a test-helper visibility change in curop.h, and a resmoke comment/TODO update. The only conflict was in bazel/wrapper_hook/wrapper_hook.py and was resolved by taking the upstream additions.",
+      "auto_merged": {
+        "bazel/config/BUILD.bazel": "Adds a load of runtime_pythonpath_test and template_renderer_python_path_analysis_test from :py_action_env_test.bzl, and declares two new test targets: runtime_pythonpath_test and template_renderer_python_path_analysis_test (the latter with target_under_test = //src/mongo/base:error_codes_source).",
+        "bazel/wrapper_hook/BUILD.bazel": "Introduces a new py_library :release_distro (sourcing release_distro.py plus the hermetic_container bazelrc.py, constants.py, env.py and fsutil.py files) and a py_test :release_distro_test. The bazelrc.py, constants.py, env.py and fsutil.py sources are moved out of the :wrapper_hook py_library srcs, and :wrapper_hook now depends on :release_distro.",
+        "bazel/wrapper_hook/wrapper_hook.py": "Conflict file (both modified), resolved by taking the upstream additions. Adds Evergreen release-distro validation: _prepare_bazel_configuration now imports and calls check_evergreen_release_distro(configured_args) before engflow_auth. main() calls check_evergreen_release_distro(sys.argv[2:]) early and wraps both that call and the _prepare_bazel_configuration call in try/except for ReleaseDistroError, printing the error and signalling handled status (exit code 1) via _write_wrapper_status. The fork had no competing change on these lines other than the retained engflow_auth call, which is preserved.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Comment-only change: updates a TODO from SERVER-119066 to SERVER-132991 with revised wording about the old binary in DSC multiversion suites reporting lastStableRecoveryTimestamp. No code behavior change.",
+        "src/mongo/base/error_codes.yml": "Adds a new error code 529 ZeroCEEstimate with categories PlannerEstimationError and InternalOnly, used internally by the cost-based ranker when an index scan is estimated to produce zero rows; it is never returned to the client.",
+        "src/mongo/client/BUILD.bazel": "Adds dependencies: //src/mongo/executor:rpc_local_timing to a mongo_cc_library; //src/mongo/db:service_context_test_fixture, //src/mongo/otel/metrics:metrics_test_util and //src/mongo/transport:transport_layer_common to a mongo_cc_unit_test; and //src/mongo/otel/metrics:metrics_test_util to a mongo_cc_integration_test.",
+        "src/mongo/db/curop.h": "Changes the module-visibility annotation on setTickSource_forTest from [[MONGO_MOD_PRIVATE]] to [[MONGO_MOD_PUBLIC]]. Signature and body unchanged.",
+        "src/mongo/db/query/BUILD.bazel": "Adds the :explain_policy dependency to a mongo_cc_library.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds two dependencies to a mongo_cc_library: //src/mongo/db/replicated_fast_count:replicated_fast_count_enabled and //src/mongo/db/shard_role/shard_catalog:collection_options.",
+        "src/mongo/s/BUILD.bazel": "Adds //src/mongo/db/router_role:cluster_commands_helpers_test.cpp to the sources of a mongo_cc_unit_test.",
+        "src/mongo/transport/BUILD.bazel": "Adds three dependencies to a mongo_cc_library: //src/mongo/db/admission:ingress_request_admission_context, //src/mongo/db/admission:ingress_request_rate_limiter and //src/mongo/db/admission:rate_limiter."
+      },
+      "review_notes": "Only bazel/wrapper_hook/wrapper_hook.py had a conflict (both modified); it was resolved by accepting the upstream release-distro validation additions while keeping the existing engflow_auth call, and no conflict markers remain. Most other auto-merged files are BUILD.bazel dependency additions mirroring the new release_distro/py_action_env test targets and upstream library deps. Confirm the new //bazel/wrapper_hook:release_distro target and the check_evergreen_release_distro import path resolve correctly in the PSMDB build. The curop.h change (MONGO_MOD_PRIVATE -> MONGO_MOD_PUBLIC) is upstream and does not touch Percona-specific code. No Percona-specific features appear to be affected by this merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs retrieved. Now writing the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the prompt, retrieved the real `diff base \u2192 merge commit` diff for every file in `merge_context.auto_merged.files`, and wrote the JSON response.\n\nSummary of what this merge pulls in:\n\n- **wrapper_hook.py** (the only conflict, \"both modified\") \u2014 resolved by taking upstream's new Evergreen release-distro validation (`check_evergreen_release_distro`) wrapped in `ReleaseDistroError` handling, while preserving the retained `engflow_auth` call. No conflict markers remain.\n- **BUILD.bazel files** \u2014 new `:release_distro` py_library + test, two new test targets in `bazel/config`, and assorted upstream dependency additions in `client`, `query`, `repl`, `s`, and `transport`.\n- **error_codes.yml** \u2014 new internal planner error code 529 `ZeroCEEstimate`.\n- **curop.h** \u2014 `setTickSource_forTest` annotation changed from `MONGO_MOD_PRIVATE` to `MONGO_MOD_PUBLIC`.\n- **replicaset.py** \u2014 TODO comment update only (SERVER-119066 \u2192 SERVER-132991).\n\nThe response was written to `response_20261021_151714_426890.json`. Each file description is backed by lines I actually saw in the diff, and no Percona-specific code appears affected."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261021_151714_426737.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.306 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "23b284e06c94c629fd474ba0c388c4591ba84cd5",
+    "short_sha": "23b284e06c9",
+    "strategy": "huge_commit",
+    "summary": "This is a self-contained codeowners change (SERVER-134978) touching an isolated set of files and depending on nothing after it - an ideal, easy-to-validate atomic boundary. Cutting here yields a coherent ~38-commit batch that (1) includes the force:conflict commit 0d9257d (SERVER-136184) that opened the gate, so the triggering conflict is resolved in this merge; (2) keeps the RBE-sysroot SERVER-111404 original (75f7329) and its revert (d2b258b) together so they cancel out; and (3) stops cleanly BEFORE commit 101f43d (SERVER-135262 'Do not flip multikey'), which upstream reverts later in this same window (04655dfe) - avoiding importing a feature now only to remove it next merge. It also stops before the large stacked SERVER-136326 clang-tidy argument-comment series that begins just after, so no coherent unit of work is split. Picking further (e.g. the WiredTiger import at 1745d4b) would split the multikey revert pair; staying at this atomic codeowners commit is the cleaner boundary within the target band.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/39623421078"
+  }
+}
