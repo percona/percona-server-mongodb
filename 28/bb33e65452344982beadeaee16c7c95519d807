@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "1a6bbfc318493477c9526f7bcd29f2d7bbce734a",
+    "merge_commit": "b6a358e6c6929ad13b05570d06863457417d0634"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit 'b6a358e6c69' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): upstream SERVER-131801 moved the `KeyState` enum\nout of `IndexBoundsChecker` to namespace scope (`mongo::KeyState` in\nindex_bounds.h). The Percona encryption test does `using namespace\nencryption;` in its anonymous namespace, so unqualified `KeyState`\nbecame ambiguous between the new `mongo::KeyState` and Percona's\n`mongo::encryption::KeyState`, failing the build of\nwiredtiger_kv_engine_encryption_key_test. Added a local `using KeyState\n= encryption::KeyState;` alias in that anonymous namespace to\ndisambiguate all uses.\n\nResolved:\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp\n\nCI: build-and-test run 39469887403 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "28bb33e65452344982beadeaee16c7c95519d807"
+    }
+  ]
+}
