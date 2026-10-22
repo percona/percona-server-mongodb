@@ -73,40 +73,82 @@ import {ShardingTest} from "jstests/libs/shardingtest.js";
     assert.eq(entries[0].o2.m.sz, 100);
     assert.eq(entries[0].o2.m.ct, 5);
     // Omitted subfields are not repaired, so a size/count repair must not carry a hash diff.
-    assert(!entries[0].o2.m.hasOwnProperty("h"));
+    assert(!entries[0].o2.m.hasOwnProperty("hDiff"));
 
-    // 'h' carries a collection validation hash diff.
+    // 'hDiff' carries a collection validation hash diff.
     const hash = NumberLong("81985529216486895"); // 0x0123456789abcdef
     assert.commandWorked(
         primary.getDB("admin").runCommand({
             repairReplicatedMetadata: 1,
             uuid: uuid,
-            metadata: {h: hash},
+            metadata: {hDiff: hash},
             writeConcern: {w: "majority"},
         }),
     );
     const hashEntries = primary
         .getDB("local")
-        .oplog.rs.find({op: "n", "o2.type": "repairReplicatedMetadata", "o2.m.h": {$exists: true}})
+        .oplog.rs.find({
+            op: "n",
+            "o2.type": "repairReplicatedMetadata",
+            "o2.m.hDiff": {$exists: true},
+        })
         .toArray();
     assert.eq(hashEntries.length, 1);
-    assert.eq(hashEntries[0].o2.m.h, hash);
+    assert.eq(hashEntries[0].o2.m.hDiff, hash);
     // A hash-only repair must not carry size/count diffs.
     assert(!hashEntries[0].o2.m.hasOwnProperty("sz"));
     assert(!hashEntries[0].o2.m.hasOwnProperty("ct"));
 
-    // A collection that does not exist is a true no-op and writes no oplog entry.
+    // 'hSet' carries an absolute collection validation hash. This test only checks the shape of
+    // the oplog entry; that the set value is persisted and compared against is covered by
+    // src/mongo/db/modules/atlas/jstests/disagg_storage/repair_collection_hash.js, since the hash
+    // comparison only runs under a persistence provider that uses continuous internode validation.
     assert.commandWorked(
         primary
             .getDB("admin")
-            .runCommand({repairReplicatedMetadata: 1, uuid: UUID(), metadata: {sz: 100, h: hash}}),
+            .runCommand({repairReplicatedMetadata: 1, uuid: uuid, metadata: {hSet: hash}}),
+    );
+    const hashSetEntries = primary
+        .getDB("local")
+        .oplog.rs.find({
+            op: "n",
+            "o2.type": "repairReplicatedMetadata",
+            "o2.m.hSet": {$exists: true},
+        })
+        .toArray();
+    assert.eq(hashSetEntries.length, 1);
+    assert.eq(hashSetEntries[0].o2.m.hSet, hash);
+    assert(!hashSetEntries[0].o2.m.hasOwnProperty("hDiff"));
+
+    // 'hDiff' and 'hSet' are mutually exclusive.
+    assert.commandFailedWithCode(
+        primary.getDB("admin").runCommand({
+            repairReplicatedMetadata: 1,
+            uuid: uuid,
+            metadata: {hDiff: hash, hSet: hash},
+        }),
+        ErrorCodes.InvalidOptions,
+    );
+
+    // A collection that does not exist is a true no-op and writes no oplog entry.
+    assert.commandWorked(
+        primary.getDB("admin").runCommand({
+            repairReplicatedMetadata: 1,
+            uuid: UUID(),
+            metadata: {sz: 100, hDiff: hash},
+        }),
+    );
+    assert.commandWorked(
+        primary
+            .getDB("admin")
+            .runCommand({repairReplicatedMetadata: 1, uuid: UUID(), metadata: {hSet: hash}}),
     );
     assert.eq(
         primary
             .getDB("local")
             .oplog.rs.find({op: "n", "o2.type": "repairReplicatedMetadata"})
             .toArray().length,
-        2,
+        3,
     );
 
     assert.commandFailedWithCode(

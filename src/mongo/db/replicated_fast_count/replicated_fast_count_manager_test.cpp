@@ -39,9 +39,10 @@ using test_helpers::registerOpObserverForTest;
 
 class ReplicatedFastCountManagerTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {
@@ -131,9 +132,10 @@ TEST_F(ReplicatedFastCountManagerIdempotenceTest, IdempotentStartupAndShutdown) 
 // initializeContainerStores() calls.
 class ReplicatedFastCountManagerRebindContainerTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerRebindContainerTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {
@@ -450,9 +452,10 @@ TEST_F(ReplicatedFastCountManagerNoCollectionsTest, InitializeMetadataDoesNothin
 
 class ReplicatedFastCountManagerInitializeMetadataTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerInitializeMetadataTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {
@@ -774,9 +777,10 @@ TEST_F(ReplicatedFastCountManagerInitializeMetadataTest, InitializeMetadataTrack
 // finalizeMetadataFromInitialSync must read through the bound stores rather than reopen the ident.
 class ReplicatedFastCountManagerFinalizeContainerTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerFinalizeContainerTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {
@@ -909,7 +913,25 @@ TEST_F(ReplicatedFastCountManagerFinalizeContainerTest,
                             {.size = collBSize, .count = static_cast<int64_t>(collBDocs.size())});
 }
 
-using ReplicatedFastCountManagerCommitTest = ReplicatedFastCountManagerTest;
+class ReplicatedFastCountManagerCommitTest : public ReplicatedFastCountManagerTest {
+public:
+    /**
+     * Workaround for GCC PR 105329 (false-positive -Wstringop-overread)
+     * (see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105329).
+     * Unfortunately this should be the only way we make such maps in the test.
+     * The initializer list constructor sorts its input, and GCC reports a false
+     * positive `-Wstringop-overread` in the inlined `UUID` comparison.
+     * So we use an `emplace` loop to avoid that constructor.
+     */
+    UncommittedFastCountChangeMap makeUncommittedFastCountChangeMap(
+        std::initializer_list<UncommittedFastCountChangeMap::value_type> il) {
+        UncommittedFastCountChangeMap map;
+        for (auto&& e : il) {
+            map.emplace(e);
+        }
+        return map;
+    }
+};
 
 TEST_F(ReplicatedFastCountManagerCommitTest, CommitNothing) {
     UncommittedFastCountChangeMap changes{};
@@ -925,13 +947,13 @@ TEST_F(ReplicatedFastCountManagerCommitTest, CommitZeros) {
 
     checkCommittedSizeCount(operationContext(), collA.uuid, {.size = 0, .count = 0});
 
-    UncommittedFastCountChangeMap changes{
+    auto changes = makeUncommittedFastCountChangeMap({
         {collA.uuid,
          UncommittedFastCountChange{
              .delta = {.size = 0, .count = 0},
              .recordStore = rs,
          }},
-    };
+    });
     manager->commit(operationContext(), changes);
 
     checkCommittedSizeCount(operationContext(), collA.uuid, {.size = 0, .count = 0});
@@ -952,7 +974,7 @@ TEST_F(ReplicatedFastCountManagerCommitTest, CommitUpdatesRecordStoreSizeCount) 
     checkCommittedSizeCount(operationContext(), collB.uuid, {.size = 0, .count = 0});
 
     {
-        UncommittedFastCountChangeMap changes{
+        auto changes = makeUncommittedFastCountChangeMap({
             {collA.uuid,
              UncommittedFastCountChange{
                  .delta = {.size = 42, .count = 2},
@@ -963,7 +985,7 @@ TEST_F(ReplicatedFastCountManagerCommitTest, CommitUpdatesRecordStoreSizeCount) 
                  .delta = {.size = 111, .count = 17},
                  .recordStore = rsB,
              }},
-        };
+        });
         manager->commit(operationContext(), changes);
 
         checkCommittedSizeCount(operationContext(), collA.uuid, {.size = 42, .count = 2});
@@ -971,7 +993,7 @@ TEST_F(ReplicatedFastCountManagerCommitTest, CommitUpdatesRecordStoreSizeCount) 
     }
 
     {
-        UncommittedFastCountChangeMap changes{
+        auto changes = makeUncommittedFastCountChangeMap({
             {collA.uuid,
              UncommittedFastCountChange{
                  .delta = {.size = -10, .count = -3},
@@ -982,7 +1004,7 @@ TEST_F(ReplicatedFastCountManagerCommitTest, CommitUpdatesRecordStoreSizeCount) 
                  .delta = {.size = -11, .count = -4},
                  .recordStore = rsB,
              }},
-        };
+        });
         manager->commit(operationContext(), changes);
 
         checkCommittedSizeCount(operationContext(), collA.uuid, {.size = 42 - 10, .count = 2 - 3});
@@ -997,13 +1019,13 @@ DEATH_TEST_F(ReplicatedFastCountManagerCommitDeathTest,
              MissingRecordStoreTerminates,
              "Missing RecordStore for fast count change") {
     // Deltas are non-zero to avoid early return.
-    UncommittedFastCountChangeMap changes{
+    auto changes = makeUncommittedFastCountChangeMap({
         {collA.uuid,
          UncommittedFastCountChange{
              .delta = {.size = 1, .count = 1},
              .recordStore = nullptr,
          }},
-    };
+    });
     manager->commit(operationContext(), changes);
 }
 
@@ -1087,9 +1109,10 @@ TEST_F(ReplicatedFastCountManagerFindPersistedTimestampStoreTsTest, ReturnsPersi
  */
 class ReplicatedFastCountManagerColdBootTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerColdBootTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {
@@ -1317,9 +1340,10 @@ TEST_F(ReplicatedFastCountManagerInitializeMetadataTest,
 
 class ReplicatedFastCountManagerPopulateFromInitialSyncTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountManagerPopulateFromInitialSyncTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {

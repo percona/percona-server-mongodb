@@ -7,6 +7,7 @@ load("//bazel/uv:defs.bzl", "dependency")
 exports_files([
     "candle_wrapper.py",
     "cheetah_source_generator.py",
+    "clang_format_vscode.sh",
     "clang_tidy_config_gen.py",
     "jstoh.py",
     "msitrim.py",
@@ -1040,6 +1041,27 @@ py_library(
         dependency(
             "typing-extensions",
             group = "core",
+        ),
+    ],
+)
+
+py_library(
+    name = "create_todo_tickets",
+    srcs = ["create_todo_tickets.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//buildscripts/client:jiraclient",
+        dependency(
+            "codeowners",
+            group = "modules_poc",
+        ),
+        dependency(
+            "pyyaml",
+            group = "core",
+        ),
+        dependency(
+            "structlog",
+            group = "evergreen",
         ),
     ],
 )
