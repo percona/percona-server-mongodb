@@ -88,11 +88,18 @@ const variants = [
         expectedError: "Token is expired",
     },
     {
-        // Not yet valid token
+        // Not yet valid token.
+        // The offset must comfortably exceed the whole suite's runtime plus the server's
+        // `nbf` clock-skew allowance (kNotBeforeSkewMax, 60s). This `variants` array is
+        // evaluated once at module load, so `Date.now()` is captured long before this (last)
+        // case actually authenticates; a small offset (e.g. 1000s) can be eroded by the
+        // minutes spent building the standalone/sharded fixtures for every earlier variant,
+        // leaving `nbf` inside the skew window and letting the token be accepted. One day is
+        // far larger than any plausible suite duration.
         payload: {
             sub: "user",
             aud: "audience",
-            nbf: Math.floor(Date.now() / 1000) + 1000,
+            nbf: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
             claim: "group",
         },
         expectedError: "Token not yet valid",
