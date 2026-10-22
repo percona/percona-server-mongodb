@@ -1,0 +1,302 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+    "merge_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "build-and-test",
+        "run_id": "39815303350",
+        "pr_number": 2247,
+        "attempt_number": 2,
+        "context_summary": "build-and-test failed: 0 aborted, 0 action errors, 1 test failure (from jstest-failure-logs)",
+        "timestamp": "2026-10-22T18:29:16.122855+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 230904,
+      "num_turns": 24,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 1.7662979999999997,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 46,
+          "outputTokens": 15826,
+          "cacheReadInputTokens": 1560486,
+          "cacheCreationInputTokens": 94428,
+          "webSearchRequests": 0,
+          "costUSD": 1.7662979999999997,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 9334,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 46,
+              "output": 15826,
+              "cache_read": 1560486,
+              "cache_creation": 94428
+            },
+            "cost_usd": 1.7662979999999997
+          }
+        }
+      },
+      "text_result": "I've diagnosed and fixed the CI failure.\n\n## Summary\n\n**Failing test:** `jstests/oidc/auth_token_payload.js` \u2192 the `test_auth_fails` \"Not yet valid token\" case, on the **ShardedCluster** run (the last sub-test of the suite). The assertion `checkLogExists({msg: \"Failed to authenticate\", ..., error: \"...Token not yet valid\"})` failed because the server **successfully authenticated** the token instead of rejecting it.\n\n**Root cause (bucket b \u2014 latent Percona test-design defect, exposed as a jstest failure):**\n\nThe `variants` array is a module-level constant, so `nbf: Math.floor(Date.now()/1000) + 1000` is captured **once at module load** (~17:57). The suite runs 10 variants \u00d7 {standalone, sharded}, each building a fixture, taking ~16 minutes to reach the final sharded sub-test. By the time it actually authenticated (18:13:45), real time had consumed ~966s of the 1000s margin, leaving `nbf` only **34 seconds** in the future \u2014 inside the server's **60s `kNotBeforeSkewMax`** clock-skew allowance (`src/mongo/crypto/jws_validated_token.cpp:61`). So the server legitimately accepted it.\n\nThe log confirms this precisely:\n- Standalone nbf run (96s margin > 60s) \u2192 correctly rejected with \"Token not yet valid\"\n- Sharded nbf run (34s margin < 60s) \u2192 \"Successfully authenticated\" \u2192 test failed\n\n**Fix:** Enlarged the `nbf` offset from `+1000` seconds to `+24*60*60` (one day) in `jstests/oidc/auth_token_payload.js`, far beyond any plausible suite runtime plus the skew window, making the negative test deterministic. The server-side JWT validation is correct and was left untouched \u2014 this was not a server defect, and not infra noise (it's deterministic given the suite runtime), so it was correct to fix rather than mark unfixable.",
+      "response": {
+        "status": "fixed",
+        "summary": "Root-cause bucket (b): a latent timing defect in the Percona-owned jstest jstests/oidc/auth_token_payload.js. The 'Not yet valid token' variant set nbf = Date.now()/1000 + 1000, but the variants array is evaluated once at module load, so by the time the final (sharded) sub-test actually authenticates ~16 minutes later, real time has advanced to within the server's 60s nbf clock-skew allowance (kNotBeforeSkewMax in src/mongo/crypto/jws_validated_token.cpp), so the token is legitimately accepted and the expected 'Failed to authenticate' log never appears. Enlarged the nbf offset to one day so suite runtime cannot erode it below the skew window.",
+        "resolved": {
+          "jstests/oidc/auth_token_payload.js": "Changed the 'Not yet valid token' variant's nbf from Math.floor(Date.now()/1000) + 1000 to + 24*60*60 (one day). The variants array is a module-level constant, so Date.now() is captured once at module load; the standalone run of this variant (now ~96s before nbf) correctly rejected the token, but the sharded run ~1 minute later had only ~34s of margin left (1000s offset minus ~16min of cumulative fixture-build time for all prior variants), which fell inside the server's 60s nbf skew allowance and let the token authenticate. A one-day offset is far larger than any plausible suite duration plus the 60s skew, making the negative test deterministic. Added an explanatory comment."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "This is a genuine test-design bug, not infrastructure noise, so I fixed it in the test rather than returning unfixable: the failure is deterministic whenever cumulative suite runtime before the last sub-test exceeds ~(1000 - 60)s, which it did here (standalone nbf run rejected at 96s margin; sharded nbf run accepted at 34s margin < 60s kNotBeforeSkewMax). I confirmed via the failing shard_2 log: the sharded auth showed 'Returning user from cache' / 'Successfully authenticated' for a token whose nbf (1792692859) was only 34s past the auth-time now (iat 1792692825). Server-side validation in src/mongo/crypto/jws_validated_token.cpp is correct and untouched. Searched jstests/oidc for other future-offset nbf / Date.now()+offset patterns (grep for 'nbf', 'Date.now()/1000 +', 'Not yet valid'); only this file uses the pattern. The sibling 'Expired token' variant uses now-1000 (in the past, expiration is not skewed) so it only becomes safer as time passes and is not affected. The test is Percona-owned (PSMDB-1729 / PSMDB-1886). A reviewer may prefer computing nbf per-invocation inside test_auth_fails instead of a large static offset; I kept the change minimal to match the existing variants-array structure."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The root cause is clear. Let me verify this test is Percona-owned and confirm the timing analysis."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Confirmed. This is a Percona-owned test (PSMDB-1729/PSMDB-1886) with a latent timing bug. Let me verify the timing math precisely:\n\n- `nbf` token value in the failing run: `1792692859`\n- StandaloneMongod nbf run (~18:12:43, now\u2248`1792692763`): `nbf - now = 96s` > 60s skew \u2192 correctly **rejected**\n- ShardedCluster nbf run (18:13:45, `iat=1792692825`): `nbf - now = 34s` < 60s skew \u2192 **accepted** \u2192 assertion failed\n\nThe `variants` array is a module-level const, so `Date.now()` for `nbf` is captured **once at module load** (~17:57). The full suite (10 variants \u00d7 {standalone, sharded}, each building a cluster) takes ~16 min to reach the final sharded sub-test, eroding ~966s of the 1000s margin and leaving only ~34s \u2014 inside the server's 60s `kNotBeforeSkewMax` allowance (`src/mongo/crypto/jws_validated_token.cpp:61`). Fix: enlarge the `nbf` offset so suite runtime can't erode it below the skew tolerance."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now let me check whether any other OIDC tests share the same latent `nbf`/time-margin pattern, to fix the whole class."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Only `auth_token_payload.js` uses a future-offset `nbf`. The `exp` variant uses `now - 1000` (in the past, with no skew applied to expiration), which only gets safer as time advances \u2014 no flake there. The mock's `verify_nbf` entries are unrelated. The fix is complete; writing the response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've diagnosed and fixed the CI failure.\n\n## Summary\n\n**Failing test:** `jstests/oidc/auth_token_payload.js` \u2192 the `test_auth_fails` \"Not yet valid token\" case, on the **ShardedCluster** run (the last sub-test of the suite). The assertion `checkLogExists({msg: \"Failed to authenticate\", ..., error: \"...Token not yet valid\"})` failed because the server **successfully authenticated** the token instead of rejecting it.\n\n**Root cause (bucket b \u2014 latent Percona test-design defect, exposed as a jstest failure):**\n\nThe `variants` array is a module-level constant, so `nbf: Math.floor(Date.now()/1000) + 1000` is captured **once at module load** (~17:57). The suite runs 10 variants \u00d7 {standalone, sharded}, each building a fixture, taking ~16 minutes to reach the final sharded sub-test. By the time it actually authenticated (18:13:45), real time had consumed ~966s of the 1000s margin, leaving `nbf` only **34 seconds** in the future \u2014 inside the server's **60s `kNotBeforeSkewMax`** clock-skew allowance (`src/mongo/crypto/jws_validated_token.cpp:61`). So the server legitimately accepted it.\n\nThe log confirms this precisely:\n- Standalone nbf run (96s margin > 60s) \u2192 correctly rejected with \"Token not yet valid\"\n- Sharded nbf run (34s margin < 60s) \u2192 \"Successfully authenticated\" \u2192 test failed\n\n**Fix:** Enlarged the `nbf` offset from `+1000` seconds to `+24*60*60` (one day) in `jstests/oidc/auth_token_payload.js`, far beyond any plausible suite runtime plus the skew window, making the negative test deterministic. The server-side JWT validation is correct and was left untouched \u2014 this was not a server defect, and not infra noise (it's deterministic given the suite runtime), so it was correct to fix rather than mark unfixable."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261022_182524_524850.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.308 (Claude Code)"
+      }
+    }
+  ]
+}
