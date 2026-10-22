@@ -1,0 +1,400 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+    "merge_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "build-and-test",
+        "run_id": "39778298320",
+        "pr_number": 2247,
+        "attempt_number": 1,
+        "context_summary": "build-and-test failed: 5 aborted, 0 action errors, 3 test failures (from unittest-failure-artifacts)",
+        "timestamp": "2026-10-22T16:35:24.811943+00:00"
+      },
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 220911,
+      "num_turns": 28,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 1.7002455000000003,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 50,
+          "outputTokens": 13846,
+          "cacheReadInputTokens": 1631741,
+          "cacheCreationInputTokens": 86076,
+          "webSearchRequests": 0,
+          "costUSD": 1.7002455000000003,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 5713,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 50,
+              "output": 13846,
+              "cache_read": 1631741,
+              "cache_creation": 86076
+            },
+            "cost_usd": 1.7002455000000003
+          }
+        }
+      },
+      "text_result": "I've diagnosed and fixed the CI failure.\n\n## Summary\n\n**Root cause (bucket a \u2014 upstream API/lifecycle change):** The merge brought in upstream commit `16a5231cbc3` (SERVER-135148, *\"flexible ServiceContextTest setUp\"*), which moved `ServiceContext` creation **out of the `ServiceContextTest` constructor and into `ServiceContextTest::setUp()`**. The constructor is now `= default`, and `scopedServiceContext()` asserts `\"ServiceContext is unavailable before setUp()\"` if accessed too early.\n\nThree **Percona-specific** test fixtures still assumed the old lifecycle:\n\n| Test target | Problem | Fix |\n|---|---|---|\n| `pipelined_applier_advancer_test` | ctor called `getServiceContext()` to register `AuditNoOp` | Moved that work into a `setUp()` override that chains to `ServiceContextTest::setUp()` first |\n| `storage_inmemory_init_test` | `setUp()` called `getGlobalServiceContext()` without chaining to base | Added `ServiceContextTest::setUp();` as the first statement |\n| `storage_wiredtiger_kv_engine_encryption_key_test` | base `setUp()` built the WT engine via `getServiceContext()`/`getGlobalServiceContext()` without chaining | Added `ServiceContextTest::setUp();` as the first statement |\n\nThis is the correct migration (adapting Percona call sites to upstream's new API) rather than resurrecting the old constructor-time behavior. I verified via `death_test.h` that the `DEATH_TEST_REGEX_F` cases still get `SetUp()` run in the forked child, so the audit registration remains in place for both normal and death tests. The three BEP-reported targets are the complete failure set (unit tests run independently), and the other `ServiceContextTest`-derived WiredTiger fixtures are upstream files already migrated by the merge.\n\nResponse written to `response_20261022_163142_596533.json`.",
+      "response": {
+        "status": "fixed",
+        "summary": "Root-cause bucket (a): upstream commit 16a5231cbc3 (SERVER-135148 \"flexible ServiceContextTest setUp\") moved ServiceContext creation out of the ServiceContextTest constructor into ServiceContextTest::setUp(). Three Percona-specific test fixtures still assumed the ServiceContext existed at construction time (or before their own setUp() ran), so they hit the \"ServiceContext is unavailable before setUp()\" invariant / getGlobalServiceContext fassert. Adapted each Percona fixture to the new upstream lifecycle by chaining to ServiceContextTest::setUp() first.",
+        "resolved": {
+          "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "PipelinedApplierAdvancerTest called audit::AuditInterface::set(getServiceContext(), ...) in its constructor, which now aborts because the ServiceContext is not built until setUp(). Converted the constructor into a setUp() override that first calls ServiceContextTest::setUp() and then installs the AuditNoOp. This also fixes the PipelinedApplierAdvancerDeathTest cases that reuse this fixture.",
+          "src/mongo/db/storage/inmemory/inmemory_init_test.cpp": "InMemoryFactoryTest::setUp() called getGlobalServiceContext() before the base fixture had created the global ServiceContext (previously done in the constructor), causing a fassert(17508). Added a ServiceContextTest::setUp() call as the first statement of the override so the ServiceContext is built before it is used.",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp": "WiredTigerKVEngineEncryptionKeyTest::setUp() (base for all the encryption-key fixtures, including WiredTigerKVEngineEncryptionKeyNewEngineTest) built the WiredTiger engine via _setUpPreconfiguredEngine(), which calls getServiceContext()/getGlobalServiceContext(). It never chained to the base setUp(), so the ServiceContext was absent. Added ServiceContextTest::setUp() as the first statement; the derived fixtures that already chain to WiredTigerKVEngineEncryptionKeyTest::setUp() inherit the fix."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The base ServiceContextTest now creates the ServiceContext in setUp() and tears it down in its destructor (no base tearDown() override exists), so the existing derived tearDown() overrides did not need a base call. I confirmed mongo's DeathTest machinery (DEATH_TEST_REGEX_F) constructs the fixture in the parent and runs SetUp()/TestBody()/TearDown() in the forked child (src/mongo/unittest/death_test.h), so moving the audit setup from the ctor to setUp() keeps the AuditInterface registered for both the normal TEST_F and DEATH_TEST_REGEX_F cases. Searched for the failure class with: the three BEP-reported targets (unit tests run independently, so the reported set is complete), plus grep for ': public ServiceContextTest' and 'getGlobalServiceContext' across the Percona storage/modules dirs. Other ServiceContextTest-derived fixtures in src/mongo/db/storage/wiredtiger are upstream files already migrated by the merge; the three touched here are the Percona-specific additions that upstream's migration did not cover."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I'll start by investigating the failing test logs and understanding the merge context."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me look at the three specific failing test logs."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me look at the other two failing test logs and the test fixture header."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The inmemory test didn't match \u2014 let me check its actual failure, and inspect the three test source files."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All three share one root cause: upstream moved `ServiceContext` creation from the `ServiceContextTest` constructor into `setUp()`. Let me examine the three test sources."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me verify these are Percona-authored and check the other two test fixtures."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All three fail because upstream commit `16a5231cbc3` (SERVER-135148 \"flexible ServiceContextTest setUp\") moved `ServiceContext` creation out of the constructor into `ServiceContextTest::setUp()`. Three Percona-specific test fixtures still assume the context exists at construction/before calling base `setUp()`. Let me check the constructor and confirm no other Percona fixtures are affected."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Root cause confirmed. Now I'll apply the fixes. First the inmemory test:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now the pipelined test \u2014 move the service-context-dependent setup into a `setUp()` override:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Let me verify that mongo's DeathTest framework invokes `setUp()` on the fixture, since one failing case is a `DeathTest`."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All three fixes are correct. The `DEATH_TEST_REGEX_F` path constructs the fixture in the parent (now clean) and runs `SetUp()` \u2192 our `setUp()` \u2192 `ServiceContextTest::setUp()` in the child. Let me do a final generalization check for any other Percona fixture referencing the context at construction time."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "All three fixes are in place. Now I'll write the JSON response."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "I've diagnosed and fixed the CI failure.\n\n## Summary\n\n**Root cause (bucket a \u2014 upstream API/lifecycle change):** The merge brought in upstream commit `16a5231cbc3` (SERVER-135148, *\"flexible ServiceContextTest setUp\"*), which moved `ServiceContext` creation **out of the `ServiceContextTest` constructor and into `ServiceContextTest::setUp()`**. The constructor is now `= default`, and `scopedServiceContext()` asserts `\"ServiceContext is unavailable before setUp()\"` if accessed too early.\n\nThree **Percona-specific** test fixtures still assumed the old lifecycle:\n\n| Test target | Problem | Fix |\n|---|---|---|\n| `pipelined_applier_advancer_test` | ctor called `getServiceContext()` to register `AuditNoOp` | Moved that work into a `setUp()` override that chains to `ServiceContextTest::setUp()` first |\n| `storage_inmemory_init_test` | `setUp()` called `getGlobalServiceContext()` without chaining to base | Added `ServiceContextTest::setUp();` as the first statement |\n| `storage_wiredtiger_kv_engine_encryption_key_test` | base `setUp()` built the WT engine via `getServiceContext()`/`getGlobalServiceContext()` without chaining | Added `ServiceContextTest::setUp();` as the first statement |\n\nThis is the correct migration (adapting Percona call sites to upstream's new API) rather than resurrecting the old constructor-time behavior. I verified via `death_test.h` that the `DEATH_TEST_REGEX_F` cases still get `SetUp()` run in the forked child, so the audit registration remains in place for both normal and death tests. The three BEP-reported targets are the complete failure set (unit tests run independently), and the other `ServiceContextTest`-derived WiredTiger fixtures are upstream files already migrated by the merge.\n\nResponse written to `response_20261022_163142_596533.json`."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261022_163142_596412.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.308 (Claude Code)"
+      }
+    }
+  ]
+}
