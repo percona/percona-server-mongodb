@@ -50,12 +50,8 @@ load("//bazel:test_exec_properties.bzl", "test_exec_properties")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("@rules_cc//cc/common:cc_shared_library_info.bzl", "CcSharedLibraryInfo")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
-<<<<<<< HEAD
 load("//bazel:psmdb_integration_test.bzl", "psmdb_integration_test_data")  # PSMDB (PSMDB-1924)
-||||||| af7dbf27c2b
-=======
 load("//bazel:transitions.bzl", "optimize_test_binary")
->>>>>>> 945de801d2f8f010657d7c90b4fdf130531ec6e1
 
 COMPILEDB_TAG = "mongo_compiledb"
 
