@@ -49,6 +49,7 @@ const std::string kInMemoryEngineName = "inMemory";
 class InMemoryFactoryTest : public ServiceContextTest {
 private:
     void setUp() override {
+        ServiceContextTest::setUp();
         ServiceContext* globalEnv = getGlobalServiceContext();
         ASSERT_TRUE(globalEnv);
         ASSERT_TRUE(isRegisteredStorageEngine(globalEnv, kInMemoryEngineName));
