@@ -392,6 +392,8 @@ private:
 class WiredTigerKVEngineEncryptionKeyTest : public ServiceContextTest {
 public:
     void setUp() override {
+        ServiceContextTest::setUp();
+
         _tempDir = std::make_unique<unittest::TempDir>("wt_kv_key");
 
         _key = std::make_unique<Key>();

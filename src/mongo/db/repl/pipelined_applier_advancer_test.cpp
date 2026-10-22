@@ -32,7 +32,8 @@ OpTimeAndWallTime batchTime(uint32_t timestamp) {
 // Records publications from a real advancer thread while tests control batch completion.
 class PipelinedApplierAdvancerTest : public ServiceContextTest {
 protected:
-    PipelinedApplierAdvancerTest() {
+    void setUp() override {
+        ServiceContextTest::setUp();
         // The advancer thread grants internal authorization, so destroying its client logs out the
         // authenticated user. Percona's audit dispatcher requires an AuditInterface to be
         // registered; install the no-op implementation so logout does not dereference a null
