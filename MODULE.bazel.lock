@@ -361,13 +361,7 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_python_toolchains": {
       "general": {
-<<<<<<< HEAD
-        "bzlTransitiveDigest": "q/5LT5HxZoqB37WvW0wcKtaP/llyI/FhVnCVxLhxE3w=",
-||||||| 945de801d2f
-        "bzlTransitiveDigest": "DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=",
-=======
-        "bzlTransitiveDigest": "L6QDCHSpxFS4/vwKyvSaZeGQcJfrey3DZNaanwU0AYw=",
->>>>>>> a64893540a6fea6e11015329dc3459f0f674a810
+        "bzlTransitiveDigest": "oX4pl+xqa/ol5swl/HoOsutg+CA1+9KT+/UO/lCK0d8=",
         "usagesDigest": "O6USfOJ8DQPD0n/I12XOSBR02kdpcMceoy4IGWv7Rus=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_features bazel_features+",
@@ -461,13 +455,7 @@
     },
     "//bazel:bzlmod.bzl%setup_mongo_toolchains": {
       "general": {
-<<<<<<< HEAD
         "bzlTransitiveDigest": "JMws4JlDc7azjSP+9DBZOjz9jKkhUdXefCsVbK5C9tk=",
-||||||| 945de801d2f
-        "bzlTransitiveDigest": "DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=",
-=======
-        "bzlTransitiveDigest": "L6QDCHSpxFS4/vwKyvSaZeGQcJfrey3DZNaanwU0AYw=",
->>>>>>> a64893540a6fea6e11015329dc3459f0f674a810
         "usagesDigest": "jVAo8UTATz8nifuTPKtG+NDiHUrdUMkJs5A4ace8FmU=",
         "recordedInputs": [
           "REPO_MAPPING:,bazel_features bazel_features+",
