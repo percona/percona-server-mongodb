@@ -250,7 +250,24 @@ TEST_F(PersistentNDVTest, MetadataEmptyWithoutServedEstimates) {
 
 TEST_F(PersistentNDVTest, ServesPersistedNDV) {
     persistNDV(kPersistedNDV);
-    ASSERT_EQ(estimateForA(), kPersistedNDV);
+    withEstimator([&](SamplingEstimatorForTesting& estimator) {
+        const auto estimate = estimator.estimateNDV({{.path = "a"}});
+        ASSERT_EQ(estimate.toDouble(), kPersistedNDV);
+        ASSERT_EQ(estimate.source(), cost_based_ranker::EstimationSource::HyperLogLog);
+    });
+}
+
+TEST_F(PersistentNDVTest, TryEstimateServesPersistedStatsWithoutSampleFallback) {
+    persistNDV(kPersistedNDV);
+    withEstimator([&](SamplingEstimatorForTesting& estimator) {
+        const auto served = estimator.tryEstimateNDVFromPersistentStats({{.path = "a"}});
+        ASSERT_TRUE(served.has_value());
+        ASSERT_EQ(served->toDouble(), kPersistedNDV);
+
+        // Field "b" has no persisted statistic; unlike estimateNDV(), this must report a miss
+        // rather than fall back to the sample.
+        ASSERT_FALSE(estimator.tryEstimateNDVFromPersistentStats({{.path = "b"}}).has_value());
+    });
 }
 
 TEST_F(PersistentNDVTest, FallsBackWhenDisabled) {
@@ -314,7 +331,11 @@ TEST_F(PersistentNDVTest, FallsBackForDifferentCollectionUuid) {
 
 TEST_F(PersistentNDVTest, ClampsToCollectionCardinality) {
     persistNDV(10 * kCollCard);
-    ASSERT_EQ(estimateForA(), kCollCard);
+    withEstimator([&](SamplingEstimatorForTesting& estimator) {
+        const auto estimate = estimator.estimateNDV({{.path = "a"}});
+        ASSERT_EQ(estimate.toDouble(), kCollCard);
+        ASSERT_EQ(estimate.source(), cost_based_ranker::EstimationSource::HyperLogLog);
+    });
 }
 
 TEST_F(PersistentNDVTest, ZeroSketchesFallsBack) {

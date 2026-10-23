@@ -125,9 +125,17 @@ public:
      *
      * When this runs:
      * - At collection init/registration (see 'init').
-     * - Whenever the collection's validator is created or updated (e.g. via collMod).
+     * - Whenever the collection's validator is created or updated (e.g. via collMod) and query type
+     * inference is enabled.
      */
     void rebuildSchemaTypeInfo(OperationContext* opCtx, const Collection* coll);
+
+    /**
+     * Publishes an unconstrained SchemaTypeInfo. Used instead of 'rebuildSchemaTypeInfo' when query
+     * type inference is disabled, so that a stale snapshot is never observed if it is enabled
+     * again.
+     */
+    void invalidateSchemaTypeInfo();
 
     std::shared_ptr<const SchemaTypeInfo> getSchemaTypeInfo() const;
 
@@ -204,16 +212,16 @@ private:
         // remains valid after the read lock is released.
         std::shared_ptr<const SchemaTypeInfo> snapshot() const;
 
-        // Replaces the current snapshot under the write lock. The supplied SchemaTypeInfo must be
-        // fully initialized and immutable; this does not advance its epoch.
-        void replace(std::shared_ptr<const SchemaTypeInfo> schemaTypeInfo);
-
-        // Publishes a new snapshot under the write lock and advances the epoch.
+        // Publishes a new snapshot under the write lock.
         void publish(pipeline::type_system::Type rootType);
 
     private:
         // Mutex to protect concurrent writers from re-assigning the schemaConstraints pointer.
         mutable WriteRarelyRWMutex rwMutex;
+
+        // Replaces the current snapshot under the write lock. The supplied SchemaTypeInfo must be
+        // fully initialized and immutable;
+        void replace(std::shared_ptr<const SchemaTypeInfo> schemaTypeInfo);
 
         // All clones of CollectionQueryInfo will initially point to the same SchemaTypeInfo
         // instance. Rebuilds publish a new immutable instance under rwMutex, allowing readers to

@@ -7,6 +7,7 @@
 #include "mongo/bson/json.h"
 #include "mongo/db/client.h"
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/query/collection_query_info.h"
 #include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/replication_coordinator_mock.h"
@@ -118,8 +119,6 @@ TEST(CollModOptionTest, makeDryRunRequest) {
 
 class CollModTest : public ServiceContextMongoDTest {
 protected:
-    explicit CollModTest(Options options = {}) : ServiceContextMongoDTest(std::move(options)) {}
-
     void setUp() override {
         // Set up mongod.
         ServiceContextMongoDTest::setUp();
@@ -321,7 +320,9 @@ TEST_F(CollModTest, CollModTimeseriesMixedSchemaData) {
 class CollModTimestampedTest : public CollModTest {
 public:
     // Disable table logging. When table logging is enabled, timestamps are discarded by WiredTiger.
-    CollModTimestampedTest() : CollModTest(Options{}.forceDisableTableLogging()) {}
+    Options makeServiceContextOptions() override {
+        return CollModTest::makeServiceContextOptions().forceDisableTableLogging();
+    }
 };
 
 // Regression test for SERVER-104640. Test that the MixedSchema timeseries flag can be read at a
@@ -411,6 +412,100 @@ TEST_F(CollModTest, CollModSetting_ReplicatedRecordIds_ToFalse_Succeeds) {
 
     // Confirm replicated record Ids have been disabled
     ASSERT_FALSE(areRecordIdsReplicated(opCtx.get(), nss));
+}
+
+TEST_F(CollModTest, CollModRebuildsSchemaTypeInfoForValidatorAndLevelChanges) {
+    unittest::ServerParameterGuard typeInferenceFlag{"featureFlagQueryTypeInference", true};
+    auto opCtx = makeOpCtx();
+    const auto nss = NamespaceString::createNamespaceString_forTest("test", "schemaTypeInfo");
+
+    CollectionOptions options;
+    options.validator = fromjson("{x: {$type: 'string'}}");
+    options.validationLevel = ValidationLevelEnum::constraint;
+    uassertStatusOK(createCollection(opCtx.get(), nss, options, boost::none));
+
+    const auto readSchemaTypeInfo = [&] {
+        const auto coll = acquireCollForRead(opCtx.get(), nss);
+        return CollectionQueryInfo::get(coll.getCollectionPtr()).getSchemaTypeInfo();
+    };
+
+    const auto initialInfo = readSchemaTypeInfo();
+    ASSERT_TRUE(initialInfo->getPathType(FieldRef("x")).hasType(BSONType::string));
+
+    BSONObjBuilder result;
+    CollMod validationLevelMod(nss);
+    validationLevelMod.setValidationLevel(ValidationLevelEnum::strict);
+    uassertStatusOK(processCollModCommand(opCtx.get(), nss, validationLevelMod, nullptr, &result));
+
+    const auto strictInfo = readSchemaTypeInfo();
+    ASSERT_TRUE(strictInfo->getPathType(FieldRef("x")) == pipeline::type_system::Type::any());
+
+    CollMod validatorMod(nss);
+    validatorMod.setValidator(fromjson("{x: {$type: 'number'}}"));
+    uassertStatusOK(processCollModCommand(opCtx.get(), nss, validatorMod, nullptr, &result));
+
+    const auto validatorUpdatedInfo = readSchemaTypeInfo();
+    ASSERT_TRUE(validatorUpdatedInfo->getPathType(FieldRef("x")) ==
+                pipeline::type_system::Type::any());
+
+    CollMod prepareConstraintMod(nss);
+    prepareConstraintMod.setPrepareConstraintValidationLevel(true);
+    uassertStatusOK(
+        processCollModCommand(opCtx.get(), nss, prepareConstraintMod, nullptr, &result));
+
+    CollMod constraintLevelMod(nss);
+    constraintLevelMod.setValidationLevel(ValidationLevelEnum::constraint);
+    uassertStatusOK(processCollModCommand(opCtx.get(), nss, constraintLevelMod, nullptr, &result));
+
+    const auto constraintInfo = readSchemaTypeInfo();
+    ASSERT_FALSE(constraintInfo->getPathType(FieldRef("x")).hasType(BSONType::string));
+    ASSERT_TRUE(constraintInfo->getPathType(FieldRef("x")).hasType(BSONType::numberInt));
+}
+
+TEST_F(CollModTest, CollModInvalidatesSchemaTypeInfoWhenFeatureFlagIsDisabled) {
+    unittest::ServerParameterGuard typeInferenceFlag{"featureFlagQueryTypeInference", true};
+    auto opCtx = makeOpCtx();
+    const auto nss = NamespaceString::createNamespaceString_forTest("test", "schemaTypeInfo");
+
+    CollectionOptions options;
+    options.validator = fromjson("{x: {$type: 'string'}}");
+    options.validationLevel = ValidationLevelEnum::constraint;
+    uassertStatusOK(createCollection(opCtx.get(), nss, options, boost::none));
+
+    const auto readSchemaTypeInfo = [&] {
+        const auto coll = acquireCollForRead(opCtx.get(), nss);
+        return CollectionQueryInfo::get(coll.getCollectionPtr()).getSchemaTypeInfo();
+    };
+
+    const auto initialInfo = readSchemaTypeInfo();
+    ASSERT_TRUE(initialInfo->getPathType(FieldRef("x")).hasType(BSONType::string));
+
+    {
+        unittest::ServerParameterGuard disabledTypeInferenceFlag{"featureFlagQueryTypeInference",
+                                                                 false};
+        BSONObjBuilder result;
+        CollMod strictLevelMod(nss);
+        strictLevelMod.setValidationLevel(ValidationLevelEnum::strict);
+        uassertStatusOK(processCollModCommand(opCtx.get(), nss, strictLevelMod, nullptr, &result));
+
+        CollMod validatorMod(nss);
+        validatorMod.setValidator(fromjson("{x: {$type: 'number'}}"));
+        uassertStatusOK(processCollModCommand(opCtx.get(), nss, validatorMod, nullptr, &result));
+
+        CollMod prepareConstraintMod(nss);
+        prepareConstraintMod.setPrepareConstraintValidationLevel(true);
+        uassertStatusOK(
+            processCollModCommand(opCtx.get(), nss, prepareConstraintMod, nullptr, &result));
+
+        CollMod constraintLevelMod(nss);
+        constraintLevelMod.setValidationLevel(ValidationLevelEnum::constraint);
+        uassertStatusOK(
+            processCollModCommand(opCtx.get(), nss, constraintLevelMod, nullptr, &result));
+    }
+
+    // Ends at level 'constraint', so with the flag enabled this would infer 'x: number'.
+    const auto invalidatedInfo = readSchemaTypeInfo();
+    ASSERT_TRUE(invalidatedInfo->getPathType(FieldRef("x")) == pipeline::type_system::Type::any());
 }
 
 TEST_F(CollModTest, CollModSetting_ReplicatedRecordIds_ToTrue_Fails) {

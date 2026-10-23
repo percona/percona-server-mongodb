@@ -75,11 +75,12 @@ void prepareSlotBasedExecutableTree(OperationContext* opCtx,
                                     bool preparingFromSbeCache,
                                     RemoteCursorMap* remoteCursors = nullptr);
 
-std::pair<SbStage, PlanStageData> buildSearchMetadataExecutorSBE(OperationContext* opCtx,
-                                                                 const ExpressionContext& expCtx,
-                                                                 size_t remoteCursorId,
-                                                                 RemoteCursorMap* remoteCursors,
-                                                                 PlanYieldPolicySBE* yieldPolicy);
+std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageData> buildSearchMetadataExecutorSBE(
+    OperationContext* opCtx,
+    const ExpressionContext& expCtx,
+    size_t remoteCursorId,
+    RemoteCursorMap* remoteCursors,
+    PlanYieldPolicySBE* yieldPolicy);
 
 /**
  * The PlanStageSlots class is used by SlotBasedStageBuilder to return the output slots produced
@@ -116,8 +117,8 @@ public:
     using UnownedSlotName = std::pair<SlotType, std::string_view>;
     using OwnedSlotName = std::pair<SlotType, std::string>;
 
-    using MakeMergeStageFn = std::function<std::pair<SbStage, SbSlotVector>(
-        sbe::PlanStage::Vector, std::vector<SbSlotVector>)>;
+    using MakeMergeStageFn =
+        std::function<std::pair<SbStage, SbSlotVector>(SbStage::Vector, std::vector<SbSlotVector>)>;
 
     struct NameHasher {
         using is_transparent = void;
@@ -148,12 +149,6 @@ public:
     static constexpr UnownedSlotName kIndexKey{kMeta, "indexKey"};
     static constexpr UnownedSlotName kIndexKeyPattern{kMeta, "indexKeyPattern"};
     static constexpr UnownedSlotName kPrefetchedResult{kMeta, "prefetchedResult"};
-    static constexpr UnownedSlotName kMetadataSearchScore{kMeta, "metadataSearchScore"};
-    static constexpr UnownedSlotName kMetadataSearchHighlights{kMeta, "metadataSearchHighlights"};
-    static constexpr UnownedSlotName kMetadataSearchDetails{kMeta, "metadataSearchDetails"};
-    static constexpr UnownedSlotName kMetadataSearchSortValues{kMeta, "metadataSearchSortValues"};
-    static constexpr UnownedSlotName kMetadataSearchSequenceToken{kMeta,
-                                                                  "metadataSearchSequenceToken"};
     static constexpr UnownedSlotName kBlockSelectivityBitmap{kMeta, "bitmap"};
 
     struct Data {
@@ -817,9 +812,10 @@ struct ProjectionPlan {
 /**
  * A stage builder which builds an executable tree using slot-based PlanStages.
  */
-class SlotBasedStageBuilder final : public StageBuilder<std::pair<SbStage, PlanStageData>> {
+class SlotBasedStageBuilder final
+    : public StageBuilder<std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageData>> {
 public:
-    using PlanType = std::pair<SbStage, PlanStageData>;
+    using PlanType = std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageData>;
     using BaseType = StageBuilder<PlanType>;
 
     static constexpr auto kMeta = PlanStageSlots::SlotType::kMeta;
@@ -834,12 +830,6 @@ public:
     static constexpr auto kIndexKey = PlanStageSlots::kIndexKey;
     static constexpr auto kIndexKeyPattern = PlanStageSlots::kIndexKeyPattern;
     static constexpr auto kPrefetchedResult = PlanStageSlots::kPrefetchedResult;
-    static constexpr auto kMetadataSearchScore = PlanStageSlots::kMetadataSearchScore;
-    static constexpr auto kMetadataSearchHighlights = PlanStageSlots::kMetadataSearchHighlights;
-    static constexpr auto kMetadataSearchDetails = PlanStageSlots::kMetadataSearchDetails;
-    static constexpr auto kMetadataSearchSortValues = PlanStageSlots::kMetadataSearchSortValues;
-    static constexpr auto kMetadataSearchSequenceToken =
-        PlanStageSlots::kMetadataSearchSequenceToken;
 
     SlotBasedStageBuilder(OperationContext* opCtx,
                           const MultipleCollectionAccessor& collections,
