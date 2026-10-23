@@ -66,7 +66,7 @@ public:
                                      rootSlot,
                                      slots,
                                      /*isFilterOverIxscan=*/false,
-                                     /*canUsePathArrayness=*/true);
+                                     /*pathArraynessNss=*/_expCtx->getNamespaceString());
 
         sbe::value::TagValueOwned expectedValue =
             sbe::value::TagValueOwned::fromRaw(sbe::value::makeValue(Value(expected)));
@@ -431,7 +431,7 @@ public:
         _expCtx->setPathArraynessForNss(_expCtx->getNamespaceString(), std::move(pathArrayness));
     }
 
-    // Parses 'filter' and runs it against 'doc' with canUsePathArrayness=true.
+    // Parses 'filter' and runs it against 'doc' with path arrayness enabled.
     void runParsedFilter(std::string_view filter,
                          const BSONObj& doc,
                          bool expected,
@@ -489,6 +489,24 @@ TEST_F(GoldenSbeFilterBuilderArraynessTestFixture, TestPathArraynessTraverseFEli
         runTestWithPathArrayness(
             &eqExpr, rootSlot, /*expected=*/true, "TraverseFRetained_UnknownPath"sv);
     }
+}
+
+TEST_F(GoldenSbeFilterBuilderArraynessTestFixture, TestPathArraynessTraverseFElisionKnobDisabled) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagPathArrayness", true};
+    unittest::ServerParameterGuard knob{"internalEnablePathArraynessTraverseFElision", false};
+
+    // With the knob off, traverseF is retained even on a path known to be non-array.
+    auto root = BSON("a" << BSON("b" << 1));
+    auto rootSlotId = _env->registerSlot("root"sv,
+                                         sbe::value::TypeTags::bsonObject,
+                                         sbe::value::bitcastFrom<const char*>(root.objdata()),
+                                         false,
+                                         &_slotIdGenerator);
+    auto rootSlot = SbSlot{rootSlotId, TypeSignature::kObjectType};
+
+    EqualityMatchExpression eqExpr("a.b"sv, Value(1));
+    runTestWithPathArrayness(
+        &eqExpr, rootSlot, true /* expected */, "TraverseFRetained_KnobDisabled"sv);
 }
 
 TEST_F(GoldenSbeFilterBuilderArraynessTestFixture, TestNothingCheckWithPathArrayness) {

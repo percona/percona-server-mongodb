@@ -30,9 +30,10 @@ UUID getOplogUuid(OperationContext* opCtx) {
 
 class ReplicatedFastCountAdvanceCheckpointTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountAdvanceCheckpointTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     static constexpr std::string_view kDbName = "advance_checkpoint_test"sv;
@@ -110,7 +111,7 @@ TEST_F(ReplicatedFastCountAdvanceCheckpointTest, RepairNoopHashCombinesWithPersi
         collA.uuid,
         SizeCountStore::Entry{
             .timestamp = Timestamp(0, 1), .size = 1000, .count = 10, .hash = persistedHash});
-    writeRepairNoop(ts, collA, BSON("sz" << 100 << "ct" << 5 << "h" << repairHash));
+    writeRepairNoop(ts, collA, BSON("sz" << 100 << "ct" << 5 << "hDiff" << repairHash));
 
     EXPECT_EQ(advanceCheckpoint(opCtx, *sizeCountStore, *timestampStore), 2);
 
@@ -133,7 +134,7 @@ TEST_F(ReplicatedFastCountAdvanceCheckpointTest, RepairNoopHashLeavesAbsentPersi
             .timestamp = Timestamp(0, 1), .size = 1000, .count = 10, .hash = boost::none});
     writeRepairNoop(Timestamp(1, 1),
                     collA,
-                    BSON("sz" << 100 << "ct" << 5 << "h" << int64_t{0x0123456789abcdef}));
+                    BSON("sz" << 100 << "ct" << 5 << "hDiff" << int64_t{0x0123456789abcdef}));
 
     EXPECT_EQ(advanceCheckpoint(opCtx, *sizeCountStore, *timestampStore), 2);
 
@@ -991,9 +992,10 @@ TEST_F(ReplicatedFastCountAdvanceCheckpointTest,
 
 class ReplicatedFastCountPersistCheckpointSnapshotTest : public CatalogTestFixture {
 public:
-    ReplicatedFastCountPersistCheckpointSnapshotTest()
-        : CatalogTestFixture(Options().setPersistenceProvider(
-              std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>())) {}
+    Options makeServiceContextOptions() override {
+        return CatalogTestFixture::makeServiceContextOptions().setPersistenceProvider(
+            std::make_unique<test_helpers::ReplicatedFastCountTestPersistenceProvider>());
+    }
 
 protected:
     void setUp() override {

@@ -73,7 +73,11 @@ const NamespaceString kNss = NamespaceString::createNamespaceString_forTest("tes
 
 class CollectionValidationTest : public CatalogTestFixture {
 protected:
-    CollectionValidationTest(Options options = {}) : CatalogTestFixture(std::move(options)) {}
+    CollectionValidationTest(Options options = {}) : _scOptions(std::move(options)) {}
+
+    Options makeServiceContextOptions() override {
+        return std::move(_scOptions);
+    }
 
 private:
     void setUp() override {
@@ -84,6 +88,8 @@ private:
         ASSERT_OK(storageInterface()->createCollection(
             operationContext(), kNss, defaultCollectionOptions));
     };
+
+    Options _scOptions;
 };
 
 // Calling verify() is not possible on an in-memory instance.
@@ -388,6 +394,8 @@ TEST_F(CollectionValidationTest, ValidateLogsMetrics) {
                        "recordStoreTraversalDurationSecs",
                        "indexTraversalDurationSecs"}) {
         EXPECT_TRUE(m.hasField(field)) << field;
+        EXPECT_EQ(m.getField(field).type(), BSONType::numberDouble)
+            << field << " must be floating point numeric type";
     }
     // No index inconsistencies, so the second phase never runs.
     EXPECT_FALSE(m.hasField("phase2DurationSecs"));
@@ -405,6 +413,17 @@ TEST_F(CollectionValidationTest, ValidateLogsMetrics) {
     }
     EXPECT_GT(keyBytes, 0);
     EXPECT_EQ(m["indexDataSize"].safeNumberLong(), keyBytes);
+}
+
+// Durations are serialized as fractional seconds, so sub-second durations are not rounded to zero.
+TEST(ValidationMetricsTest, ReportsDurationsAsFractionalSeconds) {
+    collection_validation::ValidationMetrics metrics;
+    metrics.totalDuration = Microseconds(500'000);
+    const auto bson = metrics.toBSON(ValidateResults());
+
+    ASSERT_EQ(bson["totalDurationSecs"].type(), BSONType::numberDouble) << bson;
+    EXPECT_NEAR(bson["totalDurationSecs"].numberDouble(), 0.5, 1e-9);
+    EXPECT_FALSE(bson.hasField("phase1DurationSecs")) << bson;
 }
 
 // Every call to validate() emits exactly one metrics log line identifying the validation.
@@ -1161,13 +1180,15 @@ class CollectionValidationSchemaViolationTest
       public ::testing::WithParamInterface<CollectionValidationSchemaViolationParams> {
 protected:
     CollectionValidationSchemaViolationTest(Options options = {})
-        : CatalogTestFixture(std::move(options)) {}
+        : _scOptions(std::move(options)) {}
+
+    Options makeServiceContextOptions() override {
+        return std::move(_scOptions);
+    }
 
 private:
+    Options _scOptions;
     OperationContext* _opCtx{nullptr};
-    void setUp() override {
-        CatalogTestFixture::setUp();
-    }
 };
 
 TEST_P(CollectionValidationSchemaViolationTest, SchemaViolation) {
@@ -1273,9 +1294,13 @@ BSONObj removeNestedField(const BSONObj& bson, std::span<const std::string_view>
 class TimeseriesCollectionValidationTest : public CatalogTestFixture {
 public:
     TimeseriesCollectionValidationTest(Options options = {})
-        : CatalogTestFixture(std::move(options)),
+        : _scOptions(std::move(options)),
           _allowCorruptTimeseriesBuckets("timeseriesDisableStrictBucketValidator", true) {
         _nss = NamespaceString::createNamespaceString_forTest("test.system.buckets.ts");
+    }
+
+    Options makeServiceContextOptions() override {
+        return std::move(_scOptions);
     }
 
     static BSONObj getSampleDoc() {
@@ -1456,6 +1481,7 @@ public:
         return replaceNestedField(origBson, nested, bcb.finalize());
     }
 
+    Options _scOptions;
     NamespaceString _nss;
     OperationContext* _opCtx{nullptr};
     CollectionOptions _options;
@@ -2117,6 +2143,52 @@ protected:
                       results));
         return results;
     }
+
+    // Writes a repair that sets the hash of 'uuid' to 'hash', with a wall clock time matching 'ts'.
+    void writeHashSetRepair(Timestamp ts, const UUID& uuid, int64_t hash) {
+        replicated_fast_count::test_helpers::writeToOplog(
+            operationContext(),
+            repl::OplogEntry{repl::DurableOplogEntry{repl::DurableOplogEntryParams{
+                .opTime = repl::OpTime(ts, 1),
+                .opType = repl::OpTypeEnum::kNoop,
+                .nss = NamespaceString(),
+                .oField = BSON("msg" << "Repairing collection's replicated metadata with diffs"),
+                .o2Field = BSON("type" << "repairReplicatedMetadata"
+                                       << "uuid" << uuid << "m" << BSON("hSet" << hash)),
+                .wallClockTime = Date_t::fromDurationSinceEpoch(Seconds(ts.getSecs()))}}});
+    }
+
+    // Persists 'persistedHash', then replays a hash set followed by a later insert. The set value
+    // replaces the persisted hash and the later insert folds into it, so the comparison holds
+    // before the set is persisted.
+    void expectHashSetThenLaterWriteMatches(boost::optional<int64_t> persistedHash) {
+        createFastCountContainers();
+        const std::vector<BSONObj> beforeSet = {BSON("_id" << 1), BSON("_id" << 2)};
+        const BSONObj afterSet = BSON("_id" << 3);
+        insertDocs(beforeSet);
+        insertDocs({afterSet});
+
+        const auto uuid = collectionUuid();
+        seedPersistedHash(uuid, persistedHash);
+
+        writeHashSetRepair(Timestamp(2, 1), uuid, static_cast<int64_t>(xxh3Of(beforeSet)));
+        replicated_fast_count::test_helpers::writeToOplog(
+            operationContext(),
+            replicated_fast_count::test_helpers::makeOplogEntry(
+                Timestamp(3, 1),
+                replicated_fast_count::test_helpers::NsAndUUID{kNss, uuid},
+                repl::OpTypeEnum::kInsert,
+                /*sizeDelta=*/afterSet.objsize(),
+                repl::computeDocValidationHash(afterSet)));
+        shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
+
+        const auto results = hashValidate();
+        ASSERT_TRUE(results.getHashComparison().has_value());
+        EXPECT_EQ(toString(*results.getHashComparison()), "matched");
+        ASSERT_TRUE(results.getExpectedXxh3CollectionHash().has_value());
+        EXPECT_EQ(static_cast<uint64_t>(*results.getExpectedXxh3CollectionHash()),
+                  xxh3Of({beforeSet[0], beforeSet[1], afterSet}));
+    }
 };
 
 // Probe: reports how far the comparison gets with the replicated metadata system enabled.
@@ -2221,6 +2293,39 @@ TEST_F(CollectionHashComparisonTest, ReportsNoPersistedHashWhenTheEntryCarriesNo
     const auto results = hashValidate();
     ASSERT_TRUE(results.getHashComparison().has_value());
     EXPECT_EQ(toString(*results.getHashComparison()), "noPersistedHash");
+    EXPECT_FALSE(results.getExpectedXxh3CollectionHash().has_value());
+    EXPECT_TRUE(results.getWarnings().empty());
+}
+
+TEST_F(CollectionHashComparisonTest, FoldsWritesAfterAHashSetOverAnAbsentHash) {
+    expectHashSetThenLaterWriteMatches(boost::none);
+}
+
+TEST_F(CollectionHashComparisonTest, FoldsWritesAfterAHashSetOverAPresentHash) {
+    expectHashSetThenLaterWriteMatches(0x1234);
+}
+
+TEST_F(CollectionHashComparisonTest, ReportsIncompleteWhenAWriteAfterAHashSetCarriesNoHash) {
+    createFastCountContainers();
+    const std::vector<BSONObj> docs = {BSON("_id" << 1)};
+    insertDocs(docs);
+    const auto uuid = collectionUuid();
+    seedPersistedHash(uuid, boost::none);
+
+    // The set seeds a hash, but a later write whose contribution is unknown leaves it incomplete.
+    writeHashSetRepair(Timestamp(2, 1), uuid, static_cast<int64_t>(xxh3Of(docs)));
+    replicated_fast_count::test_helpers::writeToOplog(
+        operationContext(),
+        replicated_fast_count::test_helpers::makeOplogEntry(
+            Timestamp(3, 1),
+            replicated_fast_count::test_helpers::NsAndUUID{kNss, uuid},
+            repl::OpTypeEnum::kInsert,
+            /*sizeDelta=*/16));
+    shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
+
+    const auto results = hashValidate();
+    ASSERT_TRUE(results.getHashComparison().has_value());
+    EXPECT_EQ(toString(*results.getHashComparison()), "incompleteDelta");
     EXPECT_FALSE(results.getExpectedXxh3CollectionHash().has_value());
     EXPECT_TRUE(results.getWarnings().empty());
 }
