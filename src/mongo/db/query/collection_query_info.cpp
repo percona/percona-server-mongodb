@@ -199,17 +199,19 @@ std::shared_ptr<const SchemaTypeInfo> CollectionQueryInfo::SchemaTypeInfoCollect
     return schemaConstraints;
 }
 
+void CollectionQueryInfo::SchemaTypeInfoCollectionState::publish(
+    pipeline::type_system::Type rootType) {
+    auto writeLock = rwMutex.writeLock();
+    if (schemaConstraints && schemaConstraints->getRootType() == rootType) {
+        return;
+    }
+    schemaConstraints = std::make_shared<SchemaTypeInfo>(std::move(rootType));
+}
+
 void CollectionQueryInfo::SchemaTypeInfoCollectionState::replace(
     std::shared_ptr<const SchemaTypeInfo> schemaTypeInfo) {
     auto writeLock = rwMutex.writeLock();
     schemaConstraints = std::move(schemaTypeInfo);
-}
-
-void CollectionQueryInfo::SchemaTypeInfoCollectionState::publish(
-    pipeline::type_system::Type rootType) {
-    auto writeLock = rwMutex.writeLock();
-    auto nextEpoch = schemaConstraints->epoch() + 1;
-    schemaConstraints = std::make_shared<SchemaTypeInfo>(std::move(rootType), nextEpoch);
 }
 
 void CollectionQueryInfo::updatePathArraynessForSetMultikey(
@@ -275,6 +277,10 @@ void CollectionQueryInfo::rebuildSchemaTypeInfo(OperationContext* opCtx, const C
         }
     }
     _schemaTypeInfoState.publish(inferred.getRootType());
+}
+
+void CollectionQueryInfo::invalidateSchemaTypeInfo() {
+    _schemaTypeInfoState.publish(pipeline::type_system::Type::anyObject());
 }
 
 std::shared_ptr<const SchemaTypeInfo> CollectionQueryInfo::getSchemaTypeInfo() const {

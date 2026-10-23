@@ -44,28 +44,6 @@
 namespace mongo {
 class PlanExecutorSBE final : public PlanExecutor {
 public:
-    struct MetaDataAccessor {
-        template <typename BSONTraits = BSONObj::DefaultSizeTrait>
-        BSONObj appendToBson(BSONObj doc) const;
-        Document appendToDocument(Document doc) const;
-
-        // Whether or not any metadata accessor are initialized.
-        bool anyAccessorsInitialized() const {
-            return metadataSearchScore || metadataSearchHighlights || metadataSearchDetails ||
-                metadataSearchSortValues || metadataSearchSequenceToken || sortKey;
-        }
-
-        // Only for $search queries, holds the metadata returned from mongot.
-        sbe::value::SlotAccessor* metadataSearchScore{nullptr};
-        sbe::value::SlotAccessor* metadataSearchHighlights{nullptr};
-        sbe::value::SlotAccessor* metadataSearchDetails{nullptr};
-        sbe::value::SlotAccessor* metadataSearchSortValues{nullptr};
-        sbe::value::SlotAccessor* metadataSearchSequenceToken{nullptr};
-
-        sbe::value::SlotAccessor* sortKey{nullptr};
-        bool isSingleSortKey{true};
-    };
-
     PlanExecutorSBE(OperationContext* opCtx,
                     std::unique_ptr<CanonicalQuery> cq,
                     sbe::plan_ranker::CandidatePlan plan,
@@ -188,9 +166,6 @@ private:
     template <typename ObjectType>
     ExecState getNextImpl(ObjectType* out, RecordId* dlOut);
 
-    void initializeAccessors(MetaDataAccessor& accessor,
-                             const stage_builder::PlanStageMetadataSlots& metadataSlots);
-
     enum class State { kClosed, kOpened };
 
     static std::string_view serializeState(State state);
@@ -221,9 +196,6 @@ private:
     // Only for a resumed scan ("seek"). Slot holding the TypeTags::RecordId of the record to resume
     // the scan from. '_seekRecordId' is the RecordId value, initialized from the slot at runtime.
     boost::optional<sbe::value::SlotId> _resumeRecordIdSlot;
-
-    MetaDataAccessor _metadataAccessors;
-    bool _useMetadataAccessors{false};
 
     // NOTE: '_stash' stores documents as BSON. Currently, one of the '_stash' is usages is to store
     // documents received from the plan during multiplanning. This means that the documents

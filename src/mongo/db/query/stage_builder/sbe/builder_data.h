@@ -112,52 +112,6 @@ struct Environment {
     sbe::CompileCtx ctx;
 };
 
-struct PlanStageMetadataSlots {
-    boost::optional<sbe::value::SlotId> searchScoreSlot;
-    boost::optional<sbe::value::SlotId> searchHighlightsSlot;
-    boost::optional<sbe::value::SlotId> searchDetailsSlot;
-    boost::optional<sbe::value::SlotId> searchSortValuesSlot;
-    boost::optional<sbe::value::SlotId> sortKeySlot;
-    boost::optional<sbe::value::SlotId> searchSequenceToken;
-
-    void reset() {
-        searchScoreSlot.reset();
-        searchHighlightsSlot.reset();
-        searchDetailsSlot.reset();
-        searchSortValuesSlot.reset();
-        sortKeySlot.reset();
-        searchSequenceToken.reset();
-    }
-
-    sbe::value::SlotVector getSlotVector() {
-        auto slots = sbe::makeSV();
-        if (auto slot = searchScoreSlot) {
-            slots.push_back(*slot);
-        }
-
-        if (auto slot = searchHighlightsSlot) {
-            slots.push_back(*slot);
-        }
-
-        if (auto slot = searchDetailsSlot) {
-            slots.push_back(*slot);
-        }
-
-        if (auto slot = searchSortValuesSlot) {
-            slots.push_back(*slot);
-        }
-
-        if (auto slot = searchSequenceToken) {
-            slots.push_back(*slot);
-        }
-
-        if (auto slot = sortKeySlot) {
-            slots.push_back(*slot);
-        }
-        return slots;
-    }
-};
-
 /**
  * This struct used to hold all of a PlanStageData's immutable data.
  */
@@ -165,7 +119,6 @@ struct PlanStageStaticData {
     // This holds the output slots produced by SBE plan (resultSlot, recordIdSlot, etc).
     boost::optional<sbe::value::SlotId> resultSlot;
     boost::optional<sbe::value::SlotId> recordIdSlot;
-    PlanStageMetadataSlots metadataSlots;
 
     // Scan direction if this plan has a collection scan: 1 means forward; -1 means reverse.
     int direction{1};
