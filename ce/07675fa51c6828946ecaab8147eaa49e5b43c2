@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+    "merge_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '945de801d2f' into master",
+        "resolved": {
+          "bazel/mongo_src_rules.bzl": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved both merge conflicts. In bazel/mongo_src_rules.bzl both sides\nadded a different load() statement, so both were kept. In sbom.json,\nPercona's serialNumber/version were kept, the upstream-generated\nmetadata.tools section was removed per project invariants, and the\ndependency version bumps from both sides were merged.\n\nResolved:\n\tbazel/mongo_src_rules.bzl\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "ce07675fa51c6828946ecaab8147eaa49e5b43c2"
+    }
+  ]
+}
