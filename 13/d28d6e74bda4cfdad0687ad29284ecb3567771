@@ -1,0 +1,242 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "656eb504a0b578d28d9b10bdf5eda38c4fd8037c",
+    "merge_commit": "a64893540a6fea6e11015329dc3459f0f674a810"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "656eb504a0b578d28d9b10bdf5eda38c4fd8037c",
+    "theirs_commit": "a64893540a6fea6e11015329dc3459f0f674a810",
+    "base_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1",
+    "files": [
+      "MODULE.bazel.lock",
+      "jstests/suites/backup-restore/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "jstests/suites/backup-restore/BUILD.bazel": "deleted by us"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex 57ae3b615db,4a06007435f..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -364,1 -364,1 +364,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"q/5LT5HxZoqB37WvW0wcKtaP/llyI/FhVnCVxLhxE3w=\",\n++||||||| 945de801d2f\n++        \"bzlTransitiveDigest\": \"DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=\",\n++=======\n+         \"bzlTransitiveDigest\": \"L6QDCHSpxFS4/vwKyvSaZeGQcJfrey3DZNaanwU0AYw=\",\n++>>>>>>> a64893540a6fea6e11015329dc3459f0f674a810\n@@@ -458,1 -458,1 +464,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"JMws4JlDc7azjSP+9DBZOjz9jKkhUdXefCsVbK5C9tk=\",\n++||||||| 945de801d2f\n++        \"bzlTransitiveDigest\": \"DQrdprii5FP9D8EGF3lUjFOGiPF3O31F0CfCVS4L1V4=\",\n++=======\n+         \"bzlTransitiveDigest\": \"L6QDCHSpxFS4/vwKyvSaZeGQcJfrey3DZNaanwU0AYw=\",\n++>>>>>>> a64893540a6fea6e11015329dc3459f0f674a810"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "fa353c03065d7a2786850d13b25b0c12de017ac1"
+      ],
+      "jstests/suites/backup-restore/BUILD.bazel": [
+        "01554a095d55f55bf58f9541e5afba6b9edc8be6"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "a64893540a6fea6e11015329dc3459f0f674a810",
+    "merged_commits": [
+      "a64893540a6fea6e11015329dc3459f0f674a810",
+      "5dc81183b6418e7131026c1ab31678dc51dfa4f1",
+      "334b86f67d8a6a95736c348e960ce8e40191be1e",
+      "687bacf5c5a6b5d156bc1b2f61e06cddf2bdc263",
+      "48f54b381b66dd8eb0e762ebecc4026ad07d0689",
+      "4ba25443fc475652f28491580fea9cd787a77340",
+      "9d68af795f476ab3a4491e87460a64c227ae00ee",
+      "0fbd6da7c2f0ac73d8228de46fe4b7ea303c5a91",
+      "ea22f64f4f6dc9ea85f78f92abda088d2f0e3772",
+      "e4c6565f923fec8f90bc4271985b76289c3a2699",
+      "a266bea3e5f484f80b1fe71ade592ec348bacc05",
+      "2b49d0c15d6b17852c9643ba2fab109837ae4e3c",
+      "7a5279bda2800ef6a9dc6d2a11595783edbb4b75",
+      "53b1672036dd50d918e05ed5c8b52be32a5d5a9d",
+      "50a9dc4edd85d0b4d49cdfa09e030559e74bfd31",
+      "f2fa6e37e3ff324f769aa64907b11e70a11ff461",
+      "f05d22e259433a4aa53bd64b749d10b8319e43ee",
+      "d4786017e0eca5ec45bc43e241ebb3f1aadaba76",
+      "6cdd5b2b1622586094a9df332f160ede5416e776",
+      "b31c9bfc1b56fc458d0dff32cb24b145a2722e1e",
+      "0bc7535ba1e0da2fdfa018c2834b33cf7af16e5e",
+      "fb398792c50903f452a26587e591c2b0a2c657cf",
+      "9ab6ba2797023dd87500d861f295377047bcdc3e",
+      "b69230cfe7e91cbb45c4a76f584bbe7aa63bbd91",
+      "3f4e11118162d88480637d58f9d7c2302d943eb6",
+      "3a58fa5d8652eae5b46be7f1cd17ae7cd17f6e46",
+      "23e3efd51b6432a62dc7bbfdf3df4d4a72d5b542",
+      "5cb7e5468a2c575819cc85b29cf286aa61c1c549",
+      "83f374703c962e2d5ab4c7bc50a0c6aaa656ed36",
+      "b32929688388d39932ed3b0041d9d7cd75201674",
+      "1c24bcf1bec9a07b0c8418fdc512be3761958377",
+      "2f92f699d20152e3a5b81ae8757f3579db68737d",
+      "c7183f38b210ab239c62bd0ec307c0ebe7a54d8a",
+      "79ef02ae3f4b1d4fa0123d85dc8bd9be4bf9f9eb",
+      "1ccf897cb29cde40b1781f9ba1a51031298ef9d0",
+      "d34c394f46054ffb74889b2988c83d605133c795",
+      "afe947c2a8d1e5a84bfc81be94247ba50a42d8a8",
+      "3313089367a5796e6f35cac6a41fac2effe110db",
+      "49ee09d3ae7bc46c2511b723776ebbadc934fe53",
+      "4da10a0e90206a6ceeb81ff8b1b3e81dcd89e352",
+      "e9bcafa051e4818b641b641bbe336ade064db833",
+      "48992665b0dddbcaf4904178b7c0a5cf30e15c70",
+      "3aaf0c1b098e485929ed60c9b99d4d2247cde99a",
+      "ffc52d7f3327dffdd92e5142a893e079527088c0",
+      "01554a095d55f55bf58f9541e5afba6b9edc8be6",
+      "37eae97fd90ae3fdfede42026972e4eae297faa3",
+      "fa353c03065d7a2786850d13b25b0c12de017ac1",
+      "d41692f9e58d25bd6c2a625bd4a329d8ad9e9777",
+      "35647d07bc4bc11966c90fe7100eb1db0b0ac1d9",
+      "033304c76a37e4c978b6347de1e93b490826fc77",
+      "4466805776c8063b3c11b6229120ab70cf830bf4",
+      "4096949c23724a51cefa3813e7e2517958a8987b",
+      "1e65e7d8d6d5275f92d147dc2f95740db5c03535",
+      "d579192a985fd94c5fae8deaf22c76facc9d85c4",
+      "65156b5a9ddc87bb5130717f813480af831c72a6",
+      "4393af13a33ac4dd9ab9770ef1278b2774dc5cf0",
+      "48c0957f8f59723ef0c45c6dc1308d491fdca790",
+      "1be8466a742678132ed5078f22e2bda69b91aed8",
+      "0bd7e21e0d51e7885c1519efc673354592d3d12f",
+      "bf12ad4fe0e9971afd43048ee1061ff8c426d0f6",
+      "d76a5672918ac95b41c7e9898a2cb56f3be851b6",
+      "01e12411527ba3dac53b0c9a77e05a8b4d40a426",
+      "fb95fb0c47436b08f5277f7082893298361d9b67",
+      "e9ce3555be33833c4742c6e3b7b403f581a548cd",
+      "88a54aaa502632ba00811ec36ba398ebd4f905b4",
+      "c8815140c5f824c136ebb9bce29b3a5fbf953f36"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "bazel/BUILD.bazel",
+        "bazel/platforms/platform_util.bzl",
+        "bazel/utils.bzl",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop_test.cpp",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/s/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50803,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.29117200000000004,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3818,
+        "cacheReadInputTokens": 54784,
+        "cacheCreationInputTokens": 26928,
+        "webSearchRequests": 0,
+        "costUSD": 0.29117200000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 231,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3818,
+            "cache_read": 54784,
+            "cache_creation": 26928
+          },
+          "cost_usd": 0.29117200000000004
+        }
+      }
+    },
+    "text_result": "I read the real `diff base \u2192 merge commit` diff for every file under `merge_context.auto_merged.files` and wrote the JSON response describing only what each diff shows.\n\nSummary of what this merge pulls in:\n\n- **Query cardinality estimation** \u2014 a new HyperLogLog CE method added to the cursor/op-debug metrics (`op_debug.cpp`, `curop_test.cpp`) and new sampling CE source files wired into `src/mongo/db/BUILD.bazel` and `src/mongo/db/query/BUILD.bazel`. The `analyze` command in four jstests now passes `mode: \"histograms\", key: \"a\"`.\n- **Bazel Windows cross-build plumbing** \u2014 toolchain-override env vars in `bazel/utils.bzl`, a `windows_cross_exec` platform in `platform_util.bzl`, a `utils.bzl` export, and a new `container_actions_test`.\n- **WiredTiger generated header** \u2014 a mechanical renumbering of `WT_STAT_CONN_*` constants after two checkpoint meta-check stats were dropped, plus one OTel gauge annotation.\n\nConflicts noted for reviewers: `MODULE.bazel.lock` (regenerated per project guidance) and `jstests/suites/backup-restore/BUILD.bazel` (\"deleted by us\" \u2014 the fork's removal is preserved). I kept each description tied to lines actually present in the diffs and did not describe the fork-vs-upstream differences.",
+    "response": {
+      "summary": "Merge of upstream MongoDB commits into the PSMDB master fork. The incoming changes center on query cardinality-estimation work: a new HyperLogLog CE method is added to the cursor/op-debug metrics (op_debug.cpp, curop_test.cpp) and new sampling CE source files are wired into the build (src/mongo/db/BUILD.bazel, src/mongo/db/query/BUILD.bazel), and the `analyze` command in several jstests now passes `mode: \"histograms\", key: \"a\"`. The merge also brings Bazel toolchain plumbing for Windows cross builds (env overrides in bazel/utils.bzl, a windows_cross exec platform in platform_util.bzl, and a new container_actions wrapper test) and a WiredTiger generated-header update that renumbers WT_STAT connection stat constants and drops two checkpoint handle-metadata stats. Two conflicts were resolved: MODULE.bazel.lock (regenerated) and jstests/suites/backup-restore/BUILD.bazel (deleted on the fork side).",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Bazel lock file. The conflict was in `bzlTransitiveDigest` hash values; resolved by regenerating the file so the recorded module resolution/digests are consistent. No semantic content to review beyond the regenerated hashes.",
+        "bazel/BUILD.bazel": "Adds `\"utils.bzl\"` to the `exports_files([...])` list so bazel/utils.bzl can be referenced externally.",
+        "bazel/platforms/platform_util.bzl": "Appends a new `native.platform` definition in `setup_platform`: when `name_suffix` is empty it creates a `<distro>_<arch><cache_silo>_windows_cross_exec` platform that parents the base platform and sets flags `--//bazel/config:compiler_type=clang` and `--@rules_rust//rust/settings:toolchain_linker_preference=cc`. This is the target platform used when building tools for Windows cross builds on Linux.",
+        "bazel/utils.bzl": "Introduces three toolchain-override environment-variable names (`MONGO_BAZEL_TOOLCHAIN_OS`, `MONGO_BAZEL_TOOLCHAIN_ARCH`, `MONGO_BAZEL_TOOLCHAIN_DISTRO`) plus the `TOOLCHAIN_OVERRIDE_ENVS` list. In `get_toolchain_subs`, the os/arch/distro now fall back to these env vars (via `ctx.os.environ.get(...)`) before using `ctx.os.name`/`ctx.os.arch`/`get_host_distro_major_version(ctx)`, so a Bazel client on another OS (Windows cross builds) can have the repo generate the Linux toolchain its remote/container actions need.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds `hermetic_container/container_actions.py` to the `wrapper_hook` py_library srcs and declares a new `container_actions_test` py_test for `hermetic_container/container_actions_test.py`.",
+        "jstests/auth/lib/commands_lib.js": "In the `analyze` test entry, changes the command from `{analyze: \"x\"}` to `{analyze: \"x\", mode: \"histograms\", key: \"a\"}`.",
+        "jstests/core/catalog/views/views_all_commands.js": "Adds the `drops_default_database` tag (with a comment explaining it drops the default database, which would destroy data written by other tests) to the test's tag list.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Changes the `analyze` command from `{analyze: collName}` to `{analyze: collName, mode: \"histograms\", key: \"a\"}`, with a `TODO SERVER-124374: add testing for sample mode` comment.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Changes the `analyze` command from `{analyze: collName}` to `{analyze: collName, mode: \"histograms\", key: \"a\"}`.",
+        "src/mongo/db/BUILD.bazel": "Adds four new sampling CE source files to the library srcs: `on_the_fly_sample_loader.cpp`, `sample_loader.cpp`, `sample_manager.cpp`, and `sample_spec.cpp` (alongside the existing `persistent_sample_loader.cpp`).",
+        "src/mongo/db/curop_test.cpp": "Extends the AdditiveMetrics cursor/data-bearing-node aggregation tests with a new HyperLogLog cardinality-estimation method: sets `setHyperLogLog(...)` on the test metrics and asserts the aggregated `getHyperLogLog()` values (2 and 3 respectively).",
+        "src/mongo/db/op_debug.cpp": "Adds HyperLogLog handling to cardinality-estimation metrics: in `getCursorMetrics` it copies a positive `getHyperLogLog()` into the reported `ceMethods.setHyperLogLog(...)`, and in both `AdditiveMetrics::add` and `aggregateDataBearingNodeMetrics` it sums the HyperLogLog counts.",
+        "src/mongo/db/query/BUILD.bazel": "Adds dependency `//src/mongo/db/query/compiler/metadata:schema_type_info` to one library and `:plan_yield_policy_sbe` to a unit-test target's deps.",
+        "src/mongo/s/BUILD.bazel": "Adds `\"release_critical\"` to a `resmoke_suite_test` tag list.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Generated WiredTiger header update. Annotates the `cache: pages currently held in the cache` stat comment with `OTel type: otel_gauge`, and removes two checkpoint stats (`WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECK_DURATION` and `WT_STAT_CONN_CHECKPOINT_HANDLE_META_CHECKED`), which renumbers the subsequent `WT_STAT_CONN_*` constant values downward (each shifts by 2)."
+      },
+      "review_notes": "Two conflicts were resolved during this merge: (1) MODULE.bazel.lock \u2014 regenerated as per project guidance; verify it is conflict-marker-free and that `bazel query //...` succeeds. (2) jstests/suites/backup-restore/BUILD.bazel \u2014 'deleted by us', i.e. the fork had removed this file; confirm it stays removed and that this is intended (the backup-restore suite is Percona-specific). The wiredtiger.h.in change is a large but purely mechanical stat-constant renumbering from the generated header; the only functional deltas are the dropped meta-check stats and one OTel annotation. The recurring analyze-command jstest edits (`mode`/`key` now required) and the HyperLogLog CE additions are upstream query features and are internally consistent across op_debug.cpp, curop_test.cpp, and the BUILD.bazel source lists."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the real diffs for each auto-merged file before describing them."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe each file. Writing the response now."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the real `diff base \u2192 merge commit` diff for every file under `merge_context.auto_merged.files` and wrote the JSON response describing only what each diff shows.\n\nSummary of what this merge pulls in:\n\n- **Query cardinality estimation** \u2014 a new HyperLogLog CE method added to the cursor/op-debug metrics (`op_debug.cpp`, `curop_test.cpp`) and new sampling CE source files wired into `src/mongo/db/BUILD.bazel` and `src/mongo/db/query/BUILD.bazel`. The `analyze` command in four jstests now passes `mode: \"histograms\", key: \"a\"`.\n- **Bazel Windows cross-build plumbing** \u2014 toolchain-override env vars in `bazel/utils.bzl`, a `windows_cross_exec` platform in `platform_util.bzl`, a `utils.bzl` export, and a new `container_actions_test`.\n- **WiredTiger generated header** \u2014 a mechanical renumbering of `WT_STAT_CONN_*` constants after two checkpoint meta-check stats were dropped, plus one OTel gauge annotation.\n\nConflicts noted for reviewers: `MODULE.bazel.lock` (regenerated per project guidance) and `jstests/suites/backup-restore/BUILD.bazel` (\"deleted by us\" \u2014 the fork's removal is preserved). I kept each description tied to lines actually present in the diffs and did not describe the fork-vs-upstream differences."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261023_185443_796326.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.309 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "a64893540a6fea6e11015329dc3459f0f674a810",
+    "short_sha": "a64893540a6",
+    "strategy": null,
+    "summary": "Cutting at the Revert of SERVER-136557 yields a 62-commit batch within the comfortable band that keeps every add/revert pair in this window balanced: SERVER-131412 (#1) + its revert (#20), SERVER-136472 fuzztest (#37) + its revert (#50) with the re-add safely beyond the cut (#88), and SERVER-136557 oplog-validation (#33) + its revert (#62). Stopping one commit past the clean WiredTiger import at #61 avoids importing the SERVER-136557 change only to have its revert stranded for the next batch. The chosen commit is itself a revert (a settled state) and sits right before the important_files SERVER-133742 commit, so no coherent unit of work is split.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/40006645642"
+  }
+}
