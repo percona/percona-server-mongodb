@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+    "merge_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '945de801d2f' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "jstests/oidc/auth_token_payload.js": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (b): a latent timing defect in the Percona-owned\njstest jstests/oidc/auth_token_payload.js. The 'Not yet valid token'\nvariant set nbf = Date.now()/1000 + 1000, but the variants array is\nevaluated once at module load, so by the time the final (sharded) sub-\ntest actually authenticates ~16 minutes later, real time has advanced to\nwithin the server's 60s nbf clock-skew allowance (kNotBeforeSkewMax in\nsrc/mongo/crypto/jws_validated_token.cpp), so the token is legitimately\naccepted and the expected 'Failed to authenticate' log never appears.\nEnlarged the nbf offset to one day so suite runtime cannot erode it\nbelow the skew window.\n\nResolved:\n\tjstests/oidc/auth_token_payload.js\n\nCI: build-and-test run 39815303350 (attempt 2 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "45f99c6646a8abf53b8aea2eeab6714b644ece92"
+    }
+  ]
+}
