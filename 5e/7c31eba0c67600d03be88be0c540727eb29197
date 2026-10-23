@@ -1,0 +1,29 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "656eb504a0b578d28d9b10bdf5eda38c4fd8037c",
+    "merge_commit": "a64893540a6fea6e11015329dc3459f0f674a810"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit 'a64893540a6' into master",
+        "resolved": {
+          "MODULE.bazel.lock": "Resolved by human",
+          "jstests/suites/backup-restore/BUILD.bazel": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved two conflicts. jstests/suites/backup-restore/BUILD.bazel was\n'deleted by us': Percona removed the entire backup-restore resmoke suite\n(commit f51fb686e28 'PSMDB-1965 Remove the backup-restore test suite',\nwhich also deleted buildscripts/resmokeconfig/suites/backup_restore.yml\nand the suite's OWNERS.yml), so the upstream tag tweak on their side is\nirrelevant and Percona's deletion is kept. MODULE.bazel.lock conflict\nmarkers were removed by accepting the HEAD (ours) digests, then the file\nwas regenerated with 'bazel query //... >/dev/null'.\n\nResolved:\n\tjstests/suites/backup-restore/BUILD.bazel\n\tMODULE.bazel.lock\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "5e7c31eba0c67600d03be88be0c540727eb29197"
+    }
+  ]
+}
