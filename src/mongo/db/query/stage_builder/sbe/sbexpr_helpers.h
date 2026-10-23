@@ -311,12 +311,6 @@ public:
         _nodeId = nodeId;
     }
 
-    /**
-     * Wraps an already-lowered stage as a passthrough leaf of the blueprint tree. This is for
-     * stages that have no blueprint (e.g. MultiRangeClusteredScanStage).
-     */
-    SbStage makePassthrough(std::unique_ptr<sbe::PlanStage> stage);
-
     using MakeScanResult = std::tuple<SbStage, SbSlot, SbSlot, SbSlotVector>;
 
     MakeScanResult makeScan(UUID collectionUuid,
@@ -555,10 +549,10 @@ public:
                                                     const SbSlotVector& blockSlots,
                                                     SbSlot bitmapSlot);
 
-    std::pair<SbStage, SbSlotVector> makeUnion(sbe::PlanStage::Vector stages,
+    std::pair<SbStage, SbSlotVector> makeUnion(SbStage::Vector stages,
                                                const std::vector<SbSlotVector>& slots);
 
-    std::pair<SbStage, SbSlotVector> makeSortedMerge(sbe::PlanStage::Vector stages,
+    std::pair<SbStage, SbSlotVector> makeSortedMerge(SbStage::Vector stages,
                                                      const std::vector<SbSlotVector>& slots,
                                                      const std::vector<SbSlotVector>& keys,
                                                      std::vector<sbe::value::SortDirection> dirs);

@@ -148,12 +148,20 @@ void MongoBannedNamesCheck::registerMatchers(ast_matchers::MatchFinder* Finder) 
                                        hasParent(enumDecl(hasAnyName(getNames(baseEnumInfos)))))))
                            .bind("enumConstants"),
                        this);
-    // The type matcher matches against DeclaratorDecl nodes, which means return types and
-    // references will not be matched here. Matching against only declarations should be
-    // sufficient and will not generate extra noise when developers decide to use a banned type.
+    // The type matcher matches against DeclaratorDecl nodes, which means references will not be
+    // matched here. Function return types are matched separately below.
     Finder->addMatcher(
         declaratorDecl(hasType(namedDecl(hasAnyName(getNames(baseTypeInfos))))).bind("typeNames"),
         this);
+    Finder->addMatcher(
+        functionDecl(returns(hasDeclaration(namedDecl(hasAnyName(getNames(baseTypeInfos))))))
+            .bind("returnTypes"),
+        this);
+    // Constructions name the type without declaring anything.
+    Finder->addMatcher(expr(anyOf(cxxTemporaryObjectExpr(), cxxFunctionalCastExpr()),
+                            hasType(namedDecl(hasAnyName(getNames(baseTypeInfos)))))
+                           .bind("explicitConstructions"),
+                       this);
     Finder->addMatcher(
         usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(anyOf(hasAnyName(getNames(baseTypeInfos)),
                                                             hasAnyName(getNames(baseFuncInfos))))))
@@ -217,12 +225,46 @@ void MongoBannedNamesCheck::check(const ast_matchers::MatchFinder::MatchResult& 
           });
     chkAs(std::type_identity<DeclaratorDecl>{},
           {
-              "typeNames",
               "namespaceFromDecl",
           });
     chkAs(std::type_identity<UsingDecl>{},
           {
               "usingNames",
           });
+    // Check only the spelled type, not the whole node, so banned-name text in a function body or
+    // in constructor arguments cannot trigger a diagnostic.
+    auto checkSpelledType = [&](TypeLoc typeLoc) {
+        const SourceRange range = typeLoc.getSourceRange();
+        if (range.isValid()) {
+            checkNamespace(range.getBegin(),
+                           Lexer::getSourceText(CharSourceRange::getTokenRange(range),
+                                                Result.Context->getSourceManager(),
+                                                Result.Context->getLangOpts()));
+        }
+    };
+    if (auto decl = Result.Nodes.getNodeAs<DeclaratorDecl>("typeNames")) {
+        if (auto* tsi = decl->getTypeSourceInfo()) {
+            checkSpelledType(tsi->getTypeLoc());
+        }
+    }
+    if (auto fn = Result.Nodes.getNodeAs<FunctionDecl>("returnTypes")) {
+        if (auto* tsi = fn->getTypeSourceInfo()) {
+            // Go through the TypeLoc so trailing return types are covered.
+            if (auto ftl = tsi->getTypeLoc().getAs<FunctionTypeLoc>()) {
+                checkSpelledType(ftl.getReturnLoc());
+            }
+        }
+    }
+    if (auto construction = Result.Nodes.getNodeAs<Expr>("explicitConstructions")) {
+        const TypeSourceInfo* tsi = nullptr;
+        if (auto* temporary = dyn_cast<CXXTemporaryObjectExpr>(construction)) {
+            tsi = temporary->getTypeSourceInfo();
+        } else if (auto* cast = dyn_cast<CXXFunctionalCastExpr>(construction)) {
+            tsi = cast->getTypeInfoAsWritten();
+        }
+        if (tsi) {
+            checkSpelledType(tsi->getTypeLoc());
+        }
+    }
 }
 }  // namespace mongo::tidy
