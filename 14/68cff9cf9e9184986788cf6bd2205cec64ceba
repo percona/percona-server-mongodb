@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "8404fee02449fcce59dced94032b4edb3b11f7e8",
+    "merge_commit": "945de801d2f8f010657d7c90b4fdf130531ec6e1"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'build-and-test' failure for merge commit '945de801d2f' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Modified by human",
+          "src/mongo/db/storage/inmemory/inmemory_init_test.cpp": "Modified by human",
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp": "Modified by human"
+        },
+        "review_notes": "Root-cause bucket (a): upstream commit 16a5231cbc3 (SERVER-135148\n\"flexible ServiceContextTest setUp\") moved ServiceContext creation out\nof the ServiceContextTest constructor into ServiceContextTest::setUp().\nThree Percona-specific test fixtures still assumed the ServiceContext\nexisted at construction time (or before their own setUp() ran), so they\nhit the \"ServiceContext is unavailable before setUp()\" invariant /\ngetGlobalServiceContext fassert. Adapted each Percona fixture to the new\nupstream lifecycle by chaining to ServiceContextTest::setUp() first.\n\nResolved:\n\tsrc/mongo/db/repl/pipelined_applier_advancer_test.cpp\n\tsrc/mongo/db/storage/inmemory/inmemory_init_test.cpp\n\tsrc/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_encryption_key_test.cpp\n\nCI: build-and-test run 39778298320 (attempt 1 of 2)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "1468cff9cf9e9184986788cf6bd2205cec64ceba"
+    }
+  ]
+}
