@@ -314,6 +314,8 @@ public:
 
     void pauseAutoCompactForReplicaSetWritesBlock(OperationContext* opCtx) override;
 
+    Status tryPauseAutoCompactForReplicaSetWritesBlock(OperationContext* opCtx) override;
+
     bool underCachePressure(int concurrentOpOuts) override;
 
     size_t getCacheSizeMB() override;

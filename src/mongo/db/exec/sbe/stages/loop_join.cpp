@@ -23,7 +23,8 @@ LoopJoinStage::LoopJoinStage(std::unique_ptr<PlanStage> outer,
                              value::SlotVector outerCorrelated,
                              std::unique_ptr<EExpression> predicate,
                              PlanNodeId nodeId,
-                             bool participateInTrialRunTracking)
+                             bool participateInTrialRunTracking,
+                             IntermediateTrackingBehavior intermediateTracking)
     : LoopJoinStage(std::move(outer),
                     std::move(inner),
                     std::move(outerProjects),
@@ -32,7 +33,8 @@ LoopJoinStage::LoopJoinStage(std::unique_ptr<PlanStage> outer,
                     std::move(predicate),
                     JoinType::Inner,
                     nodeId,
-                    participateInTrialRunTracking) {}
+                    participateInTrialRunTracking,
+                    intermediateTracking) {}
 
 LoopJoinStage::LoopJoinStage(std::unique_ptr<PlanStage> outer,
                              std::unique_ptr<PlanStage> inner,
@@ -42,8 +44,15 @@ LoopJoinStage::LoopJoinStage(std::unique_ptr<PlanStage> outer,
                              std::unique_ptr<EExpression> predicate,
                              JoinType joinType,
                              PlanNodeId nodeId,
-                             bool participateInTrialRunTracking)
-    : PlanStage("nlj"sv, /*yieldPolicy=*/nullptr, nodeId, participateInTrialRunTracking),
+                             bool participateInTrialRunTracking,
+                             IntermediateTrackingBehavior intermediateTracking)
+    : PlanStage("nlj"sv,
+                /*yieldPolicy=*/nullptr,
+                nodeId,
+                participateInTrialRunTracking,
+                intermediateTracking == IntermediateTrackingBehavior::kTrackIntermediateRows
+                    ? TrialRunTrackingType::TrackIntermediateRows
+                    : TrialRunTrackingType::NoTracking),
       _outerProjects(std::move(outerProjects)),
       _outerCorrelated(std::move(outerCorrelated)),
       _innerProjects(std::move(innerProjects)),
@@ -67,10 +76,12 @@ std::unique_ptr<PlanStage> LoopJoinStage::clone() const {
                                            _predicate ? _predicate->clone() : nullptr,
                                            _joinType,
                                            _commonStats.nodeId,
-                                           participateInTrialRunTracking());
+                                           participateInTrialRunTracking(),
+                                           intermediateTrackingBehavior());
 }
 
 void LoopJoinStage::prepare(CompileCtx& ctx) {
+    _bytecode = ctx.getByteCode();
     for (auto& f : _outerProjects) {
         auto [it, inserted] = _outerRefs.emplace(f);
         uassert(4822820, str::stream() << "duplicate field: " << f, inserted);
@@ -152,7 +163,7 @@ PlanState LoopJoinStage::getNext() {
 
     for (;;) {
         while (_children[1]->getNext() == PlanState::ADVANCED) {
-            if (!_predicateCode || _bytecode.runPredicate(_predicateCode.get())) {
+            if (!_predicateCode || _bytecode->runPredicate(_predicateCode.get())) {
                 return trackPlanState(PlanState::ADVANCED);
             }
         }

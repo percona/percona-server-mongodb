@@ -1381,5 +1381,19 @@ error_codes:
       categories: [PlannerEstimationError, InternalOnly],
     }
 
+  # Search request was canceled due to overload
+  - {
+      code: 530,
+      name: SearchRequestCanceledDueToOverload,
+      categories: [SystemOverloadedError],
+    }
+
+  # Extension negotiated a capability version that is not supported by the requested API.
+  - {
+      code: 531,
+      name: ExtensionUnsupportedCapabilityVersion,
+      categories: [ExtensionError],
+    }
+
   # ^^^^
   # Add new codes, sequentially numbered, above.

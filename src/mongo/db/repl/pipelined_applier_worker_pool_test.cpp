@@ -7,15 +7,23 @@
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/client.h"
 #include "mongo/db/repl/oplog_applier_batcher_test_fixture.h"
+#include "mongo/db/repl/pipelined_applier_otel_metrics.h"
+#include "mongo/db/service_context.h"
 #include "mongo/db/service_context_test_fixture.h"
+#include "mongo/otel/metrics/metric_names.h"
+#include "mongo/otel/metrics/metrics_test_util.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/stdx/thread.h"
 #include "mongo/unittest/join_thread.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/concurrency/notification.h"
+#include "mongo/util/duration.h"
+#include "mongo/util/mock_periodic_runner.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/time_support.h"
 
 #include <algorithm>
+#include <deque>
 #include <mutex>
 #include <vector>
 
@@ -86,15 +94,31 @@ protected:
         _consumedCv.wait(lk, [&] { return _consumed.size() >= n; });
     }
 
+    // Enqueues a single work item holding `count` ops with unique timestamps to the given worker
+    // and returns those timestamps in order, for matching against consumption records.
+    std::vector<Timestamp> enqueueItem(PipelinedApplierWorkerPool& pool,
+                                       size_t workerIdx,
+                                       size_t count) {
+        WorkItem item;
+        const auto ns = NamespaceString::createNamespaceString_forTest("test.poa_workers");
+        std::vector<Timestamp> timestamps;
+        for (size_t i = 0; i < count; ++i) {
+            // WorkItem.ops holds ApplierOperations pointing into backing memory that contains
+            // the oplog entries. _backing is a deque to hold the OplogEntries for the life of
+            // the fixture, so that the ApplierOperations remain valid until the pool is shut
+            // down and joined.
+            _backing.emplace_back(repl::makeInsertOplogEntry(_nextSeq++, ns));
+            item.ops.emplace_back(&_backing.back());
+            timestamps.push_back(_backing.back().getTimestamp());
+        }
+        pool.enqueue(workerIdx, std::move(item));
+        return timestamps;
+    }
+
     // Enqueues a work item holding one op with a unique timestamp to the given worker and
     // returns that timestamp for matching against consumption records.
     Timestamp enqueueItem(PipelinedApplierWorkerPool& pool, size_t workerIdx) {
-        WorkItem item;
-        item.ops.push_back(repl::makeInsertOplogEntry(
-            _nextSeq++, NamespaceString::createNamespaceString_forTest("test.poa_workers")));
-        const Timestamp ts = item.ops.front().getTimestamp();
-        pool.enqueue(workerIdx, std::move(item));
-        return ts;
+        return enqueueItem(pool, workerIdx, 1).front();
     }
 
     size_t consumedCount() {
@@ -136,7 +160,7 @@ private:
             AuthorizationSession::get(cc())->isAuthenticated();
         std::lock_guard lk(_mutex);
         for (const auto& op : item.ops) {
-            _consumed.push_back({workerIdx, op.getTimestamp(), onKillExemptClient});
+            _consumed.push_back({workerIdx, op->getTimestamp(), onKillExemptClient});
         }
         // If the test is blocking on n items to be consumed, unblock.
         _consumedCv.notify_all();
@@ -147,6 +171,8 @@ private:
     stdx::condition_variable _consumedCv;
     std::vector<Consumed> _consumed;  // (M)
     int _nextSeq = 1;
+    // Backing storage for the OplogEntries referenced by enqueued work items.
+    std::deque<OplogEntry> _backing;  // (M)
 
     std::mutex _gateMutex;
     stdx::condition_variable _gateCv;
@@ -360,6 +386,116 @@ TEST_F(PipelinedApplierWorkerPoolTest, RepeatedPoolLifecycles) {
         pool->shutdownAndJoin();
     }
     ASSERT_EQ(consumedCount(), 20);
+}
+
+// Fixture for metric tests: installs a MockPeriodicRunner so the pool's periodic queue-depth
+// collector can be triggered on-demand, and captures OTel metrics for the duration of each test.
+class PipelinedApplierWorkerPoolMetricsTest : public PipelinedApplierWorkerPoolTest {
+protected:
+    void setUp() override {
+        PipelinedApplierWorkerPoolTest::setUp();
+        PipelinedApplyOtelMetrics::initialize();
+        auto runner = std::make_unique<MockPeriodicRunner>();
+        _mockRunner = runner.get();
+        getServiceContext()->setPeriodicRunner(std::move(runner));
+    }
+
+    // Fires the pool's periodic queue-depth collector once.
+    void runMetricsCollectorOnce() {
+        _mockRunner->run(Client::getCurrent());
+    }
+
+    MockPeriodicRunner* _mockRunner = nullptr;
+    otel::metrics::OtelMetricsCapturer _capturer;
+};
+
+TEST_F(PipelinedApplierWorkerPoolMetricsTest, OpsQueuedCounterCountsEveryOpAcrossWorkers) {
+    if (!otel::metrics::OtelMetricsCapturer::canReadMetrics()) {
+        return;
+    }
+    const int64_t before =
+        _capturer.readInt64Counter(otel::metrics::MetricNames::kPipelinedApplyOpsQueued);
+
+    // Enqueue items of varying sizes across different workers.
+    auto pool = makePool(3 /* numWorkers */);
+    const std::vector<std::pair<unsigned /*workerIdx*/, unsigned /*opsPerItem*/>> plan = {
+        {0, 1}, {0, 3}, {1, 5}, {2, 2}, {2, 4}, {2, 1}};
+    int64_t expectedAdded = 0;
+    for (auto [workerIdx, opsPerItem] : plan) {
+        enqueueItem(*pool, workerIdx, opsPerItem);
+        expectedAdded += opsPerItem;
+    }
+    pool->shutdownAndJoin();
+
+    const int64_t after =
+        _capturer.readInt64Counter(otel::metrics::MetricNames::kPipelinedApplyOpsQueued);
+    ASSERT_EQ(after - before, expectedAdded);
+}
+
+TEST_F(PipelinedApplierWorkerPoolMetricsTest,
+       QueueDepthGaugesReflectShallowestAndDeepestWorkerQueues) {
+    if (!otel::metrics::OtelMetricsCapturer::canReadMetrics()) {
+        return;
+    }
+    auto pool = makePool(3 /* numWorkers */);
+    ON_BLOCK_EXIT([&] {
+        releaseWorkers();
+        pool->shutdownAndJoin();
+    });
+
+    size_t totalEnqueued = 0;
+
+    // Ensure that every combination of 3 worker queues with 0, 1, or 2 items reports the correct
+    // min and max queue depth
+    // i.e. (0, 0, 0); (0, 0, 1); (0, 0, 2); (0, 1, 0); ... (1, 1, 1)
+    constexpr std::size_t depthCount = 3;
+    for (std::size_t i = 0; i < depthCount * depthCount * depthCount; ++i) {
+        const auto worker1Depth = i / (depthCount * depthCount);
+        const auto worker2Depth = (i / depthCount) % depthCount;
+        const auto worker3Depth = i % depthCount;
+
+        // Block workers so items pile up in the queues and don't drain before we sample.
+        blockWorkers();
+
+        runMetricsCollectorOnce();
+        ASSERT_EQ(
+            _capturer.readInt64Gauge(otel::metrics::MetricNames::kPipelinedApplyQueueDepthMin), 0);
+        ASSERT_EQ(
+            _capturer.readInt64Gauge(otel::metrics::MetricNames::kPipelinedApplyQueueDepthMax), 0);
+
+        for (size_t i = 0; i < worker1Depth; ++i) {
+            enqueueItem(*pool, 0);
+        }
+        for (size_t i = 0; i < worker2Depth; ++i) {
+            enqueueItem(*pool, 1);
+        }
+        for (size_t i = 0; i < worker3Depth; ++i) {
+            enqueueItem(*pool, 2);
+        }
+        totalEnqueued += worker1Depth + worker2Depth + worker3Depth;
+
+        runMetricsCollectorOnce();
+        ASSERT_EQ(
+            _capturer.readInt64Gauge(otel::metrics::MetricNames::kPipelinedApplyQueueDepthMin),
+            std::min(std::min(worker1Depth, worker2Depth), worker3Depth));
+        ASSERT_EQ(
+            _capturer.readInt64Gauge(otel::metrics::MetricNames::kPipelinedApplyQueueDepthMax),
+            std::max(std::max(worker1Depth, worker2Depth), worker3Depth));
+
+        // Release the workers so that we can empty the queues and advance to the next
+        // iteration of the test.
+        releaseWorkers();
+        waitForConsumedCount(totalEnqueued);
+        for (size_t sleeps = 0;; ++sleeps) {
+            runMetricsCollectorOnce();
+            if (_capturer.readInt64Gauge(
+                    otel::metrics::MetricNames::kPipelinedApplyQueueDepthMax) == 0) {
+                break;
+            }
+            sleepFor(Milliseconds(1));
+            ASSERT_LT(sleeps, 10 * 1000) << "Timed out waiting for queue to empty.";
+        }
+    }
 }
 
 }  // namespace

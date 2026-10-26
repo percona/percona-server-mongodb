@@ -9,6 +9,7 @@
 #include "mongo/db/matcher/expression_tree.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
+#include "mongo/db/query/compiler/type_system/type_system_test_util.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/tassert_guard.h"
 #include "mongo/unittest/unittest.h"
@@ -18,14 +19,19 @@ namespace {
 
 namespace exec_matcher = ::mongo::exec::matcher;
 
-std::unique_ptr<MatchExpression> parseMatchExpr(const std::string& query) {
-    boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
+std::unique_ptr<MatchExpression> parseMatchExpr(
+    const std::string& query, const boost::intrusive_ptr<ExpressionContext>& expCtx) {
     auto result = MatchExpressionParser::parse(fromjson(query),
                                                expCtx,
                                                ExtensionsCallbackNoop(),
                                                MatchExpressionParser::kAllowAllSpecialFeatures);
     ASSERT_OK(result.getStatus()) << query;
     return std::move(result.getValue());
+}
+
+std::unique_ptr<MatchExpression> parseMatchExpr(const std::string& query) {
+    boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
+    return parseMatchExpr(query, expCtx);
 }
 
 Type allValues(BSONType type) {
@@ -48,64 +54,6 @@ ElementPath noLeafTraversalPath(std::string_view path) {
     return ElementPath(path, ElementPath::LeafArrayBehavior::kNoTraversal);
 }
 
-/// Returns boolean indicating whether 'object' is one of the values 'type' covers.
-bool admitsObject(const Type& type, const BSONObj& object) {
-    if (!type.hasType(BSONType::object)) {
-        return false;
-    }
-
-    const auto& shape = type.getShape_forTest();
-    for (const auto& [fieldName, fieldType] : shape.fields) {
-        const BSONElement fieldValue = object[fieldName];
-        if (!fieldType.hasType(fieldValue.type())) {
-            return false;
-        }
-        if (fieldValue.type() == BSONType::object && !admitsObject(fieldType, fieldValue.Obj())) {
-            return false;
-        }
-    }
-
-    if (!isOpen(shape.open)) {
-        for (auto&& field : object) {
-            if (!shape.fields.find(field.fieldNameStringData())) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-/**
- * Generates all nested arrays/objects up to the given depth that contain field names 'b', 'c', '0'
- * or '', and values 1, null, {} or [].
- *
- * For example, depth=3 generates documents like {a: [{b: [1]}]}, {a: {'': {c: []}}} and
- * {a: {0: [null]}}.
- */
-std::vector<BSONObj> nestedDocuments(size_t depth) {
-    // Each value is held as the only element of a wrapping object.
-    std::vector<BSONObj> values = {
-        BSON("" << 1), BSON("" << BSONNULL), BSON("" << BSONObj()), BSON("" << BSONArray())};
-    for (size_t level = 0; level < depth; ++level) {
-        std::vector<BSONObj> nested = values;
-        for (auto&& wrapped : values) {
-            const BSONElement value = wrapped.firstElement();
-            nested.push_back(BSON("" << BSON_ARRAY(value)));
-            for (std::string_view fieldName : {"b", "c", "0", ""}) {
-                nested.push_back(BSON("" << BSON(fieldName << value)));
-            }
-        }
-        values = std::move(nested);
-    }
-
-    std::vector<BSONObj> documents = {BSONObj()};
-    for (auto&& wrapped : values) {
-        documents.push_back(BSON("a" << wrapped.firstElement()));
-    }
-    return documents;
-}
-
 /// Returns true if the matcher's traversal of 'path' produces a value of a type in 'constraint'.
 bool traversalProducesMatch(const ElementPath& path,
                             const BSONObj& document,
@@ -123,7 +71,7 @@ bool traversalProducesMatch(const ElementPath& path,
  * Asserts that the narrowed type admits every document for which traversalProducesMatch() returns
  * 'assumeTrue'.
  */
-void assertNarrowPathAdmitsEveryMatchingDocument(const std::vector<BSONObj>& documents,
+void assertNarrowPathAdmitsEveryMatchingDocument(const BSONObjBinarySet& documents,
                                                  const ElementPath& path,
                                                  const Type& constraint,
                                                  bool assumeTrue) {
@@ -132,7 +80,7 @@ void assertNarrowPathAdmitsEveryMatchingDocument(const std::vector<BSONObj>& doc
         if (traversalProducesMatch(path, document, constraint) != assumeTrue) {
             continue;
         }
-        ASSERT_TRUE(admitsObject(narrowed, document))
+        ASSERT_TRUE(narrowed.hasValue(Value(document)))
             << path.fieldRef().dottedField() << " constraint " << constraint.toDebugString()
             << " assumeTrue " << assumeTrue << " leaf traversal "
             << (path.leafArrayBehavior() == ElementPath::LeafArrayBehavior::kTraverse)
@@ -164,38 +112,25 @@ bool matches(const std::string& query, const std::string& document) {
 }
 
 /**
- * Asserts that every document the predicate leaves possible under 'assumeTrue' holds a value of
- * 'x' the narrowed type admits. Runs the matcher to decide which documents those are.
+ * Places 'predicate' at 'x', 'x.y' and 'x.y.z' and asserts that, for each document of the 'x.y.z'
+ * corpus, the type narrowed to the query's outcome on that document covers the document. Both
+ * outcomes are checked, so the narrowing under negation is tested too.
  */
-void assertNarrowingAdmitsEveryMatchingDocument(const std::string& query, bool assumeTrue) {
-    static const std::vector<BSONObj> kDocuments = {
-        fromjson("{x: 1}"),
-        fromjson("{x: 'str'}"),
-        fromjson("{x: null}"),
-        fromjson("{x: true}"),
-        fromjson("{x: {a: 1}}"),
-        fromjson("{x: []}"),
-        fromjson("{x: [1, 2]}"),
-        fromjson("{x: ['str']}"),
-        fromjson("{x: [1, 'str']}"),
-        fromjson("{x: [[1]]}"),
-        fromjson("{x: [{a: 1}]}"),
-        fromjson("{x: {}}"),
-        fromjson("{x: [null]}"),
-        fromjson("{}"),
-        fromjson("{x: 1, y: 'str', z: {a: 1}}"),
-        fromjson("{x: [1, 'str'], y: ['str'], z: [{a: 1}]}"),
-    };
-
-    const auto expr = parseMatchExpr(query);
-    const Type narrowed = narrowType(Type::anyObject(), expr.get(), assumeTrue);
-    for (const auto& document : kDocuments) {
-        if (matches(expr.get(), document) != assumeTrue) {
-            continue;
+void testPathExpressionOnCorpus(const std::string& predicate,
+                                const boost::intrusive_ptr<ExpressionContext>& expCtx) {
+    static const auto corpus = generateDocumentCorpus("x.y.z");
+    for (auto prefix : {"x", "x.y", "x.y.z"}) {
+        const BSONObj query = BSON(prefix << fromjson(predicate));
+        const auto expr = parseMatchExpr(query.jsonString(), expCtx);
+        const Type narrowedIfTrue = narrowType(Type::anyObject(), expr.get(), true);
+        const Type narrowedIfFalse = narrowType(Type::anyObject(), expr.get(), false);
+        for (const auto& document : corpus) {
+            const bool matched = exec_matcher::matchesBSON(expr.get(), document);
+            const Type& narrowed = matched ? narrowedIfTrue : narrowedIfFalse;
+            ASSERT_TRUE(narrowed.hasValue(Value(document)))
+                << query << " evaluates to " << matched << " on " << document.toString()
+                << " but inferred " << narrowed.toDebugString();
         }
-        ASSERT_TRUE(narrowed.getField("x").hasType(document["x"].type()))
-            << query << " assumeTrue " << assumeTrue << " admits " << document << " but inferred "
-            << narrowed.toDebugString();
     }
 }
 
@@ -469,7 +404,8 @@ TEST(MatcherPathTypingTest, NarrowDottedPathOnClosedPrefix) {
 }
 
 TEST(MatcherPathTypingTest, NarrowPathAdmitsEveryDocumentTheTraversalLeavesPossible) {
-    const auto documents = nestedDocuments(3);
+    const auto documents =
+        generateCombinedCorpus({"a.b.c", "a.0.b", "a.b.0", "a..b"}, ScalarCorpus::kMatchTraversal);
     const std::vector<Type> constraints = {
         allValues(BSONType::numberInt),
         allValues(BSONType::null),
@@ -798,6 +734,19 @@ TEST(MatcherTypingTest, SuccessiveNarrowingToDisjointTypesLeavesNoDocument) {
     Type narrowed = narrowType(Type::anyObject(), typeNumber.get(), true);
     narrowed = narrowType(narrowed, typeString.get(), true);
     ASSERT_EQ(narrowType(narrowed, notTypeArray.get(), true).toDebugString(), "never");
+}
+
+TEST(MatcherTypingTest, TypeMatchExpressionNarrowingOnCorpus) {
+    boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
+    for (auto predicate : {"{$type: 'number'}",
+                           "{$type: 'array'}",
+                           "{$type: 'object'}",
+                           "{$type: 'null'}",
+                           "{$type: 'string'}",
+                           "{$type: ['number', 'string']}",
+                           "{$type: ['number', 'array']}"}) {
+        testPathExpressionOnCorpus(predicate, expCtx);
+    }
 }
 
 TEST(MatcherTypingTest, EmptyPredicateNarrowsNothing) {
@@ -1394,8 +1343,107 @@ TEST(MatcherTypingTest, NorOfDottedPathsRemovesTheTypeOfEveryLeaf) {
     ASSERT_EQ(narrowedDebugString(predicate, input), expected);
 }
 
+TEST(MatcherTypingTest, ExistsTrueNarrowsLeaf) {
+    auto input = Type::anyObject();
+    auto predicate = "{x: {$exists: true}}";
+    auto expected = "{x: ~missing, ...}";
+    ASSERT_TRUE(matches(predicate, "{x: 1}"));
+    ASSERT_TRUE(matches(predicate, "{x: null}"));
+    ASSERT_FALSE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsFalseNarrowsLeaf) {
+    auto input = Type::anyObject();
+    auto predicate = "{x: {$exists: false}}";
+    auto expected = "{x: missing, ...}";
+    ASSERT_FALSE(matches(predicate, "{x: 1}"));
+    ASSERT_FALSE(matches(predicate, "{x: null}"));
+    ASSERT_TRUE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, NotExistsTrueNarrowsLeaf) {
+    auto input = Type::anyObject();
+    auto predicate = "{x: {$not: {$exists: true}}}";
+    auto expected = "{x: missing, ...}";
+    ASSERT_FALSE(matches(predicate, "{x: 1}"));
+    ASSERT_FALSE(matches(predicate, "{x: null}"));
+    ASSERT_TRUE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, NotExistsFalseNarrowsLeaf) {
+    auto input = Type::anyObject();
+    auto predicate = "{x: {$not: {$exists: false}}}";
+    auto expected = "{x: ~missing, ...}";
+    ASSERT_TRUE(matches(predicate, "{x: 1}"));
+    ASSERT_TRUE(matches(predicate, "{x: null}"));
+    ASSERT_FALSE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsTrueRemovesMissingFromKnownField) {
+    auto input = openObject({{"x", unionType(Type::missing(), allValues(BSONType::numberInt))}});
+    auto predicate = "{x: {$exists: true}}";
+    auto expected = "{x: int, ...}";
+    ASSERT_TRUE(matches(predicate, "{x: 1}"));
+    ASSERT_FALSE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsFalseKeepsOnlyMissingOfKnownField) {
+    auto input = openObject({{"x", unionType(Type::missing(), allValues(BSONType::numberInt))}});
+    auto predicate = "{x: {$exists: false}}";
+    auto expected = "{x: missing, ...}";
+    ASSERT_FALSE(matches(predicate, "{x: 1}"));
+    ASSERT_TRUE(matches(predicate, "{}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsTrueOnNestedNarrows) {
+    auto input = Type::anyObject();
+    auto predicate = "{'x.y': {$exists: true}}";
+    // 'x' must be an object or array with an object, and the object must have 'y' as non-missing.
+    auto expected = "{x: {y: ~missing, ...}|array(S), ...}";
+    ASSERT_TRUE(matches(predicate, "{x: {y: 1}}"));
+    ASSERT_TRUE(matches(predicate, "{x: {y: null}}"));
+    ASSERT_TRUE(matches(predicate, "{x: [{y: 1}]}"));
+    ASSERT_TRUE(matches(predicate, "{x: [{y: 1}, {z: 1}]}"));
+    ASSERT_FALSE(matches(predicate, "{}"));
+    ASSERT_FALSE(matches(predicate, "{x: 1}"));
+    ASSERT_FALSE(matches(predicate, "{x: [{z: 1}]}"));
+    ASSERT_FALSE(matches(predicate, "{x: []}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsFalseOnNestedNarrows) {
+    auto input = Type::anyObject();
+    auto predicate = "{'x.y': {$exists: false}}";
+    // 'x' can be any type, but if object, the object must be {y: missing, ...}, which specifies 'y'
+    // is missing as expected.
+    auto expected = "{x: ~(object|array(S))|{y: missing, ...}, ...}";
+    ASSERT_TRUE(matches(predicate, "{}"));
+    ASSERT_TRUE(matches(predicate, "{x: 1}"));
+    ASSERT_TRUE(matches(predicate, "{x: [{z: 1}]}"));
+    ASSERT_TRUE(matches(predicate, "{x: []}"));
+    ASSERT_FALSE(matches(predicate, "{x: {y: 1}}"));
+    ASSERT_FALSE(matches(predicate, "{x: {y: null}}"));
+    ASSERT_FALSE(matches(predicate, "{x: [{y: 1}]}"));
+    ASSERT_FALSE(matches(predicate, "{x: [{y: 1}, {z: 1}]}"));
+    ASSERT_EQ(narrowedDebugString(predicate, input), expected);
+}
+
+TEST(MatcherTypingTest, ExistsMatchExpressionNarrowingOnCorpus) {
+    boost::intrusive_ptr<ExpressionContextForTest> expCtx(new ExpressionContextForTest());
+    for (auto predicate : {"{$exists: true}", "{$exists: false}"}) {
+        testPathExpressionOnCorpus(predicate, expCtx);
+    }
+}
+
 TEST(MatcherTypingTest, NarrowingOnDottedPathAdmitsEveryDocumentMatcherLeavesPossible) {
-    const auto documents = nestedDocuments(3);
+    const auto documents =
+        generateCombinedCorpus({"a.b.c", "a.0.b", "a.b.0", "a..b"}, ScalarCorpus::kMatchTraversal);
     for (auto query : {"{'a.b': {$type: 'number'}}",
                        "{'a.b': {$type: 'null'}}",
                        "{'a.b': {$type: 'array'}}",
@@ -1414,28 +1462,11 @@ TEST(MatcherTypingTest, NarrowingOnDottedPathAdmitsEveryDocumentMatcherLeavesPos
                 if (matches(expr.get(), document) != assumeTrue) {
                     continue;
                 }
-                ASSERT_TRUE(admitsObject(narrowed, document))
+                ASSERT_TRUE(narrowed.hasValue(Value(document)))
                     << query << " assumeTrue " << assumeTrue << " admits " << document
                     << " but inferred " << narrowed.toDebugString();
             }
         }
-    }
-}
-
-TEST(MatcherTypingTest, NarrowingAdmitsEveryDocumentMatcherLeavesPossible) {
-    for (auto query : {"{x: {$type: 'number'}}",
-                       "{x: {$type: 'array'}}",
-                       "{x: {$type: 'object'}}",
-                       "{x: {$type: 'null'}}",
-                       "{x: {$type: ['number', 'string']}}",
-                       "{x: {$not: {$type: 'number'}}}",
-                       "{x: {$not: {$type: 'array'}}}",
-                       "{x: {$type: ['number', 'array']}}",
-                       "{x: {$not: {$type: ['number', 'array']}}}",
-                       "{x: {$type: 'string'}}",
-                       "{x: {$not: {$type: 'object'}}}"}) {
-        assertNarrowingAdmitsEveryMatchingDocument(query, true);
-        assertNarrowingAdmitsEveryMatchingDocument(query, false);
     }
 }
 
