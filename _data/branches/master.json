@@ -5,42 +5,62 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 79,
-    "days_behind": 11,
-    "unmerged_oldest_age_days": 11.463198105023148,
-    "files_affected": 689,
-    "total_additions": 25077,
-    "total_deletions": 6910,
+    "commits_behind": 23,
+    "days_behind": 7,
+    "unmerged_oldest_age_days": 7.434134107523148,
+    "files_affected": 166,
+    "total_additions": 3845,
+    "total_deletions": 1526,
     "date_range": {
-      "first": "2026-10-15T07:46:30+00:00",
-      "last": "2026-10-19T18:22:27+00:00"
+      "first": "2026-10-19T09:01:01+00:00",
+      "last": "2026-10-19T18:59:46+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "a64893540a6fea6e11015329dc3459f0f674a810",
-    "short_sha": "a64893540a6",
-    "date": "2026-10-15T07:15:05+00:00",
+    "sha": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+    "short_sha": "6e79a3d5d58",
+    "date": "2026-10-18T23:13:33+00:00",
     "author": {
-      "name": "auto-revert-app[bot]",
-      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      "name": "wt-vendoring-bot[bot]",
+      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
     },
-    "summary": "Revert \"SERVER-136557 Omit oplog size and count from per-collection validation (#64135)\" (#64464)"
+    "summary": "Import wiredtiger: 415f30c3094c5ab130d1a15305f887b1b0e6ff9c from branch mongodb-master (#64638)"
   },
   "first_unmerged_commit": {
-    "sha": "66c5f9e2118f3ec8eb9775ec0ccdb17d4a9248dc",
-    "short_sha": "66c5f9e2118",
-    "date": "2026-10-15T07:46:30+00:00",
+    "sha": "de59a98e19f814ce8d613be214dd05f4e028db7c",
+    "short_sha": "de59a98e19f",
+    "date": "2026-10-19T09:01:01+00:00",
     "author": {
-      "name": "Anna Maria Nestorov",
-      "email": "annamaria.nestorov@gmail.com"
+      "name": "mongo-pr-bot[bot]",
+      "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-133742 Pause auto-compaction on all RS nodes when replica set write block is enabled and allowDeletion is set to false  (#62668)"
+    "summary": "SERVER-110427 Update profiling data (#64633)"
   },
   "gate": {
     "open": true,
-    "reason": "force:important_files"
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "f77a4e6063d537bd66627e8939d16eb5764ed512",
+      "short_sha": "f77a4e6063d",
+      "date": "2026-10-19T18:59:46+00:00",
+      "author": {
+        "name": "Madison Hoover",
+        "email": "36238844+madisonhoover4@users.noreply.github.com"
+      },
+      "summary": "SERVER-136817: Tag all build_critical tasks and existing tasks as non_release_critical (#64367)"
+    },
+    {
+      "sha": "868aad0beea6d63cf6291cf0f956d308a2c973eb",
+      "short_sha": "868aad0beea",
+      "date": "2026-10-19T18:57:40+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-137021 Antimaterialize hash lookup-unwind with preserveNullAndEmptyArrays (#64406)"
+    },
     {
       "sha": "8bbcd821e19abd2d40ebf675bccd1d4a5445ef94",
       "short_sha": "8bbcd821e19",
@@ -250,740 +270,9 @@
         "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
       },
       "summary": "SERVER-110427 Update profiling data (#64633)"
-    },
-    {
-      "sha": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
-      "short_sha": "6e79a3d5d58",
-      "date": "2026-10-18T23:13:33+00:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: 415f30c3094c5ab130d1a15305f887b1b0e6ff9c from branch mongodb-master (#64638)"
-    },
-    {
-      "sha": "7a45cb24e938fa1a18dad3b1969444d5d80f8d09",
-      "short_sha": "7a45cb24e93",
-      "date": "2026-10-17T00:40:14+00:00",
-      "author": {
-        "name": "Steve Tarzia",
-        "email": "steve.tarzia@mongodb.com"
-      },
-      "summary": "SERVER-132002 Include idle cursors in query memory load shedding (#63910)"
-    },
-    {
-      "sha": "dcd4b9631c85496295c84f5a906a9ab74627f4fc",
-      "short_sha": "dcd4b9631c8",
-      "date": "2026-10-16T22:48:25+00:00",
-      "author": {
-        "name": "adriangzz",
-        "email": "adriangonzalezmontemayor@gmail.com"
-      },
-      "summary": "SERVER-137176 get_ipaddr() should return source address when Docker networks are present (#64561)"
-    },
-    {
-      "sha": "42fa4a319c0185195e62902000e17499983bbe30",
-      "short_sha": "42fa4a319c0",
-      "date": "2026-10-16T21:29:43+00:00",
-      "author": {
-        "name": "Ian Boros",
-        "email": "87138302+borosaurus@users.noreply.github.com"
-      },
-      "summary": "SERVER-136849 Share one VM across all SBE stages (#64579)"
-    },
-    {
-      "sha": "abaeeed1340c6f662ce63ddcbda39d5891dd43ed",
-      "short_sha": "abaeeed1340",
-      "date": "2026-10-16T20:31:21+00:00",
-      "author": {
-        "name": "Vishnu K",
-        "email": "vishnu.kaushik@mongodb.com"
-      },
-      "summary": "SERVER-136466 Use fillWriterVectors() from OplogApplierImpl and reuse OplogApplierBatcher's routing code in POA (#64183)"
-    },
-    {
-      "sha": "65da46545bba215379b99d33045ec220f1894846",
-      "short_sha": "65da46545bb",
-      "date": "2026-10-16T20:25:59+00:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-133228 Remove isSbePlanCacheEnabled param from assertPlanHasIxScanStage (#64260)"
-    },
-    {
-      "sha": "3b35b031787090e1598d08028cfcf74bdf5d2b13",
-      "short_sha": "3b35b031787",
-      "date": "2026-10-16T19:21:09+00:00",
-      "author": {
-        "name": "Junhson Jean-Baptiste",
-        "email": "junhson.jeanbaptiste@mongodb.com"
-      },
-      "summary": "SERVER-131635: rename sample doc ID + metadata: `sampleSize` to `requestedSampleSize` (#64557)"
-    },
-    {
-      "sha": "73af6d71b2f85ffe3d843b5fa7fcb7c3954654a7",
-      "short_sha": "73af6d71b2f",
-      "date": "2026-10-16T19:10:30+00:00",
-      "author": {
-        "name": "Santiago Roche",
-        "email": "69868136+sroches@users.noreply.github.com"
-      },
-      "summary": "SERVER-135392 Add support for tracking negotiated version in API handles (#64371)"
-    },
-    {
-      "sha": "97096d7419f8af95ec7368d9e8dc2c58df160bd2",
-      "short_sha": "97096d7419f",
-      "date": "2026-10-16T18:44:10+00:00",
-      "author": {
-        "name": "Gil Alon",
-        "email": "47804748+galon1@users.noreply.github.com"
-      },
-      "summary": "SERVER-137194 Move getPooledScope opCtx tassert above the pool lookup  (#64562)"
-    },
-    {
-      "sha": "9b9c9c87f0df7e4da421521d5dd4246fca2711bf",
-      "short_sha": "9b9c9c87f0d",
-      "date": "2026-10-16T18:06:41+00:00",
-      "author": {
-        "name": "Adithi Raghavan",
-        "email": "adithi.raghavan@mongodb.com"
-      },
-      "summary": "SERVER-135191 Add keyHash secondary index to the query stats store (#62259)"
-    },
-    {
-      "sha": "9965ffc9561a19cae1983e8a7452c708dbbee301",
-      "short_sha": "9965ffc9561",
-      "date": "2026-10-16T17:34:25+00:00",
-      "author": {
-        "name": "Daniel Moody",
-        "email": "dmoody256@gmail.com"
-      },
-      "summary": "SERVER-137169: Extract container engine and mount recovery for cross builds (#64507)"
-    },
-    {
-      "sha": "22088baaaa8f2274f1e23a2e87c535b0e53dd45c",
-      "short_sha": "22088baaaa8",
-      "date": "2026-10-16T17:33:26+00:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-136967 Make config.user_writes_critical_sections ineligible for replicated size and count in ASC (#64454)"
-    },
-    {
-      "sha": "d89084111f0e4b40316f5e7bbdf728bd3e9cc01e",
-      "short_sha": "d89084111f0",
-      "date": "2026-10-16T17:21:03+00:00",
-      "author": {
-        "name": "Naafiyan Ahmed",
-        "email": "naafiyan.ahmed@mongodb.com"
-      },
-      "summary": "SERVER-136566: Track intermediate rows and spills from SBE join stages in TrialRunTracker (#64134)"
-    },
-    {
-      "sha": "bdf87ff09d22fdf9b31165d8bc4ed18d673d90a3",
-      "short_sha": "bdf87ff09d2",
-      "date": "2026-10-16T17:15:50+00:00",
-      "author": {
-        "name": "Ian Boros",
-        "email": "87138302+borosaurus@users.noreply.github.com"
-      },
-      "summary": "SERVER-136270 Record the slots each SBE blueprint node defines and uses (#64369)"
-    },
-    {
-      "sha": "6c2450daae7192c8fe93121be047b30fb180c71a",
-      "short_sha": "6c2450daae7",
-      "date": "2026-10-16T16:12:57+00:00",
-      "author": {
-        "name": "Vesko Karaganev",
-        "email": "vesko.karaganev@mongodb.com"
-      },
-      "summary": "SERVER-134939 Implement ExistsMatchExpression narrowing (#63683)"
-    },
-    {
-      "sha": "7837672f86a5d71affcf1163566d0c877470f265",
-      "short_sha": "7837672f86a",
-      "date": "2026-10-16T16:09:26+00:00",
-      "author": {
-        "name": "Anja Kalaba",
-        "email": "anja.kalaba@mongodb.com"
-      },
-      "summary": "SERVER-137052 code clean up for chunk migration success rate observability (#64457)"
-    },
-    {
-      "sha": "0cebcabbe3021d980e331518d86a0254455eac71",
-      "short_sha": "0cebcabbe30",
-      "date": "2026-10-16T16:00:12+00:00",
-      "author": {
-        "name": "Lynne Wang",
-        "email": "lynne.wang@mongodb.com"
-      },
-      "summary": "SERVER-119512 Continue PDIB collscan past capped roll-off (#64276)"
-    },
-    {
-      "sha": "17be0826adfc59c13487b786d7f23755129a7d7b",
-      "short_sha": "17be0826adf",
-      "date": "2026-10-16T15:50:28+00:00",
-      "author": {
-        "name": "Vesko Karaganev",
-        "email": "vesko.karaganev@mongodb.com"
-      },
-      "summary": "SERVER-136067 Check matcher narrowing soundness on the document corpus (#63773)"
-    },
-    {
-      "sha": "6c87cc54eb0d59c40230021bb1548bd365bc4efd",
-      "short_sha": "6c87cc54eb0",
-      "date": "2026-10-16T15:38:37+00:00",
-      "author": {
-        "name": "Abdul Qadeer",
-        "email": "abdul.qadeer@mongodb.com"
-      },
-      "summary": "SERVER-135817 Add featureFlagReshardingPrePostConditions feature flag (#64520)"
-    },
-    {
-      "sha": "3ed35b46438e4346b1f5c75797a7406493642613",
-      "short_sha": "3ed35b46438",
-      "date": "2026-10-16T15:35:06+00:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-136518 Extend INLJ with unaliased probe predicates (#64248)"
-    },
-    {
-      "sha": "5bce5136e34ad16b66c91a4cacd7497fb750e360",
-      "short_sha": "5bce5136e34",
-      "date": "2026-10-16T15:32:11+00:00",
-      "author": {
-        "name": "Teo Voinea",
-        "email": "teo.voinea@mongodb.com"
-      },
-      "summary": "SERVER-137199: Deduplicate generated-task activation handling (#64318)"
-    },
-    {
-      "sha": "c13e79129fe757114ed99863dfbedadd6424d9ff",
-      "short_sha": "c13e79129fe",
-      "date": "2026-10-16T15:07:56+00:00",
-      "author": {
-        "name": "Indy Prentice",
-        "email": "iprentic@users.noreply.github.com"
-      },
-      "summary": "SERVER-134742: Instrument timeseries write with retry delay metrics (#64527)"
-    },
-    {
-      "sha": "22943ca393f3179f514dc8e53a202b4ab894a3ef",
-      "short_sha": "22943ca393f",
-      "date": "2026-10-16T15:03:25+00:00",
-      "author": {
-        "name": "madelinezec",
-        "email": "15312869+madelinezec@users.noreply.github.com"
-      },
-      "summary": "SERVER-132644 collation is ignored by expr inside match (#62962)"
-    },
-    {
-      "sha": "12aac49e3990c49e7b43f4ac883ae88369a56f79",
-      "short_sha": "12aac49e399",
-      "date": "2026-10-16T14:38:53+00:00",
-      "author": {
-        "name": "Santiago Roche",
-        "email": "69868136+sroches@users.noreply.github.com"
-      },
-      "summary": "SERVER-136909 Split version negotiation elements into dedicated header (#64335)"
-    },
-    {
-      "sha": "d27030b5b2599f035428672a8f305ec45b0e4e41",
-      "short_sha": "d27030b5b25",
-      "date": "2026-10-16T14:18:23+00:00",
-      "author": {
-        "name": "Kyra Ramesh Krishna",
-        "email": "60921433+kyra-rk@users.noreply.github.com"
-      },
-      "summary": "SERVER-135549: Set featureFlagServerInitiatedTransactionClassification to true by default now that internal/external differentiation for metrics is complete (#63940)"
-    },
-    {
-      "sha": "1352a4a5177b84c66370e5fb60644f4ac35322d5",
-      "short_sha": "1352a4a5177",
-      "date": "2026-10-16T14:04:21+00:00",
-      "author": {
-        "name": "joseph obaraye",
-        "email": "joseph.obaraye@mongodb.com"
-      },
-      "summary": "SERVER-134784 Expose throughput and progress metrics for the pipelined oplog applier (#62928)"
-    },
-    {
-      "sha": "94883f7667fc04a267ec085c858c23456d95d4a8",
-      "short_sha": "94883f7667f",
-      "date": "2026-10-16T13:48:29+00:00",
-      "author": {
-        "name": "Vesko Karaganev",
-        "email": "vesko.karaganev@mongodb.com"
-      },
-      "summary": "SERVER-136067 Add Type::hasValue to check whether a type has a value (#63772)"
-    },
-    {
-      "sha": "ff84785a639a888d7850ac7bf0ca9f79fa09acf8",
-      "short_sha": "ff84785a639",
-      "date": "2026-10-16T13:41:08+00:00",
-      "author": {
-        "name": "Logan Karbiner",
-        "email": "lkarbiner@users.noreply.github.com"
-      },
-      "summary": "SERVER-137014 Make SBE use all of the elements in an array or object when hashing (#64431)"
-    },
-    {
-      "sha": "64af130b163835c776c27f167ac699810991ec2b",
-      "short_sha": "64af130b163",
-      "date": "2026-10-16T10:53:08+00:00",
-      "author": {
-        "name": "Joan Bruguera Micó (at MongoDB)",
-        "email": "joan.bruguera-mico@mongodb.com"
-      },
-      "summary": "SERVER-137118 Fair mutex to avoid starvation in rename_collection_race_with_create_coll_droptarget FSM (#64498)"
-    },
-    {
-      "sha": "8a48dd52da4d6622d98da02b448a0f41926b16f4",
-      "short_sha": "8a48dd52da4",
-      "date": "2026-10-16T10:31:58+00:00",
-      "author": {
-        "name": "Jan",
-        "email": "jsteemann@users.noreply.github.com"
-      },
-      "summary": "SERVER-137116 Set `cursor.invalidated` on sharded change stream getMore response (#64467)"
-    },
-    {
-      "sha": "53b22ed3148b663d8fe36e840e06bcb5262187ba",
-      "short_sha": "53b22ed3148",
-      "date": "2026-10-16T09:32:18+00:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-136979 Allow DSC CSRS transitions without legacy configsvr replica-set reconfiguration (#64393)"
-    },
-    {
-      "sha": "aa4f6cb33d05293fe7d30bd226f6ca6e527b2f32",
-      "short_sha": "aa4f6cb33d0",
-      "date": "2026-10-16T09:18:33+00:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-110427 Update profiling data (#64539)"
-    },
-    {
-      "sha": "5ae38fb92fb211f64c444171cf436ed549cbfd0b",
-      "short_sha": "5ae38fb92fb",
-      "date": "2026-10-16T08:39:00+00:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-136871 Ensure ContinuousTransition restarts the disaggregated old primary before secondary steps-up (#64308)"
-    },
-    {
-      "sha": "e766fc06bac4a0a6ee9ebc140ec141435860dc9a",
-      "short_sha": "e766fc06bac",
-      "date": "2026-10-16T08:28:13+00:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-129061 Auto-generated SBOM files [master] (#64388)"
-    },
-    {
-      "sha": "a52df61973e593df52d0b48a877c1744cdd3ff6b",
-      "short_sha": "a52df61973e",
-      "date": "2026-10-15T23:06:41+00:00",
-      "author": {
-        "name": "wt-vendoring-bot[bot]",
-        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "Import wiredtiger: d9a49cd4cad732749e1cc167eed3a33ecdf8ccf2 from branch mongodb-master (#64478)"
-    },
-    {
-      "sha": "cf29bc4d49e9f0bce2d9c9508a13980eccb71d85",
-      "short_sha": "cf29bc4d49e",
-      "date": "2026-10-15T21:34:26+00:00",
-      "author": {
-        "name": "Anna Veselova",
-        "email": "47113149+aveselova@users.noreply.github.com"
-      },
-      "summary": "SERVER-136472: Add fuzztest utility for SBE that generates nested documents (#64484)"
-    },
-    {
-      "sha": "32d1bed4e2a4bd9510627762227ab7e661d215f8",
-      "short_sha": "32d1bed4e2a",
-      "date": "2026-10-15T20:56:32+00:00",
-      "author": {
-        "name": "Mike Nugent",
-        "email": "mike.nugent@mongodb.com"
-      },
-      "summary": "SERVER-136222: Add server parameters to control the fixed sharding executor pool size (#63805)"
-    },
-    {
-      "sha": "1f38a1400ecf40c35f238ea8fb3a4990278e0acd",
-      "short_sha": "1f38a1400ec",
-      "date": "2026-10-15T20:51:37+00:00",
-      "author": {
-        "name": "Ankesh Airon",
-        "email": "ankesh.airon@mongodb.com"
-      },
-      "summary": "SERVER-137049: Add SearchRequestCancelledDueToOverload error code (#64458)"
-    },
-    {
-      "sha": "2c991c8726d133c5435f1e5355faec6b4e573126",
-      "short_sha": "2c991c8726d",
-      "date": "2026-10-15T19:42:26+00:00",
-      "author": {
-        "name": "Yuhong Zhang",
-        "email": "yuhong.zhang@mongodb.com"
-      },
-      "summary": "SERVER-136857 Disable replicated size and count in suites assuming snapshot read semantics (#64310)"
-    },
-    {
-      "sha": "ac949e3974382d7b48ada67b79e2e62f5917bf7c",
-      "short_sha": "ac949e39743",
-      "date": "2026-10-15T19:02:02+00:00",
-      "author": {
-        "name": "Logan Karbiner",
-        "email": "lkarbiner@users.noreply.github.com"
-      },
-      "summary": "SERVER-136549 Add ServerStatus metrics for quota operations on the $out stage (#64493)"
-    },
-    {
-      "sha": "3e90ba8b000e61c7c5c084a611a545abe30d3861",
-      "short_sha": "3e90ba8b000",
-      "date": "2026-10-15T18:25:51+00:00",
-      "author": {
-        "name": "Zac Codiamat",
-        "email": "zac.codiamat@mongodb.com"
-      },
-      "summary": "SERVER-137132: Migrate release-container to bazel and uv (#64413)"
-    },
-    {
-      "sha": "5d534b23d23a6e269f6559fc44561204afb9b880",
-      "short_sha": "5d534b23d23",
-      "date": "2026-10-15T17:08:31+00:00",
-      "author": {
-        "name": "kmznam",
-        "email": "97981975+kmznam@users.noreply.github.com"
-      },
-      "summary": "SERVER-137093 exclude change_stream_update_lookup_too_many_matching_documents.js from stepdown suites (#64500)"
-    },
-    {
-      "sha": "a81ddad1da46e30d1d0496a5a958fdae49126eec",
-      "short_sha": "a81ddad1da4",
-      "date": "2026-10-15T16:59:11+00:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-137090 Extend lookup_unwind golden tests with preexisting 'as' values and includeArrayIndex (#64459)"
-    },
-    {
-      "sha": "3368a03370381fbd5d950fa8287903b30d81c336",
-      "short_sha": "3368a033703",
-      "date": "2026-10-15T16:30:03+00:00",
-      "author": {
-        "name": "Matthew Boros",
-        "email": "mattBoros@users.noreply.github.com"
-      },
-      "summary": "SERVER-136911: Change SBE scan and fetch stages to use `BSONObjValueAccessor` for record (#64334)"
-    },
-    {
-      "sha": "95246d15f4cc95fe7ac9d343a6b02b3bf5c53072",
-      "short_sha": "95246d15f4c",
-      "date": "2026-10-15T16:24:33+00:00",
-      "author": {
-        "name": "Jordan Glassley",
-        "email": "jordan.glassley@mongodb.com"
-      },
-      "summary": "SERVER-135489 Hint by-name for analyzeShardKey to handle indexes with identical key-patterns (#64264)"
-    },
-    {
-      "sha": "1d10424071a970346627d497848ff68650e44daf",
-      "short_sha": "1d10424071a",
-      "date": "2026-10-15T15:46:32+00:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-130431 Mark $graphLookup as DiskUseRequirement::kWritesTmpData (#60627)"
-    },
-    {
-      "sha": "b3dae82ed06de506c8627a428e822352b0ee4d86",
-      "short_sha": "b3dae82ed06",
-      "date": "2026-10-15T15:25:40+00:00",
-      "author": {
-        "name": "Cedric Sirianni",
-        "email": "cedric.sirianni@mongodb.com"
-      },
-      "summary": "SERVER-136711 Fix AwaitRecordsElapsedWaitTime test (#64189)"
-    },
-    {
-      "sha": "edc091728c2c88c981f56ac7b43a04174a62ab69",
-      "short_sha": "edc091728c2",
-      "date": "2026-10-15T15:12:49+00:00",
-      "author": {
-        "name": "Daniel Moody",
-        "email": "dmoody256@gmail.com"
-      },
-      "summary": "SERVER-137039: Make Windows cross compile commands runnable through a container wrapper (#64058)"
-    },
-    {
-      "sha": "4ed70d1555acd40e0b5f8790a271ca37a7737f6b",
-      "short_sha": "4ed70d1555a",
-      "date": "2026-10-15T15:11:31+00:00",
-      "author": {
-        "name": "lmestres",
-        "email": "90823901+lmestres@users.noreply.github.com"
-      },
-      "summary": "SERVER-113663 Remove function which exposes the shard membership lock outside of the ShardingCatalogManager (#63200)"
-    },
-    {
-      "sha": "f9d843556ef00806c9c6f9f2f5a9139c66ea3309",
-      "short_sha": "f9d843556ef",
-      "date": "2026-10-15T15:00:32+00:00",
-      "author": {
-        "name": "Alya Carina Berciu",
-        "email": "alya.berciu@mongodb.com"
-      },
-      "summary": "SERVER-135792 Create codeowners for join optimization (#64249)"
-    },
-    {
-      "sha": "5fb5f1b08beb481ffd4795654b5d3a8f145f93dd",
-      "short_sha": "5fb5f1b08be",
-      "date": "2026-10-15T14:48:54+00:00",
-      "author": {
-        "name": "Daniel Moody",
-        "email": "dmoody256@gmail.com"
-      },
-      "summary": "SERVER-136639: Make Windows Bazel test launching and reporting reliable (#63786)"
-    },
-    {
-      "sha": "2aad85783d2ae567aac973bdb18cb6afdf274e5b",
-      "short_sha": "2aad85783d2",
-      "date": "2026-10-15T14:44:44+00:00",
-      "author": {
-        "name": "Didier Nadeau",
-        "email": "didier.nadeau@mongodb.com"
-      },
-      "summary": "SERVER-136221 Reassign ownership of observability to the DBIO team (#63793)"
-    },
-    {
-      "sha": "8ff2bde9cc6cdff31e78c171a4b4a7fe8bf0ce28",
-      "short_sha": "8ff2bde9cc6",
-      "date": "2026-10-15T14:19:30+00:00",
-      "author": {
-        "name": "Vesko Karaganev",
-        "email": "vesko.karaganev@mongodb.com"
-      },
-      "summary": "SERVER-136067 Add type_system_test_util with a document corpus (#63771)"
-    },
-    {
-      "sha": "2cac4b2a651d8c52ee4717ed8d8bd5448c0967ea",
-      "short_sha": "2cac4b2a651",
-      "date": "2026-10-15T13:36:49+00:00",
-      "author": {
-        "name": "Ian Boros",
-        "email": "87138302+borosaurus@users.noreply.github.com"
-      },
-      "summary": "SERVER-135771 Remove the SBE window stage memory sampling parameters (#64147)"
-    },
-    {
-      "sha": "7a4f7074fc1bd2683d29c1c5b4960387d23ecbed",
-      "short_sha": "7a4f7074fc1",
-      "date": "2026-10-15T13:18:14+00:00",
-      "author": {
-        "name": "Ron Neuman",
-        "email": "31408835+rongodb@users.noreply.github.com"
-      },
-      "summary": "SERVER-136453: revert TSS to use the EVG API (#64341)"
-    },
-    {
-      "sha": "b0f33c16f4201589b6f7787b874ec58c3e882684",
-      "short_sha": "b0f33c16f42",
-      "date": "2026-10-15T11:46:49+00:00",
-      "author": {
-        "name": "mongo-pr-bot[bot]",
-        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
-      },
-      "summary": "SERVER-110427 Update profiling data (#64456)"
-    },
-    {
-      "sha": "b5f071639affedb91505b920187d5dcd43b1438f",
-      "short_sha": "b5f071639af",
-      "date": "2026-10-15T11:03:31+00:00",
-      "author": {
-        "name": "SimonEismann",
-        "email": "31125121+SimonEismann@users.noreply.github.com"
-      },
-      "summary": "SERVER-136977 Run per-benchmark perf checks inside the hook's test case (#64387)"
-    },
-    {
-      "sha": "66c5f9e2118f3ec8eb9775ec0ccdb17d4a9248dc",
-      "short_sha": "66c5f9e2118",
-      "date": "2026-10-15T07:46:30+00:00",
-      "author": {
-        "name": "Anna Maria Nestorov",
-        "email": "annamaria.nestorov@gmail.com"
-      },
-      "summary": "SERVER-133742 Pause auto-compaction on all RS nodes when replica set write block is enabled and allowDeletion is set to false  (#62668)"
     }
   ],
   "merge_picks": [
-    {
-      "commit": {
-        "sha": "66c5f9e2118f3ec8eb9775ec0ccdb17d4a9248dc",
-        "short_sha": "66c5f9e2118",
-        "date": "2026-10-15T07:46:30+00:00",
-        "author": {
-          "name": "Anna Maria Nestorov",
-          "email": "annamaria.nestorov@gmail.com"
-        },
-        "summary": "SERVER-133742 Pause auto-compaction on all RS nodes when replica set write block is enabled and allowDeletion is set to false  (#62668)"
-      },
-      "strategy_name": "important_files",
-      "result": {
-        "matched_files": [
-          "src/mongo/db/storage/storage_engine.h"
-        ]
-      }
-    },
-    {
-      "commit": {
-        "sha": "2aad85783d2ae567aac973bdb18cb6afdf274e5b",
-        "short_sha": "2aad85783d2",
-        "date": "2026-10-15T14:44:44+00:00",
-        "author": {
-          "name": "Didier Nadeau",
-          "email": "didier.nadeau@mongodb.com"
-        },
-        "summary": "SERVER-136221 Reassign ownership of observability to the DBIO team (#63793)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 19,
-          "num_of_lines": 65,
-          "lines_added": 28,
-          "lines_deleted": 37,
-          "num_of_dirs": 19
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "5fb5f1b08beb481ffd4795654b5d3a8f145f93dd",
-        "short_sha": "5fb5f1b08be",
-        "date": "2026-10-15T14:48:54+00:00",
-        "author": {
-          "name": "Daniel Moody",
-          "email": "dmoody256@gmail.com"
-        },
-        "summary": "SERVER-136639: Make Windows Bazel test launching and reporting reliable (#63786)"
-      },
-      "strategy_name": "conflict",
-      "result": {
-        "conflicting_files": [
-          "bazel/BUILD.bazel"
-        ]
-      }
-    },
-    {
-      "commit": {
-        "sha": "a52df61973e593df52d0b48a877c1744cdd3ff6b",
-        "short_sha": "a52df61973e",
-        "date": "2026-10-15T23:06:41+00:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: d9a49cd4cad732749e1cc167eed3a33ecdf8ccf2 from branch mongodb-master (#64478)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 76,
-          "num_of_lines": 3701,
-          "lines_added": 2522,
-          "lines_deleted": 1179,
-          "num_of_dirs": 19
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "3ed35b46438e4346b1f5c75797a7406493642613",
-        "short_sha": "3ed35b46438",
-        "date": "2026-10-16T15:35:06+00:00",
-        "author": {
-          "name": "Alya Carina Berciu",
-          "email": "alya.berciu@mongodb.com"
-        },
-        "summary": "SERVER-136518 Extend INLJ with unaliased probe predicates (#64248)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 28,
-          "num_of_lines": 546,
-          "lines_added": 471,
-          "lines_deleted": 75,
-          "num_of_dirs": 11
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "73af6d71b2f85ffe3d843b5fa7fcb7c3954654a7",
-        "short_sha": "73af6d71b2f",
-        "date": "2026-10-16T19:10:30+00:00",
-        "author": {
-          "name": "Santiago Roche",
-          "email": "69868136+sroches@users.noreply.github.com"
-        },
-        "summary": "SERVER-135392 Add support for tracking negotiated version in API handles (#64371)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 40,
-          "num_of_lines": 1351,
-          "lines_added": 1237,
-          "lines_deleted": 114,
-          "num_of_dirs": 13
-        }
-      }
-    },
-    {
-      "commit": {
-        "sha": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
-        "short_sha": "6e79a3d5d58",
-        "date": "2026-10-18T23:13:33+00:00",
-        "author": {
-          "name": "wt-vendoring-bot[bot]",
-          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
-        },
-        "summary": "Import wiredtiger: 415f30c3094c5ab130d1a15305f887b1b0e6ff9c from branch mongodb-master (#64638)"
-      },
-      "strategy_name": "huge_commit",
-      "result": {
-        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
-        "evaluated_vars": {
-          "num_of_files": 31,
-          "num_of_lines": 2174,
-          "lines_added": 1426,
-          "lines_deleted": 748,
-          "num_of_dirs": 17
-        }
-      }
-    },
     {
       "commit": {
         "sha": "7f18b6ff6d0b570026163647ca9a1aeb7b715af2",
@@ -1005,6 +294,24 @@
           "lines_deleted": 129,
           "num_of_dirs": 12
         }
+      }
+    },
+    {
+      "commit": {
+        "sha": "02e6cc7d1dc8c778599f83e3a92ddee48f149b48",
+        "short_sha": "02e6cc7d1dc",
+        "date": "2026-10-19T15:44:55+00:00",
+        "author": {
+          "name": "mongo-pr-bot[bot]",
+          "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "SERVER-129061 Auto-generated SBOM files [master] (#64650)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "sbom.json"
+        ]
       }
     },
     {
@@ -1032,7 +339,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-26 18:53:11",
+  "generated_at": "2026-10-26 19:26:01",
   "branch_name": "master",
   "display_name": "master"
 }
