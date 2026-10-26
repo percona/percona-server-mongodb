@@ -1,0 +1,30 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4627785f48cbf2bb1fd20b03ee45b679c36b54a3",
+    "merge_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Resolve conflicts for merge commit '6e79a3d5d58' into master",
+        "resolved": {
+          "bazel/BUILD.bazel": "Resolved by human",
+          "bazel/wrapper_hook/BUILD.bazel": "Resolved by human",
+          "sbom.json": "Resolved by human"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Resolved three merge conflicts by merging the independent additions from\nboth sides. In bazel/BUILD.bazel kept Percona's integration_test_wrapper\nfilegroup alongside upstream's new windows_test_launcher targets. In\nbazel/wrapper_hook/BUILD.bazel kept Percona's credential_helper.py\nsource alongside upstream's compiledb_windows.py, in sorted order. In\nsbom.json kept Percona's serialNumber/version and removed the\nmetadata.tools section entirely per the SBOM invariant.\n\nResolved:\n\tbazel/BUILD.bazel\n\tbazel/wrapper_hook/BUILD.bazel\n\tsbom.json\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "e86191dd857778da2063598a2fe4b6fbf1dc57ae"
+    }
+  ]
+}
