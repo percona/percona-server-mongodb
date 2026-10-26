@@ -35,12 +35,8 @@ py_library(
         "check_resources.py",
         "compiledb.py",
         "compiledb_postprocess.py",
-<<<<<<< HEAD
-        "credential_helper.py",
-||||||| a64893540a6
-=======
         "compiledb_windows.py",
->>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691
+        "credential_helper.py",
         "engflow_check.py",
         "generate_common_bes_bazelrc.py",
         "git_age_check.py",
