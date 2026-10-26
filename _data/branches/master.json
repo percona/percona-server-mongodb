@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 58,
+    "commits_behind": 79,
     "days_behind": 11,
-    "unmerged_oldest_age_days": 11.088224998449075,
-    "files_affected": 553,
-    "total_additions": 21407,
-    "total_deletions": 5545,
+    "unmerged_oldest_age_days": 11.463198105023148,
+    "files_affected": 689,
+    "total_additions": 25077,
+    "total_deletions": 6910,
     "date_range": {
       "first": "2026-10-15T07:46:30+00:00",
-      "last": "2026-10-18T23:13:33+00:00"
+      "last": "2026-10-19T18:22:27+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,216 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "8bbcd821e19abd2d40ebf675bccd1d4a5445ef94",
+      "short_sha": "8bbcd821e19",
+      "date": "2026-10-19T18:22:27+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-137231: Lazily allocate schemaTypeInfoUsed flag to fix find_one benchmarks_sep regression (#64598)"
+    },
+    {
+      "sha": "30337b21741187b315e1590c836ecb7fbefb7a66",
+      "short_sha": "30337b21741",
+      "date": "2026-10-19T17:53:54+00:00",
+      "author": {
+        "name": "Ken Martin",
+        "email": "ken.martin@mongodb.com"
+      },
+      "summary": "SERVER-128467: Remove feature flag featureFlagKEKPushMode (#64629)"
+    },
+    {
+      "sha": "584589bc13feec963707cf02f32fda82b244ffb7",
+      "short_sha": "584589bc13f",
+      "date": "2026-10-19T17:50:03+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-136620 Delete `featureFlagGetExecutorDeferredEngineChoice` (#64099)"
+    },
+    {
+      "sha": "2466a0f06a4e6c9d02b30573be3804cdfed34de0",
+      "short_sha": "2466a0f06a4",
+      "date": "2026-10-19T16:56:43+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-137296: Fix IBM cross-toolchain Windows root substitution (#64671)"
+    },
+    {
+      "sha": "98d574318eb3ee5b97ef36e363852474ad9422be",
+      "short_sha": "98d574318eb",
+      "date": "2026-10-19T16:47:40+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-131655 Add feature flag `featureFlagEndOfTransactionChangeEventSynthesis` (#64635)"
+    },
+    {
+      "sha": "d9922152c5d98a5ff4dc0da1687be5ab64c47293",
+      "short_sha": "d9922152c5d",
+      "date": "2026-10-19T16:47:22+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-136798 Skip the pre-/post-image check for the resume token event (#64555)"
+    },
+    {
+      "sha": "c133e13733f4d21a74e4516b680a3e179c6a9d22",
+      "short_sha": "c133e13733f",
+      "date": "2026-10-19T16:37:28+00:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-135192 Capture keyHash equality targets from a following $match (#62261)"
+    },
+    {
+      "sha": "9d11a1cfca616c4c5dba227bc813a8678e97f080",
+      "short_sha": "9d11a1cfca6",
+      "date": "2026-10-19T16:28:11+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-137280 Exclude drop_config_db.js from sharding multiversion suites (#64666)"
+    },
+    {
+      "sha": "02e6cc7d1dc8c778599f83e3a92ddee48f149b48",
+      "short_sha": "02e6cc7d1dc",
+      "date": "2026-10-19T15:44:55+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-129061 Auto-generated SBOM files [master] (#64650)"
+    },
+    {
+      "sha": "8b4bcd46f2fc2b29d328d295ba3d0ac512080259",
+      "short_sha": "8b4bcd46f2f",
+      "date": "2026-10-19T15:27:13+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-137293 Remove maxTimeMS restrictions on PBRT tests (#64660)"
+    },
+    {
+      "sha": "7f18b6ff6d0b570026163647ca9a1aeb7b715af2",
+      "short_sha": "7f18b6ff6d0",
+      "date": "2026-10-19T15:22:49+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-132242 Use native SBE $min/$maxN group accumulators in stage builders (#59364)"
+    },
+    {
+      "sha": "3a0a6820df73e42d5c183fb66c93592225fd63fa",
+      "short_sha": "3a0a6820df7",
+      "date": "2026-10-19T15:18:56+00:00",
+      "author": {
+        "name": "lmestres",
+        "email": "90823901+lmestres@users.noreply.github.com"
+      },
+      "summary": "SERVER-118789 SERVER-118822 StaleConfig is currently being handled in two different places (#62378)"
+    },
+    {
+      "sha": "a96abb362e9f4736ef1d46c82dc8820b26960816",
+      "short_sha": "a96abb362e9",
+      "date": "2026-10-19T15:06:10+00:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-137197 Resume primary-driven index builds when the resume record was deleted (#64582)"
+    },
+    {
+      "sha": "3aabb3dc2bea6866f087b5d83dd4d9cc777f31c8",
+      "short_sha": "3aabb3dc2be",
+      "date": "2026-10-19T14:16:27+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-136153 Use canPathBeArray() when handling redeclared base fields (#64570)"
+    },
+    {
+      "sha": "35f6a4f8e565253aa9f7118af6ff5a39d3269697",
+      "short_sha": "35f6a4f8e56",
+      "date": "2026-10-19T14:02:48+00:00",
+      "author": {
+        "name": "Daniel Segel",
+        "email": "71151509+dhsegel@users.noreply.github.com"
+      },
+      "summary": "SERVER-136914 Move extension privilege types into a shared IDL and add search index actions (#64429)"
+    },
+    {
+      "sha": "4d1bd0c7687b23764e15b942fd5e37fca643ca4e",
+      "short_sha": "4d1bd0c7687",
+      "date": "2026-10-19T13:40:05+00:00",
+      "author": {
+        "name": "Henri Nikku",
+        "email": "henri.nikku@mongodb.com"
+      },
+      "summary": "SERVER-136153 Use canPathBeArray() when handling renames (#64569)"
+    },
+    {
+      "sha": "29bf721b020a2172c7acafdf795c9d4608e1a992",
+      "short_sha": "29bf721b020",
+      "date": "2026-10-19T13:18:44+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-135982 Add getOutputType and narrowType for Expressions (#64653)"
+    },
+    {
+      "sha": "39764c275cf3066f72c43bca245ef9d09569e0c2",
+      "short_sha": "39764c275cf",
+      "date": "2026-10-19T13:16:12+00:00",
+      "author": {
+        "name": "wolfee",
+        "email": "adam.farkas@mongodb.com"
+      },
+      "summary": "SERVER-137128 Skip DDL FailFast for drop collection, drop database, drop index (#64502)"
+    },
+    {
+      "sha": "1491575cc27304b1d9ec52fa49952b5b248a645b",
+      "short_sha": "1491575cc27",
+      "date": "2026-10-19T12:48:38+00:00",
+      "author": {
+        "name": "Sergiy Tsymbal",
+        "email": "sergiy.tsymbal@mongodb.com"
+      },
+      "summary": "SERVER-137127 add retries to FixtureHelpers.mapOnEachShardNode (#64499)"
+    },
+    {
+      "sha": "86baf099b7e9a90899ac854c7220c092b6985f40",
+      "short_sha": "86baf099b7e",
+      "date": "2026-10-19T10:42:31+00:00",
+      "author": {
+        "name": "Igor Praznik",
+        "email": "95708172+igpraznik@users.noreply.github.com"
+      },
+      "summary": "SERVER-136868 resetPlacementHistory can leave config.placementHistory recreated without its secondary indexes by a concurrent DDL commit, crashing the config server on step-up (#64390)"
+    },
+    {
+      "sha": "de59a98e19f814ce8d613be214dd05f4e028db7c",
+      "short_sha": "de59a98e19f",
+      "date": "2026-10-19T09:01:01+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#64633)"
+    },
     {
       "sha": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
       "short_sha": "6e79a3d5d58",
@@ -773,10 +983,56 @@
           "num_of_dirs": 17
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "7f18b6ff6d0b570026163647ca9a1aeb7b715af2",
+        "short_sha": "7f18b6ff6d0",
+        "date": "2026-10-19T15:22:49+00:00",
+        "author": {
+          "name": "Evan Bergeron",
+          "email": "evanbergeron@users.noreply.github.com"
+        },
+        "summary": "SERVER-132242 Use native SBE $min/$maxN group accumulators in stage builders (#59364)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 23,
+          "num_of_lines": 973,
+          "lines_added": 844,
+          "lines_deleted": 129,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "584589bc13feec963707cf02f32fda82b244ffb7",
+        "short_sha": "584589bc13f",
+        "date": "2026-10-19T17:50:03+00:00",
+        "author": {
+          "name": "Matthew Boros",
+          "email": "mattBoros@users.noreply.github.com"
+        },
+        "summary": "SERVER-136620 Delete `featureFlagGetExecutorDeferredEngineChoice` (#64099)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 66,
+          "num_of_lines": 979,
+          "lines_added": 262,
+          "lines_deleted": 717,
+          "num_of_dirs": 30
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-26 09:53:26",
+  "generated_at": "2026-10-26 18:53:11",
   "branch_name": "master",
   "display_name": "master"
 }
