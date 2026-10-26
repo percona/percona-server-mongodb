@@ -5,9 +5,11 @@
 
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/repl/oplog_entry.h"
+#include "mongo/db/repl/oplog_entry_or_grouped_inserts.h"
 #include "mongo/platform/atomic.h"
 #include "mongo/util/concurrency/thread_pool.h"
 #include "mongo/util/modules.h"
+#include "mongo/util/periodic_runner.h"
 
 #include <atomic>
 #include <cstddef>
@@ -34,10 +36,11 @@ class [[MONGO_MOD_PUBLIC]] PipelinedApplierWorkerPool {
 public:
     /**
      * A unit of work consumed by a worker: the ops slice of a single dispatched batch routed to
-     * that worker.
+     * that worker. `ops` holds ApplierOperations whose `op` pointers alias memory owned by the
+     * dispatching batch.
      */
     struct WorkItem {
-        std::vector<OplogEntry> ops;
+        std::vector<ApplierOperation> ops;
         std::shared_ptr<std::atomic<uint32_t>> batchRemainingWorkers;
     };
 
@@ -91,13 +94,15 @@ private:
         Atomic<uint64_t> executed{0};
     };
 
-    static std::deque<Worker> _startWorkers(size_t numWorkers);
+    [[nodiscard]] static std::deque<Worker> _startWorkers(size_t numWorkers);
+    [[nodiscard]] static PeriodicJobAnchor _makeMetricsCollector(const std::deque<Worker>& workers);
 
     ConsumeFn _consumeFn;
     Atomic<bool> _isShutdown{false};
     const size_t _numWorkers;
     // The set of workers is fixed for the object's lifetime.
     std::deque<Worker> _workers;
+    PeriodicJobAnchor _metricsCollector;
 };
 
 }  // namespace mongo::repl

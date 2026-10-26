@@ -43,23 +43,27 @@ enum class JoinType : uint8_t { Inner, Left, Right };
 class LoopJoinStage final : public PlanStage {
 public:
     // Legacy constructor.
-    LoopJoinStage(std::unique_ptr<PlanStage> outer,
-                  std::unique_ptr<PlanStage> inner,
-                  value::SlotVector outerProjects,
-                  value::SlotVector outerCorrelated,
-                  std::unique_ptr<EExpression> predicate,
-                  PlanNodeId planNodeId,
-                  bool participateInTrialRunTracking = true);
+    LoopJoinStage(
+        std::unique_ptr<PlanStage> outer,
+        std::unique_ptr<PlanStage> inner,
+        value::SlotVector outerProjects,
+        value::SlotVector outerCorrelated,
+        std::unique_ptr<EExpression> predicate,
+        PlanNodeId planNodeId,
+        bool participateInTrialRunTracking = true,
+        IntermediateTrackingBehavior intermediateTracking = IntermediateTrackingBehavior::kNone);
 
-    LoopJoinStage(std::unique_ptr<PlanStage> outer,
-                  std::unique_ptr<PlanStage> inner,
-                  value::SlotVector outerProjects,
-                  value::SlotVector outerCorrelated,
-                  value::SlotVector innerProjects,
-                  std::unique_ptr<EExpression> predicate,
-                  JoinType joinType,
-                  PlanNodeId planNodeId,
-                  bool participateInTrialRunTracking = true);
+    LoopJoinStage(
+        std::unique_ptr<PlanStage> outer,
+        std::unique_ptr<PlanStage> inner,
+        value::SlotVector outerProjects,
+        value::SlotVector outerCorrelated,
+        value::SlotVector innerProjects,
+        std::unique_ptr<EExpression> predicate,
+        JoinType joinType,
+        PlanNodeId planNodeId,
+        bool participateInTrialRunTracking = true,
+        IntermediateTrackingBehavior intermediateTracking = IntermediateTrackingBehavior::kNone);
 
     std::unique_ptr<PlanStage> clone() const final;
 
@@ -109,7 +113,7 @@ private:
     // meaning that if they are coming from the 'outer', they must be projected by the 'outer'.
     const std::unique_ptr<EExpression> _predicate;
 
-    vm::ByteCode _bytecode;
+    std::shared_ptr<vm::ByteCode> _bytecode;
     std::unique_ptr<vm::CodeFragment> _predicateCode;
 
     // Switching between the input and Nothing/null for outer joins. Unused for inner joins.

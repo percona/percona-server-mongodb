@@ -11,6 +11,7 @@ py_library(
         "hermetic_container/fsutil.py",
         "release_distro.py",
     ],
+    deps = ["//bazel/toolchains/cc:container_action"],
 )
 
 py_test(
@@ -34,6 +35,7 @@ py_library(
         "check_resources.py",
         "compiledb.py",
         "compiledb_postprocess.py",
+        "compiledb_windows.py",
         "credential_helper.py",
         "engflow_check.py",
         "generate_common_bes_bazelrc.py",
@@ -72,6 +74,7 @@ py_library(
     visibility = ["//visibility:public"],
     deps = [
         ":release_distro",
+        "//bazel:container_paths",
         "//buildscripts:bazel_custom_formatter",
         "//buildscripts:setup_clang_tidy",
     ],
@@ -161,6 +164,9 @@ py_test(
     data = [
         "//bazel:hermetic_container/hermetic_container.py",
         "//bazel/platforms:remote_execution_containers.bzl",
+        "//bazel/toolchains/cc:container_action.py",
+        "//bazel/toolchains/cc:container_engine.py",
+        "//bazel/toolchains/cc:container_mounts.py",
         "//bazel/toolchains/cc/mongo_apple_cross:macos_cross_action_wrapper.py",
         "//bazel/toolchains/cc/mongo_linux:mongo_toolchain_version_v5.bzl",
     ],
@@ -350,6 +356,17 @@ py_test(
     deps = [
         ":wrapper_hook",
     ],
+)
+
+py_test(
+    name = "compiledb_windows_test",
+    srcs = ["compiledb_windows_test.py"],
+    deps = [":compiledb_windows"],
+)
+
+py_library(
+    name = "compiledb_windows",
+    srcs = ["compiledb_windows.py"],
 )
 
 py_test(
