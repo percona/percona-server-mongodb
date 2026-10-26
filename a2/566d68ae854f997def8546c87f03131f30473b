@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4627785f48cbf2bb1fd20b03ee45b679c36b54a3",
+    "merge_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'format' failure: drop release_container_pypi hub",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "MODULE.bazel": "Modified by human"
+        },
+        "review_notes": "Upstream SERVER-137132 (3e90ba8b000) added a rules_pycross uv import for\n//release-container, but that directory is stripped from the public\nmirror, so fetching @pypi fails on the missing pyproject.toml and breaks\nevery target that loads it, including //:format. Nothing in the tree uses\n@release_container_pypi, so remove the import."
+      },
+      "author": {
+        "name": "Igor Solodovnikov",
+        "email": "igor.solodovnikov@percona.com",
+        "type": "human"
+      },
+      "commit_sha": "a2566d68ae854f997def8546c87f03131f30473b"
+    }
+  ]
+}
