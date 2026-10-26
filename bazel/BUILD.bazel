@@ -105,14 +105,11 @@ filegroup(
     srcs = ["test_wrapper.sh"],
 )
 
-<<<<<<< HEAD
 filegroup(
     name = "integration_test_wrapper",
     srcs = ["integration_test_wrapper.sh"],
 )
 
-||||||| a64893540a6
-=======
 # The default --run_under for bazel test on Windows (see .bazelrc). Bazel's test runner starts it
 # from inside each test's runfiles tree and cannot start executables at paths of 256 characters or
 # more once 8.3 short names are disabled, as on the CI hosts. The deepest test's runfiles directory
@@ -132,6 +129,5 @@ native_binary(
     target_compatible_with = ["@platforms//os:windows"],
 )
 
->>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691
 # TODO(SERVER-129799): add these tests to CI.
 test_exec_properties_test_suite(name = "test_exec_properties_tests")
