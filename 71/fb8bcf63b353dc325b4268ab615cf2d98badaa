@@ -1,0 +1,309 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4627785f48cbf2bb1fd20b03ee45b679c36b54a3",
+    "merge_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "4627785f48cbf2bb1fd20b03ee45b679c36b54a3",
+    "theirs_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+    "base_commit": "a64893540a6fea6e11015329dc3459f0f674a810",
+    "files": [
+      "bazel/BUILD.bazel",
+      "bazel/wrapper_hook/BUILD.bazel",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "bazel/BUILD.bazel": "both modified",
+      "bazel/wrapper_hook/BUILD.bazel": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "bazel/BUILD.bazel": "diff --cc bazel/BUILD.bazel\nindex 3275f720a6c,6f88eb4e9ef..00000000000\n--- a/bazel/BUILD.bazel\n+++ b/bazel/BUILD.bazel\n@@@ -94,5 -108,19 +108,28 @@@ filegroup\n++<<<<<<< HEAD\n +filegroup(\n +    name = \"integration_test_wrapper\",\n +    srcs = [\"integration_test_wrapper.sh\"],\n +)\n +\n++||||||| a64893540a6\n++=======\n+ # The default --run_under for bazel test on Windows (see .bazelrc). Bazel's test runner starts it\n+ # from inside each test's runfiles tree and cannot start executables at paths of 256 characters or\n+ # more once 8.3 short names are disabled, as on the CI hosts. The deepest test's runfiles directory\n+ # is ~200 characters, so the outputs get short names (bazel/wtl.exe is 222 characters in it).\n+ # The native entry passes an argument payload to wtl.ps1 without invoking cmd.exe.\n+ copy_file(\n+     name = \"windows_test_launcher_ps1\",\n+     src = \"//bazel/windows_test_launcher:windows_test_launcher.ps1\",\n+     out = \"wtl.ps1\",\n+ )\n+ \n+ native_binary(\n+     name = \"windows_test_launcher\",\n+     src = \"//bazel/windows_test_launcher:windows_test_launcher_native\",\n+     out = \"wtl.exe\",\n+     data = [\":windows_test_launcher_ps1\"],\n+     target_compatible_with = [\"@platforms//os:windows\"],\n+ )\n+ \n++>>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+      "bazel/wrapper_hook/BUILD.bazel": "diff --cc bazel/wrapper_hook/BUILD.bazel\nindex afddbe78fe2,1949afa4488..00000000000\n--- a/bazel/wrapper_hook/BUILD.bazel\n+++ b/bazel/wrapper_hook/BUILD.bazel\n@@@ -37,1 -38,1 +38,6 @@@ py_library\n++<<<<<<< HEAD\n +        \"credential_helper.py\",\n++||||||| a64893540a6\n++=======\n+         \"compiledb_windows.py\",\n++>>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+      "sbom.json": "diff --cc sbom.json\nindex 4d0b0d20c73,8732224b09a..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| a64893540a6\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 17,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 18,\n++>>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691\n@@@ -14,0 -14,6 +22,16 @@@\n++<<<<<<< HEAD\n++||||||| a64893540a6\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1184\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1196\"\n+       }\n+     ],\n++>>>>>>> 6e79a3d5d5834a41e5e847f0c9dd6285b342a691"
+    },
+    "their_commits": {
+      "bazel/BUILD.bazel": [
+        "9965ffc9561a19cae1983e8a7452c708dbbee301",
+        "5fb5f1b08beb481ffd4795654b5d3a8f145f93dd"
+      ],
+      "bazel/wrapper_hook/BUILD.bazel": [
+        "9965ffc9561a19cae1983e8a7452c708dbbee301",
+        "edc091728c2c88c981f56ac7b43a04174a62ab69"
+      ],
+      "sbom.json": [
+        "e766fc06bac4a0a6ee9ebc140ec141435860dc9a"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+    "merged_commits": [
+      "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+      "7a45cb24e938fa1a18dad3b1969444d5d80f8d09",
+      "dcd4b9631c85496295c84f5a906a9ab74627f4fc",
+      "42fa4a319c0185195e62902000e17499983bbe30",
+      "abaeeed1340c6f662ce63ddcbda39d5891dd43ed",
+      "65da46545bba215379b99d33045ec220f1894846",
+      "3b35b031787090e1598d08028cfcf74bdf5d2b13",
+      "73af6d71b2f85ffe3d843b5fa7fcb7c3954654a7",
+      "97096d7419f8af95ec7368d9e8dc2c58df160bd2",
+      "9b9c9c87f0df7e4da421521d5dd4246fca2711bf",
+      "9965ffc9561a19cae1983e8a7452c708dbbee301",
+      "22088baaaa8f2274f1e23a2e87c535b0e53dd45c",
+      "d89084111f0e4b40316f5e7bbdf728bd3e9cc01e",
+      "bdf87ff09d22fdf9b31165d8bc4ed18d673d90a3",
+      "6c2450daae7192c8fe93121be047b30fb180c71a",
+      "7837672f86a5d71affcf1163566d0c877470f265",
+      "0cebcabbe3021d980e331518d86a0254455eac71",
+      "17be0826adfc59c13487b786d7f23755129a7d7b",
+      "6c87cc54eb0d59c40230021bb1548bd365bc4efd",
+      "3ed35b46438e4346b1f5c75797a7406493642613",
+      "5bce5136e34ad16b66c91a4cacd7497fb750e360",
+      "c13e79129fe757114ed99863dfbedadd6424d9ff",
+      "22943ca393f3179f514dc8e53a202b4ab894a3ef",
+      "12aac49e3990c49e7b43f4ac883ae88369a56f79",
+      "d27030b5b2599f035428672a8f305ec45b0e4e41",
+      "1352a4a5177b84c66370e5fb60644f4ac35322d5",
+      "94883f7667fc04a267ec085c858c23456d95d4a8",
+      "ff84785a639a888d7850ac7bf0ca9f79fa09acf8",
+      "64af130b163835c776c27f167ac699810991ec2b",
+      "8a48dd52da4d6622d98da02b448a0f41926b16f4",
+      "53b22ed3148b663d8fe36e840e06bcb5262187ba",
+      "aa4f6cb33d05293fe7d30bd226f6ca6e527b2f32",
+      "5ae38fb92fb211f64c444171cf436ed549cbfd0b",
+      "e766fc06bac4a0a6ee9ebc140ec141435860dc9a",
+      "a52df61973e593df52d0b48a877c1744cdd3ff6b",
+      "cf29bc4d49e9f0bce2d9c9508a13980eccb71d85",
+      "32d1bed4e2a4bd9510627762227ab7e661d215f8",
+      "1f38a1400ecf40c35f238ea8fb3a4990278e0acd",
+      "2c991c8726d133c5435f1e5355faec6b4e573126",
+      "ac949e3974382d7b48ada67b79e2e62f5917bf7c",
+      "3e90ba8b000e61c7c5c084a611a545abe30d3861",
+      "5d534b23d23a6e269f6559fc44561204afb9b880",
+      "a81ddad1da46e30d1d0496a5a958fdae49126eec",
+      "3368a03370381fbd5d950fa8287903b30d81c336",
+      "95246d15f4cc95fe7ac9d343a6b02b3bf5c53072",
+      "1d10424071a970346627d497848ff68650e44daf",
+      "b3dae82ed06de506c8627a428e822352b0ee4d86",
+      "edc091728c2c88c981f56ac7b43a04174a62ab69",
+      "4ed70d1555acd40e0b5f8790a271ca37a7737f6b",
+      "f9d843556ef00806c9c6f9f2f5a9139c66ea3309",
+      "5fb5f1b08beb481ffd4795654b5d3a8f145f93dd",
+      "2aad85783d2ae567aac973bdb18cb6afdf274e5b",
+      "8ff2bde9cc6cdff31e78c171a4b4a7fe8bf0ce28",
+      "2cac4b2a651d8c52ee4717ed8d8bd5448c0967ea",
+      "7a4f7074fc1bd2683d29c1c5b4960387d23ecbed",
+      "b0f33c16f4201589b6f7787b874ec58c3e882684",
+      "b5f071639affedb91505b920187d5dcd43b1438f",
+      "66c5f9e2118f3ec8eb9775ec0ccdb17d4a9248dc"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/storage_engine.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "README.third_party.md",
+        "bazel/BUILD.bazel",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "sbom.json",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/storage_engine.h",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/storage_engine_impl.h",
+        "src/mongo/s/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 78845,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.41848850000000004,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 14,
+        "outputTokens": 5264,
+        "cacheReadInputTokens": 167312,
+        "cacheCreationInputTokens": 32506,
+        "webSearchRequests": 0,
+        "costUSD": 0.41848850000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 591,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 14,
+            "output": 5264,
+            "cache_read": 167312,
+            "cache_creation": 32506
+          },
+          "cost_usd": 0.41848850000000004
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. Here's a summary of what I did:\n\n**Approach:** I read each auto-merged file's actual `diff base \u2192 merge commit` diff (`git diff a64893540a6 6e79a3d5d58 -- <file>`) rather than inferring from commit summaries or filenames, per the prompt's requirements.\n\n**Key findings describing what this merge pulls in:**\n- **Windows test launcher** \u2014 new `--run_under` wiring in `.bazelrc` and `bazel/BUILD.bazel` (copy_file/native_binary producing `wtl.ps1`/`wtl.exe`).\n- **Hermetic-container toolchain refactor** \u2014 new `container_paths` targets and wrapper_hook wiring (`compiledb_windows`, container_action deps).\n- **Storage engine** \u2014 new best-effort `tryPauseAutoCompactForReplicaSetWritesBlock` (non-blocking global-lock path for use on secondaries), plus a refactor of the existing pause logic.\n- **WiredTiger** \u2014 `__wt_drop_pending_apply` call in chunk-cache cleanup and four new step-down checkpoint statistics.\n- **Misc** \u2014 two new error codes (530/531), repl pipelined-applier OTEL metrics build restructuring, a new sharding unit test, and resmoke replica-set fixture additions.\n\n**Conflict handling:** Both bazel BUILD files kept the fork's own lines (`integration_test_wrapper` filegroup; `credential_helper.py`) alongside the upstream additions.\n\n**Flag for reviewers:** The `sbom.json` `metadata.tools` (Endor Labs) section is still present in the merge commit, whereas the project's conflict hint says Percona's manually assembled SBOM should strip it \u2014 worth verifying whether that was intentional.",
+    "response": {
+      "summary": "Merges an upstream MongoDB batch (diff base a64893540a6 -> merge commit 6e79a3d5d58) into the Percona fork. The incoming changes add a native Windows test launcher (new bazel/windows_test_launcher targets plus --run_under wiring in .bazelrc and bazel/BUILD.bazel), refactor the hermetic-container toolchain into new container_action/container_engine/container_mounts/container_paths Python modules with tests and update the wrapper_hook BUILD wiring, add storage-engine best-effort auto-compaction pause handling for replica-set write blocks on secondaries, add a WiredTiger drop-pending-apply call during chunk-cache cleanup plus new step-down checkpoint statistics, add two new error codes, and restructure the repl oplog-application / pipelined-applier build targets. The three conflicting files (bazel/BUILD.bazel, bazel/wrapper_hook/BUILD.bazel, sbom.json) were auto/manually reconciled.",
+      "auto_merged": {
+        ".bazelrc": "Adds three Windows test configuration lines: a `test:windows --run_under=//bazel:windows_test_launcher` default, and a new `windows_unittest` config that sets `--linkstatic=True` plus the same `--run_under` launcher for Evergreen Windows unit-test tasks.",
+        "README.third_party.md": "Changes the recorded cpptrace third-party version from 1.0.3 to 1.0.2.",
+        "bazel/BUILD.bazel": "Upstream adds copy_file/native_binary loads from bazel_skylib, a `container_paths` py_library + `container_paths_test` py_test, exports `hermetic_container/container_paths.py`, and a Windows test launcher (`windows_test_launcher_ps1` copy_file producing wtl.ps1 and a `windows_test_launcher` native_binary producing wtl.exe, Windows-only). The conflict here was the fork's own `integration_test_wrapper` filegroup versus the incoming launcher block; the merge keeps both (fork filegroup is untouched by the base->merge diff; the launcher rules are added).",
+        "bazel/wrapper_hook/BUILD.bazel": "Upstream adds `deps = [\"//bazel/toolchains/cc:container_action\"]` to the first py_library, adds `compiledb_windows.py` to a library's srcs, adds `//bazel:container_paths` to a deps list, adds container_action/container_engine/container_mounts .py files to a py_test data list, and adds a `compiledb_windows` py_library with a `compiledb_windows_test` py_test. The conflict was the fork's `credential_helper.py` src entry versus the incoming `compiledb_windows.py` entry; both are retained.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "Adds `import subprocess`; adds two ReplicaSetFixture methods `should_stop_primary_before_stepup()` (returns False) and `requires_configsvr_replset_config()` (returns True); adds an optional `timeout` parameter to `restart_node()` that is passed to `chosen.mongod.wait(timeout=...)` and raises a ServerFailure on subprocess.TimeoutExpired.",
+        "sbom.json": "SBOM metadata refresh from the upstream side: version 17 -> 18, timestamp updated, Endor Labs tools entry bumped v1.7.1184 -> v1.7.1196, cpptrace references changed from v1.0.3 to v1.0.2 (bom-ref, version, purl, dependency refs), and two linenoise occurrence locations reordered.",
+        "src/mongo/base/error_codes.yml": "Adds two new error codes: 530 SearchRequestCanceledDueToOverload (category SystemOverloadedError) and 531 ExtensionUnsupportedCapabilityVersion (category ExtensionError).",
+        "src/mongo/db/repl/BUILD.bazel": "Adds oplog_applier_dispatch.cpp to the oplog_application library srcs; adds a new pipelined_applier_otel_metrics library; removes pipelined_op_router.cpp/.h from pipelined_oplog_applier and adds a dep on :pipelined_applier_otel_metrics; adds otel metrics test deps (and mock_periodic_runner) to pipelined applier unit tests; and removes the pipelined_op_router_test target.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Comment-only change on pauseAutoCompactForReplicaSetWritesBlock noting that rollback does not re-enable auto-compaction.",
+        "src/mongo/db/storage/storage_engine.h": "Adds a new virtual method `tryPauseAutoCompactForReplicaSetWritesBlock(OperationContext*)` returning Status (default Status::OK()), documented as a best-effort single attempt used on secondaries to avoid delaying oplog application.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "Refactors auto-compaction pause logic: moves the retry constants to file scope, adds isTransientAutoCompactStatus (ObjectIsBusy), inlines the retry loop directly into pauseAutoCompactForReplicaSetWritesBlock, and adds a new tryPauseAutoCompactForReplicaSetWritesBlock that acquires the global lock non-blockingly (InterruptBehavior::kLeaveUnlocked), returns LockTimeout if not acquired, catches DBException, and warns on non-OK/non-IllegalOperation status.",
+        "src/mongo/db/storage/storage_engine_impl.h": "Declares the new override `Status tryPauseAutoCompactForReplicaSetWritesBlock(OperationContext*)`.",
+        "src/mongo/s/BUILD.bazel": "Adds a new mongo_cc_unit_test target `sharding_task_executor_pool_controller_test` (mongo_unittest_eighth_group).",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In __conn_cleanup_chunk_cache, adds a call to __wt_drop_pending_apply(session) after the schema drop.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds four new step-down checkpoint connection statistics (STEPDOWN_TIME_MAX/MIN/RECENT/TOTAL = 1472-1475) and renumbers subsequent WT_STAT_CONN_* constants; also rewords the incremental backup this_id config documentation."
+      },
+      "review_notes": "The three listed conflicts resolved cleanly in the diff: both bazel BUILD files keep the fork's lines (integration_test_wrapper filegroup; credential_helper.py src) alongside the incoming upstream additions. NOTE on sbom.json: per the project's sbom.json conflict hint, the metadata.tools section (Endor Labs entry) should be removed from Percona's manually assembled SBOM, but the base->merge diff shows the tools section is still present (version bumped to v1.7.1196) in the merge commit \u2014 verify whether the tools section was intentionally kept or should have been stripped. The supplier URL was not shown in the diff, so confirm it still points to https://percona.com. storage_engine_impl.cpp is the most behavior-significant change (new non-blocking try-pause path safe to call from a RecoveryUnit commit handler); confirm no Percona-specific storage customizations were affected."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for the auto-merged files before writing the description."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me look at the specific auto-merged files listed in the note."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now the storage-related files and wiredtiger files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now the wiredtiger files and the conflicted sbom.json result."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me verify how the three conflicted files were resolved in the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough detail. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. Here's a summary of what I did:\n\n**Approach:** I read each auto-merged file's actual `diff base \u2192 merge commit` diff (`git diff a64893540a6 6e79a3d5d58 -- <file>`) rather than inferring from commit summaries or filenames, per the prompt's requirements.\n\n**Key findings describing what this merge pulls in:**\n- **Windows test launcher** \u2014 new `--run_under` wiring in `.bazelrc` and `bazel/BUILD.bazel` (copy_file/native_binary producing `wtl.ps1`/`wtl.exe`).\n- **Hermetic-container toolchain refactor** \u2014 new `container_paths` targets and wrapper_hook wiring (`compiledb_windows`, container_action deps).\n- **Storage engine** \u2014 new best-effort `tryPauseAutoCompactForReplicaSetWritesBlock` (non-blocking global-lock path for use on secondaries), plus a refactor of the existing pause logic.\n- **WiredTiger** \u2014 `__wt_drop_pending_apply` call in chunk-cache cleanup and four new step-down checkpoint statistics.\n- **Misc** \u2014 two new error codes (530/531), repl pipelined-applier OTEL metrics build restructuring, a new sharding unit test, and resmoke replica-set fixture additions.\n\n**Conflict handling:** Both bazel BUILD files kept the fork's own lines (`integration_test_wrapper` filegroup; `credential_helper.py`) alongside the upstream additions.\n\n**Flag for reviewers:** The `sbom.json` `metadata.tools` (Endor Labs) section is still present in the merge commit, whereas the project's conflict hint says Percona's manually assembled SBOM should strip it \u2014 worth verifying whether that was intentional."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261026_095718_872050.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.310 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+    "short_sha": "6e79a3d5d58",
+    "strategy": "huge_commit",
+    "summary": "Ending on the WiredTiger vendored import (6e79a3d5) gives an ideal merge boundary: a large, self-contained third-party import that touches a well-isolated file set, rarely depends on later commits, and is easy to validate post-merge. It yields a 58-commit batch, within the comfortable band and consuming the whole candidate window (omitted_tail=0). Although it is the newest candidate, the usual 'stop short of unsettled commits' caution does not bite here \u2014 this commit is dated 2026-10-18 and all window commits are ~8+ days old relative to today (2026-10-26), so upstream churn has already settled. There is also a notable time gap (Oct 17 -> Oct 18) before the import, reinforcing it as a natural cut point, and no revert/original pair is split by stopping here. The earlier WiredTiger import at position 24 (a52df619) would also be clean but yields only ~24 commits, well below the ~50 target.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/40303122466"
+  }
+}
