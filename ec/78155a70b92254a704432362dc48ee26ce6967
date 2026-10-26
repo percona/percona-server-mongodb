@@ -1,0 +1,28 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "4627785f48cbf2bb1fd20b03ee45b679c36b54a3",
+    "merge_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "conflict_resolution",
+      "response": {
+        "summary": "Fix 'format' failure for merge commit '6e79a3d5d58' into 'master'",
+        "resolved": {},
+        "unresolved": {},
+        "modified": {
+          "MODULE.bazel.lock": "Modified by human"
+        },
+        "review_notes": "format auto-fix: 1 file changed\n\nResolved:\n\tMODULE.bazel.lock\n\nCI: format run 40303924719 (attempt 1 of 3)\n\nNote: commit created by mergai"
+      },
+      "author": {
+        "name": "psmdb-bot[bot]",
+        "email": "2942401+psmdb-bot[bot]@users.noreply.github.com",
+        "type": "human"
+      },
+      "commit_sha": "ec78155a70b92254a704432362dc48ee26ce6967"
+    }
+  ]
+}
