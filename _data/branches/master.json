@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 115,
-    "days_behind": 10,
-    "unmerged_oldest_age_days": 10.073257346608797,
-    "files_affected": 823,
-    "total_additions": 41526,
-    "total_deletions": 10875,
+    "commits_behind": 123,
+    "days_behind": 12,
+    "unmerged_oldest_age_days": 12.548386522777779,
+    "files_affected": 918,
+    "total_additions": 45356,
+    "total_deletions": 12595,
     "date_range": {
       "first": "2026-10-13T17:05:03+00:00",
-      "last": "2026-10-16T18:06:41+00:00"
+      "last": "2026-10-17T00:40:14+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "7a45cb24e938fa1a18dad3b1969444d5d80f8d09",
+      "short_sha": "7a45cb24e93",
+      "date": "2026-10-17T00:40:14+00:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-132002 Include idle cursors in query memory load shedding (#63910)"
+    },
+    {
+      "sha": "dcd4b9631c85496295c84f5a906a9ab74627f4fc",
+      "short_sha": "dcd4b9631c8",
+      "date": "2026-10-16T22:48:25+00:00",
+      "author": {
+        "name": "adriangzz",
+        "email": "adriangonzalezmontemayor@gmail.com"
+      },
+      "summary": "SERVER-137176 get_ipaddr() should return source address when Docker networks are present (#64561)"
+    },
+    {
+      "sha": "42fa4a319c0185195e62902000e17499983bbe30",
+      "short_sha": "42fa4a319c0",
+      "date": "2026-10-16T21:29:43+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-136849 Share one VM across all SBE stages (#64579)"
+    },
+    {
+      "sha": "abaeeed1340c6f662ce63ddcbda39d5891dd43ed",
+      "short_sha": "abaeeed1340",
+      "date": "2026-10-16T20:31:21+00:00",
+      "author": {
+        "name": "Vishnu K",
+        "email": "vishnu.kaushik@mongodb.com"
+      },
+      "summary": "SERVER-136466 Use fillWriterVectors() from OplogApplierImpl and reuse OplogApplierBatcher's routing code in POA (#64183)"
+    },
+    {
+      "sha": "65da46545bba215379b99d33045ec220f1894846",
+      "short_sha": "65da46545bb",
+      "date": "2026-10-16T20:25:59+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-133228 Remove isSbePlanCacheEnabled param from assertPlanHasIxScanStage (#64260)"
+    },
+    {
+      "sha": "3b35b031787090e1598d08028cfcf74bdf5d2b13",
+      "short_sha": "3b35b031787",
+      "date": "2026-10-16T19:21:09+00:00",
+      "author": {
+        "name": "Junhson Jean-Baptiste",
+        "email": "junhson.jeanbaptiste@mongodb.com"
+      },
+      "summary": "SERVER-131635: rename sample doc ID + metadata: `sampleSize` to `requestedSampleSize` (#64557)"
+    },
+    {
+      "sha": "73af6d71b2f85ffe3d843b5fa7fcb7c3954654a7",
+      "short_sha": "73af6d71b2f",
+      "date": "2026-10-16T19:10:30+00:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-135392 Add support for tracking negotiated version in API handles (#64371)"
+    },
+    {
+      "sha": "97096d7419f8af95ec7368d9e8dc2c58df160bd2",
+      "short_sha": "97096d7419f",
+      "date": "2026-10-16T18:44:10+00:00",
+      "author": {
+        "name": "Gil Alon",
+        "email": "47804748+galon1@users.noreply.github.com"
+      },
+      "summary": "SERVER-137194 Move getPooledScope opCtx tassert above the pool lookup  (#64562)"
+    },
     {
       "sha": "9b9c9c87f0df7e4da421521d5dd4246fca2711bf",
       "short_sha": "9b9c9c87f0d",
@@ -1328,6 +1408,28 @@
     },
     {
       "commit": {
+        "sha": "a64893540a6fea6e11015329dc3459f0f674a810",
+        "short_sha": "a64893540a6",
+        "date": "2026-10-15T07:15:05+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-136557 Omit oplog size and count from per-collection validation (#64135)\" (#64464)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-a64893540a6/conflict",
+          "mergai/master-a64893540a6/main",
+          "mergai/master-a64893540a6/solution",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "66c5f9e2118f3ec8eb9775ec0ccdb17d4a9248dc",
         "short_sha": "66c5f9e2118",
         "date": "2026-10-15T07:46:30+00:00",
@@ -1412,10 +1514,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "73af6d71b2f85ffe3d843b5fa7fcb7c3954654a7",
+        "short_sha": "73af6d71b2f",
+        "date": "2026-10-16T19:10:30+00:00",
+        "author": {
+          "name": "Santiago Roche",
+          "email": "69868136+sroches@users.noreply.github.com"
+        },
+        "summary": "SERVER-135392 Add support for tracking negotiated version in API handles (#64371)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 40,
+          "num_of_lines": 1351,
+          "lines_added": 1237,
+          "lines_deleted": 114,
+          "num_of_dirs": 13
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-23 18:50:19",
+  "generated_at": "2026-10-26 06:14:19",
   "branch_name": "master",
   "display_name": "master"
 }
