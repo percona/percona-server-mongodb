@@ -187,3 +187,4 @@ GlobalSASLMechanismRegisterer<ServerFactory> externalRegisterer;
 }  // anonymous namespace
 }  // namespace awsIam
 }  // namespace mongo
+// PSMDB-2251: throwaway change to trigger clang-tidy; do not merge.
