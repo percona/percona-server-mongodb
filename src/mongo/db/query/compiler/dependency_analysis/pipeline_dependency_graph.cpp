@@ -1060,6 +1060,13 @@ private:
 
     class Serializer;
 
+    /// Returns the DocumentSource of the stage that declared the given scope.
+    const DocumentSource* getDeclaringDocumentSource(ScopeId scopeId) const {
+        StageId stageId = _scopes[scopeId].stage;
+        return _stages[stageId].documentSource.get();
+    }
+
+
     /**
      * Returns a bitset of FieldIds whose value is needed downstream: present in some stage's
      * dependencies, surviving in the pipeline's final output scope, or transitively required
@@ -1290,8 +1297,7 @@ private:
             // The output's array shape still derives from the prior value that is traversed.
             _fields[newBaseField].dependencies.insert(priorBaseField);
             _scopes[scope].fields[basePath.front()] = newBaseField;
-            populateBaseFieldMetadata(
-                newBaseField, {priorBaseField, priorBaseFieldType}, cursor.pathToCursor());
+            populateBaseFieldMetadata(newBaseField, cursor.pathToCursor());
         } else {
             // No such field, we need to declare it and an embedded scope;
             // OR existing base field from previous scope, we need to re-declare the base here with
@@ -1300,7 +1306,7 @@ private:
             newBaseField = _fields.append(Field{scope, embeddedScope});
 
             auto [exhaustiveEmbeddedScope, parentEmbeddedScope] = resolveNewBaseFieldScopes(
-                prefixPolicy, existingBaseField, embeddedScope, cursor.pathToCursor());
+                scope, prefixPolicy, existingBaseField, embeddedScope, cursor.pathToCursor());
 
             if (parentEmbeddedScope) {
                 // The new field depends on the previous field, since it inherits paths.
@@ -1308,8 +1314,7 @@ private:
             }
             declareScope(_scopes[scope].stage, exhaustiveEmbeddedScope, parentEmbeddedScope);
             _scopes[scope].fields[basePath.front()] = newBaseField;
-            populateBaseFieldMetadata(
-                newBaseField, {priorBaseField, priorBaseFieldType}, cursor.pathToCursor());
+            populateBaseFieldMetadata(newBaseField, cursor.pathToCursor());
             if (prefixPolicy == ModifiedPrefixPolicy::kEnsureObjects) {
                 // The modification modifies 'a' to a plain object, so 'a' is no longer an array.
                 _fields[newBaseField].metadata.canFieldBeArray = false;
@@ -1343,7 +1348,8 @@ private:
      * 'existingBaseField' is the result of looking up the base field.
      * 'embeddedScope' is the ScopeId for the new scope that will be created for the base field.
      */
-    std::pair<ScopeId, ScopeId> resolveNewBaseFieldScopes(ModifiedPrefixPolicy prefixPolicy,
+    std::pair<ScopeId, ScopeId> resolveNewBaseFieldScopes(ScopeId scopeId,
+                                                          ModifiedPrefixPolicy prefixPolicy,
                                                           FieldId existingBaseField,
                                                           ScopeId embeddedScope,
                                                           ParsedPathView pathToBaseField) const {
@@ -1355,15 +1361,20 @@ private:
             switch (prefixPolicy) {
                 case ModifiedPrefixPolicy::kPreserveArrays:
                     return true;
-                case ModifiedPrefixPolicy::kEnsureObjects:
+                case ModifiedPrefixPolicy::kEnsureObjects: {
                     bool prefixCanBeArray;
-                    if (existingBaseField) {
+                    if (existingBaseField &&
+                        _scopes[_fields[existingBaseField].declaringScope].stage ==
+                            _scopes[scopeId].stage) {
+                        // The field was declared by this stage, e.g. the <missing> field of $group.
                         prefixCanBeArray = _fields[existingBaseField].metadata.canFieldBeArray;
                     } else {
-                        // The base field is a collection field. Check the PathArrayness API.
-                        prefixCanBeArray = canCollectionFieldBeArray(pathToBaseField);
+                        prefixCanBeArray = canPathBeArray(getDeclaringDocumentSource(scopeId),
+                                                          buildDottedPath(pathToBaseField));
                     }
                     return !prefixCanBeArray;
+                }
+
                 case ModifiedPrefixPolicy::kNotSupported:
                     return false;
             }
@@ -1407,6 +1418,8 @@ private:
     /**
      * Includes the field from the parent scope into the given scope.
      * This has the semantics of an inclusion projection.
+     *
+     * To be done(SERVER-136153): canPathBeArray to check arrayness here
      */
     void includeField(DeclarationCursor cursor) {
         const ParsedPathView path = cursor.remainingPath();
@@ -1477,8 +1490,7 @@ private:
                 ScopeId newEmbeddedScope = _scopes.getNextId();
                 declareScope(_scopes[scope].stage, newEmbeddedScope, ScopeId::none());
                 _fields[newBaseField].embeddedScope = newEmbeddedScope;
-                populateBaseFieldMetadata(
-                    newBaseField, {priorBaseField, priorBaseFieldType}, cursor.pathToCursor());
+                populateBaseFieldMetadata(newBaseField, cursor.pathToCursor());
                 includeField({cursor.fullPath, newEmbeddedScope, cursor.depth + 1});
                 break;
         }
@@ -1594,14 +1606,6 @@ private:
     }
 
     /**
-     * Returns whether a field that comes directly from the collection (not redefined by any stage)
-     * can be an array, by querying the PathArrayness API on its full dotted path.
-     */
-    bool canCollectionFieldBeArray(ParsedPathView path) const {
-        return _canPathBeArray(buildDottedPath(ParsedPath(path.begin(), path.end())));
-    }
-
-    /**
      * Returns true if the prefix of the given collection path can be an array.
      */
     bool canCollectionFieldPrefixBeArray(const ParsedPath& collectionPath) const {
@@ -1616,28 +1620,13 @@ private:
     /**
      * Populate metadata when a base field is redefined.
      */
-    void populateBaseFieldMetadata(FieldId newBaseField,
-                                   FieldMatch priorBaseFieldMatch,
-                                   ParsedPathView pathToBaseField) {
-        tassert(13144901,
-                "Base field should have an embeddedScope",
-                _fields[newBaseField].embeddedScope);
-        switch (priorBaseFieldMatch.type) {
-            case FieldMatchType::kExact:
-            case FieldMatchType::kMissing:
-                _fields[newBaseField].metadata.canFieldBeArray =
-                    _fields[priorBaseFieldMatch.fieldId].metadata.canFieldBeArray;
-                break;
-            case FieldMatchType::kShadowed:
-                // The path did not exist prior to this definition.
-                break;
-            case FieldMatchType::kBaseDocument:
-                // The included base field is a collection field. Query the PathArrayness API to
-                // determine if the field can be an array, using the full collection path.
-                _fields[newBaseField].metadata.canFieldBeArray =
-                    canCollectionFieldBeArray(pathToBaseField);
-                break;
-        }
+    void populateBaseFieldMetadata(FieldId newBaseFieldId, ParsedPathView pathToBaseField) {
+        Field& field = _fields[newBaseFieldId];
+        tassert(13144901, "Base field should have an embeddedScope", field.embeddedScope);
+
+        // Check the arrayness of the base path at the input of the stage declaring the field.
+        const auto* ds = getDeclaringDocumentSource(field.declaringScope);
+        field.metadata.canFieldBeArray = canPathBeArray(ds, buildDottedPath(pathToBaseField));
     }
 
     /**
@@ -1670,6 +1659,13 @@ private:
             ss << suffix;
         }
         return ss;
+    }
+
+    /**
+     * Joins the given path and the given suffix by '.'.
+     */
+    std::string buildDottedPath(ParsedPathView pathView, std::string_view suffix = {}) const {
+        return buildDottedPath(ParsedPath(pathView.begin(), pathView.end()), suffix);
     }
 
     /**
@@ -1839,8 +1835,6 @@ private:
                                 if (canPrefixContainArrays(prefix)) {
                                     break;
                                 }
-                                metadata.canFieldBeArray =
-                                    _fields[oldPathField].metadata.canFieldBeArray;
                                 // Track transitive alias. If the prefix contains arrays
                                 // we skip this: canFieldBeArray is already true and any
                                 // downstream alias resolution would also yield true.
@@ -1851,13 +1845,6 @@ private:
                                 break;
                             }
                             case FieldMatchType::kMissing: {
-                                // A truly missing field cannot be an array. An unknown field
-                                // might be.
-                                metadata.canFieldBeArray =
-                                    !_fields[oldPathField].metadata.knownToBeMissing ||
-                                    // If the prefix can contain arrays, the rename source could
-                                    // still yield an array even if the leaf is missing.
-                                    canPrefixContainArrays(prefix);
                                 break;
                             }
                             case FieldMatchType::kShadowed: {
@@ -1870,11 +1857,6 @@ private:
                                     for (size_t i = consumed; i < parsedOldPath.size(); ++i) {
                                         aliasCollectionPath.push_back(parsedOldPath[i]);
                                     }
-                                    if (!canPrefixContainArrays(prefix) &&
-                                        !_fields[oldPathField].metadata.canFieldBeArray) {
-                                        metadata.canFieldBeArray =
-                                            _canPathBeArray(buildDottedPath(aliasCollectionPath));
-                                    }
                                 }
                                 // Walk the shadowing constant for the suffix when array-free.
                                 if (!canPrefixContainArrays(prefix)) {
@@ -1882,9 +1864,6 @@ private:
                                         constant = walkConstant(*std::move(parent),
                                                                 ParsedPathView(parsedOldPath)
                                                                     .subspan(prefix.size() + 1));
-                                        if (constant) {
-                                            metadata.canFieldBeArray = constant->isArray();
-                                        }
                                     }
                                 }
                                 break;
@@ -1901,9 +1880,13 @@ private:
                     if (isBaseDocumentField) {
                         // We represent all collection field references as FieldId::none(), without
                         // distinguishing between them.
-                        metadata.canFieldBeArray = _canPathBeArray(p.getOldPath());
                         aliasCollectionPath.assign(parsedOldPath.begin(), parsedOldPath.end());
                     }
+
+                    // If the old path could have been an array before the rename, the new field can
+                    // also be an array.
+                    metadata.canFieldBeArray =
+                        canPathBeArray(_stages[stage].documentSource.get(), p.getOldPath());
 
                     // Each rename modifies the new field and depends on the previous field. When
                     // the rename traverses the new path's prefix as an array (e.g. a dotted
