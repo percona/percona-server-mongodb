@@ -119,13 +119,17 @@ jobs:
           echo 'startup --host_jvm_args=-Xmx8g' >> ~/.bazelrc
           # Append CI-specific settings to the workspace .bazelrc so they apply
           # to every bazel invocation in this job without a separate --bazelrc flag.
-          # --config=local and --compiler_type=clang are already the defaults in
-          # .bazelrc; only disk_cache and build_enterprise=False need overriding.
+          # --config=local is already the default in .bazelrc. compiler_type must be
+          # forced back to clang: .bazelrc.psmdb (imported at the end of .bazelrc)
+          # switches the default to gcc, and clang-tidy cannot parse a gcc compiledb
+          # (it fails on gcc's builtin intrinsic headers). These lines are appended
+          # after that import, so they take precedence.
           {
             echo 'common --disk_cache=/tmp/bazel-disk-cache'
             echo 'common --bes_timeout=0s'
             echo 'common --bes_upload_mode=nowait_for_upload_complete'
             echo 'common --//bazel/config:build_enterprise=False'
+            echo 'common --//bazel/config:compiler_type=clang'
           } >> .bazelrc
 
       - name: Generate compile_commands.json and build dependencies
