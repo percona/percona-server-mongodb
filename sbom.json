@@ -2,16 +2,8 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-<<<<<<< HEAD
   "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
   "version": 6,
-||||||| 6e79a3d5d58
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 18,
-=======
-  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
-  "version": 19,
->>>>>>> b4d80802c77c763a50b09fb2883ba534bab64b9f
   "metadata": {
     "timestamp": "2026-10-19T08:11:18+00:00",
     "lifecycles": [
@@ -19,22 +11,6 @@
         "phase": "pre-build"
       }
     ],
-<<<<<<< HEAD
-||||||| 6e79a3d5d58
-    "tools": [
-      {
-        "name": "Endor Labs Inc",
-        "version": "v1.7.1196"
-      }
-    ],
-=======
-    "tools": [
-      {
-        "name": "Endor Labs Inc",
-        "version": "v1.7.1201"
-      }
-    ],
->>>>>>> b4d80802c77c763a50b09fb2883ba534bab64b9f
     "component": {
       "type": "application",
       "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
