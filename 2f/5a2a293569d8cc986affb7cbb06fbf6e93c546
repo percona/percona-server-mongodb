@@ -1,0 +1,419 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "68baf5654ff9411849b6587b247c21d1f30c5a06",
+    "merge_commit": "b4d80802c77c763a50b09fb2883ba534bab64b9f"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "68baf5654ff9411849b6587b247c21d1f30c5a06",
+    "theirs_commit": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+    "base_commit": "6e79a3d5d5834a41e5e847f0c9dd6285b342a691",
+    "files": [
+      "MODULE.bazel.lock",
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "MODULE.bazel.lock": "both modified",
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel.lock": "diff --cc MODULE.bazel.lock\nindex e5a35ff357e,6c96af9b67d..00000000000\n--- a/MODULE.bazel.lock\n+++ b/MODULE.bazel.lock\n@@@ -569,1 -569,1 +569,7 @@@\n++<<<<<<< HEAD\n +        \"bzlTransitiveDigest\": \"zMoBLNL8PqX7aP/YHOLulSAlHigo+3/ymuO/iYd8CUY=\",\n++||||||| 6e79a3d5d58\n++        \"bzlTransitiveDigest\": \"VsuUB5YQS/l1+mVwBpn9GKrEhWRXtaWeFAKS+64NcQw=\",\n++=======\n+         \"bzlTransitiveDigest\": \"q0rgmf5vTQlxHRHbRPBHV6w5pLGxHvtqE8obEu9WvHI=\",\n++>>>>>>> b4d80802c77c763a50b09fb2883ba534bab64b9f",
+      "sbom.json": "diff --cc sbom.json\nindex 14e1a83ad96,2cca627f805..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 6e79a3d5d58\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 18,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 19,\n++>>>>>>> b4d80802c77c763a50b09fb2883ba534bab64b9f\n@@@ -14,0 -14,6 +22,16 @@@\n++<<<<<<< HEAD\n++||||||| 6e79a3d5d58\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1196\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1201\"\n+       }\n+     ],\n++>>>>>>> b4d80802c77c763a50b09fb2883ba534bab64b9f"
+    },
+    "their_commits": {
+      "MODULE.bazel.lock": [
+        "2466a0f06a4e6c9d02b30573be3804cdfed34de0"
+      ],
+      "sbom.json": [
+        "02e6cc7d1dc8c778599f83e3a92ddee48f149b48"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+    "merged_commits": [
+      "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+      "591f9335736722f717c26c92083f9adb4a6a68ec",
+      "3eb733e99ca89a901004451b57c5bbb82b4bca55",
+      "8a0e6659b71ec51e2df7a3b0bd0727e272b08737",
+      "6dd9c5cae6132e9a95c82887421bd3e25d318301",
+      "44c2d515a1d0c96c46c56fa2b9a5930c1485317d",
+      "bbd97449c986296ae010f250b6e07c624824a484",
+      "9909dc1767a9b795c6027a3f4db8817f8070a2f6",
+      "6bfa1c14d4b2ccc0d5d9bbe876ee287647c775e2",
+      "221323b77ff5ab2da637a3377fb5209df49bb464",
+      "c5578526fad5d689974b773aff0a920f3f928e39",
+      "c3f4df75bb7b907d78ca649885f6880c0537c5eb",
+      "07069dbe623cf57a72360cfed4a01c653d4cfa2e",
+      "1b8ce96604258b91106d22021fd15681032573d5",
+      "f77a4e6063d537bd66627e8939d16eb5764ed512",
+      "868aad0beea6d63cf6291cf0f956d308a2c973eb",
+      "8bbcd821e19abd2d40ebf675bccd1d4a5445ef94",
+      "30337b21741187b315e1590c836ecb7fbefb7a66",
+      "584589bc13feec963707cf02f32fda82b244ffb7",
+      "2466a0f06a4e6c9d02b30573be3804cdfed34de0",
+      "98d574318eb3ee5b97ef36e363852474ad9422be",
+      "d9922152c5d98a5ff4dc0da1687be5ab64c47293",
+      "c133e13733f4d21a74e4516b680a3e179c6a9d22",
+      "9d11a1cfca616c4c5dba227bc813a8678e97f080",
+      "02e6cc7d1dc8c778599f83e3a92ddee48f149b48",
+      "8b4bcd46f2fc2b29d328d295ba3d0ac512080259",
+      "7f18b6ff6d0b570026163647ca9a1aeb7b715af2",
+      "3a0a6820df73e42d5c183fb66c93592225fd63fa",
+      "a96abb362e9f4736ef1d46c82dc8820b26960816",
+      "3aabb3dc2bea6866f087b5d83dd4d9cc777f31c8",
+      "35f6a4f8e565253aa9f7118af6ff5a39d3269697",
+      "4d1bd0c7687b23764e15b942fd5e37fca643ca4e",
+      "29bf721b020a2172c7acafdf795c9d4608e1a992",
+      "39764c275cf3066f72c43bca245ef9d09569e0c2",
+      "1491575cc27304b1d9ec52fa49952b5b248a645b",
+      "86baf099b7e9a90899ac854c7220c092b6985f40",
+      "de59a98e19f814ce8d613be214dd05f4e028db7c"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "README.third_party.md",
+        "bazel/mongo_src_rules.bzl",
+        "sbom.json",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/curop.h",
+        "src/mongo/db/extension/host/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 85338,
+      "num_turns": 11,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.2849585,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 18,
+          "outputTokens": 3610,
+          "cacheReadInputTokens": 170562,
+          "cacheCreationInputTokens": 17494,
+          "webSearchRequests": 0,
+          "costUSD": 0.2849585,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 415,
+          "cacheCreationEphemeral5mInputTokens": 17494,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 18,
+              "output": 3610,
+              "cache_read": 170562,
+              "cache_creation": 17494
+            },
+            "cost_usd": 0.2849585
+          }
+        }
+      },
+      "text_result": "Both merge conflicts are resolved:\n\n1. **sbom.json** \u2014 Removed the `metadata.tools` (Endor Labs) section entirely per the hint, kept Percona's `serialNumber`/`version` and the `https://percona.com` supplier URL, and confirmed the `supplier` object is the last key in `metadata` with no trailing comma (JSON stays valid).\n\n2. **MODULE.bazel.lock** \u2014 Removed the conflict markers in the `bzlTransitiveDigest` block, then regenerated the file with `bazel query //... >/dev/null` (exit 0).\n\nNo conflict markers remain in either file, and the JSON response has been written to the specified path.",
+      "response": {
+        "summary": "Resolved both conflicting files. sbom.json was resolved per the Conflict Hints: the metadata.tools (Endor Labs) section was removed entirely and Percona's serialNumber/version values were kept; Percona's supplier URL (https://percona.com) is untouched and the metadata supplier object remains the last key with no trailing comma. MODULE.bazel.lock had its conflict markers removed by accepting one side, then was regenerated by running `bazel query //... >/dev/null`.",
+        "resolved": {
+          "sbom.json": "Removed the conflict markers. Kept Percona's serialNumber (urn:uuid:95a559f1-...) and version (6) as release-time values that are reset anyway. Removed the metadata.tools section (Endor Labs Inc entry) entirely so the manually assembled Percona SBOM does not include MongoDB-tooling-generated tools; the preceding supplier object is now the last key in metadata with no trailing comma, keeping the JSON valid. Percona supplier url https://percona.com preserved.",
+          "MODULE.bazel.lock": "Removed the conflict markers in the bzlTransitiveDigest block by accepting a single value, then regenerated the file with `bazel query //... >/dev/null` (exit 0). No conflict markers remain and the lock file is consistent with the current module graph."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "sbom.json: per the Conflict Hints, serialNumber/version are release-time concerns reset before release, so Percona's HEAD values were kept arbitrarily. The metadata.tools section was dropped as instructed. MODULE.bazel.lock was regenerated via bazel query rather than hand-merged; the bazel run emitted some S3/botocore credential warnings for optional downloads but completed successfully (exit 0) and produced a marker-free lock file."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Now let me verify the supplier section and confirm no trailing comma issues:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "sbom.json is resolved. Now MODULE.bazel.lock \u2014 remove markers first, then regenerate:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "No markers remain. Now regenerate the lock file:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Bazel query succeeded (exit 0) and regenerated the lock file. Let me verify the lock file is valid and has no markers:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both files resolved cleanly. Writing the response:"
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both merge conflicts are resolved:\n\n1. **sbom.json** \u2014 Removed the `metadata.tools` (Endor Labs) section entirely per the hint, kept Percona's `serialNumber`/`version` and the `https://percona.com` supplier URL, and confirmed the `supplier` object is the last key in `metadata` with no trailing comma (JSON stays valid).\n\n2. **MODULE.bazel.lock** \u2014 Removed the conflict markers in the `bzlTransitiveDigest` block, then regenerated the file with `bazel query //... >/dev/null` (exit 0).\n\nNo conflict markers remain in either file, and the JSON response has been written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261027_051348_262033.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.311 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 41223,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.19164150000000002,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2704,
+        "cacheReadInputTokens": 44348,
+        "cacheCreationInputTokens": 16294,
+        "webSearchRequests": 0,
+        "costUSD": 0.19164150000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 74,
+        "cacheCreationEphemeral5mInputTokens": 16294,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2704,
+            "cache_read": 44348,
+            "cache_creation": 16294
+          },
+          "cost_usd": 0.19164150000000002
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diffs for each auto-merged file and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **MODULE.bazel** \u2014 registers wrapped linux Rust nightly toolchains (`use_repo` + `register_toolchains(\"//bazel/toolchains/rust:all\")`) to apply per-target rustc flags.\n- **bazel/mongo_src_rules.bzl** \u2014 appends `MONGO_RUSTC_FIRST_PARTY_FLAGS` to Rust rules and routes `mongo_rust_shared_library` through a new `extract_debuginfo_rust` step (WITH_DEBUG_SUFFIX build + separate debug info).\n- **README.third_party.md** \u2014 cpptrace 1.0.2 \u2192 1.0.3.\n- **src/mongo/db/curop.{cpp,h}** \u2014 scopes the cross-thread debug-info lock to the storage-stats update and marks `lockCrossThreadDebugInfo()` `[[nodiscard]]`.\n- **BUILD.bazel (extension/host, pipeline)** \u2014 register new unit tests.\n- **MODULE.bazel.lock / sbom.json** \u2014 the two conflicts, resolved per the documented hints (regenerate lock digest; drop `metadata.tools`, keep Percona supplier/version).\n\nAll claims are backed by diff lines I actually read; no fork-tip inversion was used.",
+    "response": {
+      "summary": "Merges upstream mongodb-master changes into the PSMDB master fork. The incoming changes add a wrapped Rust toolchain (per-target rustc flags) registered from //bazel/toolchains/rust, wire mongo_rust_shared_library through a new extract_debuginfo_rust step so Rust shared libraries get separate-debug handling, bump the cpptrace third-party dependency from 1.0.2 to 1.0.3, tighten cross-thread locking in CurOp storage-stats handling, and register two new C++ unit tests. Two files conflicted (MODULE.bazel.lock and sbom.json) and were resolved per the standard release/lockfile rules.",
+      "auto_merged": {
+        "MODULE.bazel": "Adds a block wrapping the linux-targeting Rust nightly toolchains: a use_repo(rust, ...) listing the per-host/per-target '*__nightly_tools' repos and a register_toolchains(\"//bazel/toolchains/rust:all\") call, so mongo's rustc flags can be applied per target. A comment notes it must be kept in sync with mongo_rust_toolchain_repos() in //bazel/toolchains/rust:mongo_rust_toolchain.bzl.",
+        "MODULE.bazel.lock": "Conflict on the 'bzlTransitiveDigest' value (both modified). This generated lockfile is resolved by taking one side's digest and regenerating via bazel; the merge commit records the regenerated digest (q0rgmf5vTQlxHRHbRPBHV6w5pLGxHvtqE8obEu9WvHI=).",
+        "README.third_party.md": "Bumps the cpptrace third-party library version from 1.0.2 to 1.0.3 in the dependency table.",
+        "bazel/mongo_src_rules.bzl": "Imports MONGO_RUSTC_FIRST_PARTY_FLAGS from //bazel/toolchains/rust:mongo_rust_toolchain.bzl and extract_debuginfo_rust from separate_debug.bzl. mongo_rust_library and mongo_rust_shared_library now append MONGO_RUSTC_FIRST_PARTY_FLAGS to rustc_flags. mongo_rust_shared_library now builds the rust_shared_library under a WITH_DEBUG_SUFFIX name, points its rust_test crate at that name, and adds an extract_debuginfo_rust target under the public name (with a platform-selected shared_ext of .dylib/.dll/.so and enabled = SEPARATE_DEBUG_ENABLED) to produce separate debug info.",
+        "sbom.json": "Conflict on release-time fields (both modified). Per project rules the 'serialNumber'/'version' are release-time values resolved either way, and the generated 'metadata.tools' section (Endor Labs entry) is dropped from Percona's manually assembled SBOM.",
+        "src/mongo/db/curop.cpp": "In CurOp::_fetchStorageStatsIfNecessary, scopes the cross-thread debug-info lock (lockCrossThreadDebugInfo()) to just the block that updates _debug.storageStats, then sets _allowStorageStatsUpdate outside the lock, with a comment noting that field is only accessed by the operation's own thread and so need not be guarded.",
+        "src/mongo/db/curop.h": "Marks CurOp::lockCrossThreadDebugInfo() with [[nodiscard]] so callers cannot discard the returned unique_lock.",
+        "src/mongo/db/extension/host/BUILD.bazel": "Adds a new mongo_cc_unit_test target 'extension_host_utils_test' (src extension_host_utils_test.cpp, tag mongo_unittest_third_group) depending on extension_host_utils, //src/mongo:base, the auth authprivilege library, and the public extensions API.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two source files to the change-stream mongo_cc_unit_test srcs list: change_stream_resume_token_tracker_test.cpp and document_source_change_stream_add_pre_image_test.cpp."
+      },
+      "review_notes": "Only upstream-introduced changes (diff base 6e79a3d5d58 -> merge commit b4d80802c77) are described. The two conflicts were the generated MODULE.bazel.lock digest and sbom.json release fields/tools section, both handled per the documented conflict hints (regenerate lockfile; drop metadata.tools and keep Percona supplier URL). No Percona-specific features appear affected by the auto-merged source files; the main functional changes are the new Rust separate-debug toolchain wiring (MODULE.bazel + mongo_src_rules.bzl) and the CurOp locking refinement. Verify the Rust toolchain repo list in MODULE.bazel stays consistent with mongo_rust_toolchain.bzl."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diffs for each auto-merged file and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **MODULE.bazel** \u2014 registers wrapped linux Rust nightly toolchains (`use_repo` + `register_toolchains(\"//bazel/toolchains/rust:all\")`) to apply per-target rustc flags.\n- **bazel/mongo_src_rules.bzl** \u2014 appends `MONGO_RUSTC_FIRST_PARTY_FLAGS` to Rust rules and routes `mongo_rust_shared_library` through a new `extract_debuginfo_rust` step (WITH_DEBUG_SUFFIX build + separate debug info).\n- **README.third_party.md** \u2014 cpptrace 1.0.2 \u2192 1.0.3.\n- **src/mongo/db/curop.{cpp,h}** \u2014 scopes the cross-thread debug-info lock to the storage-stats update and marks `lockCrossThreadDebugInfo()` `[[nodiscard]]`.\n- **BUILD.bazel (extension/host, pipeline)** \u2014 register new unit tests.\n- **MODULE.bazel.lock / sbom.json** \u2014 the two conflicts, resolved per the documented hints (regenerate lock digest; drop `metadata.tools`, keep Percona supplier/version).\n\nAll claims are backed by diff lines I actually read; no fork-tip inversion was used."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261027_051303_792897.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.311 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+    "short_sha": "b4d80802c77",
+    "strategy": "huge_commit",
+    "summary": "The WiredTiger vendored import is an ideal merge boundary: it is a self-contained third-party import touching a well-isolated set of files, rarely depended on by later commits, and easy to validate post-merge. Cutting here yields a 37-commit batch (within the comfortable ~30-65 band) and critically keeps the SERVER-136831 revert pair together: the original 'prevent stack memory reads on pooled http connections' (07069dbe) and its revert (8a0e6659) are both in range and both land in this batch, so they cancel out instead of importing a feature only to remove it next merge. It also leaves only the single freshest candidate (575cc5f, the SBE streaming group fuzzer) for the next batch, honoring the rule to stop short of the newest unsettled commit rather than ending on it.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/40453752897"
+  },
+  "note_index": [
+    {
+      "sha": "2f5a2a293569d8cc986affb7cbb06fbf6e93c546",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "4a56a28fde55d13110030b4812524e76a3ee38a4",
+      "message": "Merge commit 'b4d80802c77' into master"
+    },
+    {
+      "sha": "b5804394d34e09a7b37cef6849b496f70cc88f6d",
+      "message": "Resolve conflicts for merge commit 'b4d80802c77' into master"
+    }
+  ]
+}
