@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 23,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.434134107523148,
-    "files_affected": 166,
-    "total_additions": 3845,
-    "total_deletions": 1526,
+    "commits_behind": 38,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 7.882427362083333,
+    "files_affected": 412,
+    "total_additions": 16183,
+    "total_deletions": 12703,
     "date_range": {
       "first": "2026-10-19T09:01:01+00:00",
-      "last": "2026-10-19T18:59:46+00:00"
+      "last": "2026-10-19T22:59:22+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,156 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "575cc5fd2c23c2c9c13db3d7b78e80dba462b331",
+      "short_sha": "575cc5fd2c2",
+      "date": "2026-10-19T22:59:22+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-136256: Add fuzzer for SBE streaming group (#63931)"
+    },
+    {
+      "sha": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+      "short_sha": "b4d80802c77",
+      "date": "2026-10-19T22:43:13+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 733ec8a1c8eacae07326de408fc9d05d904b8038 from branch mongodb-master (#64659)"
+    },
+    {
+      "sha": "591f9335736722f717c26c92083f9adb4a6a68ec",
+      "short_sha": "591f9335736",
+      "date": "2026-10-19T22:38:52+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-137256 Retry connectionStatus in asCluster on network errors. (#64641)"
+    },
+    {
+      "sha": "3eb733e99ca89a901004451b57c5bbb82b4bca55",
+      "short_sha": "3eb733e99ca",
+      "date": "2026-10-19T22:19:17+00:00",
+      "author": {
+        "name": "Oscar Ortega",
+        "email": "114444896+oortegamtzdb@users.noreply.github.com"
+      },
+      "summary": "SERVER-136892 Give the weekly format-matrix verifier a flat timeout (#64524)"
+    },
+    {
+      "sha": "8a0e6659b71ec51e2df7a3b0bd0727e272b08737",
+      "short_sha": "8a0e6659b71",
+      "date": "2026-10-19T22:04:55+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136831: prevent stack memory reads on pooled http connections (#64142)\" (#64725)"
+    },
+    {
+      "sha": "6dd9c5cae6132e9a95c82887421bd3e25d318301",
+      "short_sha": "6dd9c5cae61",
+      "date": "2026-10-19T21:59:43+00:00",
+      "author": {
+        "name": "Chye Lin Chee",
+        "email": "chyelin.chee@mongodb.com"
+      },
+      "summary": "SERVER-131289 Re-enable pali_chaos_key in required master build variant (#64604)"
+    },
+    {
+      "sha": "44c2d515a1d0c96c46c56fa2b9a5930c1485317d",
+      "short_sha": "44c2d515a1d",
+      "date": "2026-10-19T21:59:33+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-119036 Delete dead code in legacy get_executor path (#64690)"
+    },
+    {
+      "sha": "bbd97449c986296ae010f250b6e07c624824a484",
+      "short_sha": "bbd97449c98",
+      "date": "2026-10-19T21:04:53+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-133347 Restore disk suite test with replicated size and count no longer using collection-based stores (#64708)"
+    },
+    {
+      "sha": "9909dc1767a9b795c6027a3f4db8817f8070a2f6",
+      "short_sha": "9909dc1767a",
+      "date": "2026-10-19T20:57:39+00:00",
+      "author": {
+        "name": "Santiago Roche",
+        "email": "69868136+sroches@users.noreply.github.com"
+      },
+      "summary": "SERVER-137339 Ensure constness of LiteParsedDocumentSource subpipelines (#64687)"
+    },
+    {
+      "sha": "6bfa1c14d4b2ccc0d5d9bbe876ee287647c775e2",
+      "short_sha": "6bfa1c14d4b",
+      "date": "2026-10-19T20:11:09+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-137138 Fix indentation and trailing whitespace in SBE DebugPrinter output (#64504)"
+    },
+    {
+      "sha": "221323b77ff5ab2da637a3377fb5209df49bb464",
+      "short_sha": "221323b77ff",
+      "date": "2026-10-19T20:06:33+00:00",
+      "author": {
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
+      },
+      "summary": "SERVER-137318 Range deleter shouldn't increase the counters in reporting_compound_wildcard_index_prefixed_by_shard_key.js (#64678)"
+    },
+    {
+      "sha": "c5578526fad5d689974b773aff0a920f3f928e39",
+      "short_sha": "c5578526fad",
+      "date": "2026-10-19T19:46:15+00:00",
+      "author": {
+        "name": "Erin Liang",
+        "email": "59406045+erl-ang@users.noreply.github.com"
+      },
+      "summary": "SERVER-136991 Fix coverity lock findings in CurOp (#64517)"
+    },
+    {
+      "sha": "c3f4df75bb7b907d78ca649885f6880c0537c5eb",
+      "short_sha": "c3f4df75bb7",
+      "date": "2026-10-19T19:31:45+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-131717 Add rust toolchain definitions (#63740)"
+    },
+    {
+      "sha": "07069dbe623cf57a72360cfed4a01c653d4cfa2e",
+      "short_sha": "07069dbe623",
+      "date": "2026-10-19T19:26:43+00:00",
+      "author": {
+        "name": "Nathan Frank",
+        "email": "nathantfrank@users.noreply.github.com"
+      },
+      "summary": "SERVER-136831: prevent stack memory reads on pooled http connections (#64142)"
+    },
+    {
+      "sha": "1b8ce96604258b91106d22021fd15681032573d5",
+      "short_sha": "1b8ce966042",
+      "date": "2026-10-19T19:20:24+00:00",
+      "author": {
+        "name": "Madison Hoover",
+        "email": "36238844+madisonhoover4@users.noreply.github.com"
+      },
+      "summary": "SERVER-137279: Lower Block on Red team hot BF quota from 3 to 2 (#64661)"
+    },
     {
       "sha": "f77a4e6063d537bd66627e8939d16eb5764ed512",
       "short_sha": "f77a4e6063d",
@@ -336,10 +486,56 @@
           "num_of_dirs": 30
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "6bfa1c14d4b2ccc0d5d9bbe876ee287647c775e2",
+        "short_sha": "6bfa1c14d4b",
+        "date": "2026-10-19T20:11:09+00:00",
+        "author": {
+          "name": "Evan Bergeron",
+          "email": "evanbergeron@users.noreply.github.com"
+        },
+        "summary": "SERVER-137138 Fix indentation and trailing whitespace in SBE DebugPrinter output (#64504)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 191,
+          "num_of_lines": 20540,
+          "lines_added": 9953,
+          "lines_deleted": 10587,
+          "num_of_dirs": 22
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+        "short_sha": "b4d80802c77",
+        "date": "2026-10-19T22:43:13+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 733ec8a1c8eacae07326de408fc9d05d904b8038 from branch mongodb-master (#64659)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 26,
+          "num_of_lines": 1465,
+          "lines_added": 1272,
+          "lines_deleted": 193,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-26 19:26:01",
+  "generated_at": "2026-10-27 06:11:25",
   "branch_name": "master",
   "display_name": "master"
 }
