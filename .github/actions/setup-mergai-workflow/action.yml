@@ -67,7 +67,7 @@ runs:
     # Install Node.js 22 for npm-based CLI tools (gemini-cli, claude-cli).
     - name: Install Node
       if: inputs.setup-gemini == 'true' || inputs.setup-claude == 'true'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: "22"
 
