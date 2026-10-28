@@ -1,0 +1,252 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "43bcb21395c72e74341772a4798d83366c9979e3",
+    "merge_commit": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "43bcb21395c72e74341772a4798d83366c9979e3",
+    "theirs_commit": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+    "base_commit": "b4d80802c77c763a50b09fb2883ba534bab64b9f",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": "diff --cc src/mongo/db/storage/wiredtiger/BUILD.bazel\nindex cd395f7985b,f7866bedf0f..00000000000\n--- a/src/mongo/db/storage/wiredtiger/BUILD.bazel\n+++ b/src/mongo/db/storage/wiredtiger/BUILD.bazel\n@@@ -190,28 -174,10 +190,42 @@@ mongo_cc_unit_test\n++<<<<<<< HEAD\n +    name = \"storage_wiredtiger_encryption_test\",\n +    srcs = [\n +        \"wiredtiger_encryption_test.cpp\",\n +    ],\n +    tags = [\"mongo_unittest_seventh_group\"],\n +    deps = [\n +        \":storage_wiredtiger_core\",\n +    ],\n +)\n +\n +mongo_cc_unit_test(\n +    name = \"storage_wiredtiger_kv_engine_encryption_key_test\",\n +    srcs = [\n +        \"wiredtiger_kv_engine_encryption_key_test.cpp\",\n +    ],\n +    tags = [\"mongo_unittest_eighth_group\"],\n +    deps = [\n +        \":storage_wiredtiger\",\n +        \"//src/mongo/db:service_context_d_test_fixture\",\n +        \"//src/mongo/db/auth:authmocks\",\n +        \"//src/mongo/db/encryption:key_management\",\n +        \"//src/mongo/util:clock_source_mock\",\n +        \"//src/mongo/util:mock_periodic_runner\",\n +        \"//src/mongo/util:periodic_runner_factory\",\n +    ],\n +)\n +\n +mongo_cc_unit_test(\n++||||||| b4d80802c77\n++=======\n+     name = \"wiredtiger_checksum_test\",\n+     srcs = [\"wiredtiger_checksum_test.cpp\"],\n+     tags = [\"mongo_unittest_fifth_group\"],\n+     deps = [\n+         \"//src/third_party/wiredtiger:wiredtiger_checksum\",\n+         \"@com_google_googletest//:gtest\",\n+     ],\n+ )\n+ \n+ mongo_cc_unit_test(\n++>>>>>>> bea1e3e8e975ddecd4528b0853b5b36f1fd96a86"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/BUILD.bazel": [
+        "1c383bd7614d5fe754434b2c7cf3df24655d9727"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+    "merged_commits": [
+      "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+      "b761af83b40cd47a0729433ed96a3e86d42fa4ab",
+      "508886bddfc9e08b4902fe23aa05791d67e1f192",
+      "cd61ce519e32e932c285cc843246453c8f3414cd",
+      "7cbb2cf7268ed45e89c90ce74793d7734b25c6a7",
+      "c2db1f7d15ae1c7245b30f2c2ab74a2b4093521a",
+      "685bec43a89f7ec884b14c90c37d1f1b584b16b4",
+      "df99e3ce5f4c3406cd1b8e72b8e4ffbf9f6cf35f",
+      "ba17749c03223d27bf9bb7d5803048afb9610796",
+      "9dd2719efc2f43e57bb2424915da6edd11270668",
+      "f153719eb1a0d811245f2b759587fe5334011e01",
+      "4cf1d7c025d74552b64cabd4c638396dd33eb0a4",
+      "16e81d2a11b881e64b96b07d839756af5ffc596f",
+      "43760dabeaf04848bc7b9337e75f6726ebc46277",
+      "cf395951484e0bec4b905376fcdcac466606cab0",
+      "3ae6bfe175b0cc072a2d17fe3b9818b7c993d197",
+      "f24f91b9318e1dadadf9361b8804451facc15b34",
+      "37e1a599b0f261828bb0de4cf9b953978c487e40",
+      "ab6c46f46030676a3f59e3f3d350f1a1b215e662",
+      "f5f1297400cc90a250dd7b081cad3bb7d3647e9a",
+      "1c03f1381128acb1032ad45294777c29501bd3a1",
+      "3a944687e732cc65cbe84bf10982b16ee18c757e",
+      "117df5f8c1da6c9194b0220055a1bf659d549429",
+      "16b3a326e28771780c2aeb8a28b8a5a1c674c64e",
+      "f13ffcc9d27c1ed5b65ec75131276ad668a8f7fc",
+      "b996896437186efe274de421188642f89f88ba31",
+      "7c71509a12389803b7b90b79ca652badd8b8133c",
+      "1a74143d673fb276c1bc3cabff548c7755607290",
+      "5dca160601b156e071c41f70036a4929c8d4bfad",
+      "56d4cb7a99546921e536483f0897bc5f5ee38a1e",
+      "26ec5a4456e9f5b7a5444c3620465094ba27942c",
+      "5fc6f63e39acf32c35e726621a30352224b4ff67",
+      "852f12d2d8bef0986e67a5d14762cdeab481863b",
+      "a4d31f864f39faafeaf50043f73409d5cf62a692",
+      "a5e1a32a47094dbc9bb3879f1d935c60b751f415",
+      "e7a25d853b6ebb9bb85455e1ee08e19acab69012",
+      "3ede2a518bfae50079c12942b8dfe0a04cb7930c",
+      "85682136c51f2f555736bb46e069b004328985e6",
+      "54b0040c17e709acb7d3a227acc9812e53639aa4",
+      "1c383bd7614d5fe754434b2c7cf3df24655d9727",
+      "575cc5fd2c23c2c9c13db3d7b78e80dba462b331"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "bazel/config/BUILD.bazel",
+        "bazel/mongo_src_rules.bzl",
+        "jstests/noPassthrough/query/profile/profile_filter.js",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/util/net/BUILD.bazel",
+        "src/mongo/util/net/http_client_curl.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 81957,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.42463850000000003,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 14,
+        "outputTokens": 5721,
+        "cacheReadInputTokens": 141587,
+        "cacheCreationInputTokens": 33720,
+        "webSearchRequests": 0,
+        "costUSD": 0.42463850000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 715,
+        "cacheCreationEphemeral5mInputTokens": 33720,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 14,
+            "output": 5721,
+            "cache_read": 141587,
+            "cache_creation": 33720
+          },
+          "cost_usd": 0.42463850000000003
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diffs for each auto-merged file and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Compiledb build support** \u2014 `.bazelrc`, `bazel/config/BUILD.bazel`, and `bazel/mongo_src_rules.bzl` add a `compiledb` flag, `compiledb_enabled`/`fsan_or_compiledb_enabled` settings, and wire fuzzer targets to be compatible under compiledb builds.\n- **New unit tests** \u2014 `wiredtiger_checksum_test` (in the conflicted WiredTiger BUILD file) and `http_client_curl_test`.\n- **curl HTTP client refactor** \u2014 extracted `applyCurlEasyHandleOptions`, reset/re-apply options on pooled handle reuse, and switched `_clockSource` to an owned `unique_ptr`.\n- **Query** \u2014 registers `query_knob_descriptors_integration.{cpp,h}` and adds a profile-filter test rejecting `$_internalKeyStringValue` (code 10131412).\n- **startup_recovery** \u2014 uses new `isRecordStoreSlicingEnabled` helper for the size-stats check.\n- **WiredTiger stats header** \u2014 renames disaggregated victim-cache stats from `BLOCK_CACHE_*` to `DISAGG_VICTIM_CACHE_*` with mass ID renumbering.\n\nThe one conflict (`wiredtiger/BUILD.bazel`) was correctly resolved by keeping Percona's encryption test targets and adding upstream's new checksum test target. I followed the merge-direction rules strictly (diff base `b4d8080` \u2192 merge commit `bea1e3e`) and did not report any fork-specific lines as merge changes.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master into the PSMDB master branch. The incoming changes add Bazel plumbing for compilation-database (compiledb) builds, wire up new WiredTiger and curl unit tests, register a new query integration-knobs source, reject $_internalKeyStringValue in profile filters, refactor the curl HTTP client to reset and re-apply handle options between pooled requests, simplify an offline-validation size-stats check behind a new helper, and pull in a regenerated WiredTiger statistics header that renames the disaggregated-victim-cache block-cache stats to a 'disagg' prefix (with the usual mass renumbering of stat IDs). The only textual conflict was in src/mongo/db/storage/wiredtiger/BUILD.bazel, where upstream's new wiredtiger_checksum_test target was added alongside Percona's existing encryption test targets.",
+      "auto_merged": {
+        ".bazelrc": "Adds two flags to the `common:compiledb` config: `--//bazel/config:compiledb=True` (enabling the new compiledb build setting) and `--no@fuzztest//fuzztest:use_riegeli`. No Percona-specific content touched.",
+        "bazel/config/BUILD.bazel": "Introduces compilation-database build configuration: a new `compiledb` bool_flag (default False), a `compiledb_enabled` config_setting keyed on that flag, and a `fsan_or_compiledb_enabled` selects.config_setting_group that matches either `fsan_enabled` or `compiledb_enabled`.",
+        "bazel/mongo_src_rules.bzl": "In `mongo_cc_fuzzer_test_deprecated` and `mongo_cc_fuzztest`, the `target_compatible_with` select now keys on `//bazel/config:fsan_or_compiledb_enabled` instead of `//bazel/config:fsan_enabled`, so these fuzzer targets are also considered compatible under a compiledb build (a comment notes compiledb only emits command fragments). The Percona (PSMDB-1924) integration-test edits elsewhere in this file are untouched by this diff.",
+        "jstests/noPassthrough/query/profile/profile_filter.js": "Adds a test case asserting that a `profile` command whose filter uses `$expr` with `$_internalKeyStringValue` fails with error code 10131412, and that the profiling level stays 0 afterward.",
+        "src/mongo/db/query/BUILD.bazel": "Registers the new query integration-knob descriptor files in the library: `query_knob_descriptors_integration.cpp` added to `srcs` and `query_knob_descriptors_integration.h` added to `hdrs`.",
+        "src/mongo/db/startup_recovery.cpp": "In `offlineValidateCollection`, the inline computation of `enableSizeStats` (previously derived from `getTargetRecordsPerRecordStoreSlice()` being unset/zero or `getMaxRecordStoreSlices() == 1`) is replaced by `!collection_validation::isRecordStoreSlicingEnabled(collection_validation::getTargetRecordsPerRecordStoreSlice())`.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Conflicting file. The incoming change adds a new `wiredtiger_checksum_test` mongo_cc_unit_test target (srcs wiredtiger_checksum_test.cpp, tag mongo_unittest_fifth_group, deps on //src/third_party/wiredtiger:wiredtiger_checksum and gtest). The conflict was resolved by keeping Percona's existing encryption test targets (storage_wiredtiger_encryption_test, storage_wiredtiger_kv_engine_encryption_key_test) and adding the upstream checksum test alongside them.",
+        "src/mongo/util/net/BUILD.bazel": "Adds a new `http_client_curl_test` mongo_cc_unit_test target (srcs http_client_curl_test.cpp, tag mongo_unittest_first_group), gated with target_compatible_with so it is incompatible on Windows http-client builds and on default, compatible when `//bazel/config:http_client_enabled`; depends on http_client, http_client_impl, //src/mongo:base and //src/mongo/db:service_context.",
+        "src/mongo/util/net/http_client_curl.cpp": "Refactors curl handle setup: the option-setting logic is extracted from `createCurlEasyHandle` into a new `applyCurlEasyHandleOptions(CURL*, Protocols)` function, which `createCurlEasyHandle` now calls. The request path now calls `curl_easy_reset` and re-applies `applyCurlEasyHandleOptions` on a pooled handle before reuse so prior request state does not carry over. `CurlHandleTypeFactory::_clockSource` is changed from a raw `ClockSource* const` (previously `SystemClockSource::get()`) to an owned `std::unique_ptr<ClockSource>` constructed via `std::make_unique<SystemClockSource>()`, with call sites updated to pass `_clockSource.get()`.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Regenerated WiredTiger statistics header. The disaggregated victim-cache block-cache stats are renamed from `WT_STAT_CONN_BLOCK_CACHE_*` (COLD_NOT_CACHED, PUT_FAILURES, PUT_TIME_MAX, PUTS, APP_THREAD_PUTS, APP_THREAD_PUT_TIME, PUT_TIME) to `WT_STAT_CONN_DISAGG_VICTIM_CACHE_*` equivalents, with their doc comments reworded from 'block-cache: ... disaggregated victim cache' to 'disagg: ... victim cache'. This triggers a mass renumbering of the WT_STAT_CONN_* constant IDs throughout the file."
+      },
+      "review_notes": "The only real conflict resolution to verify is src/mongo/db/storage/wiredtiger/BUILD.bazel: confirm both Percona's encryption test targets and upstream's new wiredtiger_checksum_test target are present and that no conflict markers remain. The wiredtiger.h.in change is a generated-header stat rename/renumber; verify any PSMDB code referencing the old WT_STAT_CONN_BLOCK_CACHE_* disaggregated victim-cache names (if any) is updated to the new WT_STAT_CONN_DISAGG_VICTIM_CACHE_* names, though these are typically consumed by upstream WiredTiger code. The startup_recovery.cpp change depends on collection_validation::isRecordStoreSlicingEnabled existing; ensure it is declared/defined by the incoming merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for each file. Let me start with the diff base \u2192 merge commit comparison."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read each diff now."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me look at the large wiredtiger.h.in diff summary."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have a complete picture. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge by reading the actual `diff base \u2192 merge commit` diffs for each auto-merged file and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Compiledb build support** \u2014 `.bazelrc`, `bazel/config/BUILD.bazel`, and `bazel/mongo_src_rules.bzl` add a `compiledb` flag, `compiledb_enabled`/`fsan_or_compiledb_enabled` settings, and wire fuzzer targets to be compatible under compiledb builds.\n- **New unit tests** \u2014 `wiredtiger_checksum_test` (in the conflicted WiredTiger BUILD file) and `http_client_curl_test`.\n- **curl HTTP client refactor** \u2014 extracted `applyCurlEasyHandleOptions`, reset/re-apply options on pooled handle reuse, and switched `_clockSource` to an owned `unique_ptr`.\n- **Query** \u2014 registers `query_knob_descriptors_integration.{cpp,h}` and adds a profile-filter test rejecting `$_internalKeyStringValue` (code 10131412).\n- **startup_recovery** \u2014 uses new `isRecordStoreSlicingEnabled` helper for the size-stats check.\n- **WiredTiger stats header** \u2014 renames disaggregated victim-cache stats from `BLOCK_CACHE_*` to `DISAGG_VICTIM_CACHE_*` with mass ID renumbering.\n\nThe one conflict (`wiredtiger/BUILD.bazel`) was correctly resolved by keeping Percona's encryption test targets and adding upstream's new checksum test target. I followed the merge-direction rules strictly (diff base `b4d8080` \u2192 merge commit `bea1e3e`) and did not report any fork-specific lines as merge changes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261028_212733_012710.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.312 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+    "short_sha": "bea1e3e8e97",
+    "strategy": null,
+    "summary": "This cut yields a batch of 41 commits (within the comfortable ~30-65 band) and, crucially, keeps three revert pairs together so features aren't imported now and removed next merge: #64366 enableParallelQuery/maxDOP (b996896) + its revert c2db1f7; #63654 interrupt-check gaps (37e1a599) + its revert 7cbb2cf; and #64451 connection establishment histograms (16b3a326) + its revert b761af83 (index 40). Cutting earlier on the attractive WiredTiger vendored import (4cf1d7c0, index 30) would split all three of these pairs, leaving their reverts for the next batch - wasted conflict-resolution effort. The chosen boundary lands on an auto-generated SERVER-110427 profiling-data update, a well-isolated, easy-to-validate artifact commit immediately after the last of the three reverts resolves. It also stops short of the next revert pair (#64274 fuzztest, original at index 44 with its revert further out at index 57) and well short of the freshest/unsettled commits at the window edge.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/40771506065"
+  }
+}
