@@ -47,12 +47,6 @@ feature_flags:
         default: false
         fcv_gated: false
 
-    featureFlagTimeSeriesInSbe:
-        description: "Feature flag to enable queries against time-series collections to execute in SBE"
-        cpp_varname: gFeatureFlagTimeSeriesInSbe
-        default: true
-        fcv_gated: false
-
     featureFlagSbeBlockHashAgg:
         description: "Feature flag to enable Block Hash Aggregation for TS queries SBE"
         cpp_varname: gFeatureFlagSbeBlockHashAgg
@@ -204,6 +198,18 @@ feature_flags:
         description: "Test feature flag for extension stub parser fallback registration. Used to test incremental rollout of extension stage parsers."
         cpp_varname: gFeatureFlagExtensionStubParsers
         incremental_rollout_phase: in_development
+        fcv_gated: false
+
+    featureFlagExtensionCommands:
+        description: "Feature flag to enable loading extension-defined commands via the Extensions API."
+        cpp_varname: gFeatureFlagExtensionCommands
+        default: false
+        fcv_gated: false
+
+    featureFlagExtensionSearchIndexManagement:
+        description: "Feature flag to use the extension-defined search index management commands."
+        cpp_varname: gFeatureFlagExtensionSearchIndexManagement
+        default: false
         fcv_gated: false
 
     featureFlagMqlJsEngineGap:

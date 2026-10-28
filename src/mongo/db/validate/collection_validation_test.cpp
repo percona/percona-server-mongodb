@@ -18,8 +18,10 @@
 #include "mongo/db/index/index_access_method.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/repl/internode_validation_hash_utils.h"
+#include "mongo/db/repl/member_state.h"
 #include "mongo/db/repl/oplog.h"
 #include "mongo/db/repl/optime.h"
+#include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
@@ -32,6 +34,7 @@
 #include "mongo/db/shard_role/shard_catalog/collection.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/shard_role/shard_catalog/create_collection.h"
+#include "mongo/db/shard_role/shard_catalog/document_validation.h"
 #include "mongo/db/shard_role/shard_catalog/index_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/index_catalog_entry.h"
 #include "mongo/db/storage/key_string/key_string.h"
@@ -45,6 +48,7 @@
 #include "mongo/db/timeseries/viewless_timeseries_collection_creation_helpers.h"
 #include "mongo/db/validate/validate_results.h"
 #include "mongo/db/validate/validate_timeseries.h"
+#include "mongo/unittest/join_thread.h"
 #include "mongo/unittest/log_capture.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
@@ -79,7 +83,6 @@ protected:
         return std::move(_scOptions);
     }
 
-private:
     void setUp() override {
         CatalogTestFixture::setUp();
 
@@ -89,6 +92,7 @@ private:
             operationContext(), kNss, defaultCollectionOptions));
     };
 
+private:
     Options _scOptions;
 };
 
@@ -97,6 +101,31 @@ class CollectionValidationDiskTest : public CollectionValidationTest {
 protected:
     CollectionValidationDiskTest() : CollectionValidationTest(Options{}.inMemory(false)) {}
 };
+
+// Which ValidateAdaptor implementation validate() selects through ValidateAdaptorFactory. The
+// factory picks the parallel adaptor whenever a record store slice target is set.
+enum class AdaptorKind { kSerial, kParallel };
+
+std::string adaptorKindName(const testing::TestParamInfo<AdaptorKind>& info) {
+    return info.param == AdaptorKind::kSerial ? "Serial" : "Parallel";
+}
+
+// Runs each test once per adaptor implementation.
+template <typename Base>
+class AdaptorParamTest : public Base, public testing::WithParamInterface<AdaptorKind> {
+protected:
+    static constexpr int64_t kParallelSliceTarget{2};
+
+    // The slice target to pass to foregroundValidate() for the current test parameter.
+    static boost::optional<int64_t> sliceTarget() {
+        return AdaptorParamTest::GetParam() == AdaptorKind::kParallel
+            ? boost::optional<int64_t>(kParallelSliceTarget)
+            : boost::none;
+    }
+};
+
+using CollectionValidationAdaptorTest = AdaptorParamTest<CollectionValidationTest>;
+using CollectionValidationAdaptorDiskTest = AdaptorParamTest<CollectionValidationDiskTest>;
 
 struct ForegroundValidateTestResults {
     bool valid{true};
@@ -123,6 +152,11 @@ std::ostream& operator<<(std::ostream& os, const ForegroundValidateTestResults& 
     return os;
 }
 
+constexpr std::initializer_list<collection_validation::ValidateMode> kDefaultValidateModes = {
+    collection_validation::ValidateMode::kForeground,
+    collection_validation::ValidateMode::kForegroundFull,
+    collection_validation::ValidateMode::kForegroundFullCheckBSON};
+
 /**
  * Calls validate on collection nss with both kValidateFull and kValidateNormal validation levels
  * and verifies the results.
@@ -133,24 +167,29 @@ std::vector<ValidateResults> foregroundValidate(
     const NamespaceString& nss,
     OperationContext* opCtx,
     const ForegroundValidateTestResults& expected,
-    std::initializer_list<collection_validation::ValidateMode> modes =
-        {collection_validation::ValidateMode::kForeground,
-         collection_validation::ValidateMode::kForegroundFull,
-         collection_validation::ValidateMode::kForegroundFullCheckBSON},
+    std::initializer_list<collection_validation::ValidateMode> modes = kDefaultValidateModes,
     collection_validation::RepairMode repairMode = collection_validation::RepairMode::kNone,
-    ValidationVersion validationVersion = currentValidationVersion) {
+    ValidationVersion validationVersion = currentValidationVersion,
+    boost::optional<int64_t> targetRecordsPerSlice = boost::none) {
 
     std::vector<ValidateResults> results;
 
     for (const auto mode : modes) {
         ValidateResults validateResults;
         EXPECT_EQ(ErrorCodes::OK,
-                  collection_validation::validate(
-                      opCtx,
-                      nss,
-                      collection_validation::ValidationOptions{
-                          mode, repairMode, /*logDiagnostics=*/false, validationVersion},
-                      validateResults))
+                  collection_validation::validate(opCtx,
+                                                  nss,
+                                                  collection_validation::ValidationOptions{
+                                                      mode,
+                                                      repairMode,
+                                                      /*logDiagnostics=*/false,
+                                                      validationVersion,
+                                                      /*verifyConfigurationOverride=*/boost::none,
+                                                      /*readTimestamp=*/boost::none,
+                                                      /*hashPrefixes=*/boost::none,
+                                                      /*revealHashedIds=*/boost::none,
+                                                      targetRecordsPerSlice},
+                                                  validateResults))
             << "Validation Mode: " << static_cast<int>(mode);
         BSONObjBuilder validateResultsBuilder;
         validateResults.appendToResultObj(&validateResultsBuilder, /*debugging=*/true);
@@ -299,12 +338,18 @@ NamespaceString createClusteredCollectionWithIndexName(OperationContext* opCtx,
     return nss;
 }
 
-TEST_F(CollectionValidationTest, ValidateClusteredIndexNameWithEmbeddedNulByte) {
+TEST_P(CollectionValidationAdaptorTest, ValidateClusteredIndexNameWithEmbeddedNulByte) {
     auto opCtx = operationContext();
     const auto nss =
         createClusteredCollectionWithIndexName(opCtx, storageInterface(), "leading\0trailing"sv);
-    const auto allResults = foregroundValidate(
-        nss, opCtx, {.valid = false, .numRecords = 0, .numErrors = 1, .numWarnings = 0});
+    const auto allResults =
+        foregroundValidate(nss,
+                           opCtx,
+                           {.valid = false, .numRecords = 0, .numErrors = 1, .numWarnings = 0},
+                           kDefaultValidateModes,
+                           collection_validation::RepairMode::kNone,
+                           currentValidationVersion,
+                           sliceTarget());
     for (const auto& results : allResults) {
         EXPECT_THAT(results.getErrors(),
                     testing::ElementsAre(
@@ -313,11 +358,17 @@ TEST_F(CollectionValidationTest, ValidateClusteredIndexNameWithEmbeddedNulByte) 
     }
 }
 
-TEST_F(CollectionValidationTest, ValidateClusteredIndexNameEmpty) {
+TEST_P(CollectionValidationAdaptorTest, ValidateClusteredIndexNameEmpty) {
     auto opCtx = operationContext();
     const auto nss = createClusteredCollectionWithIndexName(opCtx, storageInterface(), ""sv);
-    const auto allResults = foregroundValidate(
-        nss, opCtx, {.valid = false, .numRecords = 0, .numErrors = 1, .numWarnings = 0});
+    const auto allResults =
+        foregroundValidate(nss,
+                           opCtx,
+                           {.valid = false, .numRecords = 0, .numErrors = 1, .numWarnings = 0},
+                           kDefaultValidateModes,
+                           collection_validation::RepairMode::kNone,
+                           currentValidationVersion,
+                           sliceTarget());
     for (const auto& results : allResults) {
         EXPECT_THAT(results.getErrors(),
                     testing::ElementsAre(
@@ -326,35 +377,48 @@ TEST_F(CollectionValidationTest, ValidateClusteredIndexNameEmpty) {
     }
 }
 
-TEST_F(CollectionValidationTest, ValidateClusteredIndexNameValid) {
+TEST_P(CollectionValidationAdaptorTest, ValidateClusteredIndexNameValid) {
     auto opCtx = operationContext();
     const auto nss =
         createClusteredCollectionWithIndexName(opCtx, storageInterface(), "myClusteredIndex"sv);
-    foregroundValidate(
-        nss, opCtx, {.valid = true, .numRecords = 0, .numErrors = 0, .numWarnings = 0});
+    foregroundValidate(nss,
+                       opCtx,
+                       {.valid = true, .numRecords = 0, .numErrors = 0, .numWarnings = 0},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 // Verify that calling validate() on an empty collection with different validation levels returns an
 // OK status.
-TEST_F(CollectionValidationTest, ValidateEmpty) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEmpty) {
     foregroundValidate(kNss,
                        operationContext(),
                        {.valid = true,
                         .numRecords = 0,
                         .numInvalidDocuments = 0,
                         .numErrors = 0,
-                        .numWarnings = 0});
+                        .numWarnings = 0},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 // Verify calling validate() on a nonempty collection with different validation levels.
-TEST_F(CollectionValidationTest, Validate) {
+TEST_P(CollectionValidationAdaptorTest, Validate) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
                        {.valid = true,
                         .numRecords = insertDataRange(opCtx, 0, 5),
                         .numInvalidDocuments = 0,
-                        .numErrors = 0});
+                        .numErrors = 0},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 constexpr int kValidationMetricsLogId = 13618300;
@@ -373,7 +437,7 @@ std::vector<BSONObj> getLoggedMetrics(const unittest::LogCaptureGuard& logs) {
 }
 
 // Validation logs timings for each stage it reaches and the bytes it traversed.
-TEST_F(CollectionValidationTest, ValidateLogsMetrics) {
+TEST_P(CollectionValidationAdaptorTest, ValidateLogsMetrics) {
     auto opCtx = operationContext();
     insertDataRange(opCtx, 0, 5);
     unittest::LogCaptureGuard logs;
@@ -381,7 +445,10 @@ TEST_F(CollectionValidationTest, ValidateLogsMetrics) {
         kNss,
         opCtx,
         {.valid = true, .numRecords = 5, .numInvalidDocuments = 0, .numErrors = 0},
-        {collection_validation::ValidateMode::kForegroundFull});
+        {collection_validation::ValidateMode::kForegroundFull},
+        collection_validation::RepairMode::kNone,
+        currentValidationVersion,
+        sliceTarget());
     logs.stop();
     ASSERT_EQ(results.size(), 1);
     const auto metrics = getLoggedMetrics(logs);
@@ -427,7 +494,7 @@ TEST(ValidationMetricsTest, ReportsDurationsAsFractionalSeconds) {
 }
 
 // Every call to validate() emits exactly one metrics log line identifying the validation.
-TEST_F(CollectionValidationTest, ValidateLogsMetricsOncePerCall) {
+TEST_P(CollectionValidationAdaptorTest, ValidateLogsMetricsOncePerCall) {
     auto opCtx = operationContext();
     unittest::LogCaptureGuard logs;
     foregroundValidate(kNss,
@@ -435,7 +502,11 @@ TEST_F(CollectionValidationTest, ValidateLogsMetricsOncePerCall) {
                        {.valid = true,
                         .numRecords = insertDataRange(opCtx, 0, 5),
                         .numInvalidDocuments = 0,
-                        .numErrors = 0});
+                        .numErrors = 0},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
     logs.stop();
 
     // foregroundValidate() runs one validation per mode.
@@ -452,7 +523,7 @@ TEST_F(CollectionValidationTest, ValidateLogsMetricsOncePerCall) {
 }
 
 // Validations that find corruption still report their metrics, flagged as invalid.
-TEST_F(CollectionValidationTest, ValidateLogsMetricsForInvalidCollection) {
+TEST_P(CollectionValidationAdaptorTest, ValidateLogsMetricsForInvalidCollection) {
     auto opCtx = operationContext();
     unittest::LogCaptureGuard logs;
     foregroundValidate(kNss,
@@ -460,7 +531,11 @@ TEST_F(CollectionValidationTest, ValidateLogsMetricsForInvalidCollection) {
                        {.valid = false,
                         .numRecords = setUpInvalidData(opCtx),
                         .numInvalidDocuments = 1,
-                        .numErrors = 1});
+                        .numErrors = 1},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
     logs.stop();
     EXPECT_EQ(logs.countBSONContainingSubset(
                   BSON("id" << kValidationMetricsLogId << "attr" << BSON("valid" << false))),
@@ -550,14 +625,17 @@ TEST_F(CollectionValidationTest, ValidateLogsMetricsWhenCollectionMissing) {
 }
 
 // WT verify only runs for full validation, but the verify timings are reported regardless.
-TEST_F(CollectionValidationTest, ValidateReportsVerifyMetricsWithoutFullValidation) {
+TEST_P(CollectionValidationAdaptorTest, ValidateReportsVerifyMetricsWithoutFullValidation) {
     auto opCtx = operationContext();
     insertDataRange(opCtx, 0, 5);
     unittest::LogCaptureGuard logs;
     foregroundValidate(kNss,
                        opCtx,
                        {.valid = true, .numRecords = 5, .numInvalidDocuments = 0, .numErrors = 0},
-                       {collection_validation::ValidateMode::kForeground});
+                       {collection_validation::ValidateMode::kForeground},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
     logs.stop();
     const auto metrics = getLoggedMetrics(logs);
     ASSERT_EQ(metrics.size(), 1);
@@ -570,14 +648,17 @@ TEST_F(CollectionValidationTest, ValidateReportsVerifyMetricsWithoutFullValidati
 }
 
 // Metrics vary between runs, so they are kept out of the validate result object.
-TEST_F(CollectionValidationTest, ValidateResultObjOmitsMetrics) {
+TEST_P(CollectionValidationAdaptorTest, ValidateResultObjOmitsMetrics) {
     auto opCtx = operationContext();
     insertDataRange(opCtx, 0, 5);
     auto results = foregroundValidate(
         kNss,
         opCtx,
         {.valid = true, .numRecords = 5, .numInvalidDocuments = 0, .numErrors = 0},
-        {collection_validation::ValidateMode::kForegroundFull});
+        {collection_validation::ValidateMode::kForegroundFull},
+        collection_validation::RepairMode::kNone,
+        currentValidationVersion,
+        sliceTarget());
     ASSERT_EQ(results.size(), 1);
     ASSERT_TRUE(results[0].getDataSize());
     for (bool debugging : {false, true}) {
@@ -646,18 +727,22 @@ TEST_F(CollectionValidationDiskTest, ParallelTraversalAgreesWithSerialTraversal)
 }
 
 // Verify calling validate() on a collection with an invalid document.
-TEST_F(CollectionValidationTest, ValidateError) {
+TEST_P(CollectionValidationAdaptorTest, ValidateError) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
                        {.valid = false,
                         .numRecords = setUpInvalidData(opCtx),
                         .numInvalidDocuments = 1,
-                        .numErrors = 1});
+                        .numErrors = 1},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 // Verify calling validate() with enforceFastCount=true.
-TEST_F(CollectionValidationTest, ValidateEnforceFastCount) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEnforceFastCount) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -665,11 +750,14 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastCount) {
                         .numRecords = insertDataRange(opCtx, 0, 5),
                         .numInvalidDocuments = 0,
                         .numErrors = 0},
-                       {collection_validation::ValidateMode::kForegroundFullEnforceFastCount});
+                       {collection_validation::ValidateMode::kForegroundFullEnforceFastCount},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 // Verify calling validate() with enforceFastSize=true.
-TEST_F(CollectionValidationTest, ValidateEnforceFastSize) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEnforceFastSize) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -677,11 +765,14 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastSize) {
                         .numRecords = insertDataRange(opCtx, 0, 5),
                         .numInvalidDocuments = 0,
                         .numErrors = 0},
-                       {collection_validation::ValidateMode::kForegroundFullEnforceFastSize});
+                       {collection_validation::ValidateMode::kForegroundFullEnforceFastSize},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
 // Verify calling validate() with enforceFastCount=true and enforceFastSize=true.
-TEST_F(CollectionValidationTest, ValidateEnforceFastCountAndSize) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEnforceFastCountAndSize) {
     auto opCtx = operationContext();
     foregroundValidate(
         kNss,
@@ -690,13 +781,16 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastCountAndSize) {
          .numRecords = insertDataRange(opCtx, 0, 5),
          .numInvalidDocuments = 0,
          .numErrors = 0},
-        {collection_validation::ValidateMode::kForegroundFullEnforceFastCountAndSize});
+        {collection_validation::ValidateMode::kForegroundFullEnforceFastCountAndSize},
+        collection_validation::RepairMode::kNone,
+        currentValidationVersion,
+        sliceTarget());
 }
 
 // Verify that a record store which is empty from the traversal's point of view does not have its
 // zeroed traversal counters compared against the fast count. A record store can look empty to
 // validate's snapshot while the fast count still reflects records in some cases.
-TEST_F(CollectionValidationTest, ValidateEnforceFastCountSkippedWhenTraversalSeesNoRecords) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEnforceFastCountSkippedWhenTraversalSeesNoRecords) {
     auto opCtx = operationContext();
 
     // Skew the fast count so it disagrees with the empty record store, standing in for records that
@@ -716,10 +810,13 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastCountSkippedWhenTraversalSee
          .numErrors = 0,
          .numWarnings = 0},
         {collection_validation::ValidateMode::kForegroundFullEnforceFastCount,
-         collection_validation::ValidateMode::kForegroundFullEnforceFastCountAndSize});
+         collection_validation::ValidateMode::kForegroundFullEnforceFastCountAndSize},
+        collection_validation::RepairMode::kNone,
+        currentValidationVersion,
+        sliceTarget());
 }
 
-TEST_F(CollectionValidationTest, ValidateEnforceFastCountMismatchDoesNotStopValidation) {
+TEST_P(CollectionValidationAdaptorTest, ValidateEnforceFastCountMismatchDoesNotStopValidation) {
     auto opCtx = operationContext();
     const int numRecords = insertDataRange(opCtx, 0, 5);
 
@@ -739,7 +836,10 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastCountMismatchDoesNotStopVali
                             .numInvalidDocuments = 0,
                             .numErrors = 1,
                             .numWarnings = 0},
-                           {collection_validation::ValidateMode::kForegroundFullEnforceFastCount});
+                           {collection_validation::ValidateMode::kForegroundFullEnforceFastCount},
+                           collection_validation::RepairMode::kNone,
+                           currentValidationVersion,
+                           sliceTarget());
     ASSERT_EQ(1u, allResults.size());
 
     const auto& results = allResults[0];
@@ -753,7 +853,7 @@ TEST_F(CollectionValidationTest, ValidateEnforceFastCountMismatchDoesNotStopVali
     ASSERT_EQ(numRecords, indexResults.at("_id_").getKeysTraversed());
 }
 
-TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeUserLimit) {
+TEST_P(CollectionValidationAdaptorTest, ValidateCollectionDocumentSizeUserLimit) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -762,10 +862,13 @@ TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeUserLimit) {
                         .numInvalidDocuments = 0,
                         .numErrors = 0,
                         .numWarnings = 0},
-                       {collection_validation::ValidateMode::kForegroundCheckBSON});
+                       {collection_validation::ValidateMode::kForegroundCheckBSON},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
-TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeOverUserLimit) {
+TEST_P(CollectionValidationAdaptorTest, ValidateCollectionDocumentSizeOverUserLimit) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -774,10 +877,13 @@ TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeOverUserLimit) {
                         .numInvalidDocuments = 1,
                         .numErrors = 1,
                         .numWarnings = 0},
-                       {collection_validation::ValidateMode::kForegroundCheckBSON});
+                       {collection_validation::ValidateMode::kForegroundCheckBSON},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
-TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeInternalLimit) {
+TEST_P(CollectionValidationAdaptorTest, ValidateCollectionDocumentSizeInternalLimit) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -786,10 +892,13 @@ TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeInternalLimit) {
                         .numInvalidDocuments = 1,
                         .numErrors = 1,
                         .numWarnings = 0},
-                       {collection_validation::ValidateMode::kForegroundCheckBSON});
+                       {collection_validation::ValidateMode::kForegroundCheckBSON},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
-TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeOverInternalLimit) {
+TEST_P(CollectionValidationAdaptorTest, ValidateCollectionDocumentSizeOverInternalLimit) {
     auto opCtx = operationContext();
     foregroundValidate(kNss,
                        opCtx,
@@ -798,10 +907,13 @@ TEST_F(CollectionValidationTest, ValidateCollectionDocumentSizeOverInternalLimit
                         .numInvalidDocuments = 1,
                         .numErrors = 1,
                         .numWarnings = 0},
-                       {collection_validation::ValidateMode::kForegroundCheckBSON});
+                       {collection_validation::ValidateMode::kForegroundCheckBSON},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
-TEST_F(CollectionValidationTest, ValidateCollectionDocumentMixedSizes) {
+TEST_P(CollectionValidationAdaptorTest, ValidateCollectionDocumentMixedSizes) {
     auto opCtx = operationContext();
     setUpDataOfGivenSize(opCtx, BSONObjMaxInternalSize);
     setUpDataOfGivenSize(opCtx, BSONObjMaxInternalSize + 1);
@@ -814,10 +926,13 @@ TEST_F(CollectionValidationTest, ValidateCollectionDocumentMixedSizes) {
                         .numInvalidDocuments = 3,
                         .numErrors = 1,
                         .numWarnings = 0},
-                       {collection_validation::ValidateMode::kForegroundCheckBSON});
+                       {collection_validation::ValidateMode::kForegroundCheckBSON},
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 }
 
-TEST_F(CollectionValidationDiskTest, ValidateIndexDetailResultsSurfaceVerifyErrors) {
+TEST_P(CollectionValidationAdaptorDiskTest, ValidateIndexDetailResultsSurfaceVerifyErrors) {
     FailPointEnableBlock fp{"WTValidateIndexStructuralDamage"};
     auto opCtx = operationContext();
     insertDataRange(opCtx, 0, 5);  // initialize collection
@@ -829,7 +944,10 @@ TEST_F(CollectionValidationDiskTest, ValidateIndexDetailResultsSurfaceVerifyErro
          .numInvalidDocuments = std::numeric_limits<int32_t>::min(),  // uninitialized
          .numErrors = 1,
          .numWarnings = 1},
-        {collection_validation::ValidateMode::kForegroundFull});
+        {collection_validation::ValidateMode::kForegroundFull},
+        collection_validation::RepairMode::kNone,
+        currentValidationVersion,
+        sliceTarget());
 }
 
 /**
@@ -872,7 +990,7 @@ key_string::Value makeKeyStringWithoutRecordId(const key_string::View& keyString
 }
 
 // Verify calling validate() on a collection with old (pre-4.2) keys in a WT unique index.
-TEST_F(CollectionValidationTest, ValidateOldUniqueIndexKeyWarning) {
+TEST_P(CollectionValidationAdaptorTest, ValidateOldUniqueIndexKeyWarning) {
     auto opCtx = operationContext();
 
     {
@@ -902,7 +1020,11 @@ TEST_F(CollectionValidationTest, ValidateOldUniqueIndexKeyWarning) {
                         .numRecords = 1,
                         .numInvalidDocuments = 0,
                         .numErrors = 0,
-                        .numWarnings = 0});
+                        .numWarnings = 0},
+                       kDefaultValidateModes,
+                       collection_validation::RepairMode::kNone,
+                       currentValidationVersion,
+                       sliceTarget());
 
     // Update existing entry in index to pre-4.2 format without record id in key string.
     {
@@ -958,7 +1080,11 @@ TEST_F(CollectionValidationTest, ValidateOldUniqueIndexKeyWarning) {
                                              .numRecords = 1,
                                              .numInvalidDocuments = 0,
                                              .numErrors = 0,
-                                             .numWarnings = 1});
+                                             .numWarnings = 1},
+                                            kDefaultValidateModes,
+                                            collection_validation::RepairMode::kNone,
+                                            currentValidationVersion,
+                                            sliceTarget());
     EXPECT_EQ(results.size(), 3);
 
     for (const auto& validateResults : results) {
@@ -1161,6 +1287,53 @@ TEST_F(CollectionValidationTest, SliceCountIsCappedRegardlessOfTarget) {
     ASSERT_LTE(numSlices, kMaxSlices);
 }
 
+TEST_F(CollectionValidationTest, InterruptedParallelTraversalWaitsForSlicesToFinish) {
+    auto opCtx = operationContext();
+    ASSERT_EQ(kCountDocs, insertDataRange(opCtx, 0, kCountDocs));
+
+    auto& fp = *globalFailPointRegistry().find("hangBeforeRecordStoreSliceTraversal");
+    const auto timesEntered = fp.setMode(FailPoint::alwaysOn);
+
+    auto validateClient = getServiceContext()->getService()->makeClient("validate");
+    auto validateOpCtx = validateClient->makeOperationContext();
+    auto* validateClientPtr = validateClient.get();
+    Atomic<bool> validateReturned{false};
+    Status validateStatus = Status::OK();
+    unittest::JoinThread validateThread([&] {
+        AlternativeClientRegion acr(validateClient);
+        collection_validation::ValidationOptions opts(
+            collection_validation::ValidateMode::kForeground,
+            collection_validation::RepairMode::kNone,
+            /*logDiagnostics=*/false,
+            currentValidationVersion,
+            /*verifyConfigurationOverride=*/boost::none,
+            /*readTimestamp=*/boost::none,
+            /*hashPrefixes=*/boost::none,
+            /*revealHashedIds=*/boost::none,
+            /*targetRecordsPerRecordStoreSlice=*/kTargetRecordsPerSlice);
+        ValidateResults results;
+        validateStatus = collection_validation::validate(validateOpCtx.get(), kNss, opts, results);
+        validateReturned.store(true);
+    });
+    ScopeGuard fpOff([&] { fp.setMode(FailPoint::off); });
+
+    fp.waitForTimesEntered(timesEntered + 1);
+    {
+        ClientLock lk(validateClientPtr);
+        getServiceContext()->killOperation(lk, validateOpCtx.get(), ErrorCodes::Interrupted);
+    }
+
+    // The slice workers hold references into the validation's stack frame and adaptor, so the
+    // validation must not return while any of them is still running.
+    sleepmillis(1000);
+    ASSERT_FALSE(validateReturned.load());
+
+    fpOff.dismiss();
+    fp.setMode(FailPoint::off);
+    validateThread.join();
+    ASSERT_EQ(ErrorCodes::Interrupted, validateStatus.code()) << validateStatus;
+}
+
 enum class SchemaViolationTestMode { ExpectFailOnDocumentInsert, ExpectFailOnCollectionValidation };
 std::ostream& operator<<(std::ostream& os, SchemaViolationTestMode mode) {
     switch (mode) {
@@ -1239,6 +1412,61 @@ INSTANTIATE_TEST_SUITE_P(
                                      BSON("_id" << "x" << "requiredField" << 142)),
                      testing::Values(SchemaViolationTestMode::ExpectFailOnCollectionValidation,
                                      SchemaViolationTestMode::ExpectFailOnDocumentInsert)));
+
+// Creates a 'constraint' validationLevel collection containing a single non-compliant document.
+void insertNonCompliantDocAtConstraintLevel(OperationContext* opCtx,
+                                            repl::StorageInterface* storageInterface,
+                                            const NamespaceString& constraintNss) {
+    const auto validatorDoc = fromjson(R"BSON(
+        { $jsonSchema:
+          {
+            bsonType: "object",
+            required: ["requiredField"],
+            properties: {
+              requiredField: { bsonType: "int", minimum: 1, maximum: 100 }
+            }
+          }
+        }
+        )BSON");
+
+    ASSERT_OK(storageInterface->createCollection(
+        opCtx,
+        constraintNss,
+        {.validator = validatorDoc, .validationLevel = ValidationLevelEnum::constraint}));
+
+    WriteUnitOfWork wuow(opCtx);
+    const AutoGetCollection coll(opCtx, constraintNss, MODE_IX);
+    // Simulate corruption: a non-compliant document can only end up in a constraint-level
+    // collection by bypassing validation as an internal operation.
+    DisableDocumentValidationForInternalOp disableValidation(opCtx);
+    ASSERT_OK(Helpers::insert(opCtx, *coll, BSON("_id" << "x")));
+    wuow.commit();
+}
+
+// At 'constraint' validationLevel a non-compliant document on a primary is data corruption, so
+// validation must fail with an error rather than a warning.
+TEST_F(CollectionValidationTest, SchemaViolationAtConstraintLevelIsError) {
+    auto opCtx = operationContext();
+    const auto constraintNss =
+        NamespaceString::createNamespaceString_forTest("test.constraint_violation");
+    insertNonCompliantDocAtConstraintLevel(opCtx, storageInterface(), constraintNss);
+
+    foregroundValidate(constraintNss, opCtx, {.valid = false, .numRecords = 1, .numErrors = 1});
+}
+
+// A secondary may transiently observe non-compliant documents while applying oplog entries, so at
+// 'constraint' validationLevel such documents are only reported as warnings on a secondary.
+TEST_F(CollectionValidationTest, SchemaViolationAtConstraintLevelOnSecondaryIsWarning) {
+    auto opCtx = operationContext();
+    const auto constraintNss =
+        NamespaceString::createNamespaceString_forTest("test.constraint_violation");
+    insertNonCompliantDocAtConstraintLevel(opCtx, storageInterface(), constraintNss);
+
+    ASSERT_OK(
+        repl::ReplicationCoordinator::get(opCtx)->setFollowerMode(repl::MemberState::RS_SECONDARY));
+
+    foregroundValidate(constraintNss, opCtx, {.valid = true, .numRecords = 1, .numWarnings = 1});
+}
 
 template <class T = BSONObj>
 BSONObj replaceNestedField(const BSONObj& bson,
@@ -2644,6 +2872,16 @@ TEST_F(CollectionValidationTest, NoXxh3HashWithoutContinuousInternodeValidation)
     // hashes, so no outcome is reported at all.
     EXPECT_FALSE(results.getHashComparison().has_value());
 }
+
+INSTANTIATE_TEST_SUITE_P(,
+                         CollectionValidationAdaptorTest,
+                         testing::Values(AdaptorKind::kSerial, AdaptorKind::kParallel),
+                         adaptorKindName);
+
+INSTANTIATE_TEST_SUITE_P(,
+                         CollectionValidationAdaptorDiskTest,
+                         testing::Values(AdaptorKind::kSerial, AdaptorKind::kParallel),
+                         adaptorKindName);
 
 }  // namespace
 }  // namespace mongo
