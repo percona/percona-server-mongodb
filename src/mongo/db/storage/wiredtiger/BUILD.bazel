@@ -187,7 +187,6 @@ mongo_cc_library(
 )
 
 mongo_cc_unit_test(
-<<<<<<< HEAD
     name = "storage_wiredtiger_encryption_test",
     srcs = [
         "wiredtiger_encryption_test.cpp",
@@ -216,8 +215,6 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_unit_test(
-||||||| b4d80802c77
-=======
     name = "wiredtiger_checksum_test",
     srcs = ["wiredtiger_checksum_test.cpp"],
     tags = ["mongo_unittest_fifth_group"],
@@ -228,7 +225,6 @@ mongo_cc_unit_test(
 )
 
 mongo_cc_unit_test(
->>>>>>> bea1e3e8e975ddecd4528b0853b5b36f1fd96a86
     name = "storage_wiredtiger_test",
     srcs = [
         "spill_wiredtiger_kv_engine_test.cpp",
