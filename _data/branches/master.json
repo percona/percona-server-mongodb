@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 77,
+    "commits_behind": 81,
     "days_behind": 9,
-    "unmerged_oldest_age_days": 8.880649370625,
-    "files_affected": 399,
-    "total_additions": 22380,
-    "total_deletions": 13900,
+    "unmerged_oldest_age_days": 9.218881727060184,
+    "files_affected": 411,
+    "total_additions": 23201,
+    "total_deletions": 13978,
     "date_range": {
       "first": "2026-10-19T09:01:01+00:00",
-      "last": "2026-10-21T03:27:32+00:00"
+      "last": "2026-10-21T13:29:11+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,46 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "227b8e2fc49e2fa42b31d184a73744f53e9122b4",
+      "short_sha": "227b8e2fc49",
+      "date": "2026-10-21T13:29:11+00:00",
+      "author": {
+        "name": "Ryan Roelke",
+        "email": "rroelke@users.noreply.github.com"
+      },
+      "summary": "SERVER-129585: fuzztest main runs global initializers (#64274)"
+    },
+    {
+      "sha": "87fa71fde9393632d8997a012b659962672b87f9",
+      "short_sha": "87fa71fde93",
+      "date": "2026-10-21T13:25:50+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-137117: Test that every blueprint node type reports its slots (#64680)"
+    },
+    {
+      "sha": "b2614827280d4a314f296bfa293d977bb7dec9eb",
+      "short_sha": "b2614827280",
+      "date": "2026-10-21T12:55:59+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-137445 Add parallelism metrics for record store traversals (#64809)"
+    },
+    {
+      "sha": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+      "short_sha": "bea1e3e8e97",
+      "date": "2026-10-21T07:43:55+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#64856)"
+    },
     {
       "sha": "b761af83b40cd47a0729433ed96a3e86d42fa4ab",
       "short_sha": "b761af83b40",
@@ -994,7 +1034,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-28 06:08:48",
+  "generated_at": "2026-10-28 14:15:58",
   "branch_name": "master",
   "display_name": "master"
 }
