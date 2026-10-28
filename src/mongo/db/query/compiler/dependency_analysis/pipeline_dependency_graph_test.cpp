@@ -552,6 +552,24 @@ TEST_F(PipelineDependencyGraphTest, CanRenamedSubPipelinePathBeArray) {
     });
 }
 
+TEST_F(PipelineDependencyGraphTest, CanIncludedSubPipelinePathBeArray) {
+    setOptimizedPipeline(R"([
+        {$lookup: {
+            from: "coll_b",
+            as: "docs",
+            pipeline: [{$set: {b_ssn: 42}}]
+        }},
+        {$unwind: "$docs"},
+        {$project: {"docs.b_ssn": 1}}
+    ])");
+
+    runTest([&] {
+        ASSERT_FALSE(graph->canPathBeArray(stages[1].get(), "docs.b_ssn"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "docs"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "docs.b_ssn"));
+    });
+}
+
 TEST_F(PipelineDependencyGraphTest, SubPipelineGetDeclaringStageThenMatch) {
     setPipeline(R"([{$lookup: {
         from: "coll_b",
@@ -1950,6 +1968,18 @@ TEST_F(PipelineDependencyGraphTest, InclusionRedefinedBaseFieldAfterPriorInclusi
     runTest([&] {
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a"));
         ASSERT_TRUE(graph->canPathBeArray(nullptr, "a.b"));
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, CanIncludedAliasSubPathBeArray) {
+    pathArrayness->addPath("b.x", {}, true);
+    setPipeline(
+        "[{$set: { a: '$b' }}, "
+        " {$project: { 'a.x': 1 }}]");
+    runTest([&] {
+        ASSERT_FALSE(graph->canPathBeArray(stages[1].get(), "a.x"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "a"));
+        ASSERT_FALSE(graph->canPathBeArray(nullptr, "a.x"));
     });
 }
 
@@ -4146,6 +4176,21 @@ TEST_F(PipelineDependencyGraphTest, NotArrayTypePredicatePreservesSiblingOfLooku
     runTest([&] {
         ASSERT_EQUALS(graph->getPrevModifyingStage(nullptr, "a.c"), nullptr);
         ASSERT_EQUALS(graph->getPrevModifyingStage(nullptr, "a.b"), stages[1]);
+    });
+}
+
+TEST_F(PipelineDependencyGraphTest, GetBaseDocumentFieldAliasDottedSourceNotArrayTypePredicate) {
+    unittest::ServerParameterGuard flagGuard{"featureFlagQueryTypeInference", true};
+    setPipeline(R"([
+        {$match: {b: {$not: {$type: 'array'}}}},
+        {$set: {a: '$b.c'}}
+    ])");
+    runTest([&] {
+        assertOrigin(graph->resolveFieldOrigin(nullptr, "a"),
+                     FieldOriginKind::kAlias,
+                     stages[1].get(),
+                     "b.c");
+        ASSERT_EQ(graph->getBaseDocumentFieldAlias(nullptr, "b.c"), FieldPath("a"));
     });
 }
 
