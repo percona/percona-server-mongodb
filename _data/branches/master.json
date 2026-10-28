@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 75,
+    "commits_behind": 77,
     "days_behind": 9,
-    "unmerged_oldest_age_days": 8.687479536631946,
-    "files_affected": 400,
-    "total_additions": 22870,
-    "total_deletions": 13914,
+    "unmerged_oldest_age_days": 8.880649370625,
+    "files_affected": 399,
+    "total_additions": 22380,
+    "total_deletions": 13900,
     "date_range": {
       "first": "2026-10-19T09:01:01+00:00",
-      "last": "2026-10-20T23:27:58+00:00"
+      "last": "2026-10-21T03:27:32+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "b761af83b40cd47a0729433ed96a3e86d42fa4ab",
+      "short_sha": "b761af83b40",
+      "date": "2026-10-21T03:27:32+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-137164 Add connection establishment histograms (#64451)\" (#64852)"
+    },
+    {
+      "sha": "508886bddfc9e08b4902fe23aa05791d67e1f192",
+      "short_sha": "508886bddfc",
+      "date": "2026-10-21T02:53:54+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-137484 Turn off replicated size and count in replica_sets_multiversion suite (#64821)"
+    },
     {
       "sha": "cd61ce519e32e932c285cc843246453c8f3414cd",
       "short_sha": "cd61ce519e3",
@@ -974,7 +994,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-28 01:30:39",
+  "generated_at": "2026-10-28 06:08:48",
   "branch_name": "master",
   "display_name": "master"
 }
