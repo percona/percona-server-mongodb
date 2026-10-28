@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 61,
-    "days_behind": 8,
-    "unmerged_oldest_age_days": 8.454243946400464,
-    "files_affected": 310,
-    "total_additions": 19237,
-    "total_deletions": 12448,
+    "commits_behind": 75,
+    "days_behind": 9,
+    "unmerged_oldest_age_days": 8.687479536631946,
+    "files_affected": 400,
+    "total_additions": 22870,
+    "total_deletions": 13914,
     "date_range": {
       "first": "2026-10-19T09:01:01+00:00",
-      "last": "2026-10-20T19:21:53+00:00"
+      "last": "2026-10-20T23:27:58+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,146 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "cd61ce519e32e932c285cc843246453c8f3414cd",
+      "short_sha": "cd61ce519e3",
+      "date": "2026-10-20T23:27:58+00:00",
+      "author": {
+        "name": "adelinexchen",
+        "email": "100674217+adelinexchen@users.noreply.github.com"
+      },
+      "summary": "SERVER-135009 Extend WT otel registry to have update behaviour (#64288)"
+    },
+    {
+      "sha": "7cbb2cf7268ed45e89c90ce74793d7734b25c6a7",
+      "short_sha": "7cbb2cf7268",
+      "date": "2026-10-20T23:11:38+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136021: Bound interrupt-check gaps in $group spill/merge paths (#63654)\" (#64840)"
+    },
+    {
+      "sha": "c2db1f7d15ae1c7245b30f2c2ab74a2b4093521a",
+      "short_sha": "c2db1f7d15a",
+      "date": "2026-10-20T22:57:32+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136931 Add enableParallelQuery and maxDOP query knobs (#64366)\" (#64837)"
+    },
+    {
+      "sha": "685bec43a89f7ec884b14c90c37d1f1b584b16b4",
+      "short_sha": "685bec43a89",
+      "date": "2026-10-20T21:56:47+00:00",
+      "author": {
+        "name": "Mickey J Winters",
+        "email": "314083+mjrb@users.noreply.github.com"
+      },
+      "summary": "SERVER-131411 Guard timeseries buckets nss translation in unified write executor (#63233)"
+    },
+    {
+      "sha": "df99e3ce5f4c3406cd1b8e72b8e4ffbf9f6cf35f",
+      "short_sha": "df99e3ce5f4",
+      "date": "2026-10-20T21:49:38+00:00",
+      "author": {
+        "name": "Mickey J Winters",
+        "email": "314083+mjrb@users.noreply.github.com"
+      },
+      "summary": "SERVER-137044: Re-land: Reject $_internalKeyStringValue in collection validators and profile filters (#64408)"
+    },
+    {
+      "sha": "ba17749c03223d27bf9bb7d5803048afb9610796",
+      "short_sha": "ba17749c032",
+      "date": "2026-10-20T21:47:48+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-137446 Fix PeriodicKillSecondaries background hook date parsing. (#64801)"
+    },
+    {
+      "sha": "9dd2719efc2f43e57bb2424915da6edd11270668",
+      "short_sha": "9dd2719efc2",
+      "date": "2026-10-20T21:37:18+00:00",
+      "author": {
+        "name": "mongodb-sage-bot[bot]",
+        "email": "247496174+mongodb-sage-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-134758: fail validate on non-compliant docs at constraint level (#63173)"
+    },
+    {
+      "sha": "f153719eb1a0d811245f2b759587fe5334011e01",
+      "short_sha": "f153719eb1a",
+      "date": "2026-10-20T21:22:53+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-136567 Include fuzz tests in the compilation database (#64048)"
+    },
+    {
+      "sha": "4cf1d7c025d74552b64cabd4c638396dd33eb0a4",
+      "short_sha": "4cf1d7c025d",
+      "date": "2026-10-20T21:09:42+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 4aad7041c6337443866cc1bcd5c6c99e60d4279e from branch mongodb-master (#64775)"
+    },
+    {
+      "sha": "16e81d2a11b881e64b96b07d839756af5ffc596f",
+      "short_sha": "16e81d2a11b",
+      "date": "2026-10-20T21:07:05+00:00",
+      "author": {
+        "name": "Damian Wasilewicz",
+        "email": "33820523+DamianWasilewicz@users.noreply.github.com"
+      },
+      "summary": "SERVER-135729 Record information about index build lifecycle in serverStatus (#64738)"
+    },
+    {
+      "sha": "43760dabeaf04848bc7b9337e75f6726ebc46277",
+      "short_sha": "43760dabeaf",
+      "date": "2026-10-20T20:54:02+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-121845 Remove requires_replicated_fast_count_recovery tag (#64663)"
+    },
+    {
+      "sha": "cf395951484e0bec4b905376fcdcac466606cab0",
+      "short_sha": "cf395951484",
+      "date": "2026-10-20T20:44:11+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-135611 Shared validate adaptor worker pool (#63652)"
+    },
+    {
+      "sha": "3ae6bfe175b0cc072a2d17fe3b9818b7c993d197",
+      "short_sha": "3ae6bfe175b",
+      "date": "2026-10-20T20:37:10+00:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-121712 [DSC] Enable repl lag check resharding tests (#64612)"
+    },
+    {
+      "sha": "f24f91b9318e1dadadf9361b8804451facc15b34",
+      "short_sha": "f24f91b9318",
+      "date": "2026-10-20T20:02:47+00:00",
+      "author": {
+        "name": "Finley Lau",
+        "email": "finley.lau@mongodb.com"
+      },
+      "summary": "SERVER-134528 Make internalQueryStatsSampleRate settable via PQS (#62730)"
+    },
     {
       "sha": "37e1a599b0f261828bb0de4cf9b953978c487e40",
       "short_sha": "37e1a599b0f",
@@ -808,10 +948,33 @@
           "num_of_dirs": 5
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "4cf1d7c025d74552b64cabd4c638396dd33eb0a4",
+        "short_sha": "4cf1d7c025d",
+        "date": "2026-10-20T21:09:42+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 4aad7041c6337443866cc1bcd5c6c99e60d4279e from branch mongodb-master (#64775)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 38,
+          "num_of_lines": 2668,
+          "lines_added": 1808,
+          "lines_deleted": 860,
+          "num_of_dirs": 14
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-27 19:54:55",
+  "generated_at": "2026-10-28 01:30:39",
   "branch_name": "master",
   "display_name": "master"
 }
