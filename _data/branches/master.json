@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 78,
+    "commits_behind": 80,
     "days_behind": 9,
-    "unmerged_oldest_age_days": 9.298353255567129,
-    "files_affected": 503,
-    "total_additions": 31407,
-    "total_deletions": 23072,
+    "unmerged_oldest_age_days": 9.515313421840277,
+    "files_affected": 500,
+    "total_additions": 31402,
+    "total_deletions": 23064,
     "date_range": {
       "first": "2026-10-19T22:59:22+00:00",
-      "last": "2026-10-22T02:31:30+00:00"
+      "last": "2026-10-22T08:11:29+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "b850ae7702b3dd5b428cfc51975445f723a11f08",
+      "short_sha": "b850ae7702b",
+      "date": "2026-10-22T08:11:29+00:00",
+      "author": {
+        "name": "Sergiy Tsymbal",
+        "email": "sergiy.tsymbal@mongodb.com"
+      },
+      "summary": "SERVER-135993 Add disaggregated storage variants of the query, agg and update fuzzers (#64394)"
+    },
+    {
+      "sha": "1fb14f5bad278ee1621023d34497cd0dd2fa3143",
+      "short_sha": "1fb14f5bad2",
+      "date": "2026-10-22T06:57:26+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-136811 Update external auth tests with new LDAP test endpoint (#64802)\" (#64984)"
+    },
     {
       "sha": "d644650f61270ba375e0725cfe630a33f682c428",
       "short_sha": "d644650f612",
@@ -957,7 +977,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-29 06:08:49",
+  "generated_at": "2026-10-29 11:21:17",
   "branch_name": "master",
   "display_name": "master"
 }
