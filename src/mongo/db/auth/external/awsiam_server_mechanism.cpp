@@ -129,6 +129,7 @@ StatusWith<std::tuple<bool, std::string>> ServerMechanism::_secondStep(std::stri
 
     auto http = HttpClient::create();
     std::vector<std::string> headers;
+    // random comment (do not merge)
     headers.emplace_back(fmt::format("Content-Length: {}", kSTSGetCallerIdentityBody.size()));
     headers.emplace_back("Content-Type: application/x-www-form-urlencoded");
     headers.emplace_back("Authorization: " + std::string(clientSecond.getAuthHeader()));
