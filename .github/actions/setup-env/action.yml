@@ -13,7 +13,7 @@ runs:
                             libsnappy-dev zlib1g-dev libzlcore-dev liblzma-dev e2fslibs-dev
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       id: setup-python
       with:
         python-version: "3.13"
@@ -28,7 +28,7 @@ runs:
         poetry config virtualenvs.in-project true
 
     - name: Poetry virtualenv cache
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       id: venv
       with:
         path: .venv

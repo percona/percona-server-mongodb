@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v6
       - name: Get changed files
         id: changed
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
             **/*.cpp
@@ -93,7 +93,7 @@ jobs:
         uses: ./.github/actions/setup-env
 
       - name: clang-tidy-sarif cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: clang_tidy_sarif_cache
         with:
           path: ~/.cargo
@@ -104,7 +104,7 @@ jobs:
         run: cargo install clang-tidy-sarif --version "${CLANG_TIDY_SARIF_VERSION}" --locked
 
       - name: Bazel disk cache
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/bazel-disk-cache
           key: bazel-disk-cache-clang-tidy-${{ runner.os }}-${{ hashFiles('.github/workflows/clang-tidy.yml', 'MODULE.bazel', 'WORKSPACE', 'WORKSPACE.bazel', '**/*.bzl', '**/BUILD', '**/BUILD.bazel') }}
@@ -212,7 +212,7 @@ jobs:
       # consumers can fetch it without needing Code Scanning API access.
       - name: Upload SARIF artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: clang-tidy-results
           path: clang-tidy-results.sarif
