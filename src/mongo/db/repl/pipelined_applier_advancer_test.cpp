@@ -66,12 +66,12 @@ protected:
 // Later completed batches must wait for every worker in the first batch before publication.
 TEST_F(PipelinedApplierAdvancerTest, PublishesInFifoOrderAfterEveryWorkerCompletes) {
     PipelinedApplierBatchTracker tracker;
-    auto first = tracker.addBatch(batchTime(1), 2);
-    auto second = tracker.addBatch(batchTime(2), 1);
+    auto first = tracker.addBatch(batchTime(1), 2, {}, {}, nullptr);
+    auto second = tracker.addBatch(batchTime(2), 1, {}, {}, nullptr);
     // Synthetic batches preserve their optime order even when the wall clock moves backwards.
     auto thirdTime = batchTime(3);
     thirdTime.wallTime = Date_t::fromMillisSinceEpoch(1);
-    tracker.addBatch(thirdTime, 0);
+    tracker.addBatch(thirdTime, 0, {}, {}, nullptr);
     // first has 1 remaining worker.
     tracker.onWorkerCompletion(first);
     // second has 0 remaining workers.
@@ -98,9 +98,9 @@ TEST_F(PipelinedApplierAdvancerTest, PublishesInFifoOrderAfterEveryWorkerComplet
 // batches.
 TEST_F(PipelinedApplierAdvancerTest, PublishesReadyBatchesThenStopsAtTheFirstIncompleteBatch) {
     PipelinedApplierBatchTracker tracker;
-    tracker.addBatch(batchTime(1), 0);
-    auto middle = tracker.addBatch(batchTime(2), 1);
-    tracker.addBatch(batchTime(3), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
+    auto middle = tracker.addBatch(batchTime(2), 1, {}, {}, nullptr);
+    tracker.addBatch(batchTime(3), 0, {}, {}, nullptr);
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierBatchWait");
@@ -117,7 +117,7 @@ TEST_F(PipelinedApplierAdvancerTest, PublishesReadyBatchesThenStopsAtTheFirstInc
 // The timed wait must discover completed work even when no worker notification arrives.
 TEST_F(PipelinedApplierAdvancerTest, BackstopPublishesCompletionWithoutNotification) {
     PipelinedApplierBatchTracker tracker;
-    auto remaining = tracker.addBatch(batchTime(1), 1);
+    auto remaining = tracker.addBatch(batchTime(1), 1, {}, {}, nullptr);
     WaitableAtomic<bool> publicationFinished{false};
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) {
         record(batch);
@@ -160,7 +160,7 @@ TEST_F(PipelinedApplierAdvancerTest, PublicationDoesNotHoldTrackerMutexAndShutdo
         releasePublication.store(true);
         releasePublication.notifyAll();
     });
-    tracker.addBatch(batchTime(1), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
     advancer.startup();
     // The advancer callback has started, but the first batch cannot finish publishing until we
     // release it.
@@ -168,7 +168,7 @@ TEST_F(PipelinedApplierAdvancerTest, PublicationDoesNotHoldTrackerMutexAndShutdo
 
     // Both calls take the tracker mutex, so completing them proves publication does not hold it
     // while it is blocked.
-    auto next = tracker.addBatch(batchTime(2), 1);
+    auto next = tracker.addBatch(batchTime(2), 1, {}, {}, nullptr);
     tracker.onWorkerCompletion(next);
     {
         FailPointEnableBlock beforeWait("hangBeforePipelinedApplierIdleWait");
@@ -192,8 +192,8 @@ TEST_F(PipelinedApplierAdvancerTest, PublicationDoesNotHoldTrackerMutexAndShutdo
 // Abandonment must unblock shutdown without making incomplete work or its successors publishable.
 TEST_F(PipelinedApplierAdvancerTest, AbandonmentStopsShutdownWithoutPublishingPastTheHole) {
     PipelinedApplierBatchTracker tracker;
-    auto abandoned = tracker.addBatch(batchTime(1), 1);
-    tracker.addBatch(batchTime(2), 0);
+    auto abandoned = tracker.addBatch(batchTime(1), 1, {}, {}, nullptr);
+    tracker.addBatch(batchTime(2), 0, {}, {}, nullptr);
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
     WaitableAtomic<bool> shutdownFinished{false};
     unittest::JoinThread shutdownThread;
@@ -217,9 +217,9 @@ TEST_F(PipelinedApplierAdvancerTest, AbandonmentStopsShutdownWithoutPublishingPa
 // Abandoning a later batch must not let shutdown return while an earlier publication is running.
 TEST_F(PipelinedApplierAdvancerTest, AbandonmentDuringPublicationStillJoinsThePublisher) {
     PipelinedApplierBatchTracker tracker;
-    tracker.addBatch(batchTime(1), 0);
-    auto abandoned = tracker.addBatch(batchTime(2), 1);
-    tracker.addBatch(batchTime(3), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
+    auto abandoned = tracker.addBatch(batchTime(2), 1, {}, {}, nullptr);
+    tracker.addBatch(batchTime(3), 0, {}, {}, nullptr);
     WaitableAtomic<bool> publicationStarted{false};
     WaitableAtomic<bool> releasePublication{false};
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) {
@@ -277,8 +277,8 @@ DEATH_TEST_REGEX_F(PipelinedApplierAdvancerDeathTest,
                    InvariantsOnNonMonotonicPublication,
                    "Pipelined oplog applier publication must advance in oplog order") {
     PipelinedApplierBatchTracker tracker;
-    tracker.addBatch(batchTime(1), 0);
-    tracker.addBatch(batchTime(1), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
     PipelinedApplierAdvancer advancer(tracker, [&](const auto& batch) { record(batch); });
     advancer.startup();
     advancer.shutdownAndJoin();
@@ -289,7 +289,7 @@ DEATH_TEST_REGEX_F(PipelinedApplierAdvancerDeathTest,
                    FassertsOnPublicationDBException,
                    "13469704.*injected publication failure") {
     PipelinedApplierBatchTracker tracker;
-    tracker.addBatch(batchTime(1), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
     PipelinedApplierAdvancer advancer(tracker, [](const auto&) {
         uasserted(ErrorCodes::OperationFailed, "injected publication failure");
     });
@@ -302,7 +302,7 @@ DEATH_TEST_REGEX_F(PipelinedApplierAdvancerDeathTest,
                    FassertsOnPublicationStdException,
                    "13469705.*injected publication failure") {
     PipelinedApplierBatchTracker tracker;
-    tracker.addBatch(batchTime(1), 0);
+    tracker.addBatch(batchTime(1), 0, {}, {}, nullptr);
     PipelinedApplierAdvancer advancer(
         tracker, [](const auto&) { throw std::runtime_error("injected publication failure"); });
     advancer.startup();
