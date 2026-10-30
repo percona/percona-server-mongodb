@@ -20,7 +20,6 @@
 # TODO (SERVER-108818): test primary-driven index builds in allFeatureFlag variant.
 - featureFlagPrimaryDrivenIndexBuilds
 - featureFlagResumablePrimaryDrivenIndexBuilds
-- featureFlagContainerWrites
 # TODO (SERVER-133236): Remove once the pipelined oplog applier works end-to-end, so it
 # can bake in the all-feature-flags variants before being enabled by default.
 - featureFlagPipelinedOplogApplier
@@ -46,6 +45,8 @@
 - featureFlagCollStatsMetricsFiltering
 # TODO SERVER-136165: Remove or re-enable featureFlagListIndexesAlwaysIncludesSimpleCollation.
 - featureFlagListIndexesAlwaysIncludesSimpleCollation
+# TODO SERVER-137546: Remove or re-enable featureFlagSbeDisableUnpackBucketPruning
+- featureFlagSbeDisableUnpackBucketPruning
 # Enabling this flag skips registering the built-in search index management commands until a mongot
 # extension provides replacements. Enabling it in the all-feature-flags variants would break
 # existing legacy search passthrough tests.

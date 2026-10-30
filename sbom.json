@@ -2,15 +2,39 @@
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
+<<<<<<< HEAD
   "serialNumber": "urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c",
   "version": 6,
+||||||| bea1e3e8e97
+  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
+  "version": 19,
+=======
+  "serialNumber": "urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36",
+  "version": 20,
+>>>>>>> 073b000c749f659350eb1b60fa6a5f27b91ec77f
   "metadata": {
-    "timestamp": "2026-10-19T08:11:18+00:00",
+    "timestamp": "2026-10-21T08:17:27+00:00",
     "lifecycles": [
       {
         "phase": "pre-build"
       }
     ],
+<<<<<<< HEAD
+||||||| bea1e3e8e97
+    "tools": [
+      {
+        "name": "Endor Labs Inc",
+        "version": "v1.7.1201"
+      }
+    ],
+=======
+    "tools": [
+      {
+        "name": "Endor Labs Inc",
+        "version": "v1.7.1202"
+      }
+    ],
+>>>>>>> 073b000c749f659350eb1b60fa6a5f27b91ec77f
     "component": {
       "type": "application",
       "bom-ref": "pkg:github/percona/percona-server-mongodb@master",
@@ -260,10 +284,10 @@
       "evidence": {
         "occurrences": [
           {
-            "location": "src/mongo/shell/linenoise.h"
+            "location": "src/mongo/shell/linenoise.cpp"
           },
           {
-            "location": "src/mongo/shell/linenoise.cpp"
+            "location": "src/mongo/shell/linenoise.h"
           }
         ],
         "licenses": [
@@ -871,7 +895,7 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:github/derickr/timelib@2022.13",
+      "bom-ref": "pkg:github/derickr/timelib@2026.02",
       "authors": [
         {
           "name": "Derick Rethans"
@@ -879,7 +903,7 @@
       ],
       "group": "derickr",
       "name": "timelib",
-      "version": "2022.13",
+      "version": "2026.02",
       "description": "Timelib is a timezone and date/time library that can calculate local time, convert between timezones and parse textual descriptions of date/time information.",
       "scope": "required",
       "licenses": [
@@ -891,7 +915,7 @@
         }
       ],
       "copyright": "Copyright (c) 2015-2021 Derick Rethans, Copyright (c) 2017-2019,2021 MongoDB, Inc.",
-      "purl": "pkg:github/derickr/timelib@2022.13",
+      "purl": "pkg:github/derickr/timelib@2026.02",
       "externalReferences": [
         {
           "url": "https://github.com/derickr/timelib.git",
@@ -3621,7 +3645,7 @@
       "ref": "pkg:github/dcleblanc/safeint@3.0.28a"
     },
     {
-      "ref": "pkg:github/derickr/timelib@2022.13"
+      "ref": "pkg:github/derickr/timelib@2026.02"
     },
     {
       "ref": "pkg:github/facebook/folly@v2025.04.21.00"
@@ -3716,7 +3740,7 @@
         "pkg:github/cyan4973/xxhash@v0.8.3",
         "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
         "pkg:github/dcleblanc/safeint@3.0.28a",
-        "pkg:github/derickr/timelib@2022.13",
+        "pkg:github/derickr/timelib@2026.02",
         "pkg:github/facebook/folly@v2025.04.21.00",
         "pkg:github/facebook/zstd@v1.5.5",
         "pkg:github/fmtlib/fmt@11.2.0",

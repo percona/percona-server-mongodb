@@ -18,6 +18,7 @@
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/collation/collator_interface.h"
 #include "mongo/db/record_id.h"
+#include "mongo/db/repl/internode_validation_hash_utils.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_enabled.h"
@@ -40,6 +41,7 @@
 #include "mongo/db/storage/storage_options.h"
 #include "mongo/db/timeseries/timeseries_constants.h"
 #include "mongo/db/timeseries/viewless_timeseries_collection_creation_helpers.h"
+#include "mongo/db/validate/record_store_slicer.h"
 #include "mongo/db/validate/validate_adaptor.h"
 #include "mongo/db/validate/validate_adaptor_factory.h"
 #include "mongo/db/validate/validate_adaptor_serial.h"
@@ -551,6 +553,8 @@ ExpectedCollectionHash _expectedCollectionHash(OperationContext* opCtx,
 
     const auto entry = manager.findPersisted(opCtx, uuid);
     if (!entry) {
+        // TODO SERVER-136493: Derive the expected hash from the replayed oplog for a collection
+        // created since the last checkpoint flush.
         return {ValidateResults::HashComparison::kNoPersistedEntry, boost::none};
     }
 
@@ -607,6 +611,29 @@ void _compareCollectionHash(OperationContext* opCtx,
         _expectedCollectionHash(opCtx, validateState.nss(), validateState.uuid());
     if (!expected) {
         results.setHashComparison(comparison);
+        // Collections imported with importCollection, written to by a prepared transaction, or
+        // written to while the per-document validation hash was disabled are eligible but
+        // legitimately have no hash. None of these is recorded in the catalog, so they cannot be
+        // told apart from a hash that was lost. An incomplete delta is the same loss before the
+        // next flush persists it.
+        // TODO SERVER-133292: Remove prepared transactions from this comment and the warning once
+        // their commits carry the collection hash.
+        const bool hashIsMissing =
+            comparison == ValidateResults::HashComparison::kNoPersistedHash ||
+            comparison == ValidateResults::HashComparison::kIncompleteDelta;
+        if (hashIsMissing && repl::isCollectionHashEligible(validateState.getCollection())) {
+            LOGV2_WARNING(13648700,
+                          "Collection is eligible for a collection hash but it is missing or "
+                          "incomplete",
+                          logAttrs(validateState.nss()),
+                          logAttrs(validateState.uuid()),
+                          "hashComparison"_attr = toString(comparison));
+            results.addWarning(
+                "The collection is eligible for a collection hash but it is missing or incomplete. "
+                "This is expected if the collection was imported, contains writes committed by a "
+                "prepared transaction, or was written to while continuous internode validation was "
+                "disabled.");
+        }
         return;
     }
 
@@ -1034,6 +1061,15 @@ BSONObj ValidationMetrics::toBSON(const ValidateResults& results) const {
             indexDataSize += ivr.getKeyBytesTraversed();
         }
         bob.appendNumber("indexDataSize"sv, indexDataSize);
+    }
+    if (const auto& parallel = results.getRecordStoreTraversalParallelMetrics()) {
+        bob.append("parallelRecordStoreTraversal"sv,
+                   BSON("sliceStrategy" << toString(parallel->sliceStrategy) <<  //
+                        "sliceCount" << parallel->sliceCount <<                  //
+                        "minSliceSize" << parallel->minSliceSize <<              //
+                        "maxSliceSize" << parallel->maxSliceSize <<              //
+                        "meanSliceSize" << parallel->meanSliceSize <<            //
+                        "stddevSliceSize" << parallel->stddevSliceSize));
     }
     return bob.obj();
 }

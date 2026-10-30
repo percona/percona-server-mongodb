@@ -246,6 +246,12 @@ feature_flags:
         version: 9.0
         fcv_gated: true
 
+    featureFlagQueryStatsAdditionalWriteCommands:
+        description: "Feature flag to enable query stats for findAndModify, bulkWrite and TTL deletes."
+        cpp_varname: gFeatureFlagQueryStatsAdditionalWriteCommands
+        default: false
+        fcv_gated: true
+
     featureFlagQueryStatsCBRMetrics:
         description: "Feature flag to enable cost-based ranker metrics in query stats."
         cpp_varname: gFeatureFlagQueryStatsCBRMetrics
@@ -504,3 +510,10 @@ feature_flags:
         cpp_varname: gFeatureFlagClusteredCollScanMultiRange
         fcv_gated: false
         incremental_rollout_phase: release
+
+    featureFlagSbeDisableUnpackBucketPruning:
+        description: "Feature flag to disable removal of $_internalUnpackBucket from SBE pushdown when followed by unsupported stages."
+        cpp_varname: gFeatureFlagSbeDisableUnpackBucketPruning
+        default: false
+        fcv_gated: false
+        incremental_rollout_phase: in_development
