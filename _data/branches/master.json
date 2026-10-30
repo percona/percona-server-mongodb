@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 68,
-    "days_behind": 8,
-    "unmerged_oldest_age_days": 8.71740799638889,
-    "files_affected": 347,
-    "total_additions": 15339,
-    "total_deletions": 4910,
+    "commits_behind": 72,
+    "days_behind": 9,
+    "unmerged_oldest_age_days": 9.011187561458334,
+    "files_affected": 368,
+    "total_additions": 15938,
+    "total_deletions": 5033,
     "date_range": {
       "first": "2026-10-21T12:55:59+00:00",
-      "last": "2026-10-23T04:07:11+00:00"
+      "last": "2026-10-23T09:54:28+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,46 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "07ae10208a75c05e7ac95b1363d54198a1d36893",
+      "short_sha": "07ae10208a7",
+      "date": "2026-10-23T09:54:28+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-137374 Enable join plan cache by default (#64990)"
+    },
+    {
+      "sha": "64b2ebc824648bc767f13802ec0be26c92307596",
+      "short_sha": "64b2ebc8246",
+      "date": "2026-10-23T09:07:20+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-134782 Implement PipelinedOplogApplier drain for step up (#64968)\" (#65076)"
+    },
+    {
+      "sha": "ea3f6dec4889ce3e5dadb107b977f89ae847509f",
+      "short_sha": "ea3f6dec488",
+      "date": "2026-10-23T08:23:20+00:00",
+      "author": {
+        "name": "Matt Olma",
+        "email": "67564577+mattsimply@users.noreply.github.com"
+      },
+      "summary": "SERVER-135162: Expose appropriate API from inferred type constraints. (#63224)"
+    },
+    {
+      "sha": "d0da7981b29d66e077033bf01566db0fcd5af83d",
+      "short_sha": "d0da7981b29",
+      "date": "2026-10-23T07:34:12+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#65067)"
+    },
     {
       "sha": "31765f90f94a7dae2180100dd7e687e59edd1a29",
       "short_sha": "31765f90f94",
@@ -809,10 +849,33 @@
           "num_of_dirs": 15
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "ea3f6dec4889ce3e5dadb107b977f89ae847509f",
+        "short_sha": "ea3f6dec488",
+        "date": "2026-10-23T08:23:20+00:00",
+        "author": {
+          "name": "Matt Olma",
+          "email": "67564577+mattsimply@users.noreply.github.com"
+        },
+        "summary": "SERVER-135162: Expose appropriate API from inferred type constraints. (#63224)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 20,
+          "num_of_lines": 891,
+          "lines_added": 779,
+          "lines_deleted": 112,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-10-30 06:08:49",
+  "generated_at": "2026-10-30 13:11:51",
   "branch_name": "master",
   "display_name": "master"
 }
