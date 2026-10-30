@@ -1,0 +1,283 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "66277ca73f5de7169dad693fc83d0fee000e8cfc",
+    "merge_commit": "073b000c749f659350eb1b60fa6a5f27b91ec77f"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "66277ca73f5de7169dad693fc83d0fee000e8cfc",
+    "theirs_commit": "073b000c749f659350eb1b60fa6a5f27b91ec77f",
+    "base_commit": "bea1e3e8e975ddecd4528b0853b5b36f1fd96a86",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex f0db13cd9e7,d9314350ae2..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| bea1e3e8e97\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 19,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 20,\n++>>>>>>> 073b000c749f659350eb1b60fa6a5f27b91ec77f\n@@@ -14,0 -14,6 +22,16 @@@\n++<<<<<<< HEAD\n++||||||| bea1e3e8e97\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1201\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1202\"\n+       }\n+     ],\n++>>>>>>> 073b000c749f659350eb1b60fa6a5f27b91ec77f"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "4c725445e6743ea53ea1a225699e25ef8b7d1470"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "073b000c749f659350eb1b60fa6a5f27b91ec77f",
+    "merged_commits": [
+      "073b000c749f659350eb1b60fa6a5f27b91ec77f",
+      "6e7a9c362965b3263916fd92a514ead86503260f",
+      "9d8353e8b8cbe0c31ebd0da1591b63a497acaaad",
+      "d846616dd9b6551f7fb7d0e3741afbc16f368aed",
+      "505803d3da8d6cafbe4d3e09cbad91f818e65d17",
+      "83aee0ac268e6dcb18c6ea795b5863ab524dca45",
+      "3214708b76a6d2c85ab62e7bcec07709235e081e",
+      "b1877046a3fa45e6b0ecca8ac75029acd3fda457",
+      "ada4f5ef86bea33dea97429a93691a14e3f35688",
+      "8262ab532511875a53b19bbf53b99a41d91f48e1",
+      "3d6ff9f6fa9cdc857bfb180736dc06b043f55384",
+      "65bb2772d3051afb56ffd3d6e60affbb6c658407",
+      "a7eaea09c5c2ddf62e8a3c9f22fe0313928bde7e",
+      "1fcd25208336b8376bf6531a4f418710f5ca3185",
+      "8b310b9ee145faeac8c71852f86530781f3bb14a",
+      "fcfa3af5faf609acc1992c05703d73999870bb40",
+      "7b4d5567c902a9ac0413529c93573aef79ed784b",
+      "9a3c77ebe9ab9489a57d72896191a9036708a1c5",
+      "e31c90cfef628e6481a48dd357aecfd03aaa1e2b",
+      "00e83635876b297f6721261c25d878947e312606",
+      "daa4765a115f832d8f076fe55dbdeba57eed8d0f",
+      "0af9ad06798a0483c86e623d26edab75dd17b2d0",
+      "e79da2fad873a1db73de1b3a1c08ab285db3f51b",
+      "39c24439249352ebf85d68f3cc24b6a8ca4cb404",
+      "4f85b652ce9ee2c5ad776cd508dcf26558743c14",
+      "b850ae7702b3dd5b428cfc51975445f723a11f08",
+      "1fb14f5bad278ee1621023d34497cd0dd2fa3143",
+      "d644650f61270ba375e0725cfe630a33f682c428",
+      "166270afba1fbb5dbca1e4fb426247a4d79a2693",
+      "6bf27709ede0aed1abf055c519538cfc023fc881",
+      "e80e7caabe700b10421957c51eb31dfda281efdd",
+      "a404d3e6d26cb1312e96c557bcfe44ef9c768fb4",
+      "1aa13799e3aad8a2baa20aba7c84c210d1564d10",
+      "69dde01b6e9875436a99da82c8b3868ffb9210c9",
+      "1b86ceb9c7f32c9df08cdecc5690fcf73840c297",
+      "e55a74123a5e1d3fca6ed60d6f7904066a3fd2b0",
+      "637b9ffc6a69b32fe454368e3be56dce4fe3db41",
+      "6edb5ef80106eb8a2d243b611208c38c635adc58",
+      "a3560abd1bd8ec2308875312af1b440f029f8abd",
+      "7db5304216b0bb0c0549a072a76d977535c24e70",
+      "72268c5a2750ff1f005e27f51775ec90b994337a",
+      "609543e2ca0aa099ce95c97ba3b4860a6e691f22",
+      "d78bbb34d78a7b3ea5e6d1ce518a0fe425c3930f",
+      "4f6da4302ff826caaeea39571cc6106fd7a7a082",
+      "139aae482013216dea2750727acebc62ee81ff43",
+      "bad7ec630781772bac2831798c3a24d7a21e3b02",
+      "0e0c295b1653cae5e134e776984b08a0bdeec894",
+      "642ec4fae9fb67942c5b4751c103d5f6de373809",
+      "1758f1121853ce57217f0ec034bbf395d8aeb0f9",
+      "28c8f80659be296dd8ce912d9dac865de6f6bb16",
+      "4c725445e6743ea53ea1a225699e25ef8b7d1470",
+      "fd4a7b0d7f46795abf3bd1e08143211c22f456b4",
+      "9081d0d48a41a56845c98f965c640d570de63e4f",
+      "bb8ebe5c7e55e0b456dcefe288795f93804e9980",
+      "a3cde9cbce634249bbee5babd98e591e44d333cf",
+      "79cd6085583a9c1e95c8227b51165a543936363a",
+      "ce129d5be349b8d221f6171eeac7eef36ef1cb38",
+      "8def83dfe4fa3eb5db11b0d98c2d7290b43c1082",
+      "9f5dc2020d0ec4c6517e3f95b3ba79be4fe3298d",
+      "863a33373fc5903f5991c1b0e0043aca7f4bd781",
+      "9bc78acef618c1ce55d15d109edb81446160fe7d",
+      "227b8e2fc49e2fa42b31d184a73744f53e9122b4",
+      "87fa71fde9393632d8997a012b659962672b87f9",
+      "b2614827280d4a314f296bfa293d977bb7dec9eb"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "bazel/platforms/local_config_platform.bzl",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py",
+        "sbom.json",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 73487,
+    "num_turns": 8,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.44425100000000006,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 16,
+        "outputTokens": 5435,
+        "cacheReadInputTokens": 233017,
+        "cacheCreationInputTokens": 30686,
+        "webSearchRequests": 0,
+        "costUSD": 0.44425100000000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 743,
+        "cacheCreationEphemeral5mInputTokens": 30686,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 16,
+            "output": 5435,
+            "cache_read": 233017,
+            "cache_creation": 30686
+          },
+          "cost_usd": 0.44425100000000006
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diff for every file listed under `auto_merged.files` and written a validated JSON response describing only the changes this merge introduces.\n\nKey findings from the diffs:\n\n- **README.third_party.md / sbom.json** \u2014 timelib bumped 2022.13 \u2192 2026.02; sbom also bumps version 19\u219220, timestamp, Endor Labs tool v1.7.1201\u2192v1.7.1202, and reorders linenoise occurrence locations. sbom.json was the only conflicted file.\n- **bazel/platforms/local_config_platform.bzl & wrapper_hook/BUILD.bazel** \u2014 new Windows cross-compilation RBE execution platform wiring plus three new tracked environment variables.\n- **replicaset.py** \u2014 `get_last_optime` now checks `m.get(\"self\")` truthiness instead of field presence.\n- **repl/BUILD.bazel, pipelined_applier_advancer_test.cpp** \u2014 `addBatch` gains three multikey-related arguments; new multikey/index deps added.\n- **transport/BUILD.bazel** \u2014 adds `//src/mongo/db/auth` dep.\n- **WiredTiger (conn_api.c, wiredtiger.h.in)** \u2014 new `schema_epoch` verbose category/enum, new `WT_CURSTD_BLIND_REMOVE` flag that renumbers all subsequent `WT_CURSTD_*` bit values, a session.drop() orphaned-files doc note, and a reworded eviction statistic.\n\nThe review notes flag the sbom.json resolution (strip `metadata.tools`, keep Percona's supplier URL and serialNumber) and two things to verify downstream: nothing hardcodes the renumbered `WT_CURSTD_*` values, and the non-test `addBatch` definition matches the widened signature. The response is written to the requested path and validates as JSON.",
+    "response": {
+      "summary": "Merges upstream MongoDB master into the Percona fork. The incoming changes bump the bundled timelib third-party library from 2022.13 to 2026.02 (reflected in README.third_party.md and sbom.json), add a new Windows cross-compilation RBE execution platform to the Bazel configuration, refresh the vendored WiredTiger headers/source with a new 'schema_epoch' verbose category and WT_CURSTD_BLIND_REMOVE cursor flag (shifting all subsequent WT_CURSTD_* flag values), extend the pipelined oplog applier batch tracker API with additional multikey-path arguments, and make small repl/transport build and resmoke fixture adjustments. Only sbom.json had a textual conflict (both modified); all other files auto-merged with the 'ort' strategy.",
+      "auto_merged": {
+        "README.third_party.md": "Updates the timelib row in the third-party dependency table from version 2022.13 to 2026.02. No other rows change.",
+        "bazel/platforms/local_config_platform.bzl": "Adds a new _write_windows_cross_execution_platform(ctx) helper and calls it from _setup_local_config_platform. When MONGO_WINDOWS_CROSS_RBE_PLATFORM_IMAGE is set, it generates a windows_cross/BUILD.bazel defining an 'exec' platform parented on the <distro>_amd64_windows_cross_exec platform with container-image/Pool/dockerNetwork exec_properties; it validates the distro against REMOTE_EXECUTION_CONTAINERS and rejects non-x86_64 pools. The repository_rule's environ list gains three new tracked variables (MONGO_WINDOWS_CROSS_RBE_PLATFORM_IMAGE, MONGO_WINDOWS_CROSS_RBE_PLATFORM_DISTRO, MONGO_WINDOWS_CROSS_RBE_POOL) plus explanatory comments on the existing entries.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds the Windows cross container action wrapper to the py_library: windows_container_action_wrapper.py in data, and //bazel/toolchains/cc:container_runtime plus //bazel/toolchains/cc/mongo_windows_cross:windows_container_action_wrapper_lib in deps.",
+        "buildscripts/resmokelib/testing/fixtures/replicaset.py": "In get_last_optime(), changes the member selection from checking that the 'self' field is present ([m for m in ... if 'self' in m]) to checking its truthiness ([m for m in ... if m.get('self')]), so coordinators that report 'self: false' on other members (e.g. disaggregated storage) are handled correctly. A comment is added explaining this.",
+        "sbom.json": "Incoming (diff base -> merge commit) changes: version 19 -> 20, timestamp updated to 2026-10-21, Endor Labs tools version v1.7.1201 -> v1.7.1202, the two linenoise occurrence locations (.h/.cpp) reordered, and the timelib bom-ref/name version/purl and its dependency references updated from 2022.13 to 2026.02. This file had a 'both modified' conflict: the fork carries serialNumber urn:uuid:95a559f1-... with version 6 and no metadata.tools section, while the incoming side has the MongoDB serialNumber with version 20 and the Endor Labs tools section.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds dependencies to several repl libraries/tests: //src/mongo/util:log_and_backoff to one library; //src/mongo/db:multi_key_path_tracker to two libraries; and to the pipelined oplog applier unit test, multi_key_path_tracker, //src/mongo/db/index:index_access_method, //src/mongo/db/index:multikey_paths, //src/mongo/db/shard_role/shard_catalog:index_catalog and :set_multikey_metadata_oplog_helpers.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Updates all tracker.addBatch(...) call sites to the new signature, appending three arguments ({}, {}, nullptr) after the existing optime and worker-count arguments. Purely test call-site updates reflecting the widened addBatch API; no test logic changes.",
+        "src/mongo/transport/BUILD.bazel": "Adds //src/mongo/db/auth as a dependency to a transport mongo_cc_library.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In __wt_get_verbose_categories, inserts the new {\"schema_epoch\", WT_VERB_SCHEMA_EPOCH} entry into the verbose category name/flag table (between 'salvage' and 'shared_cache'), with surrounding entries re-wrapped.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds WT_CURSTD_BLIND_REMOVE (0x2) cursor flag, shifting every subsequent WT_CURSTD_* flag value up by one bit (up to WT_CURSTD_VERSION_CURSOR now 0x800000000). Adds the WT_VERB_SCHEMA_EPOCH verbose enum value and the 'schema_epoch' entry in the verbose config documentation (two doc blocks). Adds a session.drop() doc paragraph warning that interrupted/failed drops may leave orphaned files even with remove_files=true, and rewords the WT_STAT_CONN_EVICTION_SERVER_SKIP_TREES_READ_ONLY statistic description."
+      },
+      "review_notes": "Only sbom.json required manual conflict resolution. Per the project conflict guidance: remove the metadata.tools section entirely (the Endor Labs entry does not belong in Percona's manually assembled SBOM), ensure the supplier object stays the last key in metadata with no trailing comma, and keep Percona's supplier url https://percona.com rather than MongoDB's. serialNumber and version are reset before each release, so either side is acceptable. Note the merge commit 073b000c itself (the incoming upstream tip) still contains the tools section and the MongoDB serialNumber/version 20 \u2014 this must be corrected in the fork's resolution. The WiredTiger wiredtiger.h.in change renumbers all WT_CURSTD_* cursor flag bit values; verify no fork code hardcodes these numeric flag values. The pipelined applier addBatch signature widened by three parameters \u2014 confirm the corresponding non-test header/source (not in this changeset's conflict list) matches."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me check the final resolved state of sbom.json in the merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "All diffs read. Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I need to remove a stray duplicate key I accidentally added."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Edit"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Edit"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diff for every file listed under `auto_merged.files` and written a validated JSON response describing only the changes this merge introduces.\n\nKey findings from the diffs:\n\n- **README.third_party.md / sbom.json** \u2014 timelib bumped 2022.13 \u2192 2026.02; sbom also bumps version 19\u219220, timestamp, Endor Labs tool v1.7.1201\u2192v1.7.1202, and reorders linenoise occurrence locations. sbom.json was the only conflicted file.\n- **bazel/platforms/local_config_platform.bzl & wrapper_hook/BUILD.bazel** \u2014 new Windows cross-compilation RBE execution platform wiring plus three new tracked environment variables.\n- **replicaset.py** \u2014 `get_last_optime` now checks `m.get(\"self\")` truthiness instead of field presence.\n- **repl/BUILD.bazel, pipelined_applier_advancer_test.cpp** \u2014 `addBatch` gains three multikey-related arguments; new multikey/index deps added.\n- **transport/BUILD.bazel** \u2014 adds `//src/mongo/db/auth` dep.\n- **WiredTiger (conn_api.c, wiredtiger.h.in)** \u2014 new `schema_epoch` verbose category/enum, new `WT_CURSTD_BLIND_REMOVE` flag that renumbers all subsequent `WT_CURSTD_*` bit values, a session.drop() orphaned-files doc note, and a reworded eviction statistic.\n\nThe review notes flag the sbom.json resolution (strip `metadata.tools`, keep Percona's supplier URL and serialNumber) and two things to verify downstream: nothing hardcodes the renumbered `WT_CURSTD_*` values, and the non-test `addBatch` definition matches the widened signature. The response is written to the requested path and validates as JSON."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261030_051111_617795.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.314 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "073b000c749f659350eb1b60fa6a5f27b91ec77f",
+    "short_sha": "073b000c749",
+    "strategy": "huge_commit",
+    "summary": "This is the second 'Import wiredtiger' commit (#65001) and makes an ideal, self-contained merge boundary: a large vendored third-party import that touches a well-isolated set of files and rarely depends on the commits immediately after it. Stopping here yields a coherent batch of 64 commits, within the acceptable band for the ~50 target, and the gate is already open (force:conflict). Crucially, it keeps every revert pair whole: the fuzztest change (SERVER-129585) and its revert (#64906) are both included; the preproccessOplogEntry change (SERVER-137224, #64614), its revert (#64972), AND the settled re-apply (#65018 at the tail) are all inside; and the LDAP test-endpoint change (SERVER-136811) with its revert (#64984) are both included. The earlier wiredtiger import would split the SERVER-136811/revert pair, so cutting there would import a change upstream has already undone. The four freshest commits (SERVER-137614, SERVER-119036, SERVER-134782, SERVER-135008) are left for the next batch to settle, rather than ending on an unsettled newest candidate.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/41006664670"
+  }
+}
