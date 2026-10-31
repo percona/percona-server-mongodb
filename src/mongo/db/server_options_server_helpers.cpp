@@ -391,26 +391,42 @@ Status storeServerOptions(const moe::Environment& params) {
         serverGlobalParams.unixSocketPermissions =
             params["net.unixDomainSocket.filePermissions"].as<int>();
     }
+<<<<<<< HEAD
     if (params.count("security.relaxPermChecks") &&
         params["security.relaxPermChecks"].as<bool>() == true) {
         serverGlobalParams.relaxPermChecks = true;
     }
+||||||| 073b000c749
+=======
+#endif  // _WIN32
+
+>>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6
     if (shouldFork(params)) {
         serverGlobalParams.doFork = true;
     }
-#endif  // _WIN32
 
+<<<<<<< HEAD
     if (params.count("security.redactClientLogData")) {
         logv2::setShouldRedactLogs(params["security.redactClientLogData"].as<bool>());
     }
 
 #ifdef __APPLE__
+||||||| 073b000c749
+#ifdef __APPLE__
+=======
+    if (params.count("processManagement.forkDetachesOutputStreams")) {
+        serverGlobalParams.forkDetachesOutputStreams =
+            params["processManagement.forkDetachesOutputStreams"].as<bool>();
+    }
+
+#if !defined(__linux__)
+>>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6
     if (serverGlobalParams.doFork) {
         return Status(ErrorCodes::BadValue,
                       "Server fork+exec via `--fork` or `processManagement.fork` "
-                      "is incompatible with macOS");
+                      "is not supported on this platform");
     }
-#endif  // Apple
+#endif  // !defined(__linux__)
 
     if (serverGlobalParams.doFork && serverGlobalParams.logpath.empty() &&
         !serverGlobalParams.logWithSyslog) {
