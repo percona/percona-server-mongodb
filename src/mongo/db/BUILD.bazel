@@ -2776,12 +2776,8 @@ mongo_cc_library(
         "dbdirectclient",
         "dbhelpers",
         "default_max_time_ms_cluster_parameter",
-<<<<<<< HEAD
         "//src/mongo/db/encryption:encryption_status",
-||||||| 073b000c749
-=======
         "end_of_transaction_parameter",
->>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6
         "//src/mongo/db/exec:working_set",
         "feature_compatibility_version_metrics",
         "//src/mongo/db/ftdc:ftdc_mongod",
