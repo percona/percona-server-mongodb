@@ -1,0 +1,298 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "abd376606aef4e0b1e97288e1e0794b65ed58933",
+    "merge_commit": "5b45098034873276d49c3d1451d1d7911311edd6"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "abd376606aef4e0b1e97288e1e0794b65ed58933",
+    "theirs_commit": "5b45098034873276d49c3d1451d1d7911311edd6",
+    "base_commit": "073b000c749f659350eb1b60fa6a5f27b91ec77f",
+    "files": [
+      "src/mongo/db/BUILD.bazel",
+      "src/mongo/db/server_options_server_helpers.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/BUILD.bazel": "both modified",
+      "src/mongo/db/server_options_server_helpers.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/BUILD.bazel": "diff --cc src/mongo/db/BUILD.bazel\nindex 65d327f4fb8,9b1013ad05c..00000000000\n--- a/src/mongo/db/BUILD.bazel\n+++ b/src/mongo/db/BUILD.bazel\n@@@ -599,10 -534,8 +600,18 @@@ idl_generator\n+ idl_generator(\n+     name = \"end_of_transaction_parameter_gen\",\n+     src = \"end_of_transaction_parameter.idl\",\n+     deps = [\n+         \":basic_types_gen\",\n+     ],\n+ )\n+ \n +mongo_cc_library(\n +    name = \"audit_interface\",\n +    srcs = [\n +        \"audit_interface.cpp\",\n +    ],\n +    deps = [\n +        \":service_context\",\n +    ],\n +)\n +\n@@@ -2743,1 -2700,1 +2779,6 @@@ mongo_cc_library\n++<<<<<<< HEAD\n +        \"//src/mongo/db/encryption:encryption_status\",\n++||||||| 073b000c749\n++=======\n+         \"end_of_transaction_parameter\",\n++>>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6",
+      "src/mongo/db/server_options_server_helpers.cpp": "diff --cc src/mongo/db/server_options_server_helpers.cpp\nindex 6ee146011c0,7ec87b6a466..00000000000\n--- a/src/mongo/db/server_options_server_helpers.cpp\n+++ b/src/mongo/db/server_options_server_helpers.cpp\n@@@ -394,4 -384,2 +394,10 @@@ Status storeServerOptions(const moe::En\n++<<<<<<< HEAD\n +    if (params.count(\"security.relaxPermChecks\") &&\n +        params[\"security.relaxPermChecks\"].as<bool>() == true) {\n +        serverGlobalParams.relaxPermChecks = true;\n +    }\n++||||||| 073b000c749\n++=======\n+ #endif  // _WIN32\n+ \n++>>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6\n@@@ -401,6 -389,6 +407,16 @@@\n- #endif  // _WIN32\n++<<<<<<< HEAD\n +    if (params.count(\"security.redactClientLogData\")) {\n +        logv2::setShouldRedactLogs(params[\"security.redactClientLogData\"].as<bool>());\n +    }\n +\n +#ifdef __APPLE__\n++||||||| 073b000c749\n++#ifdef __APPLE__\n++=======\n+     if (params.count(\"processManagement.forkDetachesOutputStreams\")) {\n+         serverGlobalParams.forkDetachesOutputStreams =\n+             params[\"processManagement.forkDetachesOutputStreams\"].as<bool>();\n+     }\n+ \n+ #if !defined(__linux__)\n++>>>>>>> 5b45098034873276d49c3d1451d1d7911311edd6"
+    },
+    "their_commits": {
+      "src/mongo/db/BUILD.bazel": [
+        "21ec4dc79600384c982447e74d770da710ee7926",
+        "b35782c449af12baa25427eee42e40e6b3bf959f"
+      ],
+      "src/mongo/db/server_options_server_helpers.cpp": [
+        "21ec4dc79600384c982447e74d770da710ee7926"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "5b45098034873276d49c3d1451d1d7911311edd6",
+    "merged_commits": [
+      "5b45098034873276d49c3d1451d1d7911311edd6",
+      "21ec4dc79600384c982447e74d770da710ee7926",
+      "7140a74f2e5815ce1d0c7543b3acc296db826bc3",
+      "4177618814d947f1e31dd463fa17f7a12d0aa964",
+      "82a682f7aec571ec776aa411ddc7f7f07df8e82c",
+      "12fafe5aff048e6489e53ac6f350acd7e4f2e152",
+      "3d0f4c3c442c5df2eee40f088a7f8ea6af4ec83a",
+      "bd38719c0d74f8fc374653989a9b24349873c4a7",
+      "69c22945995515d35cbb6089e5eb3996b74246b6",
+      "38524dcb51d3ff4e974702c36d716894f394ed8c",
+      "b35782c449af12baa25427eee42e40e6b3bf959f",
+      "4bf9d82cea5bf317d2849fed587e123501727b82",
+      "a875dbb04d9f0a965473d667973d93a2eb9cb808",
+      "9aa1dc80518245687bdf733ae7f0bc2a60c0e94d",
+      "7d2a58120d909ace78e5d38a8d33941c65791279",
+      "4800428b5022a1dbfdcb7408481e26982dd2e3b3",
+      "de78d6740d8b294f7e8c28bf3e041ace8fab2715",
+      "bfdfc6a0490579d46da71940e3fddcc8f8ece7e5",
+      "f7c1ba697214b849cd0a01d292dafe0bacb3dcf9",
+      "ed7ec71c7088788283a8e586b11caff276d68027",
+      "f93f840df3c8ccdd7b04ce1d97e7305a672bba96",
+      "77e51d92f6cdf6ab63788f93e8e850dbe2246b29",
+      "490b5c2b83e0145e40801ca841a7b4865b79a8bf",
+      "d831bbb2d9e2db583b7e8f2bae1a7a4d61666e63",
+      "1bd25e1e1829c248b2d64c99eebd5c4bfcc2bfb0",
+      "2624c5d7d891b4bf9a2fe98618c9c639f1561533",
+      "bfd17eecb697dce667f8362a7b67ef3eaf11da08",
+      "1ae28660adee38fb3b714e599a85d8fb17785ab7",
+      "033ece49b135844515492d062b543e5bf754dae2",
+      "08be71bf074604a6cac8cf0223bed9875ae37b43",
+      "07ae10208a75c05e7ac95b1363d54198a1d36893",
+      "64b2ebc824648bc767f13802ec0be26c92307596",
+      "ea3f6dec4889ce3e5dadb107b977f89ae847509f",
+      "d0da7981b29d66e077033bf01566db0fcd5af83d",
+      "31765f90f94a7dae2180100dd7e687e59edd1a29",
+      "32649ddfcb275b5704ac1d49588643aeea4d08fc",
+      "43f1ecc81f7ed640d9961e105cf1b02946dcc47c",
+      "7401cb3d8675922d3580f27541c1a8f41a5f6647"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_general.idl",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/mongo/s/mongos_main.cpp",
+        "src/mongo/shell/mongo.js",
+        "src/mongo/transport/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 105944,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.5652325,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 18,
+        "outputTokens": 7805,
+        "cacheReadInputTokens": 263360,
+        "cacheCreationInputTokens": 38134,
+        "webSearchRequests": 0,
+        "costUSD": 0.5652325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1129,
+        "cacheCreationEphemeral5mInputTokens": 38134,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 18,
+            "output": 7805,
+            "cache_read": 263360,
+            "cache_creation": 38134
+          },
+          "cost_usd": 0.5652325
+        }
+      }
+    },
+    "text_result": "I've analyzed the merge and written the JSON response. Summary of what I did:\n\n**Read the actual `diff base \u2192 merge commit` diffs** (`073b000c749` \u2192 `5b45098034`) for every file under `merge_context.auto_merged.files`, rather than inferring from names or commit summaries.\n\n**Key incoming upstream changes identified:**\n- **`forkDetachesOutputStreams`** \u2014 a new fork option spanning `server_options.h`, `server_options_general.idl`, `server_options_server_helpers.cpp`, and `initialize_server_global_state.cpp`; fork support also broadened from macOS-only-rejection to non-Linux rejection.\n- **`end_of_transaction`** change-stream event \u2014 new `end_of_transaction_parameter` IDL/library/test plus build wiring in `db/BUILD.bazel` and `s/BUILD.bazel`, and shell handling in `mongo.js` (refactored to a name-list loop adding `showEndOfTransaction`/`version`).\n- **WiredTiger OTel metrics** \u2014 `exportTableToBSON` \u2192 `exportStatsBSONAndOTel` with new visitor/cursor helpers.\n- **`message_compressor_name`** header-only library split to break a dependency cycle.\n- **Bazel toolchain-provenance** analysis-test machinery and a `MONGO_PRODUCTION_RELEASE` define.\n\n**Conflicts** (both `src/mongo/db/BUILD.bazel` and `server_options_server_helpers.cpp`) were overlapping-region additions where upstream code landed next to Percona-specific lines (`encryption_status`, `relaxPermChecks`/`redactClientLogData`). I verified the fork lines exist only on the fork side (correctly absent from the pure-upstream merge commit), confirming these are standard both-modified conflicts and not removals \u2014 and flagged them in `review_notes` with instructions to keep both sides.",
+    "response": {
+      "summary": "Merges upstream MongoDB (mongodb-master) changes from 073b000c749 into the PSMDB master fork. The incoming commits add: a new 'processManagement.forkDetachesOutputStreams' server option that lets a forked daemon keep stdout/stderr attached to the launching process instead of redirecting them to /dev/null, and broaden fork support from Linux-only-rejecting-macOS to 'not supported on any non-Linux platform'; a new 'end_of_transaction' change-stream event with its 'end_of_transaction_parameter' server parameter (new IDL/library/test and build wiring); change-stream shell handling refactored to a name-list loop that also recognizes 'showEndOfTransaction' and 'version'; WiredTiger statistics export reworked to also feed OpenTelemetry metrics (exportTableToBSON renamed to exportStatsBSONAndOTel with new OTel visitor/cursor-config helpers); a new header-only transport message_compressor_name library split out to break a dependency cycle with db/stats:counters; a Bazel production-release define and toolchain-provenance/version analysis-test machinery; and assorted test/comment updates. Two files (src/mongo/db/BUILD.bazel and src/mongo/db/server_options_server_helpers.cpp) conflicted because upstream additions overlapped Percona's own additions in the same regions.",
+      "auto_merged": {
+        ".bazelrc": "Adds `common:public-release --define=MONGO_PRODUCTION_RELEASE=1` to the public-release config, used to drive the new production_release config_setting in bazel/config.",
+        "MODULE.bazel.lock": "Lockfile-only change: updated bzlTransitiveDigest hashes for the mongo_apple and mongo_apple_cross toolchain extensions (regenerated artifact, no semantic source change).",
+        "bazel/config/BUILD.bazel": "Adds toolchain-provenance and version analysis-test infrastructure: loads cc_toolchain, toolchain_provenance and the new toolchain_versions_test macros; defines a toolchain_provenance target and several (mostly manual) analysis tests for toolchain versions, macOS cross-compile flags, and requested/disabled linker features; adds a probe_test cc_toolchain/toolchain and a local_cross_link fixture; and adds config_settings `local_cross_link_version_probe` and `production_release` (define MONGO_PRODUCTION_RELEASE=1).",
+        "jstests/auth/lib/commands_lib.js": "Comment-only update for the aggregate_joinPlanCacheStats and clearJoinPlanCache auth testcases: the gating description now references only the internalEnableJoinOptimization knob instead of both internalEnableJoinOptimization and internalEnableJoinPlanCache. No test logic changes.",
+        "src/mongo/db/BUILD.bazel": "CONFLICT (both modified), resolved keeping both sides. Incoming upstream changes: adds a `fail_point` dependency to the server_options library; adds the `end_of_transaction_parameter_gen` idl_generator, the `end_of_transaction_parameter` cc_library and its `end_of_transaction_parameter_test` unit test; and adds `end_of_transaction_parameter` as a dependency of the mongod main/service library. The conflict arose where upstream's new `end_of_transaction_parameter` dep sits next to Percona's `encryption:encryption_status` dep in the same deps list.",
+        "src/mongo/db/initialize_server_global_state.cpp": "In forkServer(), guards the detaching of stderr and stdout behind `serverGlobalParams.forkDetachesOutputStreams`; stdin is still always detached. When the new option is false, the forked child keeps its stdout/stderr attached to the launcher.",
+        "src/mongo/db/mongod_main.cpp": "Includes server_options_base.h and calls the new `handleStartupStreamsFailPoint()` during _initAndListen startup (before the shutdownAtStartup failpoint check).",
+        "src/mongo/db/repl/BUILD.bazel": "Adds a new `serial_processor_test` mongo_cc_unit_test target (srcs serial_processor_test.cpp, private header serial_processor.h, depends on //src/mongo:base).",
+        "src/mongo/db/server_options.h": "Adds a new `bool forkDetachesOutputStreams = true;` field to ServerGlobalParams, controlling whether a forked child detaches its stdout/stderr.",
+        "src/mongo/db/server_options_general.idl": "Reworks the fork options: `processManagement.fork` description updated and its `!defined(_WIN32)` condition removed (now declared unconditionally), and a new `processManagement.forkDetachesOutputStreams` Bool option (default true, implicit) is added with documentation describing that when false the child's stdout/stderr stay attached to the launching process.",
+        "src/mongo/db/server_options_server_helpers.cpp": "CONFLICT (both modified), resolved keeping both sides. Incoming upstream changes in storeServerOptions(): moves the `shouldFork` doFork assignment outside the `#ifndef _WIN32` block; adds parsing of `processManagement.forkDetachesOutputStreams` into serverGlobalParams; and replaces the macOS-only (`#ifdef __APPLE__`) fork-incompatibility rejection with a `#if !defined(__linux__)` guard whose error message now says fork is 'not supported on this platform'. The conflict arose because Percona's relaxPermChecks/redactClientLogData handling sits in the same region.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds dependency `//src/mongo/otel/metrics/instrumentation:wiredtiger_metric_registry` to the wiredtiger_util library and `//src/mongo/otel/metrics:metrics_test_util` to its unit test, supporting the new OpenTelemetry metrics path in WiredTiger stats export.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Reworks WiredTiger statistics export to also emit OpenTelemetry metrics (implementation side of the wiredtiger_util.h rename exportTableToBSON -> exportStatsBSONAndOTel and the new OTel visitor/cursor-config helpers). See wiredtiger_util.h for the interface changes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Renames exportTableToBSON to exportStatsBSONAndOTel (both overloads) and gives the filtered overload a new optional `WiredTigerMetricRegistry* registry = nullptr` parameter; forward-declares WiredTigerMetricRegistry; adds a public OTelStatType enum (kNone/kCounter/kGauge), a StatVisitor callback type, a visitorFor() helper that forwards stats to a metric registry, and an extendCursorTypeConfig() helper; adds <functional>/<string> includes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Updates WiredTiger util tests to the renamed exportStatsBSONAndOTel API and adds coverage for the new OpenTelemetry metrics export path (visitorFor/extendCursorTypeConfig and metric-registry integration).",
+        "src/mongo/s/BUILD.bazel": "Adds `//src/mongo/db:end_of_transaction_parameter` as a dependency of the mongos main/service library.",
+        "src/mongo/s/mongos_main.cpp": "Includes server_options_base.h and calls the new `handleStartupStreamsFailPoint()` during runMongosServer startup (before the shutdownAtStartup failpoint check).",
+        "src/mongo/shell/mongo.js": "Refactors Mongo.prototype._extractChangeStreamOptions: the long series of per-option hasOwnProperty/copy/delete blocks is replaced by iterating a kChangeStreamOptionNames array, which now also includes the new `showEndOfTransaction` option and folds in the previously separately-handled `version` option.",
+        "src/mongo/transport/BUILD.bazel": "Adds a new header-only `message_compressor_name` cc_library (message_compressor_name.h) split out so //src/mongo/db/stats:counters can reference the compressors without a dependency cycle; the `message_compressor` library now also compiles message_compressor_base.cpp and depends on `:message_compressor_name` and `//src/mongo/db/stats:counters`."
+      },
+      "review_notes": "Two files had textual conflicts, both 'both modified' where upstream additions landed in the same regions as existing Percona additions; neither upstream change touches Percona functionality:\n\n1) src/mongo/db/server_options_server_helpers.cpp \u2014 upstream added forkDetachesOutputStreams parsing and changed the fork platform guard (#ifdef __APPLE__ -> #if !defined(__linux__)) right where Percona's relaxPermChecks / redactClientLogData handling lives. Verify the merged file keeps BOTH: Percona's relaxPermChecks and redactClientLogData blocks AND upstream's forkDetachesOutputStreams parsing plus the new !defined(__linux__) guard.\n\n2) src/mongo/db/BUILD.bazel \u2014 upstream added the end_of_transaction_parameter dep next to Percona's encryption:encryption_status dep in the mongod service deps list. Verify both deps are present, and that the new end_of_transaction_parameter idl_generator/library/test blocks were added.\n\nThe forkDetachesOutputStreams feature spans several files that must stay consistent: server_options.h (new field, default true), server_options_general.idl (new option), server_options_server_helpers.cpp (parsing), and initialize_server_global_state.cpp (the guarded stdout/stderr detach). Also note the IDL now declares processManagement.fork unconditionally (dropping its !defined(_WIN32) condition) and rejects fork on any non-Linux platform rather than only macOS \u2014 confirm this does not conflict with any PSMDB platform-specific fork behavior.\n\nThe WiredTiger exportTableToBSON -> exportStatsBSONAndOTel rename and new OTel metrics path cross wiredtiger_util.{h,cpp}, its test, and BUILD.bazel; confirm no PSMDB caller of the old exportTableToBSON name remains.\n\nMODULE.bazel.lock is a regenerated artifact (only bzlTransitiveDigest hashes changed) \u2014 per project guidance it should be regenerated via bazel rather than hand-merged."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the merge by reading the actual diffs for the auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me read the diffs for the auto-merged files listed in the note."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now let me verify the conflict resolution in the merge commit for the two conflicting files, to confirm Percona's lines were preserved alongside the new upstream code."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have a clear picture. The merge commit `5b45098` is the upstream (MongoDB) tip being pulled in; the fork's own lines (relaxPermChecks, encryption_status) live only on the fork side, which is why they're absent from the upstream commit \u2014 confirming the conflicts are overlapping-region additions. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the merge and written the JSON response. Summary of what I did:\n\n**Read the actual `diff base \u2192 merge commit` diffs** (`073b000c749` \u2192 `5b45098034`) for every file under `merge_context.auto_merged.files`, rather than inferring from names or commit summaries.\n\n**Key incoming upstream changes identified:**\n- **`forkDetachesOutputStreams`** \u2014 a new fork option spanning `server_options.h`, `server_options_general.idl`, `server_options_server_helpers.cpp`, and `initialize_server_global_state.cpp`; fork support also broadened from macOS-only-rejection to non-Linux rejection.\n- **`end_of_transaction`** change-stream event \u2014 new `end_of_transaction_parameter` IDL/library/test plus build wiring in `db/BUILD.bazel` and `s/BUILD.bazel`, and shell handling in `mongo.js` (refactored to a name-list loop adding `showEndOfTransaction`/`version`).\n- **WiredTiger OTel metrics** \u2014 `exportTableToBSON` \u2192 `exportStatsBSONAndOTel` with new visitor/cursor helpers.\n- **`message_compressor_name`** header-only library split to break a dependency cycle.\n- **Bazel toolchain-provenance** analysis-test machinery and a `MONGO_PRODUCTION_RELEASE` define.\n\n**Conflicts** (both `src/mongo/db/BUILD.bazel` and `server_options_server_helpers.cpp`) were overlapping-region additions where upstream code landed next to Percona-specific lines (`encryption_status`, `relaxPermChecks`/`redactClientLogData`). I verified the fork lines exist only on the fork side (correctly absent from the pure-upstream merge commit), confirming these are standard both-modified conflicts and not removals \u2014 and flagged them in `review_notes` with instructions to keep both sides."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261031_053925_948347.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.316 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "5b45098034873276d49c3d1451d1d7911311edd6",
+    "short_sha": "5b450980348",
+    "strategy": null,
+    "summary": "This cuts at 38 of the 40 candidates, a coherent batch that keeps every revert pair whole and ends on a self-contained, easy-to-validate boundary. The range contains three original/revert pairs that all cancel out within the batch: SERVER-134782 POA drain (#64968) and its revert (#65076) plus the later reland (#65097); SERVER-136737 join-plan-cache metrics (#64206) and its revert (#65134); and SERVER-137799 release-binary-hash preservation (#65128) and its revert (#65168). Ending exactly on the #65128 revert means that back-and-forth lands fully resolved rather than importing a feature we'd remove next merge. It also keeps the endOfTransaction series (#64870, the #64975 conflict commit, #64753) together. I deliberately stop short of the two freshest commits (the BSONElement span refactor and the LDAP-endpoint test update) so any upstream churn on them settles before the next batch. The conflict flag on b35782c (allowEndOfTransaction) is handled by the existing resolve flow and is not a reason to cut earlier.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/41172977892"
+  }
+}
