@@ -141,6 +141,27 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.network.egress.numRequests");
     static constexpr MetricName kNetworkEgressConnectionsCreated =
         MetricNameMaker::make("mongodb.network.egress.connections_created");
+    static constexpr MetricName kNetworkCompressionIngressCompressorBytesIn = MetricNameMaker::make(
+        "mongodb.serverStatus.network.compression.ingress.compressor.bytesIn");
+    static constexpr MetricName kNetworkCompressionIngressCompressorBytesOut =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.network.compression.ingress.compressor.bytesOut");
+    static constexpr MetricName kNetworkCompressionIngressDecompressorBytesIn =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.network.compression.ingress.decompressor.bytesIn");
+    static constexpr MetricName kNetworkCompressionIngressDecompressorBytesOut =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.network.compression.ingress.decompressor.bytesOut");
+    static constexpr MetricName kNetworkCompressionEgressCompressorBytesIn =
+        MetricNameMaker::make("mongodb.serverStatus.network.compression.egress.compressor.bytesIn");
+    static constexpr MetricName kNetworkCompressionEgressCompressorBytesOut = MetricNameMaker::make(
+        "mongodb.serverStatus.network.compression.egress.compressor.bytesOut");
+    static constexpr MetricName kNetworkCompressionEgressDecompressorBytesIn =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.network.compression.egress.decompressor.bytesIn");
+    static constexpr MetricName kNetworkCompressionEgressDecompressorBytesOut =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.network.compression.egress.decompressor.bytesOut");
     static constexpr MetricName kNetworkNumSlowDNSOperations =
         MetricNameMaker::make("mongodb.serverStatus.network.numSlowDNSOperations");
     static constexpr MetricName kNetworkNumSlowSSLOperations =
@@ -414,6 +435,12 @@ public:
         "mongodb.serverStatus.metrics.changeStreams.option.showRawUpdateDescription");
     static constexpr MetricName kChangeStreamOptionIgnoreRemovedShards = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.changeStreams.option.ignoreRemovedShards");
+    static constexpr MetricName kChangeStreamOptionShowEndOfTransactionWhenAvailable =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.changeStreams.option.showEndOfTransaction.whenAvailable");
+    static constexpr MetricName kChangeStreamOptionShowEndOfTransactionRequired =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.changeStreams.option.showEndOfTransaction.required");
     static constexpr MetricName kChangeStreamOptionMatchCollectionUUIDForUpdateLookup =
         MetricNameMaker::make(
             "mongodb.serverStatus.metrics.changeStreams.option.matchCollectionUUIDForUpdateLookup");

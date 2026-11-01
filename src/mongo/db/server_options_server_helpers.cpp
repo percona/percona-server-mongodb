@@ -395,22 +395,28 @@ Status storeServerOptions(const moe::Environment& params) {
         params["security.relaxPermChecks"].as<bool>() == true) {
         serverGlobalParams.relaxPermChecks = true;
     }
+#endif  // _WIN32
+
     if (shouldFork(params)) {
         serverGlobalParams.doFork = true;
     }
-#endif  // _WIN32
+
+    if (params.count("processManagement.forkDetachesOutputStreams")) {
+        serverGlobalParams.forkDetachesOutputStreams =
+            params["processManagement.forkDetachesOutputStreams"].as<bool>();
+    }
 
     if (params.count("security.redactClientLogData")) {
         logv2::setShouldRedactLogs(params["security.redactClientLogData"].as<bool>());
     }
 
-#ifdef __APPLE__
+#if !defined(__linux__)
     if (serverGlobalParams.doFork) {
         return Status(ErrorCodes::BadValue,
                       "Server fork+exec via `--fork` or `processManagement.fork` "
-                      "is incompatible with macOS");
+                      "is not supported on this platform");
     }
-#endif  // Apple
+#endif  // !defined(__linux__)
 
     if (serverGlobalParams.doFork && serverGlobalParams.logpath.empty() &&
         !serverGlobalParams.logWithSyslog) {
