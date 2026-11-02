@@ -6,8 +6,8 @@
   "is_up_to_date": false,
   "divergence": {
     "commits_behind": 42,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.675439692534722,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.330527054930556,
     "files_affected": 219,
     "total_additions": 7870,
     "total_deletions": 1567,
@@ -543,6 +543,7 @@
         "branches": [
           "master",
           "mergai/master-5b450980348/conflict",
+          "mergai/master-5b450980348/main",
           "mergai/master-5b450980348/solution",
           "mongodb"
         ]
@@ -550,7 +551,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-01 14:26:46",
+  "generated_at": "2026-11-02 06:09:58",
   "branch_name": "master",
   "display_name": "master"
 }
