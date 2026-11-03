@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenVEX | Percona Server for MongoDB</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="/percona-server-mongodb/pr-preview/pr-2277/assets/css/peak.css" />
+  </head>
+  <body data-nav="openvex">
+    <header class="peak-header">
+      <a class="peak-brand" href="/percona-server-mongodb/pr-preview/pr-2277/">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <g transform="translate(0.444 0.833)">
+            <path
+              d="M18.8281 12.5945C21.2934 10.983 22.1001 7.69576 20.6082 5.11219C19.8606 3.81627 18.6521 2.8882 17.2064 2.50067C15.867 2.14107 14.468 2.28812 13.2367 2.91019L11.5556 0L8.06589 6.04392L0 20.0127H23.1111L18.8281 12.5945ZM16.8111 3.98118C17.862 4.26107 18.7364 4.93582 19.2811 5.87535C20.3516 7.72737 19.7955 10.0764 18.0594 11.2628L14.0045 4.24046C14.878 3.8204 15.8634 3.72878 16.8111 3.98118ZM11.5556 3.06731L20.4533 18.4785H15.2472L8.95136 7.57758L11.5551 3.06777L11.5556 3.06731ZM2.65779 18.4785L8.06544 9.11444L13.4731 18.4785H2.65779Z"
+            />
+          </g>
+        </svg>
+        <span>Percona Server for MongoDB</span>
+      </a>
+      <nav class="peak-nav">
+        <a href="/percona-server-mongodb/pr-preview/pr-2277/" data-nav="fork">Fork status</a>
+        <a href="/percona-server-mongodb/pr-preview/pr-2277/cve-status.html" data-nav="cve"
+          >CVE status</a
+        >
+        <a href="/percona-server-mongodb/pr-preview/pr-2277/openvex.html" data-nav="openvex"
+          >OpenVEX</a
+        >
+        <a href="https://github.com/percona/percona-server-mongodb">GitHub</a>
+      </nav>
+    </header>
+    <main class="peak-main"><div
+  id="openvex"
+  data-base="/percona-server-mongodb/pr-preview/pr-2277"
+  data-files="openvex.json percona-server-mongodb-7.0.39-21.vex.json percona-server-mongodb-7.0.40-22.vex.json percona-server-mongodb-7.0.43-23.vex.json percona-server-mongodb-8.0.28-12.vex.json percona-server-mongodb-8.0.29-13.vex.json percona-server-mongodb-8.0.32-14.vex.json percona-server-mongodb-8.3.11-3.vex.json percona-server-mongodb-8.3.7-1.openvex.json percona-server-mongodb-8.3.7-1.vex.json percona-server-mongodb-8.3.8-2.vex.json "
+>
+  <section id="vex-list">
+    <h2 class="branch-title">OpenVEX documents</h2>
+    <p class="cve-intro">
+      <a href="https://openvex.dev/">OpenVEX</a> documents published for Percona
+      Server for MongoDB releases. Each statement says whether a vulnerability
+      reported for a bundled component affects the release. Open a document to
+      read its statements, or view the raw JSON file.
+    </p>
+    <p class="last-updated" id="vex-list-meta">Loading&hellip;</p>
+    <div class="cve-table-wrap">
+      <table class="cve-table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th class="num">Statements</th>
+            <th>Statuses</th>
+            <th>Published</th>
+            <th>Version</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="vex-doc" hidden>
+    <p class="cve-back">
+      <a href="/percona-server-mongodb/pr-preview/pr-2277/openvex.html">&larr; All documents</a>
+    </p>
+    <h2 class="branch-title" id="vex-title">OpenVEX document</h2>
+    <p class="last-updated" id="vex-doc-meta"></p>
+
+    <div class="vex-toolbar">
+      <div class="cve-tabs" role="tablist">
+        <button class="cve-tab" role="tab" data-view="formatted">
+          Formatted
+        </button>
+        <button class="cve-tab" role="tab" data-view="raw">Raw JSON</button>
+      </div>
+      <div class="vex-actions">
+        <a class="peak-button" id="vex-open-raw" target="_blank" rel="noopener"
+          >Open raw file</a
+        >
+        <a class="peak-button" id="vex-download" download>Download</a>
+      </div>
+    </div>
+
+    <div id="vex-formatted">
+      <div class="cve-filters">
+        <label
+          >Status
+          <select id="vex-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label
+          >Search
+          <input
+            id="vex-search"
+            type="search"
+            placeholder="CVE ID, product or text"
+        /></label>
+      </div>
+      <p class="cve-count" id="vex-count"></p>
+      <div class="cve-table-wrap">
+        <table class="cve-table vex-statements">
+          <thead>
+            <tr>
+              <th>Vulnerability</th>
+              <th>Status</th>
+              <th>Products</th>
+              <th>Statement</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="vex-raw" hidden>
+      <div class="vex-raw-actions">
+        <button type="button" class="peak-button" id="vex-copy">
+          Copy JSON
+        </button>
+      </div>
+      <pre class="vex-json"><code id="vex-json"></code></pre>
+    </div>
+  </section>
+</div>
+
+<script src="/percona-server-mongodb/pr-preview/pr-2277/assets/js/openvex.js"></script>
+</main>
+    <script>
+      document
+        .querySelectorAll(
+          '.peak-nav a[data-nav="' + document.body.dataset.nav + '"]',
+        )
+        .forEach(function (a) {
+          a.setAttribute("aria-current", "page");
+        });
+    </script>
+  </body>
+</html>
