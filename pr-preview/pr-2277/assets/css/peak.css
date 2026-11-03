@@ -1047,3 +1047,47 @@ a.sev-unknown {
 [hidden] {
   display: none !important;
 }
+
+/* Severity icons (Peak StatusIcon glyphs) */
+.sev-icon {
+  fill: currentColor;
+  flex: none;
+  height: 14px;
+  width: 14px;
+}
+
+.sev-head {
+  align-items: center;
+  cursor: help;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.sev-head.sev-critical .sev-icon {
+  color: var(--sev-critical);
+}
+.sev-head.sev-high .sev-icon {
+  color: var(--sev-high);
+}
+.sev-head.sev-medium .sev-icon {
+  color: var(--sev-medium);
+}
+.sev-head.sev-low .sev-icon {
+  color: var(--sev-low);
+}
+.sev-head.sev-negligible .sev-icon,
+.sev-head.sev-unknown .sev-icon {
+  color: var(--sev-neutral);
+}
+
+.sev-badge {
+  align-items: center;
+  cursor: help;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.sev-badge .sev-icon {
+  height: 12px;
+  width: 12px;
+}
