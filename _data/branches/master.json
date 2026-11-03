@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 16,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.65358341976852,
-    "files_affected": 148,
-    "total_additions": 4277,
-    "total_deletions": 2929,
+    "commits_behind": 46,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.26842948099537,
+    "files_affected": 275,
+    "total_additions": 11770,
+    "total_deletions": 2163,
     "date_range": {
       "first": "2026-10-23T23:41:42+00:00",
-      "last": "2026-10-26T14:47:08+00:00"
+      "last": "2026-10-26T21:59:18+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,309 @@
   },
   "gate": {
     "open": true,
-    "reason": "max_age (9.7d >= 2d)"
+    "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "e37ae17db503703515d2ec35f6793dee7651655f",
+      "short_sha": "e37ae17db50",
+      "date": "2026-10-26T21:59:18+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 992bc60789a33497d805ffaa5be7ae7b92f3dcc6 from branch mongodb-master (#65219)"
+    },
+    {
+      "sha": "ba2494ad5b04072e9768a0c60ec301e40edf2991",
+      "short_sha": "ba2494ad5b0",
+      "date": "2026-10-26T21:33:26+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-137921: Publish hashed sysroots when rebuilding remote execution containers (#65264)"
+    },
+    {
+      "sha": "20745ca5b466f41f9a4a4fc683e78591d69f7d9f",
+      "short_sha": "20745ca5b46",
+      "date": "2026-10-26T21:23:00+00:00",
+      "author": {
+        "name": "Wenqin",
+        "email": "wenqinYe@users.noreply.github.com"
+      },
+      "summary": "SERVER-137806 Analyze shard key background hook should not try to analyze system collections (including temporary resharding collection) (#65135)"
+    },
+    {
+      "sha": "e17a512ebc917b0c8a043b64ee944c9583c5fb26",
+      "short_sha": "e17a512ebc9",
+      "date": "2026-10-26T21:08:28+00:00",
+      "author": {
+        "name": "Vedant Sharda",
+        "email": "214675261+vedantsharda373@users.noreply.github.com"
+      },
+      "summary": "SERVER-135128 Change SBE to check for duplicates in roaring bitmap before inserting (#64626)"
+    },
+    {
+      "sha": "5c5ae6dfef7ed5c2652c502a7de4c0824a3909c2",
+      "short_sha": "5c5ae6dfef7",
+      "date": "2026-10-26T20:55:46+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-137881: Resubmit production toolchain provenance with macOS unwind fix (#65194)"
+    },
+    {
+      "sha": "8521f309facbd3545e79148b87bfc5c837296ad8",
+      "short_sha": "8521f309fac",
+      "date": "2026-10-26T20:43:49+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-135372 Flush per-batch multikey catalog writes in the pipelined oplog applier before publishing lastApplied (#64785)"
+    },
+    {
+      "sha": "559a2bba0879ab8ed38e8215c6c8100bcff4db9a",
+      "short_sha": "559a2bba087",
+      "date": "2026-10-26T20:14:26+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-134780 Implement POA backpressure on total in-flight batches and bytes (#63649)"
+    },
+    {
+      "sha": "ec4332d345e8b681880a8267531b1ee4805242dd",
+      "short_sha": "ec4332d345e",
+      "date": "2026-10-26T19:15:19+00:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-137554 Back off between migration recipient retries (#65142)"
+    },
+    {
+      "sha": "3470e4c1524125479f10d73ddfd45943a5f81b74",
+      "short_sha": "3470e4c1524",
+      "date": "2026-10-26T18:47:22+00:00",
+      "author": {
+        "name": "Saman Memaripour",
+        "email": "amirsaman.memaripour@mongodb.com"
+      },
+      "summary": "SERVER-121956 Rewind the initial sync fetch start to the sync source's initiating set entry (#63664)"
+    },
+    {
+      "sha": "6a504e658960c7b57b9a4f7d69d9456c359b2bac",
+      "short_sha": "6a504e65896",
+      "date": "2026-10-26T18:46:09+00:00",
+      "author": {
+        "name": "Sam Goodrick",
+        "email": "sam.goodrick@mongodb.com"
+      },
+      "summary": "SERVER-111828: Add counters tracking connections closed with reasons (#63853)"
+    },
+    {
+      "sha": "a86965989315410bc9c87e8c65eb8f76820e7760",
+      "short_sha": "a8696598931",
+      "date": "2026-10-26T18:42:32+00:00",
+      "author": {
+        "name": "Neil Veira",
+        "email": "neil.veira@mongodb.com"
+      },
+      "summary": "SERVER-136663: Fix scripting_legacy_mozjs_tests in debug mode (#64833)"
+    },
+    {
+      "sha": "b763a3db12bcfc8296e9ccbf710067cfc86d5ac8",
+      "short_sha": "b763a3db12b",
+      "date": "2026-10-26T18:21:04+00:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-137730 Split migration recipient recovery out of _migrateDriver (#65141)"
+    },
+    {
+      "sha": "d9c15f8416f0731b862c12c72b305280579a633f",
+      "short_sha": "d9c15f8416f",
+      "date": "2026-10-26T18:20:54+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-136519 Drain prepared index side writes in order (#64815)"
+    },
+    {
+      "sha": "603718ceed74dc537a8d2a26666ac12722c3502f",
+      "short_sha": "603718ceed7",
+      "date": "2026-10-26T18:20:53+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137414 Capture initial index build drain tails (#64800)"
+    },
+    {
+      "sha": "06eb2d9e33970dd80e4cb0679205ba2017c1112a",
+      "short_sha": "06eb2d9e339",
+      "date": "2026-10-26T18:20:51+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137400 Introduce explicit index build drain phase plumbing (#64788)"
+    },
+    {
+      "sha": "e2d459ca746fd416f5f015485ee09038fd28d84a",
+      "short_sha": "e2d459ca746",
+      "date": "2026-10-26T18:20:50+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137220 Preserve recovered multikey state on callback errors (#64686)"
+    },
+    {
+      "sha": "69cc0a531c900d6964fa24112f8ecb59913cbaf2",
+      "short_sha": "69cc0a531c9",
+      "date": "2026-10-26T18:20:48+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137219 Add throwing prepare conflict behavior (#64595)"
+    },
+    {
+      "sha": "1843c7006599ee57fd5425376d47ad2d128d1dd5",
+      "short_sha": "1843c700659",
+      "date": "2026-10-26T18:20:47+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137364 Add prepare conflict error code (#64719)"
+    },
+    {
+      "sha": "3727452172f81d4c4fe70c45e2471806d3327ff1",
+      "short_sha": "3727452172f",
+      "date": "2026-10-26T18:20:45+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137363 Decouple prepare conflict settings from enum layout (#64718)"
+    },
+    {
+      "sha": "821e7bfb39f2b0900cc1a92351c5ba16efb0300e",
+      "short_sha": "821e7bfb39f",
+      "date": "2026-10-26T18:20:44+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137362 Separate prepare conflict counting from waiting (#64717)"
+    },
+    {
+      "sha": "406814499a02e6c387480ba1cb1d38d16b6ea996",
+      "short_sha": "406814499a0",
+      "date": "2026-10-26T18:20:42+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-137218 Expose prepare-resolution notification waits on RU (#64592)"
+    },
+    {
+      "sha": "fe2c5d98dccd774b72e2d40c88198317587b5a58",
+      "short_sha": "fe2c5d98dcc",
+      "date": "2026-10-26T17:42:36+00:00",
+      "author": {
+        "name": "Andrew Bradshaw",
+        "email": "andrew.bradshaw@mongodb.com"
+      },
+      "summary": "SERVER-137901: Dont run certain tests on s390x and ppc (#65245)"
+    },
+    {
+      "sha": "700000fb153984863bb63decb562c3bc53d6b68d",
+      "short_sha": "700000fb153",
+      "date": "2026-10-26T17:34:02+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-136557 Omit oplog size and count from per-collection validation (#65210)"
+    },
+    {
+      "sha": "9077f5ec4f3d11cda5866ec622c7337e083cc015",
+      "short_sha": "9077f5ec4f3",
+      "date": "2026-10-26T17:16:53+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-137294 Shutdown ReplicatedFastCountManager on stepdown unconditionally (#65115)"
+    },
+    {
+      "sha": "32fd6c7f46388ca2d9f9c5af314267dcb4c4cb74",
+      "short_sha": "32fd6c7f463",
+      "date": "2026-10-26T17:13:35+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-137799 Restore release package hash checks with portable tests (#65192)"
+    },
+    {
+      "sha": "b3c2d7c325cea00d927bc9fc286fc988c805d221",
+      "short_sha": "b3c2d7c325c",
+      "date": "2026-10-26T16:45:14+00:00",
+      "author": {
+        "name": "Asher Garvens",
+        "email": "124481151+ashergarvens@users.noreply.github.com"
+      },
+      "summary": "SERVER-134727 Add OTel counters for egress DNS and SSL operations (#64611)"
+    },
+    {
+      "sha": "bf2a332717594fe8dc3a4a79cc7baa769ce9d3ef",
+      "short_sha": "bf2a3327175",
+      "date": "2026-10-26T16:39:50+00:00",
+      "author": {
+        "name": "Logan Karbiner",
+        "email": "lkarbiner@users.noreply.github.com"
+      },
+      "summary": "SERVER-126499 Fix tripwire assertion in express executor when dealing with ObjectId or DBRef (#64447)"
+    },
+    {
+      "sha": "49c07158b9d406ad78c0d2bcc41a1cb850df8be0",
+      "short_sha": "49c07158b9d",
+      "date": "2026-10-26T16:35:39+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-137889: Bump mongo-task-generator to v3.10.0 (#65126)"
+    },
+    {
+      "sha": "a16b006b774d5500c984302f4f7a9fb7a7179675",
+      "short_sha": "a16b006b774",
+      "date": "2026-10-26T15:47:14+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-137791 Prevent deletes from being split from applyOps in version_context_oplog_entries.js. (#65114)"
+    },
+    {
+      "sha": "85dfd890ccdcce96f6fa946c841e03016027e5f6",
+      "short_sha": "85dfd890ccd",
+      "date": "2026-10-26T15:30:05+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-137002 Add tassert to ensure solution coexists with plan hash (#65209)"
+    },
     {
       "sha": "f969d096e26e4965bc1562c3b39768243fb34961",
       "short_sha": "f969d096e26",
@@ -225,10 +525,52 @@
           "num_of_dirs": 17
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "3470e4c1524125479f10d73ddfd45943a5f81b74",
+        "short_sha": "3470e4c1524",
+        "date": "2026-10-26T18:47:22+00:00",
+        "author": {
+          "name": "Saman Memaripour",
+          "email": "amirsaman.memaripour@mongodb.com"
+        },
+        "summary": "SERVER-121956 Rewind the initial sync fetch start to the sync source's initiating set entry (#63664)"
+      },
+      "strategy_name": "important_files",
+      "result": {
+        "matched_files": [
+          "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+          "src/mongo/db/repl/initial_sync/initial_syncer.h"
+        ]
+      }
+    },
+    {
+      "commit": {
+        "sha": "e37ae17db503703515d2ec35f6793dee7651655f",
+        "short_sha": "e37ae17db50",
+        "date": "2026-10-26T21:59:18+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 992bc60789a33497d805ffaa5be7ae7b92f3dcc6 from branch mongodb-master (#65219)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 14,
+          "num_of_lines": 1294,
+          "lines_added": 593,
+          "lines_deleted": 701,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-02 15:22:41",
+  "generated_at": "2026-11-03 06:07:47",
   "branch_name": "master",
   "display_name": "master"
 }
