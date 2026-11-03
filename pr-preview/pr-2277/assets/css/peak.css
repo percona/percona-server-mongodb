@@ -1154,3 +1154,89 @@ a.pill:hover {
 .sev-legend .cve-count {
   margin: 8px 0 0;
 }
+
+.pill-error {
+  background: var(--error-tint);
+  border-color: var(--error-line);
+  color: var(--error);
+}
+
+/* CVE lookup */
+.lookup-series {
+  display: grid;
+  gap: 16px;
+}
+
+.lookup-card {
+  background: var(--surface-1);
+  border: 1px solid var(--contour);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.lookup-card h3 {
+  align-items: center;
+  display: flex;
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 600;
+  gap: 10px;
+  margin: 0 0 4px;
+}
+
+.lookup-card .cve-count {
+  margin: 0 0 12px;
+}
+
+.lookup-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lookup-step {
+  border: 1px solid var(--contour);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 9em;
+  padding: 6px 10px;
+}
+
+.lookup-step:hover {
+  background: var(--hover);
+  text-decoration: none;
+}
+
+.lookup-version {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.lookup-state {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.lookup-step.state-open {
+  border-left-color: var(--error);
+}
+.lookup-step.state-fixed {
+  border-left-color: var(--success);
+}
+.lookup-step.state-not_affected {
+  border-left-color: var(--divider-strong);
+}
+.lookup-step.state-not_matched {
+  border-left-color: var(--success-line);
+}
+.lookup-step.state-open-novex {
+  border-left-color: var(--warning-line);
+}
