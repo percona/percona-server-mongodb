@@ -1091,3 +1091,66 @@ a.sev-unknown {
   height: 12px;
   width: 12px;
 }
+
+/* Pills (Peak small chips) */
+.pill {
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.0075rem;
+  line-height: 1.25;
+  padding: 1px 8px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+a.pill:hover {
+  text-decoration: none;
+  filter: brightness(0.95);
+}
+
+.pill-warning {
+  background: var(--warning-tint);
+  border-color: var(--warning-line);
+  color: var(--warning);
+}
+
+.pill.vex-fixed {
+  background: var(--success-tint);
+  border-color: var(--success-line);
+  color: var(--success);
+}
+
+.pill.vex-not_affected {
+  background: var(--chip-neutral-bg);
+  border-color: var(--divider);
+  color: var(--chip-neutral-fg);
+}
+
+/* Keep the VEX pill readable on dimmed addressed-by-VEX rows */
+.cve-suppressed td.cve-fix {
+  opacity: 1;
+}
+
+/* Severity legend */
+.sev-legend {
+  margin: 0 0 24px;
+}
+
+.sev-legend summary {
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.sev-legend .cve-table td:last-child {
+  color: var(--text-secondary);
+}
+
+.sev-legend .cve-count {
+  margin: 8px 0 0;
+}
