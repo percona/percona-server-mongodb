@@ -1,0 +1,67 @@
+---
+layout: peak
+title: CVE Lookup
+nav: cve
+---
+
+<p class="cve-back">
+  <a href="{{ '/cve-status.html' | relative_url }}">&larr; All releases</a>
+</p>
+
+<div id="cve-lookup" data-base="{{ site.baseurl }}">
+  <section id="lookup-list">
+    <h2 class="branch-title">CVE fix lookup</h2>
+    <p class="last-updated" id="cve-meta">Loading&hellip;</p>
+    <p class="cve-intro">
+      The first Percona Server for MongoDB release of each series that no longer
+      has the CVE. A CVE counts as fixed from the release where the scan stops
+      finding it (the affected component was upgraded) or where the release's
+      OpenVEX document marks it fixed (the fix was backported), as long as it
+      stays that way in every later release. Only releases with an SBOM are
+      covered (8.0.28-12, 7.0.39-21 and later).
+    </p>
+    <div class="cve-filters">
+      <label
+        >Search
+        <input id="lookup-search" type="search" placeholder="CVE ID or text"
+      /></label>
+      <label
+        >Severity
+        <select id="lookup-severity">
+          <option value="">All</option>
+          <option>Critical</option>
+          <option>High</option>
+          <option>Medium</option>
+          <option>Low</option>
+          <option>Negligible</option>
+          <option>Unknown</option>
+        </select>
+      </label>
+      <label
+        >Status
+        <select id="lookup-status">
+          <option value="">All</option>
+          <option value="open">Not fixed yet in a series</option>
+          <option value="fixed">Fixed in a series</option>
+          <option value="not_affected">Not affected in a series</option>
+        </select>
+      </label>
+    </div>
+    <p class="cve-count" id="lookup-count"></p>
+    <div class="cve-table-wrap">
+      <table class="cve-table lookup-results">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="lookup-cve" hidden>
+    <h2 class="branch-title" id="lookup-title">CVE</h2>
+    <p class="last-updated" id="lookup-cve-meta"></p>
+    <p class="cve-intro" id="lookup-description"></p>
+    <div class="lookup-series"></div>
+  </section>
+</div>
+
+<script src="{{ '/assets/js/cve-status.js' | relative_url }}"></script>
