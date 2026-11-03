@@ -1240,3 +1240,17 @@ a.pill:hover {
 .lookup-step.state-open-novex {
   border-left-color: var(--warning-line);
 }
+
+/* Release notes links */
+.notes-link {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.cve-links {
+  white-space: nowrap;
+}
+
+.cve-links .notes-link {
+  font-size: inherit;
+}
