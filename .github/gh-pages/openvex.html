@@ -1,0 +1,104 @@
+---
+layout: peak
+title: OpenVEX
+nav: openvex
+---
+
+<div
+  id="openvex"
+  data-base="{{ site.baseurl }}"
+  data-files="{% for f in site.static_files %}{% assign dir = f.path | slice: 0, 5 %}{% if dir == '/vex/' and f.extname == '.json' %}{{ f.name }} {% endif %}{% endfor %}"
+>
+  <section id="vex-list">
+    <h2 class="branch-title">OpenVEX documents</h2>
+    <p class="cve-intro">
+      <a href="https://openvex.dev/">OpenVEX</a> documents published for Percona
+      Server for MongoDB releases. Each statement says whether a vulnerability
+      reported for a bundled component affects the release. Open a document to
+      read its statements, or view the raw JSON file.
+    </p>
+    <p class="last-updated" id="vex-list-meta">Loading&hellip;</p>
+    <div class="cve-table-wrap">
+      <table class="cve-table">
+        <thead>
+          <tr>
+            <th>Document</th>
+            <th class="num">Statements</th>
+            <th>Statuses</th>
+            <th>Published</th>
+            <th>Version</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="vex-doc" hidden>
+    <p class="cve-back">
+      <a href="{{ '/openvex.html' | relative_url }}">&larr; All documents</a>
+    </p>
+    <h2 class="branch-title" id="vex-title">OpenVEX document</h2>
+    <p class="last-updated" id="vex-doc-meta"></p>
+
+    <div class="vex-toolbar">
+      <div class="cve-tabs" role="tablist">
+        <button class="cve-tab" role="tab" data-view="formatted">
+          Formatted
+        </button>
+        <button class="cve-tab" role="tab" data-view="raw">Raw JSON</button>
+      </div>
+      <div class="vex-actions">
+        <a class="peak-button" id="vex-open-raw" target="_blank" rel="noopener"
+          >Open raw file</a
+        >
+        <a class="peak-button" id="vex-download" download>Download</a>
+      </div>
+    </div>
+
+    <div id="vex-formatted">
+      <div class="cve-filters">
+        <label
+          >Status
+          <select id="vex-status">
+            <option value="">All</option>
+          </select>
+        </label>
+        <label
+          >Search
+          <input
+            id="vex-search"
+            type="search"
+            placeholder="CVE ID, product or text"
+        /></label>
+      </div>
+      <p class="cve-count" id="vex-count"></p>
+      <div class="cve-table-wrap">
+        <table class="cve-table vex-statements">
+          <thead>
+            <tr>
+              <th>Vulnerability</th>
+              <th>Status</th>
+              <th>Products</th>
+              <th>Statement</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="vex-raw" hidden>
+      <div class="vex-raw-actions">
+        <button type="button" class="peak-button" id="vex-copy">
+          Copy JSON
+        </button>
+      </div>
+      <pre class="vex-json"><code id="vex-json"></code></pre>
+    </div>
+  </section>
+</div>
+
+<script src="{{ '/assets/js/openvex.js' | relative_url }}"></script>

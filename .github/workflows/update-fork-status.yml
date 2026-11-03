@@ -80,9 +80,10 @@ jobs:
           echo "Successfully generated status JSON:"
           jq '.' "$OUTPUT_FILE"
 
-      - name: Copy OpenVEX files
+      - name: Copy site sources and OpenVEX files
         run: |
           set -euo pipefail
+          cp -r .github/gh-pages/. gh-pages-data/
           mkdir -p gh-pages-data/vex
           cp -r vex/. gh-pages-data/vex/
 

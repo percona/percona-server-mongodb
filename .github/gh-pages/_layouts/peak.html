@@ -10,12 +10,9 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
     />
-    <link
-      rel="stylesheet"
-      href="{{ '/assets/css/cve-status.css' | relative_url }}"
-    />
+    <link rel="stylesheet" href="{{ '/assets/css/peak.css' | relative_url }}" />
   </head>
-  <body>
+  <body data-nav="{{ page.nav }}">
     <header class="peak-header">
       <a class="peak-brand" href="{{ '/' | relative_url }}">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -28,13 +25,25 @@
         <span>Percona Server for MongoDB</span>
       </a>
       <nav class="peak-nav">
-        <a href="{{ '/' | relative_url }}">Fork status</a>
-        <a href="{{ '/cve-status.html' | relative_url }}" aria-current="page"
+        <a href="{{ '/' | relative_url }}" data-nav="fork">Fork status</a>
+        <a href="{{ '/cve-status.html' | relative_url }}" data-nav="cve"
           >CVE status</a
+        >
+        <a href="{{ '/openvex.html' | relative_url }}" data-nav="openvex"
+          >OpenVEX</a
         >
         <a href="https://github.com/percona/percona-server-mongodb">GitHub</a>
       </nav>
     </header>
     <main class="peak-main">{{ content }}</main>
+    <script>
+      document
+        .querySelectorAll(
+          '.peak-nav a[data-nav="' + document.body.dataset.nav + '"]',
+        )
+        .forEach(function (a) {
+          a.setAttribute("aria-current", "page");
+        });
+    </script>
   </body>
 </html>
