@@ -83,6 +83,9 @@ def _version_actions_test_impl(ctx):
     argv = generator.argv
     asserts.equals(env, "macOS" if ctx.attr.macos_cross else "linux", argv[argv.index("--target-os") + 1])
     if ctx.attr.macos_cross:
+        link_probe = [action for action in probes if action.mnemonic == "CppLink"][0]
+        flags = json.decode(link_probe.argv[link_probe.argv.index("--flags") + 1])
+        asserts.true(env, "-Wl,-dead_strip" in flags, "macOS LLD must remove empty sections before generating unwind info")
         asserts.equals(env, "arm64", argv[argv.index("--target-arch") + 1])
         asserts.equals(env, "cross", argv[argv.index("--toolchain-mode") + 1])
     return analysistest.end(env)
@@ -104,10 +107,13 @@ def _macos_cross_compile_flags_test_impl(ctx):
     env = analysistest.begin(ctx)
     actions = analysistest.target_under_test(env)[_LinkActionsInfo].actions
     compiles = [action for action in actions if action.mnemonic == "CppCompile"]
-    asserts.equals(env, 1, len(compiles))
-    flags = compiles[0].argv
-    asserts.true(env, "-Werror" in flags, "Cross builds must retain warnings as errors")
-    asserts.false(env, "-Wno-character-conversion" in flags, "LLVM 19 does not support this warning")
+    asserts.true(env, len(compiles) > 0, "Expected compile actions for the cross-build fixture")
+
+    # The fixture can produce both PIC and non-PIC objects; check both actions.
+    for action in compiles:
+        flags = action.argv
+        asserts.true(env, "-Werror" in flags, "Cross builds must retain warnings as errors")
+        asserts.false(env, "-Wno-character-conversion" in flags, "LLVM 19 does not support this warning")
     return analysistest.end(env)
 
 macos_cross_compile_flags_analysis_test = analysistest.make(

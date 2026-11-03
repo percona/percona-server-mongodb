@@ -38,13 +38,21 @@ def should_require_production_toolchain(environment: dict[str, str]) -> bool:
             )
         )
     )
-    for index, flag in enumerate(flags):
-        config = flag.removeprefix("--config=")
-        if flag == "--config" and index + 1 < len(flags):
-            config = flags[index + 1]
+    options = iter(flags)
+    for flag in options:
+        if flag == "--":
+            break
+        if flag.startswith("--config="):
+            config = flag.removeprefix("--config=")
+        elif flag == "--config":
+            config = next(options, "")
+        else:
+            config = ""
         if config in {"public-release", "public-release-local", "public-release-rbe"}:
             return True
         if flag == "--define=MONGO_PRODUCTION_RELEASE=1":
+            return True
+        if flag == "--define" and next(options, "") == "MONGO_PRODUCTION_RELEASE=1":
             return True
     if environment.get("MONGO_VERSION_OVERRIDE"):
         return True

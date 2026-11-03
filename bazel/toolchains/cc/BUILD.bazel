@@ -7,10 +7,30 @@ libcxx_vendor_availability_test(
     name = "libcxx_vendor_availability_test",
 )
 
+py_test(
+    name = "macos_unwind_test",
+    size = "small",
+    srcs = ["macos_unwind_test.py"],
+    args = [
+        "$(rootpath @mongo_toolchain_v5//:v5/bin/clang)",
+        "$(rootpath @mongo_toolchain_v5//:v5/bin/ld64.lld)",
+        "$(rootpath @mongo_toolchain_v5//:v5/bin/llvm-objdump)",
+    ],
+    data = [
+        "macos_link_flags.bzl",
+        "@mongo_toolchain_v5//:v5/bin/clang",
+        "@mongo_toolchain_v5//:v5/bin/ld64.lld",
+        "@mongo_toolchain_v5//:v5/bin/llvm-objdump",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
 exports_files([
     "container_action.py",
     "container_engine.py",
     "container_mounts.py",
+    "libcxx_config.bzl",
+    "macos_link_flags.bzl",
 ])
 
 py_library(

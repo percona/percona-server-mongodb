@@ -141,6 +141,12 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.network.egress.numRequests");
     static constexpr MetricName kNetworkEgressConnectionsCreated =
         MetricNameMaker::make("mongodb.network.egress.connections_created");
+    static constexpr MetricName kNetworkEgressConnectionsClosed =
+        MetricNameMaker::make("mongodb.network.egress.connections_closed");
+    static constexpr MetricName kNetworkEgressResolutionOperations =
+        MetricNameMaker::make("mongodb.network.egress.resolution_operations");
+    static constexpr MetricName kNetworkEgressSSLOperations =
+        MetricNameMaker::make("mongodb.network.egress.ssl_operations");
     static constexpr MetricName kNetworkCompressionIngressCompressorBytesIn = MetricNameMaker::make(
         "mongodb.serverStatus.network.compression.ingress.compressor.bytesIn");
     static constexpr MetricName kNetworkCompressionIngressCompressorBytesOut =
@@ -780,6 +786,19 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.metrics.repl.initialSync.failures");
     static constexpr MetricName kInitialSyncCompleted =
         MetricNameMaker::make("mongodb.serverStatus.metrics.repl.initialSync.completed");
+    static constexpr MetricName kInitialSyncInitiatingSetRewindRewound = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.repl.initialSync.initiatingSetRewind.rewound");
+    static constexpr MetricName kInitialSyncInitiatingSetRewindSkippedTooOld =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.repl.initialSync.initiatingSetRewind.skippedTooOld");
+    static constexpr MetricName kInitialSyncInitiatingSetRewindOldestEntryParseFailures =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.repl.initialSync.initiatingSetRewind."
+            "oldestEntryParseFailures");
+    static constexpr MetricName kInitialSyncInitiatingSetRewindDisabledAfterFailedAttempt =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.repl.initialSync.initiatingSetRewind."
+            "disabledAfterFailedAttempt");
     static constexpr MetricName kReplNetworkBytes =
         MetricNameMaker::make("mongodb.serverStatus.metrics.repl.network.bytes");
     static constexpr MetricName kReplNetworkBytesSent =

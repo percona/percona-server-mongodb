@@ -42,7 +42,11 @@ def linker_from_trace(trace: str) -> str:
     for line in reversed(trace.splitlines()):
         if not line.startswith(" "):
             continue
-        command = shlex.split(line)
+        try:
+            command = shlex.split(line)
+        except ValueError:
+            # Diagnostics in the combined trace need not use shell quoting.
+            continue
         if command and re.fullmatch(
             r"(?:.*-)?(?:ld(?:\.(?:lld|mold|bfd|gold))?|ld64\.lld|gold|mold|lld)",
             Path(command[0]).name,

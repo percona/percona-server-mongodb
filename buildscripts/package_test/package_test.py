@@ -34,14 +34,13 @@ from buildscripts.package_test.package_test_commands import (
 )
 from buildscripts.package_test.package_test_internal import write_compressed_text_file
 from buildscripts.package_test.package_test_provenance import (
+    CRYPT_RELEASE_BINARY_NAMES,
     RELEASE_BINARY_NAMES,
-    TOOLCHAIN_PROVENANCE_ARTIFACT_NAME,
     combine_execution_log_validation_summaries,
     create_release_binary_provenance_from_archive_dist_test,
     extract_file_from_tar_by_basename,
     fetch_release_binary_provenance_from_tasks,
     fetch_release_execution_log_from_tasks,
-    fetch_task_artifact_text,
     fetch_task_artifact_to_file,
     find_build_task,
     find_task_artifact_url_with_retry,
@@ -52,6 +51,7 @@ from buildscripts.package_test.package_test_provenance import (
     validate_release_binary_provenance_against_archive,
     validate_release_binary_provenance_distro,
     validate_release_toolchain_provenance,
+    validate_task_toolchain_provenance,
 )
 from buildscripts.package_test.toolchain_versions import should_require_production_toolchain
 from buildscripts.resmokelib.utils import evergreen_conn
@@ -578,6 +578,7 @@ class Test:
     python_command: str = dataclasses.field(default="", repr=False)
     packages_urls: list[str] = dataclasses.field(default_factory=list)
     package_kind: str = "server"
+    release_binary_hashes: dict[str, str] | None = dataclasses.field(default=None, repr=False)
     packages_paths: list[Path] = dataclasses.field(default_factory=list)
     attempts: int = dataclasses.field(default=0)
 
@@ -767,6 +768,9 @@ def run_test(test: Test, client: DockerClient) -> Result:
             detach=True,
             user="root",
             volumes=volumes,
+            environment={"MONGO_RELEASE_BINARY_HASHES": json.dumps(test.release_binary_hashes)}
+            if test.release_binary_hashes is not None
+            else {},
         )
         for log in container.logs(stream=True):
             result["log_raw"] += log.decode("UTF-8")
@@ -1083,7 +1087,11 @@ branch_test_parser.add_argument(
 branch_test_parser.add_argument(
     "--release-binary-name",
     type=str,
-    help="Release binary basename to validate in provenance. May be specified more than once.",
+    help=(
+        "Release binary basename to validate in provenance. Overrides the defaults: "
+        "mongod and mongos for server packages, mongo_crypt_v1.so for crypt packages. "
+        "May be specified more than once."
+    ),
     action="append",
     default=None,
 )
@@ -1134,15 +1142,30 @@ if args.command == "branch":
     download_dir = Path(__file__).parent / "downloaded_packages"
     local_packages_path: Optional[Path] = None
     release_binary_provenance: Optional[str] = None
+    release_binary_hashes: dict[str, str] | None = None
     release_execution_logs: list[tuple[str, Path]] = []
     should_validate_provenance = (
         should_validate_package_build_provenance() and not args.skip_release_binary_provenance_check
     )
-    release_binary_names = args.release_binary_name or list(RELEASE_BINARY_NAMES)
+    release_binary_names = args.release_binary_name or list(
+        CRYPT_RELEASE_BINARY_NAMES if args.package_kind == "crypt_v1" else RELEASE_BINARY_NAMES
+    )
     if args.evg_build_id:
         local_packages_path = download_packages_from_build(
             args.evg_build_id, download_dir, args.evg_package_task_name
         )
+    build_task = None
+    if args.evg_build_id and not args.skip_release_binary_provenance_check:
+        evg_api = evergreen_conn.get_evergreen_api()
+        build_task_name = args.evg_binary_provenance_task_name
+        if (
+            should_validate_provenance
+            and not args.binary_provenance_file
+            and not is_server_release_project(os.environ.get("project"))
+            and build_task_name == "package"
+        ):
+            build_task_name = "archive_dist_test"
+        build_task = find_build_task(evg_api.tasks_by_build(args.evg_build_id), build_task_name)
     if should_validate_provenance:
         release_binary_provenance = get_release_binary_provenance_for_validation(
             args.binary_provenance_file,
@@ -1157,14 +1180,16 @@ if args.command == "branch":
             args.evg_binary_provenance_archive_artifact_name,
             download_dir,
         )
-        validate_release_binary_provenance_against_archive(
+        release_binary_hashes = validate_release_binary_provenance_against_archive(
             release_binary_provenance,
             release_binary_archive,
             args.evg_build_id,
             release_binary_names,
         )
         validate_release_toolchain_provenance(
-            release_binary_provenance, should_require_production_toolchain(os.environ)
+            release_binary_provenance,
+            should_require_production_toolchain(os.environ),
+            build_task=build_task,
         )
         logging.info(
             "Validated release binary provenance from %s hash(es) in %s",
@@ -1199,18 +1224,15 @@ if args.command == "branch":
             validate_release_toolchain_provenance(
                 Path(args.binary_provenance_file).read_text(),
                 should_require_production_toolchain(os.environ),
+                build_task=build_task,
             )
         elif args.evg_build_id:
-            tasks = evergreen_conn.get_evergreen_api().tasks_by_build(args.evg_build_id)
-            build_task = find_build_task(tasks, args.evg_binary_provenance_task_name)
-            toolchain = json.loads(
-                fetch_task_artifact_text(build_task, TOOLCHAIN_PROVENANCE_ARTIFACT_NAME)
-            )
-            validate_release_toolchain_provenance(
-                json.dumps({"toolchain": toolchain}),
+            validate_task_toolchain_provenance(
+                build_task,
+                lambda: evg_api.task_by_id(build_task.task_id),
                 should_require_production_toolchain(os.environ),
             )
-        else:
+        elif should_require_production_toolchain(os.environ):
             raise RuntimeError(
                 "Toolchain provenance validation requires --binary-provenance-file or --evg-build-id"
             )
@@ -1260,6 +1282,7 @@ if args.command == "branch":
                     version=args.server_version,
                     packages_urls=urls,
                     package_kind=args.package_kind,
+                    release_binary_hashes=release_binary_hashes,
                 )
             )
 

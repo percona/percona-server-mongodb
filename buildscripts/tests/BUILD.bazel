@@ -18,6 +18,7 @@ py_test(
     name = "test_toolchain_versions",
     size = "small",
     srcs = ["test_toolchain_versions.py"],
+    data = ["//evergreen:bazel_evergreen_shutils.sh"],
     deps = ["//buildscripts/package_test:toolchain_versions"],
 )
 
@@ -492,7 +493,10 @@ py_test(
 py_test(
     name = "test_package_test_provenance",
     srcs = ["test_package_test_provenance.py"],
-    data = ["//:.bazelversion"],
+    data = [
+        "//:.bazelversion",
+        "//buildscripts/package_test:all_python_files",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts:generate_bazel_spawn_pb2",
@@ -561,6 +565,11 @@ py_test(
 py_test(
     name = "test_create_todo_tickets",
     srcs = ["test_create_todo_tickets.py"],
+    target_compatible_with = select({
+        "@platforms//cpu:s390x": ["@platforms//:incompatible"],
+        "@platforms//cpu:ppc64le": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts:create_todo_tickets",

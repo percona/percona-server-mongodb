@@ -22,10 +22,14 @@ from google.protobuf.message import DecodeError
 
 from bazel.wrapper_hook.release_distro import validate_release_distro_id
 from buildscripts import bazel_spawn_pb2
-from buildscripts.package_test.toolchain_versions import validate_toolchain_versions
+from buildscripts.package_test.toolchain_versions import (
+    should_require_production_toolchain,
+    validate_toolchain_versions,
+)
 
 RELEASE_BINARY_PROVENANCE_ARTIFACT_NAME = "Release Binary Provenance"
 TOOLCHAIN_PROVENANCE_ARTIFACT_NAME = "Toolchain Provenance"
+BUILD_COMMAND_ARTIFACT_NAME = "Build Command"
 TOOLCHAIN_PROVENANCE_PATH = ".bazel_toolchain_provenance.json"
 RELEASE_EXECUTION_LOG_ARTIFACT_NAME = "Release Execution Log"
 RELEASE_BINARY_NAMES = ("mongod", "mongos")
@@ -148,10 +152,16 @@ def find_task_artifact_url_with_retry(
     )
 
 
-def fetch_task_artifact_text(task: Any, artifact_name: str) -> str:
+def fetch_task_artifact_text(
+    task: Any, artifact_name: str, refetch_task: Callable[[], Any] | None = None
+) -> str:
     """Fetch a text artifact from an Evergreen task."""
 
-    artifact_url = find_task_artifact_url(task, artifact_name)
+    artifact_url = (
+        find_task_artifact_url_with_retry(task, artifact_name, refetch_task)
+        if refetch_task is not None
+        else find_task_artifact_url(task, artifact_name)
+    )
     response = requests.get(artifact_url, timeout=300)
     response.raise_for_status()
     return response.text
@@ -272,12 +282,12 @@ def create_release_binary_provenance_from_archive_dist_test(
         "build_command": build_command,
         "binaries": hash_release_binaries_in_archive(binary_archive_path),
     }
-    if not has_windows_binaries(provenance["binaries"]):
+    validate_release_binary_provenance_distro(provenance, archive_task)
+    if not is_windows_build_distro(archive_task.distro_id):
         toolchain_path = extract_file_from_tar_by_basename(
             artifacts_path, TOOLCHAIN_PROVENANCE_PATH, download_dir
         )
         provenance["toolchain"] = json.loads(toolchain_path.read_text())
-    validate_release_binary_provenance_distro(provenance, archive_task)
     return json.dumps(provenance)
 
 
@@ -431,17 +441,57 @@ def _ensure_release_binary_hashes_complete(
     return hashes
 
 
-def has_windows_binaries(binaries: dict[str, dict[str, str]]) -> bool:
-    return any(binary["path"].endswith((".exe", ".dll")) for binary in binaries.values())
+def is_windows_build_distro(distro_id: str | None) -> bool:
+    """Identify Windows using independently obtained build-distro metadata."""
+    return isinstance(distro_id, str) and distro_id.removeprefix("release-").startswith("windows-")
+
+
+def validate_task_toolchain_provenance(
+    build_task: Any,
+    refetch_task: Callable[[], Any],
+    require_production: bool = False,
+) -> None:
+    """Validate a patch's toolchain with the primary build's command and distro."""
+    # Windows does not capture these artifacts yet. Only the Evergreen task's
+    # distro can grant this exemption, never a field in a supplied JSON file.
+    if is_windows_build_distro(build_task.distro_id):
+        return
+    build_command = fetch_task_artifact_text(build_task, BUILD_COMMAND_ARTIFACT_NAME, refetch_task)
+    toolchain = json.loads(
+        fetch_task_artifact_text(build_task, TOOLCHAIN_PROVENANCE_ARTIFACT_NAME, refetch_task)
+    )
+    validate_release_toolchain_provenance(
+        json.dumps(
+            {
+                "task_id": build_task.task_id,
+                "distro_id": build_task.distro_id,
+                "build_command": build_command,
+                "toolchain": toolchain,
+            }
+        ),
+        require_production,
+        build_task=build_task,
+    )
 
 
 def validate_release_toolchain_provenance(
-    provenance_text: str, require_production: bool = False
+    provenance_text: str, require_production: bool = False, *, build_task: Any = None
 ) -> None:
     """Recheck recorded tool versions for the current build's production packages."""
     provenance = json.loads(provenance_text)
-    if has_windows_binaries(provenance.get("binaries", {})):
-        return
+    if build_task is not None:
+        for key, actual in (("distro_id", build_task.distro_id), ("task_id", build_task.task_id)):
+            if provenance.get(key) != actual:
+                raise ValueError(
+                    f"Toolchain provenance {key} does not match Evergreen build task: {provenance.get(key)!r} != {actual!r}"
+                )
+        if is_windows_build_distro(build_task.distro_id):
+            return
+    build_command = provenance.get("build_command")
+    if isinstance(build_command, str):
+        require_production = require_production or should_require_production_toolchain(
+            {"bazel_args": build_command}
+        )
     toolchain = provenance.get("toolchain")
     if not isinstance(toolchain, dict):
         raise ValueError("Release binary provenance is missing a toolchain object")
@@ -476,7 +526,7 @@ def make_release_binary_provenance(
         "build_command": build_command,
         "binaries": hash_release_binaries_in_archive(dist_archive, binary_names),
     }
-    if toolchain_provenance_file is not None and not has_windows_binaries(provenance["binaries"]):
+    if toolchain_provenance_file is not None and not is_windows_build_distro(distro_id):
         provenance["toolchain"] = json.loads(toolchain_provenance_file.read_text())
         validate_release_toolchain_provenance(json.dumps(provenance))
     return provenance
@@ -528,13 +578,14 @@ def validate_release_binary_provenance_against_archive(
     archive_path: Path,
     expected_build_id: str | None = None,
     binary_names: Iterable[str] = RELEASE_BINARY_NAMES,
-) -> None:
-    """Validate command provenance and hashes for release binaries in an archive."""
+) -> dict[str, str]:
+    """Validate archive provenance and return the verified hashes for package installation checks."""
 
     actual_binaries = hash_release_binaries_in_archive(archive_path, binary_names)
     validate_release_binary_provenance_hashes(
         provenance_text, actual_binaries, expected_build_id, binary_names
     )
+    return {name: binary["sha256"] for name, binary in actual_binaries.items()}
 
 
 def validate_release_binary_provenance_hashes(

@@ -1,4 +1,8 @@
+import itertools
+import os
+import subprocess
 import unittest
+from pathlib import Path
 
 from buildscripts.package_test.toolchain_versions import (
     should_require_production_toolchain,
@@ -13,7 +17,11 @@ class ToolchainVersionsTest(unittest.TestCase):
                 with self.subTest(form=form):
                     self.assertTrue(
                         should_require_production_toolchain(
-                            {"is_patch": "true", "patch_compile_flags": form}
+                            {
+                                "is_patch": "true",
+                                "compiling_for_test": "true",
+                                "patch_compile_flags": form,
+                            }
                         )
                     )
         release = {"project": "mongodb-mongo-v9.0", "push_bucket": "downloads.10gen.com"}
@@ -22,8 +30,61 @@ class ToolchainVersionsTest(unittest.TestCase):
         self.assertFalse(
             should_require_production_toolchain(release | {"compiling_for_test": "true"})
         )
-        self.assertTrue(should_require_production_toolchain({"MONGO_VERSION_OVERRIDE": "9.0.0"}))
+        self.assertTrue(
+            should_require_production_toolchain(
+                {"MONGO_VERSION_OVERRIDE": "9.0.0", "compiling_for_test": "true"}
+            )
+        )
         self.assertTrue(should_require_production_toolchain({"release_rbe": "true"}))
+        self.assertFalse(should_require_production_toolchain({"is_release": "true"}))
+
+    def test_only_actual_options_require_production(self) -> None:
+        for flags in (
+            "public-release",
+            "--some_option public-release-local",
+            "--config=opt public-release-rbe",
+            "-- --config=public-release",
+        ):
+            with self.subTest(flags=flags):
+                self.assertFalse(should_require_production_toolchain({"bazel_args": flags}))
+        for flags in ("--define=MONGO_PRODUCTION_RELEASE=1", "--define MONGO_PRODUCTION_RELEASE=1"):
+            self.assertTrue(should_require_production_toolchain({"bazel_args": flags}))
+
+    def test_auto_selection_matches_compile_wrapper(self) -> None:
+        helper = Path(__file__).resolve().parents[2] / "evergreen/bazel_evergreen_shutils.sh"
+        keys = (
+            "project",
+            "is_release",
+            "compiling_for_test",
+            "release_rbe",
+            "is_patch",
+            "push_bucket",
+        )
+        for values in itertools.product(
+            ("mongodb-mongo-master", "mongodb-mongo-master-nightly"),
+            ("true", "false"),
+            ("true", "false"),
+            ("true", "false"),
+            ("true", "false"),
+            ("downloads", ""),
+        ):
+            environment = dict(zip(keys, values))
+            with self.subTest(environment=environment):
+                flags = subprocess.check_output(
+                    [
+                        "bash",
+                        "-c",
+                        'source "$1"; bazel_evergreen_shutils::maybe_release_flag ""',
+                        "bash",
+                        str(helper),
+                    ],
+                    env={**os.environ, **environment, "MONGO_VERSION_OVERRIDE": ""},
+                    text=True,
+                )
+                self.assertEqual(
+                    "--config=public-release" in flags,
+                    should_require_production_toolchain(environment),
+                )
 
     def test_shipped_policy_contains_exact_versions_for_every_entry(self):
         import json

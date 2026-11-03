@@ -15,6 +15,7 @@ load(
     "variable_with_value",
 )
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
+load("//bazel/toolchains/cc:macos_link_flags.bzl", "MACOS_LLD_LINK_FLAGS")
 load(
     "//bazel/toolchains/cc:mongo_custom_features.bzl",
     "get_common_features",
@@ -196,7 +197,7 @@ def _impl(ctx):
         "-B" + prefix + "/tools",
         "-fuse-ld=lld",
         "-Wl,-platform_version,macos," + ctx.attr.min_macos_version + ",14.0",
-    ]
+    ] + MACOS_LLD_LINK_FLAGS
 
     # Feature definitions
     supports_pic_feature = feature(

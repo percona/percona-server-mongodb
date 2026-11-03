@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import tarfile
@@ -68,6 +69,190 @@ def compact_log_with_spawns(*spawns: tuple[str, bool]) -> bytes:
 
 
 class PackageTestProvenanceTest(unittest.TestCase):
+    def test_branch_defaults_validate_the_package_binaries_and_preserve_overrides(self):
+        source = workspace_file_path("buildscripts/package_test/package_test.py").read_text()
+        selection = next(
+            node.value
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "release_binary_names"
+                for target in node.targets
+            )
+        )
+        for package_kind, override, names in (
+            ("server", None, ("mongod", "mongos")),
+            ("crypt_v1", None, ("mongo_crypt_v1.so",)),
+            ("server", ["mongod"], ("mongod",)),
+            ("crypt_v1", ["CustomCrypt.so"], ("CustomCrypt.so",)),
+        ):
+            with (
+                self.subTest(package_kind=package_kind, override=override),
+                tempfile.TemporaryDirectory() as temp_dir,
+            ):
+                selected_names = eval(
+                    compile(ast.Expression(selection), "package_test.py", "eval"),
+                    {
+                        "args": types.SimpleNamespace(
+                            package_kind=package_kind, release_binary_name=override
+                        ),
+                        "RELEASE_BINARY_NAMES": under_test.RELEASE_BINARY_NAMES,
+                        "CRYPT_RELEASE_BINARY_NAMES": under_test.CRYPT_RELEASE_BINARY_NAMES,
+                    },
+                )
+                root = Path(temp_dir)
+                archive = root / "release.tgz"
+                binaries = {}
+                with tarfile.open(archive, "w:gz") as output:
+                    for name in names:
+                        binary = root / name
+                        binary.write_bytes((name + " release binary").encode())
+                        output.add(binary, arcname="release/" + name)
+                        binaries[name] = {"sha256": under_test.hash_file(binary)}
+                provenance = {
+                    "distro_id": "release-build-host",
+                    "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
+                    "binaries": binaries,
+                }
+                hashes = under_test.validate_release_binary_provenance_against_archive(
+                    json.dumps(provenance), archive, binary_names=selected_names
+                )
+                self.assertEqual({name: binaries[name]["sha256"] for name in names}, hashes)
+                for name in names:
+                    with self.subTest(missing_provenance_binary=name):
+                        incomplete = {
+                            **provenance,
+                            "binaries": {
+                                key: value for key, value in binaries.items() if key != name
+                            },
+                        }
+                        with self.assertRaisesRegex(ValueError, "missing binary: " + name):
+                            under_test.validate_release_binary_provenance_against_archive(
+                                json.dumps(incomplete), archive, binary_names=selected_names
+                            )
+
+    def test_archive_validation_returns_verified_hashes_for_installed_packages(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            archive = root / "release.tgz"
+            binaries = {}
+            with tarfile.open(archive, "w:gz") as output:
+                for name in under_test.RELEASE_BINARY_NAMES:
+                    binary = root / name
+                    binary.write_bytes((name + " release binary").encode())
+                    output.add(binary, arcname="release/bin/" + name)
+                    binaries[name] = {"sha256": under_test.hash_file(binary)}
+            provenance = json.dumps(
+                {
+                    "distro_id": "release-build-host",
+                    "build_id": "build_id",
+                    "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
+                    "binaries": binaries,
+                }
+            )
+            self.assertEqual(
+                {name: binary["sha256"] for name, binary in binaries.items()},
+                under_test.validate_release_binary_provenance_against_archive(
+                    provenance, archive, "build_id"
+                ),
+            )
+            binaries["mongos"]["sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "hash mismatch for mongos"):
+                under_test.validate_release_binary_provenance_against_archive(
+                    json.dumps({**json.loads(provenance), "binaries": binaries}),
+                    archive,
+                    "build_id",
+                )
+
+    def test_package_container_receives_release_hashes_only_when_provenance_was_validated(self):
+        # Import the container runner without the script's network requests and argument parsing.
+        source = workspace_file_path("buildscripts/package_test/package_test.py").read_text()
+        runner = next(
+            node
+            for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "run_test"
+        )
+        namespace = {
+            "__file__": str(workspace_file_path("buildscripts/package_test/package_test.py")),
+            "os": os,
+            "Path": Path,
+            "json": json,
+            "time": mock.Mock(time=mock.Mock(return_value=0)),
+            "uuid": mock.Mock(uuid4=mock.Mock(return_value=types.SimpleNamespace(hex="test"))),
+            "logging": mock.Mock(),
+            "Test": object,
+            "DockerClient": object,
+            "Result": dict,
+            "urlparse": mock.Mock(),
+            "RHEL7_OS_NAMES": (),
+            "build_os_setup_commands": mock.Mock(return_value=[]),
+            "build_python_setup_commands": mock.Mock(return_value=[]),
+            "build_package_test_internal_args": mock.Mock(return_value=[]),
+            "join_commands": mock.Mock(return_value=""),
+            "args": types.SimpleNamespace(skip_system_library_check=False),
+            "get_image": mock.Mock(return_value="image"),
+        }
+        exec(
+            compile(ast.Module(body=[runner], type_ignores=[]), "package_test.py", "exec"),
+            namespace,
+        )
+        client = mock.Mock()
+        client.containers.run.return_value.logs.return_value = []
+        client.containers.run.return_value.wait.return_value = {"StatusCode": 1}
+        test = types.SimpleNamespace(
+            name=lambda: "provenance",
+            version="9.1",
+            os_name="ubuntu2204",
+            edition="org",
+            update_command="update",
+            install_command="install {}",
+            base_packages=[],
+            python_command="python3",
+            packages_urls=[],
+            package_kind="server",
+        )
+        for package_kind, hashes in (
+            ("server", None),
+            ("server", {"mongod": "0" * 64, "mongos": "1" * 64}),
+            ("crypt_v1", None),
+            ("crypt_v1", {"mongo_crypt_v1.so": "2" * 64}),
+        ):
+            with (
+                self.subTest(package_kind=package_kind, hashes=hashes),
+                mock.patch.dict(os.environ, {}, clear=True),
+                mock.patch("os.makedirs"),
+            ):
+                test.release_binary_hashes = hashes
+                test.package_kind = package_kind
+                namespace["run_test"](test, client)
+                expected = (
+                    {} if hashes is None else {"MONGO_RELEASE_BINARY_HASHES": json.dumps(hashes)}
+                )
+                self.assertEqual(expected, client.containers.run.call_args.kwargs["environment"])
+
+    def test_branch_package_tests_keep_verified_crypt_hashes(self):
+        source = workspace_file_path("buildscripts/package_test/package_test.py").read_text()
+        construction = next(
+            node
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Test"
+            and any(keyword.arg == "release_binary_hashes" for keyword in node.keywords)
+        )
+        hashes = {"mongo_crypt_v1.so": "2" * 64}
+        namespace = {
+            "Test": types.SimpleNamespace,
+            "args": types.SimpleNamespace(
+                edition="enterprise", server_version="9.1", package_kind="crypt_v1"
+            ),
+            "test_os": "ubuntu2204",
+            "urls": ["crypt.pkg"],
+            "release_binary_hashes": hashes,
+        }
+        test = eval(compile(ast.Expression(construction), "package_test.py", "eval"), namespace)
+        self.assertEqual(hashes, test.release_binary_hashes)
+
     def test_toolchain_provenance_checks_recorded_versions(self) -> None:
         toolchain = {
             "target_os": "linux",
@@ -93,8 +278,100 @@ class PackageTestProvenanceTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 under_test.validate_release_toolchain_provenance(json.dumps(provenance), True)
         under_test.validate_release_toolchain_provenance(
-            json.dumps({"binaries": {"mongod": {"path": "bin/mongod.exe"}}}), True
+            json.dumps(
+                {"distro_id": "release-windows-vsCurrent-large", "task_id": "windows-build"}
+            ),
+            True,
+            build_task=types.SimpleNamespace(
+                distro_id="release-windows-vsCurrent-large", task_id="windows-build"
+            ),
         )
+
+    def test_windows_exclusion_requires_independent_build_context(self) -> None:
+        provenance = {"distro_id": "release-windows-vsCurrent-large", "task_id": "build"}
+        with self.assertRaisesRegex(ValueError, "missing a toolchain"):
+            under_test.validate_release_toolchain_provenance(json.dumps(provenance), True)
+        linux_task = types.SimpleNamespace(distro_id="release-rhel93-arm64", task_id="build")
+        with self.assertRaisesRegex(ValueError, "distro_id does not match"):
+            under_test.validate_release_toolchain_provenance(
+                json.dumps(provenance), True, build_task=linux_task
+            )
+        windows_task = types.SimpleNamespace(
+            distro_id=provenance["distro_id"], task_id="other-build"
+        )
+        with self.assertRaisesRegex(ValueError, "task_id does not match"):
+            under_test.validate_release_toolchain_provenance(
+                json.dumps(provenance), True, build_task=windows_task
+            )
+
+    def test_patch_validation_uses_build_command_and_task_context(self) -> None:
+        task = types.SimpleNamespace(task_id="build", distro_id="release-rhel93-arm64")
+        artifacts = {
+            "Build Command": "bazel build --config=public-release-local archive-dist-stripped",
+            "Toolchain Provenance": json.dumps({"production_release": False}),
+        }
+        refetch = mock.Mock()
+        with mock.patch.object(
+            under_test,
+            "fetch_task_artifact_text",
+            side_effect=lambda task, name, retry: artifacts[name],
+        ) as fetch:
+            with self.assertRaisesRegex(ValueError, "missing production"):
+                under_test.validate_task_toolchain_provenance(task, refetch)
+            fetch.assert_has_calls(
+                [
+                    mock.call(task, "Build Command", refetch),
+                    mock.call(task, "Toolchain Provenance", refetch),
+                ]
+            )
+            artifacts["Build Command"] = "bazel build --config=opt archive-dist-stripped"
+            under_test.validate_task_toolchain_provenance(task, refetch)
+            with self.assertRaisesRegex(ValueError, "missing production"):
+                under_test.validate_task_toolchain_provenance(
+                    task, refetch, require_production=True
+                )
+
+    def test_windows_patch_does_not_fetch_missing_capture(self) -> None:
+        task = types.SimpleNamespace(task_id="build", distro_id="windows-vsCurrent-large")
+        with mock.patch.object(under_test, "fetch_task_artifact_text") as fetch:
+            under_test.validate_task_toolchain_provenance(
+                task, mock.Mock(), require_production=True
+            )
+            fetch.assert_not_called()
+
+    def test_windows_binary_suffix_does_not_bypass_linux_toolchain_check(self) -> None:
+        provenance = {
+            "distro_id": "release-rhel93-arm64",
+            "binaries": {"mongod": {"path": "bin/mongod.exe"}},
+        }
+        with self.assertRaisesRegex(ValueError, "missing a toolchain"):
+            under_test.validate_release_toolchain_provenance(json.dumps(provenance), True)
+
+    def test_production_build_command_requires_production_capture_without_test_flags(self) -> None:
+        provenance = {
+            "build_command": "bazel build --config=public-release-local archive-dist-stripped",
+            "toolchain": {"production_release": False},
+        }
+        with self.assertRaisesRegex(ValueError, "missing production"):
+            under_test.validate_release_toolchain_provenance(json.dumps(provenance))
+
+    def test_text_artifact_fetch_retries_secondary_lag(self) -> None:
+        task = types.SimpleNamespace(task_id="compile", display_name="package", artifacts=[])
+        refreshed = types.SimpleNamespace(
+            artifacts=[
+                types.SimpleNamespace(name="Toolchain Provenance", url="https://example.com/tools")
+            ]
+        )
+        refetch = mock.Mock(return_value=refreshed)
+        response = mock.Mock(text='{"compiler_version":"19.1.7"}')
+        with (
+            mock.patch.object(under_test.time, "sleep"),
+            mock.patch.object(under_test.requests, "get", return_value=response) as get,
+        ):
+            text = under_test.fetch_task_artifact_text(task, "Toolchain Provenance", refetch)
+        self.assertEqual(response.text, text)
+        refetch.assert_called_once_with()
+        get.assert_called_once_with("https://example.com/tools", timeout=300)
 
     def test_release_provenance_includes_capture_and_rejects_stale_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

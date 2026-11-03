@@ -679,6 +679,77 @@ TEST_F(MultiIndexBlockTest, InitMultipleSpecs) {
     indexer->abortIndexBuild(operationContext(), coll, MultiIndexBlock::kNoopOnCleanUpFn);
 }
 
+TEST_F(MultiIndexBlockTest, CaptureInitialDrainTailsForAllIndexes) {
+    auto* indexer = getIndexer();
+    auto* opCtx = operationContext();
+    auto acq = acquireCollection(
+        opCtx,
+        CollectionAcquisitionRequest::fromOpCtx(opCtx, getNSS(), AcquisitionPrerequisites::kWrite),
+        MODE_X);
+    CollectionWriter coll{opCtx, &acq};
+    auto* storageEngine = opCtx->getServiceContext()->getStorageEngine();
+    std::vector<IndexBuildInfo> infos{
+        IndexBuildInfo(BSON("v" << 2 << "name" << "a_1" << "key" << BSON("a" << 1)),
+                       "index-1",
+                       *storageEngine),
+        IndexBuildInfo(BSON("v" << 2 << "name" << "b_1" << "key" << BSON("b" << 1)),
+                       "index-2",
+                       *storageEngine)};
+    ASSERT_OK(indexer
+                  ->init(opCtx,
+                         coll,
+                         infos,
+                         MultiIndexBlock::kNoopOnInitFn,
+                         MultiIndexBlock::InitMode::SteadyState,
+                         boost::none)
+                  .getStatus());
+    ON_BLOCK_EXIT(
+        [&] { indexer->abortIndexBuild(opCtx, coll, MultiIndexBlock::kNoopOnCleanUpFn); });
+    auto getInterceptor = [&](const char* name) {
+        auto* entry = coll->getIndexCatalog()->findIndexByName(
+            opCtx, name, IndexCatalog::InclusionPolicy::kAll);
+        ASSERT(entry);
+        auto interceptor = entry->indexBuildInterceptor();
+        ASSERT(interceptor);
+        return interceptor;
+    };
+    auto first = getInterceptor("a_1");
+    auto second = getInterceptor("b_1");
+    {
+        WriteUnitOfWork wuow{opCtx};
+        first->createDeferredTables(opCtx);
+        second->createDeferredTables(opCtx);
+        wuow.commit();
+    }
+    auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+    auto firstTable = storageEngine->getEngine()->getInternalRecordStore(
+        ru, *infos[0].sideWritesIdent, KeyFormat::Long);
+    auto secondTable = storageEngine->getEngine()->getInternalRecordStore(
+        ru, *infos[1].sideWritesIdent, KeyFormat::Long);
+
+    auto doc = BSON("value" << 1);
+    auto insert = [&](RecordStore& table) {
+        WriteUnitOfWork wuow{opCtx};
+        const auto id = unittest::assertGet(
+            table.insertRecord(opCtx, ru, doc.objdata(), doc.objsize(), Timestamp()));
+        wuow.commit();
+        return id;
+    };
+    // The first index starts empty while the second already side writes.
+    auto originalSecond = insert(*secondTable);
+    indexer->captureInitialDrainTails(opCtx, coll.get());
+
+    auto laterFirst = insert(*firstTable);
+    auto laterSecond = insert(*secondTable);
+    indexer->captureInitialDrainTails(opCtx, coll.get());
+
+    EXPECT_TRUE(first->captureInitialDrainTail(opCtx).isNull());
+    EXPECT_EQ(second->captureInitialDrainTail(opCtx), originalSecond);
+    EXPECT_EQ(firstTable->getLargestKey(opCtx, ru), laterFirst);
+    EXPECT_EQ(secondTable->getLargestKey(opCtx, ru), laterSecond);
+    EXPECT_GT(laterSecond, originalSecond);
+}
+
 TEST_F(MultiIndexBlockTest, AddDocumentBetweenInitAndInsertAll) {
     auto indexer = getIndexer();
 
@@ -720,7 +791,8 @@ TEST_F(MultiIndexBlockTest, AddDocumentBetweenInitAndInsertAll) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     {
         CollectionWriter coll(operationContext(), &acq);
@@ -787,9 +859,11 @@ TEST_F(MultiIndexBlockTest, DrainBackgroundWritesYieldIsTracked) {
                               CollectionAcquisitionRequest::fromOpCtx(
                                   operationContext(), getNSS(), AcquisitionPrerequisites::kWrite),
                               MODE_IX);
-        ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
-                                                 RecoveryUnit::ReadSource::kNoTimestamp,
-                                                 IndexBuildInterceptor::DrainYieldPolicy::kYield));
+        ASSERT_OK(
+            indexer->drainBackgroundWrites(operationContext(),
+                                           RecoveryUnit::ReadSource::kNoTimestamp,
+                                           IndexBuildInterceptor::DrainYieldPolicy::kYield,
+                                           IndexBuildInterceptor::DrainPhase::kBeforeReadiness));
     }
 
     if (capturer.canReadMetrics()) {
@@ -1296,7 +1370,8 @@ TEST_F(MultiIndexBlockTest, PdibPersistsMultikeyStateRecoveredWhileDraining) {
 
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     // The drained state is now in the resume record, not only in this node's memory.
     shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
@@ -1362,7 +1437,8 @@ TEST_F(MultiIndexBlockTest, PdibPersistsMultikeyStateRecoveredWhileRetryingSkipp
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     const auto multikeyComponents = [&]() -> std::vector<int32_t> {
         shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
@@ -1473,7 +1549,8 @@ TEST_F(MultiIndexBlockTest, PdibPersistsResumeStateOnFirstDrain) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
     auto resumeInfo = index_builds::readAndParseResumeIndexInfo(
@@ -1486,10 +1563,12 @@ TEST_F(MultiIndexBlockTest, PdibPersistsResumeStateOnFirstDrain) {
     // record intact. Subsequent calls hit firstDrain == false and skip the persist.
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
     shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
     auto laterResumeInfo = index_builds::readAndParseResumeIndexInfo(
         storageEngine, operationContext(), ident::generateNewIndexBuildIdent(buildUUID));
@@ -1550,7 +1629,8 @@ TEST_F(MultiIndexBlockTest, ResumePdibDuringDrain) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     // Insert a second document while the interceptor is still active so that it goes into the
     // side-writes table and is not yet drained. This entry must survive the simulated step-down
@@ -1623,7 +1703,8 @@ TEST_F(MultiIndexBlockTest, ResumePdibDuringDrain) {
     ASSERT_OK(
         resumedIndexer.drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
     // All side-writes were drained by the resumed build.
     EXPECT_EQ(0u, countRecords(*indexBuildInfo.sideWritesIdent));
 
@@ -1727,7 +1808,8 @@ TEST_F(MultiIndexBlockTest, ResumedPdibPersistsStateOnFirstDrainWithNoNewRecords
     ASSERT_OK(
         resumedIndexer.drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     shard_role_details::getRecoveryUnit(operationContext())->abandonSnapshot();
     auto drainResumeInfo =
@@ -1786,7 +1868,8 @@ TEST_F(MultiIndexBlockTest, PdibSkipsResumeStateOnEmptyCollection) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     {
         auto indexBuildIdent = ident::generateNewIndexBuildIdent(buildUUID);
@@ -1842,7 +1925,8 @@ TEST_F(MultiIndexBlockTest, PdibDoesNotPersistResumeStateWhenFeatureFlagOff) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     EXPECT_FALSE(storageEngine->getEngine()->hasIdent(
         *shard_role_details::getRecoveryUnit(operationContext()),
@@ -2056,7 +2140,8 @@ TEST_P(MultiIndexBlockMetricsTest, BasicMetrics) {
     ASSERT_OK(indexer->insertAllDocumentsInCollection(operationContext(), getNSS()));
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     EXPECT_EQ(readIndexBuildsServerStatusMetric("docsScanned"),
               ssDocsScannedBefore + numDocsInColl);
@@ -2208,7 +2293,8 @@ TEST_P(MultiIndexBlockMetricsTest, WriteStatsCountKeysAndBytesWrittenToIndexTabl
 
     ASSERT_OK(indexer->drainBackgroundWrites(operationContext(),
                                              RecoveryUnit::ReadSource::kNoTimestamp,
-                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+                                             IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                             IndexBuildInterceptor::DrainPhase::kFinal));
 
     const auto afterDrain = indexer->getIndexTableWrites();
     EXPECT_EQ(afterDrain.numKeysWrittenSideWritesDrain, numDocsInColl);
@@ -4447,10 +4533,10 @@ TEST_F(MultiIndexBlockTest, ConcurrentPhaseChange) {
                                      CollectionAcquisitionRequest::fromOpCtx(
                                          opCtx.get(), getNSS(), AcquisitionPrerequisites::kWrite),
                                      MODE_IX);
-        ASSERT_OK(
-            indexer->drainBackgroundWrites(opCtx.get(),
-                                           RecoveryUnit::ReadSource::kNoTimestamp,
-                                           IndexBuildInterceptor::DrainYieldPolicy::kNoYield));
+        ASSERT_OK(indexer->drainBackgroundWrites(opCtx.get(),
+                                                 RecoveryUnit::ReadSource::kNoTimestamp,
+                                                 IndexBuildInterceptor::DrainYieldPolicy::kNoYield,
+                                                 IndexBuildInterceptor::DrainPhase::kFinal));
     });
 
     bar.countDownAndWait();

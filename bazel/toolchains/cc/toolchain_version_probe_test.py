@@ -44,6 +44,12 @@ class VersionProbeTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "linker command"):
             probe.linker_from_trace('clang version 19.1.7\n"/tools/clang" "-cc1"')
 
+    def test_malformed_diagnostic_does_not_hide_linker_command(self) -> None:
+        trace = ' "/tools/ld.lld" "-o" "a.out"\n diagnostic with an unmatched "\n'
+        self.assertEqual("/tools/ld.lld", probe.linker_from_trace(trace))
+        with self.assertRaisesRegex(RuntimeError, "linker command"):
+            probe.linker_from_trace(' "/tools/ld.lld\n')
+
     def test_clang_captures_standalone_and_cross_prefixed_gold(self) -> None:
         for linker in ("gold", "aarch64-linux-gnu-gold", "s390x-linux-gnu-gold"):
             with (

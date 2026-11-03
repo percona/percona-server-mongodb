@@ -812,7 +812,17 @@ protected:
      * Third phase is catching up on all the writes that occurred during the first two phases.
      */
     void _insertKeysFromSideTablesWithoutBlockingWrites(
-        OperationContext* opCtx, std::shared_ptr<ReplIndexBuildState> replState);
+        OperationContext* opCtx,
+        std::shared_ptr<ReplIndexBuildState> replState,
+        IndexBuildInterceptor::DrainPhase drainPhase);
+
+    /**
+     * Waits with no builder locks or storage transaction. The caller must reacquire resources and
+     * retry with a fresh snapshot.
+     */
+    void _waitForPrepareConflict(OperationContext* opCtx,
+                                 const std::shared_ptr<ReplIndexBuildState>& replState,
+                                 uint64_t generation);
 
     /**
      * Reads the commit ready members list for index build UUID in 'replState' from

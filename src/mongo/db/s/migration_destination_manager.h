@@ -9,6 +9,8 @@
 #include "mongo/bson/oid.h"
 #include "mongo/bson/timestamp.h"
 #include "mongo/client/connection_string.h"
+#include "mongo/client/retry_strategy.h"
+#include "mongo/db/cancelable_operation_context.h"
 #include "mongo/db/global_catalog/chunk_manager.h"
 #include "mongo/db/global_catalog/type_chunk.h"
 #include "mongo/db/namespace_string.h"
@@ -302,7 +304,24 @@ private:
      */
     void _migrateThread(CancellationToken cancellationToken, bool skipToCritSecTaken = false);
 
-    void _migrateDriver(OperationContext* opCtx, bool skipToCritSecTaken = false);
+    /**
+     * Runs the recipient side of the migration from the start: clones the range, catches up on the
+     * donor's modifications, enters the critical section and completes the migration.
+     */
+    void _migrateDriver(OperationContext* opCtx);
+
+    /**
+     * Resumes a migration whose recovery document has been persisted: reacquires the critical
+     * section and completes the migration.
+     */
+    void _recoverMigration(OperationContext* opCtx);
+
+    /**
+     * Waits until signaled to exit the critical section, completes the migration and sets the
+     * state to kDone. Must only be called while the critical section is held.
+     */
+    void _awaitReleaseAndCompleteMigration(OperationContext* outerOpCtx,
+                                           const Timer& timeInCriticalSection);
 
     bool _applyMigrateOp(OperationContext* opCtx, const BSONObj& xfer);
 
@@ -452,5 +471,20 @@ private:
     // cancellation source will be installed.
     CancellationSource _cancellationSource;
 };
+
+/**
+ * Runs 'attempt' until it returns without throwing, 'retryStrategy' declines to retry, or
+ * 'cancellationToken' is canceled. Each attempt runs on a new OperationContext made by 'makeOpCtx'.
+ * Before every retry, calls 'sleep' on that OperationContext with the delay chosen by
+ * 'retryStrategy'. Exceptions thrown by 'sleep' or 'attempt' are passed to 'onError' and are not
+ * rethrown. 'attempt' is called with whether it is a retry.
+ */
+void runMigrateThreadAttemptsWithBackoff(
+    const CancellationToken& cancellationToken,
+    RetryStrategy& retryStrategy,
+    const std::function<std::unique_ptr<CancelableOperationContext>()>& makeOpCtx,
+    const std::function<void(OperationContext*, Milliseconds)>& sleep,
+    const std::function<void(OperationContext*, bool isRetry)>& attempt,
+    const std::function<void(const Status&)>& onError);
 
 }  // namespace mongo

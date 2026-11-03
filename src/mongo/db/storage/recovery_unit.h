@@ -30,6 +30,7 @@ namespace mongo {
 class BSONObjBuilder;
 
 class OperationContext;
+class Interruptible;
 
 /**
  * The PrepareConflictBehavior specifies how operations should behave when encountering prepare
@@ -40,6 +41,12 @@ enum class PrepareConflictBehavior {
      * When prepare conflicts are encountered, block until the conflict is resolved.
      */
     kEnforce = 0,
+
+    /**
+     * When a prepare conflict is encountered, throw an exception. Callers must unwind their WUOW
+     * and release locks before waiting for resolution and retrying.
+     */
+    kThrow,
 
     /**
      * Ignore prepare conflicts when they are encountered.
@@ -64,6 +71,20 @@ enum class PrepareConflictBehavior {
     /** kMax should always be last and is a counter of the number of enum values. */
     kMax,
 };
+
+inline bool ignoresPrepareConflicts(PrepareConflictBehavior behavior) {
+    switch (behavior) {
+        case PrepareConflictBehavior::kEnforce:
+        case PrepareConflictBehavior::kThrow:
+            return false;
+        case PrepareConflictBehavior::kIgnoreConflicts:
+        case PrepareConflictBehavior::kIgnoreConflictsAllowWrites:
+            return true;
+        case PrepareConflictBehavior::kMax:
+            MONGO_UNREACHABLE;
+    }
+    MONGO_UNREACHABLE;
+}
 
 /**
  * DataCorruptionDetectionMode determines how we handle the discovery of evidence of data
@@ -225,6 +246,36 @@ public:
      */
     virtual PrepareConflictBehavior getPrepareConflictBehavior() const {
         return PrepareConflictBehavior::kEnforce;
+    }
+
+    /**
+     * Returns the number of prepared transactions that have committed or aborted, for use as a
+     * generation counter with waitForPrepareConflictResolution below.
+     */
+    virtual uint64_t getPrepareCommitOrAbortCount() const {
+        uasserted(ErrorCodes::CommandNotSupported,
+                  "Storage engine does not support prepare-conflict notifications");
+    }
+
+    /**
+     * Waits for a prepare-resolution notification newer than 'generation'. A notification may
+     * concern an unrelated transaction; callers must retry their read. This wait does not mark the
+     * operation as storage-blocked on a prepare conflict.
+     *
+     * Capture 'generation' before the storage operation that encounters the conflict; sampling it
+     * afterward can miss the resolving notification and wait indefinitely. Before waiting, unwind
+     * any WriteUnitOfWork, abandon the storage transaction, and release locks/intents or other
+     * resources that could prevent the prepared transaction from resolving. Retry with a fresh
+     * snapshot after waking.
+     *
+     * Requires no active storage transaction. Throws WriteConflict if blocking is disallowed.
+     * This check does not establish that all conflicting resources have been released; callers
+     * remain responsible for releasing them rather than retrying under the same locks.
+     */
+    virtual void waitForPrepareConflictResolution(Interruptible& interruptible,
+                                                  uint64_t generation) {
+        uasserted(ErrorCodes::CommandNotSupported,
+                  "Storage engine does not support prepare-conflict notifications");
     }
 
     /**

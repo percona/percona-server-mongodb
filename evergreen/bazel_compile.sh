@@ -216,14 +216,19 @@ fi
 
 set -o errexit
 
-if [[ "$RET" == "0" ]] && bazel_evergreen_shutils::should_capture_toolchain_provenance ${targets} ${BASE_FLAGS}; then
+# Match the shell expansion performed by retry_bazel_cmd for configured CI flags.
+if [[ "$RET" == "0" ]] && eval "bazel_evergreen_shutils::should_capture_toolchain_provenance ${targets} ${BASE_FLAGS}"; then
     # Materialize provenance even when the primary build selects only aspect
     # reports or filtered targets. Preserve compiler/linker settings and the
     # release-local safety suffix, without rewriting the primary target scope.
     bazel_evergreen_shutils::retry_bazel_cmd 3 "$BAZEL_BINARY" \
         build ${BASE_FLAGS}${GDB_INDEX_FLAGS} \
         --aspects= --output_groups=default --build_tag_filters= \
-        //bazel/config:toolchain_provenance ${RELEASE_LOCAL_SAFETY_FLAGS}
+        //bazel/config:toolchain_provenance ${RELEASE_LOCAL_SAFETY_FLAGS} || {
+        capture_status=$?
+        echo "Compiler/linker provenance capture failed with exit code ${capture_status}." >&2
+        exit "$capture_status"
+    }
     cp bazel-bin/bazel/config/toolchain_provenance.json .bazel_toolchain_provenance.json
 fi
 

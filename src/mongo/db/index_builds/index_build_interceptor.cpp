@@ -34,6 +34,7 @@
 #include "mongo/otel/metrics/metrics_counter.h"
 #include "mongo/otel/metrics/metrics_service.h"
 #include "mongo/util/assert_util.h"
+#include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 
 #include <cstdint>
@@ -121,7 +122,8 @@ Status IndexBuildInterceptor::drainWritesIntoIndex(
     const InsertDeleteOptions& options,
     const OnMultikeyPathsRecoveredFn& onMultikeyPathsRecovered,
     TrackDuplicates trackDuplicates,
-    DrainYieldPolicy drainYieldPolicy) {
+    DrainYieldPolicy drainYieldPolicy,
+    DrainPhase drainPhase) {
     // Sorted index types may choose to disallow duplicates (enforcing an unique index).
     // Only sorted indexes will use this lambda passed through the IndexAccessMethod interface.
     auto onDuplicateKeyFn = [=, this](const CollectionPtr& coll,
@@ -144,11 +146,14 @@ Status IndexBuildInterceptor::drainWritesIntoIndex(
                 }
                 recovered = _multikeyPaths;
             }
-            auto status = onMultikeyPathsRecovered(opCtx, recovered.value_or(MultikeyPaths{}));
-            if (!status.isOK()) {
+            ScopeGuard restoreRecovered{[&] {
                 // Leave the state flagged so a later batch reports it again.
-                std::unique_lock<std::mutex> lk(_multikeyPathMutex);
+                std::unique_lock<std::mutex> lk{_multikeyPathMutex};
                 _multikeyPathsRecovered = true;
+            }};
+            auto status = onMultikeyPathsRecovered(opCtx, recovered.value_or(MultikeyPaths{}));
+            if (status.isOK()) {
+                restoreRecovered.dismiss();
             }
             return status;
         };
@@ -160,7 +165,8 @@ Status IndexBuildInterceptor::drainWritesIntoIndex(
                                                    options,
                                                    onDuplicateKeyFn,
                                                    onBatchApplied,
-                                                   drainYieldPolicy);
+                                                   drainYieldPolicy,
+                                                   drainPhase);
 }
 
 bool IndexBuildInterceptor::areAllWritesApplied(OperationContext* opCtx) const {

@@ -68,6 +68,7 @@ run_compile build_failed archive-dist-stripped '' 7 0 false
 
 run_compile probe_failed archive-dist-stripped '' 0 9 false
 [[ "$result" == 9 && ! -f "${test_root}/probe_failed/.bazel_toolchain_provenance.json" ]]
+[[ "$(cat "${test_root}/probe_failed/log")" == *'Compiler/linker provenance capture failed with exit code 9.'* ]]
 
 CAPTURE_TEST_PATCH=false run_compile release archive-dist-stripped '--config=public-release-local' 0 0 false
 mapfile -t commands <"${test_root}/release/commands.txt"

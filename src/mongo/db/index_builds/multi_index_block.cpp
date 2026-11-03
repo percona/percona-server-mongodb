@@ -411,6 +411,7 @@ StatusWith<std::vector<BSONObj>> MultiIndexBlock::init(
     _collectionUUID = collection->uuid();
 
     _buildIsCleanedUp = false;
+    _initialDrainTailsCaptured = false;
 
     invariant(_indexes.empty());
     // Reserve the indexes upfront so that any references to them remain valid.
@@ -1452,10 +1453,35 @@ void MultiIndexBlock::_releaseReplicatedSorters() {
     }
 }
 
+void MultiIndexBlock::captureInitialDrainTails(OperationContext* opCtx,
+                                               const CollectionPtr& collection) {
+    invariant(!_buildIsCleanedUp);
+    invariant(!shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
+    invariant(collection->uuid() == _collectionUUID);
+    invariant(
+        shard_role_details::getLocker(opCtx)->isCollectionLockedForMode(collection->ns(), MODE_IX));
+
+    if (_initialDrainTailsCaptured) {
+        return;
+    }
+
+    writeConflictRetry(opCtx, "capture side write drain tails", collection->ns(), [&] {
+        for (auto&& index : _indexes) {
+            if (auto interceptor =
+                    index.block->getEntry(opCtx, collection)->indexBuildInterceptor()) {
+                interceptor->captureInitialDrainTail(opCtx);
+            }
+        }
+    });
+
+    _initialDrainTailsCaptured = true;
+}
+
 Status MultiIndexBlock::drainBackgroundWrites(
     OperationContext* opCtx,
     RecoveryUnit::ReadSource readSource,
-    IndexBuildInterceptor::DrainYieldPolicy drainYieldPolicy) {
+    IndexBuildInterceptor::DrainYieldPolicy drainYieldPolicy,
+    IndexBuildInterceptor::DrainPhase drainPhase) {
     invariant(!_buildIsCleanedUp);
     invariant(!shard_role_details::getLocker(opCtx)->inAWriteUnitOfWork());
 
@@ -1481,6 +1507,10 @@ Status MultiIndexBlock::drainBackgroundWrites(
     if (firstDrain && _containerWriteBehavior == ContainerWriteBehavior::kReplicate &&
         _isResumable && (_lastRecordIdInserted.has_value() || _wasResumed)) {
         _writeAllStateToContainer(opCtx);
+    }
+
+    if (drainPhase == IndexBuildInterceptor::DrainPhase::kBeforeReadiness) {
+        captureInitialDrainTails(opCtx, coll);
     }
 
     // Drain side-writes table for each index. This only drains what is visible. Assuming intent
@@ -1523,7 +1553,8 @@ Status MultiIndexBlock::drainBackgroundWrites(
                                                         _indexes[i].options,
                                                         onMultikeyPathsRecovered,
                                                         trackDups,
-                                                        drainYieldPolicy);
+                                                        drainYieldPolicy,
+                                                        drainPhase);
         if (!status.isOK()) {
             return status;
         }

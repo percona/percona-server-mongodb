@@ -38,6 +38,18 @@ public:
     enum class DrainYieldPolicy { kNoYield, kYield };
 
     /**
+     * Identifies which phase of draining the build is performing.
+     */
+    enum class DrainPhase {
+        // Draining before the build is ready to commit.
+        kBeforeReadiness,
+        // Draining after the build is ready to commit.
+        kAfterReadiness,
+        // Draining during commit of the build.
+        kFinal,
+    };
+
+    /**
      * Invoked once per drained batch, inside the transaction that applies that batch's keys and
      * deletes its records.
      */
@@ -63,6 +75,13 @@ public:
      */
     void createDeferredTable(OperationContext* opCtx);
 
+    /**
+     * Captures and return the initial tail, including invisible and prepared records. Repeated
+     * calls return the original boundary, even if the table changes. A null RecordId records an
+     * initially empty table. The backing table must exist.
+     */
+    RecordId captureInitialDrainTail(OperationContext* opCtx);
+
     uint64_t count() const {
         return _counter->load();
     }
@@ -72,8 +91,12 @@ public:
      * from the underlying IndexAccessMethod. This will only insert as many records as are visible
      * in the current snapshot.
      *
-     * This is resumable, so subsequent calls will start the scan at the record immediately
-     * following the last inserted record from a previous call to drainWritesIntoIndex.
+     * Before readiness, prepare conflicts within the captured initial prefix roll back the batch
+     * and propagate to the caller for an outside-lock wait. Conflicts beyond that prefix roll back
+     * the batch and end the drain, leaving the remaining writes for later. After readiness, every
+     * conflict rolls back and ends the attempt. The final drain throws on every conflict.
+     *
+     * Previously-committed batches remain applied; retries scan the remaining table from the start.
      */
     Status drainWritesIntoIndex(OperationContext* opCtx,
                                 const CollectionPtr& coll,
@@ -81,11 +104,11 @@ public:
                                 const InsertDeleteOptions& options,
                                 const IndexAccessMethod::KeyHandlerFn& onDuplicateKeyFn,
                                 const OnBatchAppliedFn& onBatchApplied,
-                                DrainYieldPolicy drainYieldPolicy);
+                                DrainYieldPolicy drainYieldPolicy,
+                                DrainPhase drainPhase);
 
     /**
-     * Check whether all writes have been applied. This will be true after a successful call to
-     * `drainWritesIntoIndex()`.
+     * Checks whether all writes have been applied.
      */
     bool checkAllWritesApplied(OperationContext* opCtx, bool fatal) const;
 
@@ -130,6 +153,7 @@ private:
                                    long long iteration) const;
 
     LazyRecordStore _table;
+    boost::optional<RecordId> _initialDrainTail;
 
     // This allows the counter to be used in a RecoveryUnit rollback handler where the
     // IndexBuildInterceptor is no longer available (e.g. due to index build cleanup). If there

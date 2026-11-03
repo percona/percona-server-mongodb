@@ -82,9 +82,23 @@ def _get_llvm_clang_include_dirs(repository_ctx, llvm_paths):
 
     ret_include_dirs = []
     for path in include_dirs:
-        ret_include_dirs.append(("            \"%s\"," % path))
+        ret_include_dirs.append("            {},".format(json.encode(path)))
 
     return ret_include_dirs
+
+def _get_libcxx_config_site(repository_ctx, llvm_abs_path):
+    config_site = llvm_abs_path + "/include/c++/v1/__config_site"
+    if repository_ctx.path(config_site).exists:
+        return config_site, ""
+
+    # LLVM also supports installing libc++ headers under its default target triple.
+    result = repository_ctx.execute([llvm_abs_path + "/bin/clang", "-print-target-triple"])
+    if result.return_code != 0:
+        return "", "Could not determine LLVM's target for libc++ headers: " + result.stderr
+    target_config = llvm_abs_path + "/include/" + result.stdout.strip() + "/c++/v1/__config_site"
+    if repository_ctx.path(target_config).exists:
+        return target_config, ""
+    return "", "Could not find libc++ configuration at {} or {}".format(config_site, target_config)
 
 def _configure_oss_clang_toolchain(repository_ctx):
     build_file = "BUILD.bazel"
@@ -94,6 +108,9 @@ def _configure_oss_clang_toolchain(repository_ctx):
         return False, error
 
     lld_path = repository_ctx.os.environ.get("LLD_PATH") or llvm_path
+    config_site, error = _get_libcxx_config_site(repository_ctx, llvm_abs_path)
+    if not config_site:
+        return False, error
 
     # Use LLVM's C++20 headers with Apple's system libc++ runtime. The upstream
     # archive disables vendor availability guards, which would reference newer
@@ -102,7 +119,7 @@ def _configure_oss_clang_toolchain(repository_ctx):
     config_override = "include/config_override"
     repository_ctx.file(
         config_override + "/__config_site",
-        enable_libcxx_vendor_availability(repository_ctx.read(llvm_abs_path + "/include/c++/v1/__config_site")),
+        enable_libcxx_vendor_availability(repository_ctx.read(config_site)),
     )
     config_override_exec_path = "external/{}/{}".format(repository_ctx.name, config_override)
 
@@ -115,7 +132,7 @@ def _configure_oss_clang_toolchain(repository_ctx):
     elif llvm_path != llvm_abs_path:
         include_paths.append(llvm_path)
     include_dirs = _get_llvm_clang_include_dirs(repository_ctx, include_paths)
-    include_dirs.append('            "{}",'.format(config_override_exec_path))
+    include_dirs.append("            {},".format(json.encode(config_override_exec_path)))
 
     repository_ctx.report_progress("Generating Apple OSS LLVM Clang Toolchain build file")
     build_template = Label("@//bazel/toolchains/cc/mongo_apple:BUILD.tmpl")
@@ -123,10 +140,10 @@ def _configure_oss_clang_toolchain(repository_ctx):
         build_file,
         build_template,
         {
-            "%{llvm_path}": llvm_path,
-            "%{lld_path}": lld_path,
-            "%{lld_exec_path}": lld_path if lld_path.startswith("/") else "external/{}/{}".format(repository_ctx.name, lld_path),
-            "%{config_override_exec_path}": config_override_exec_path,
+            "%{llvm_path}": json.encode(llvm_path),
+            "%{lld_path}": json.encode(lld_path),
+            "%{lld_exec_path}": json.encode(lld_path if lld_path.startswith("/") else "external/{}/{}".format(repository_ctx.name, lld_path)),
+            "%{config_override_exec_path}": json.encode(config_override_exec_path),
             "%{cxx_builtin_include_directories}": "\n".join(include_dirs),
         },
     )

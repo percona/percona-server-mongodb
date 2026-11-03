@@ -20,6 +20,11 @@ def _vendor_availability_test_impl(ctx):
         asserts.equals(env, expected, enable_libcxx_vendor_availability(other_defines + disabled + "\n"))
         asserts.equals(env, expected, enable_libcxx_vendor_availability(expected))
     asserts.equals(env, other_defines, enable_libcxx_vendor_availability(other_defines))
+    asserts.equals(
+        env,
+        "#define _LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS 1\n",
+        enable_libcxx_vendor_availability("  # define\t_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS  0\n"),
+    )
     return unittest.end(env)
 
 libcxx_vendor_availability_test = unittest.make(_vendor_availability_test_impl)

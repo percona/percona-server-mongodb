@@ -97,6 +97,11 @@ excluded. The native and cross macOS archive rules read their LLVM versions from
 checksums must also be updated when changing those versions. Native macOS link flags explicitly
 select the downloaded LLVM archive's `ld64.lld`.
 
+Native and cross macOS links use `-dead_strip` to remove empty code sections before LLD 19 generates
+compact-unwind tables. Otherwise, duplicate entries can shadow a function's unwind information and
+cause expected exceptions to terminate the process (LLVM issue
+[#216154](https://github.com/llvm/llvm-project/issues/216154)).
+
 Both macOS toolchains enable vendor availability guards in LLVM's libc++ headers so generated code
 remains compatible with Apple's system runtime on the deployment target. The `__config_site`
 override lives in the generated toolchain repository, including when `LLVM_PATH` points to a local
