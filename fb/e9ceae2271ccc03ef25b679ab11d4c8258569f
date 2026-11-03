@@ -1,0 +1,183 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "56a0345786cbcfd13fedc18edae27e7a1cbb655c",
+    "merge_commit": "e37ae17db503703515d2ec35f6793dee7651655f"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "e37ae17db503703515d2ec35f6793dee7651655f",
+    "merged_commits": [
+      "e37ae17db503703515d2ec35f6793dee7651655f",
+      "ba2494ad5b04072e9768a0c60ec301e40edf2991",
+      "20745ca5b466f41f9a4a4fc683e78591d69f7d9f",
+      "e17a512ebc917b0c8a043b64ee944c9583c5fb26",
+      "5c5ae6dfef7ed5c2652c502a7de4c0824a3909c2",
+      "8521f309facbd3545e79148b87bfc5c837296ad8",
+      "559a2bba0879ab8ed38e8215c6c8100bcff4db9a",
+      "ec4332d345e8b681880a8267531b1ee4805242dd",
+      "3470e4c1524125479f10d73ddfd45943a5f81b74",
+      "6a504e658960c7b57b9a4f7d69d9456c359b2bac",
+      "a86965989315410bc9c87e8c65eb8f76820e7760",
+      "b763a3db12bcfc8296e9ccbf710067cfc86d5ac8",
+      "d9c15f8416f0731b862c12c72b305280579a633f",
+      "603718ceed74dc537a8d2a26666ac12722c3502f",
+      "06eb2d9e33970dd80e4cb0679205ba2017c1112a",
+      "e2d459ca746fd416f5f015485ee09038fd28d84a",
+      "69cc0a531c900d6964fa24112f8ecb59913cbaf2",
+      "1843c7006599ee57fd5425376d47ad2d128d1dd5",
+      "3727452172f81d4c4fe70c45e2471806d3327ff1",
+      "821e7bfb39f2b0900cc1a92351c5ba16efb0300e",
+      "406814499a02e6c387480ba1cb1d38d16b6ea996",
+      "fe2c5d98dccd774b72e2d40c88198317587b5a58",
+      "700000fb153984863bb63decb562c3bc53d6b68d",
+      "9077f5ec4f3d11cda5866ec622c7337e083cc015",
+      "32fd6c7f46388ca2d9f9c5af314267dcb4c4cb74",
+      "b3c2d7c325cea00d927bc9fc286fc988c805d221",
+      "bf2a332717594fe8dc3a4a79cc7baa769ce9d3ef",
+      "49c07158b9d406ad78c0d2bcc41a1cb850df8be0",
+      "a16b006b774d5500c984302f4f7a9fb7a7179675",
+      "85dfd890ccdcce96f6fa946c841e03016027e5f6",
+      "f969d096e26e4965bc1562c3b39768243fb34961",
+      "14c14805b38b7742d7111426dabc2425c8744abb",
+      "bc440c02e8b207228660ba3d1ac9c0d96417f1d0",
+      "e43c4d846a3dbcde550328fe9c2b02db0819fcfd",
+      "0d916cf564f5432fbd3117f8c992db2cbd6148db",
+      "72e901b0ea9dbb431f057c5e0939701127901cbb",
+      "36553c7598018b6a45ffd535e0f22972f63491a3",
+      "9b685a0c958e902af91bd663cde6515679a11b94",
+      "7a4e799b54266f8ea0a78fc5742bf2fb2ff3dc09",
+      "ee2d4b4ccc99b2bdf80fd5a589363367d93617aa",
+      "7e84117126f913812b0368243fb1e71f11988785",
+      "a74ce3620ac49e8ac62ada9905c9665fe7c3ae11",
+      "aedd8cadc73a20fb537e7d397c5b1d07c4da6b19",
+      "5e27a4e490b9a30dc0d00a9d497c7728f38570dc",
+      "603d1d985b3e38b968a9c71753af223440a3565f",
+      "5808a8e8a188fc0b2d8d57644d59a5753cdb75ca"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/repl/initial_sync/initial_syncer.cpp",
+      "src/mongo/db/repl/initial_sync/initial_syncer.h"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/BUILD.bazel",
+        "src/mongo/executor/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 34050,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.226431,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2324,
+        "cacheReadInputTokens": 50377,
+        "cacheCreationInputTokens": 22898,
+        "webSearchRequests": 0,
+        "costUSD": 0.226431,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 88,
+        "cacheCreationEphemeral5mInputTokens": 22898,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2324,
+            "cache_read": 50377,
+            "cache_creation": 22898
+          },
+          "cost_usd": 0.226431
+        }
+      }
+    },
+    "text_result": "I've read the prompt and inspected the actual `diff base \u2192 merge commit` diff for each auto-merged file, then wrote the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **error_codes.yml** \u2014 new `PrepareConflict` error code (532, InternalOnly, with `PrepareConflictInfo` extra).\n- **storage/BUILD.bazel** \u2014 new `prepare_conflict_info` library + its unit test target.\n- **db/BUILD.bazel & repl/BUILD.bazel** \u2014 supporting dependency additions (including the new `prepare_conflict_info` dep, `multi_key_path_tracker`, `repl_server_parameters`, etc.).\n- **startup_recovery.cpp** \u2014 offline validation now always enables size stats instead of disabling them when record-store slicing is on.\n- **pipelined_applier_advancer_test.cpp** \u2014 every `addBatch(...)` call gets a new trailing `0` argument.\n- **executor/BUILD.bazel** \u2014 adds `metrics_test_util` dep to an integration test.\n- **wiredtiger.h.in** \u2014 new `WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE` stat and mechanical renumbering of following stat IDs.\n- **MODULE.bazel.lock** \u2014 regenerated.\n\nAll files merged cleanly with no Percona-specific lines appearing in the diffs, and none of the conflict-hint files needed manual resolution. The response was written to the specified path.",
+    "response": {
+      "summary": "Merges upstream MongoDB changes into the fork. The notable incoming additions are a new InternalOnly error code PrepareConflict (code 532, with PrepareConflictInfo extra info) backed by a new prepare_conflict_info storage library, and a change to offline collection validation that always enables size statistics. Supporting changes update several BUILD.bazel dependency lists, add a sixth argument to PipelinedApplierBatchTracker::addBatch calls in a test, and renumber WiredTiger connection statistic IDs to make room for a new data-handle sweep statistic.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Lock file regenerated as part of the merge; no manually reviewable semantic change.",
+        "src/mongo/base/error_codes.yml": "Adds a new error code 532 named PrepareConflict in the InternalOnly category with extra info PrepareConflictInfo, inserted before the 'add new codes' marker.",
+        "src/mongo/db/BUILD.bazel": "Adds //src/mongo/db/storage:prepare_conflict_info to one library's deps, and adds //src/mongo/util/net:network and //src/third_party/yaml-cpp:yaml to another library's deps.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds dependency entries: //src/mongo/db:multi_key_path_tracker and :repl_server_parameters to library deps, and :oplog_application, :storage_interface_impl, and :repl_server_parameters to unit-test deps.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Updates every tracker.addBatch(...) call in the tests to pass an additional trailing argument (0), matching a new parameter on PipelinedApplierBatchTracker::addBatch; no test logic otherwise changes.",
+        "src/mongo/db/startup_recovery.cpp": "In offlineValidateCollection, removes the enableSizeStats computation (which disabled size stats when record-store slicing was enabled) and passes /*enableSizeStats=*/true unconditionally to parseValidateOptions.",
+        "src/mongo/db/storage/BUILD.bazel": "Adds a new mongo_cc_library target 'prepare_conflict_info' (srcs prepare_conflict_info.cpp, dep //src/mongo:base) and a corresponding mongo_cc_unit_test target 'prepare_conflict_info_test'.",
+        "src/mongo/executor/BUILD.bazel": "Adds //src/mongo/otel/metrics:metrics_test_util to the deps of a mongo_cc_integration_test target.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE statistic (value 1592) and increments the numeric IDs of the subsequent WT_STAT_CONN_* statistic macros by one to accommodate it; purely generated statistic renumbering."
+      },
+      "review_notes": "All listed files merged cleanly (ort auto-merge) and contain only the incoming upstream changes; no Percona-specific lines appear in the diff base -> merge commit diffs. The addBatch argument change in the test reflects a new parameter on the tracker API (defined elsewhere in the repl libraries, not in these files). The wiredtiger.h.in change is mechanical stat-ID renumbering. No conflict-hint files (sbom.json, mongo_src_rules.bzl, the integration-test BUILD files) required manual resolution in this set."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The diffs are clear. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the prompt and inspected the actual `diff base \u2192 merge commit` diff for each auto-merged file, then wrote the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **error_codes.yml** \u2014 new `PrepareConflict` error code (532, InternalOnly, with `PrepareConflictInfo` extra).\n- **storage/BUILD.bazel** \u2014 new `prepare_conflict_info` library + its unit test target.\n- **db/BUILD.bazel & repl/BUILD.bazel** \u2014 supporting dependency additions (including the new `prepare_conflict_info` dep, `multi_key_path_tracker`, `repl_server_parameters`, etc.).\n- **startup_recovery.cpp** \u2014 offline validation now always enables size stats instead of disabling them when record-store slicing is on.\n- **pipelined_applier_advancer_test.cpp** \u2014 every `addBatch(...)` call gets a new trailing `0` argument.\n- **executor/BUILD.bazel** \u2014 adds `metrics_test_util` dep to an integration test.\n- **wiredtiger.h.in** \u2014 new `WT_STAT_CONN_DH_SWEEP_INGEST_CLOSE` stat and mechanical renumbering of following stat IDs.\n- **MODULE.bazel.lock** \u2014 regenerated.\n\nAll files merged cleanly with no Percona-specific lines appearing in the diffs, and none of the conflict-hint files needed manual resolution. The response was written to the specified path."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261103_051207_835715.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.317 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "e37ae17db503703515d2ec35f6793dee7651655f",
+    "short_sha": "e37ae17db50",
+    "strategy": "huge_commit",
+    "summary": "This takes the entire 46-commit window, which sits right in the target band (~50, comfortable 30-65) and the gate is already open. Crucially, the newest candidate is itself an ideal merge boundary: a vendored WiredTiger third-party import ('Import wiredtiger: 992bc6... from branch mongodb-master'). Such imports touch a well-isolated set of files, do not depend on the commits that follow, and are easy to validate post-merge, so ending here does not leave the fork in a half-applied state. The large Gregory Noma prepare-conflict / index-build-drain stacked series (SERVER-137218 through SERVER-136519) is fully contained within the batch rather than split. The two reverts in range (SERVER-137718 test-only revert and SERVER-137505 toolchain-version revert) have their originals outside the window, so they stand alone cleanly. No coherent unit of work is cut mid-stream, making this WiredTiger import the cleanest available stopping point.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/41582140921"
+  }
+}
