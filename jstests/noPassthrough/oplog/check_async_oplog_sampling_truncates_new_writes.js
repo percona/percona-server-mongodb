@@ -30,6 +30,18 @@ const oplogSizeMB = 1; // Small oplog size in MB
 const longString = "a".repeat(450 * 1024); // Large document size (~500KB)
 let nextId = 0; // Tracks the next `_id` for inserts
 
+// setParameter args to reuse across startups.
+// SERVER-127268: ReplSetTest.start() replaces setParameter on restart, so the restarted node
+// otherwise keeps the default 300s oplogTruncationCheckPeriodSeconds. The cap maintainer then
+// stays asleep after the post-sampling fsync, and assert.soon times out before truncation.
+const setParameter = {
+    logComponentVerbosity: tojson({storage: 1}),
+    minOplogTruncationPoints: 2,
+    internalQueryExecYieldPeriodMS: 86400000, // Disable yielding
+    // Speed up the wakeup time of the cap maintainer thread.
+    oplogTruncationCheckPeriodSeconds: 1,
+};
+
 // Initialize a single-node replica set with a small oplog size
 const rst = new ReplSetTest({
     oplogSize: oplogSizeMB,
@@ -37,11 +49,7 @@ const rst = new ReplSetTest({
     // Set the syncdelay to 1s to speed up checkpointing.
     nodeOptions: {
         syncdelay: 1,
-        setParameter: {
-            logComponentVerbosity: tojson({storage: 1}),
-            minOplogTruncationPoints: 2,
-            internalQueryExecYieldPeriodMS: 86400000, // Disable yielding
-        },
+        setParameter: setParameter,
     },
 });
 rst.startSet();
@@ -60,7 +68,10 @@ clearRawMongoProgramOutput();
 
 rst.startSet({
     restart: true,
-    setParameter: {"failpoint.hangDuringOplogSampling": tojson({mode: "alwaysOn"})},
+    setParameter: {
+        "failpoint.hangDuringOplogSampling": tojson({mode: "alwaysOn"}),
+        ...setParameter,
+    },
 }); // Restart replica set
 const restartedPrimary = rst.getPrimary();
 const restartedPrimaryOplog = restartedPrimary.getDB("local").getCollection("oplog.rs");

@@ -1,7 +1,7 @@
 /**
  * Tests that new node added via FCBIS works correctly as primary.
  *
- * @tags: [requires_wiredtiger]
+ * @tags: [requires_wiredtiger, multiversion_incompatible]
  */
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {reconfig, isConfigCommitted} from "jstests/replsets/rslib.js";

@@ -16,6 +16,7 @@
  * @tags: [uses_transactions, uses_prepare_transaction, multiversion_incompatible]
  */
 import {PrepareHelpers} from "jstests/core/txns/libs/prepare_helpers.js";
+import {FeatureFlagUtil} from "jstests/libs/feature_flag_util.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {Thread} from "jstests/libs/parallelTester.js";
@@ -37,6 +38,23 @@ function isUpgradingOrDowngrading() {
         testDB.adminCommand({getParameter: 1, featureCompatibilityVersion: 1}),
     );
     return fcv.featureCompatibilityVersion.targetVersion !== undefined;
+}
+
+/**
+ * Returns the node to latestFCV. Symmetric FCV can commit kEnableTargetFeatures, with
+ * isCleaningServerMetadata still set, before the final drain. The server then rejects an
+ * upgrade until that downgrade is retried, and rejects a downgrade until an interrupted
+ * upgrade is retried. Finish the in-progress transition before moving back to latest.
+ */
+function restoreLatestFCV(targetFCV) {
+    if (isUpgradingOrDowngrading()) {
+        assert.commandWorked(
+            testDB.adminCommand({setFeatureCompatibilityVersion: targetFCV, confirm: true}),
+        );
+    }
+    assert.commandWorked(
+        testDB.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}),
+    );
 }
 
 /**
@@ -73,7 +91,23 @@ function runFCVTransitionToUpgradingOrDowngradingAndDraining(targetFCV, beforeTr
  * the corresponding (second) draining of transactions via the global lock barrier.
  */
 function runFCVTransitionToUpgradedOrDowngradedAndDraining(targetFCV, beforeTransitionCallback) {
-    const hangBeforeUpdatingFcvDocFp = configureFailPoint(primary, "hangBeforeUpdatingFcvDoc");
+    // featureFlagSymmetricFCV runs the final global-lock drain inside _finalizeUpgrade /
+    // _finalizeDowngrade during kEnableTargetFeatures, before hangBeforeUpdatingFcvDoc. A
+    // prepared transaction or operation-FCV blocker created at that hang misses the drain, so
+    // setFCV returns ok:1 instead of LockTimeout or ExceededTimeLimit. hangWhileUpgrading and
+    // hangWhileDowngrading pause after the first drain and before that finalize, while the node
+    // is still on a transitional FCV. When the flag is off, the final drain is still after
+    // hangBeforeUpdatingFcvDoc.
+    const currentFCV = assert.commandWorked(
+        testDB.adminCommand({getParameter: 1, featureCompatibilityVersion: 1}),
+    ).featureCompatibilityVersion.version;
+    const symmetricFCV = FeatureFlagUtil.isEnabled(testDB, "SymmetricFCV");
+    const hangFailPointName = !symmetricFCV
+        ? "hangBeforeUpdatingFcvDoc"
+        : MongoRunner.compareBinVersions(targetFCV, currentFCV) < 0
+          ? "hangWhileDowngrading"
+          : "hangWhileUpgrading";
+    const hangFp = configureFailPoint(primary, hangFailPointName);
     try {
         const setFcvThread = new Thread(
             function (host, targetFCV) {
@@ -87,18 +121,24 @@ function runFCVTransitionToUpgradedOrDowngradedAndDraining(targetFCV, beforeTran
             targetFCV,
         );
         setFcvThread.start();
-        hangBeforeUpdatingFcvDocFp.wait();
+        hangFp.wait();
         assert(isUpgradingOrDowngrading());
 
         beforeTransitionCallback();
 
-        hangBeforeUpdatingFcvDocFp.off();
+        hangFp.off();
         setFcvThread.join();
-        assert(!isUpgradingOrDowngrading());
-
-        return setFcvThread.returnData();
+        const result = setFcvThread.returnData();
+        // Symmetric FCV commits the kEnableTargetFeatures document, with targetVersion still
+        // set, before _finalize*. LockTimeout or ExceededTimeLimit from that drain therefore
+        // leaves the node on a transitional FCV. The fully upgraded or downgraded document,
+        // which clears targetVersion, is written only after the drain succeeds.
+        if (result.ok) {
+            assert(!isUpgradingOrDowngrading());
+        }
+        return result;
     } finally {
-        hangBeforeUpdatingFcvDocFp.off();
+        hangFp.off();
     }
 }
 
@@ -145,9 +185,7 @@ function runAbortUnpreparedTransactionsTest(initialFCV, targetFCV, runSetFCVFn) 
     );
 
     jsTestLog("Restore the featureCompatibilityVersion to latest.");
-    assert.commandWorked(
-        testDB.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}),
-    );
+    restoreLatestFCV(targetFCV);
 
     session.endSession();
     testDB[collName].drop({writeConcern: {w: "majority"}});
@@ -201,9 +239,7 @@ function runAwaitPreparedTransactionsTest(initialFCV, targetFCV, runSetFCVFn) {
     assert.commandWorked(PrepareHelpers.commitTransaction(session, prepareTimestamp));
 
     jsTestLog("Restore the featureCompatibilityVersion to latest.");
-    assert.commandWorked(
-        testDB.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}),
-    );
+    restoreLatestFCV(targetFCV);
 
     session.endSession();
     testDB[collName].drop({writeConcern: {w: "majority"}});
@@ -264,9 +300,7 @@ function runAwaitOperationsWithOFCV(initialFCV, targetFCV, runSetFCVFn) {
     }
 
     jsTestLog("Restore the featureCompatibilityVersion to latest.");
-    assert.commandWorked(
-        testDB.adminCommand({setFeatureCompatibilityVersion: latestFCV, confirm: true}),
-    );
+    restoreLatestFCV(targetFCV);
 
     testDB[collName].drop({writeConcern: {w: "majority"}});
 }

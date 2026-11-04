@@ -16,7 +16,16 @@ function checkCommand(cmd, collName, withinTransaction) {
         if (withinTransaction) {
             withRetryOnTransientTxnError(func, () => {
                 if (session) {
-                    session.abortTransaction();
+                    // The server may already have aborted the transaction when it returned the
+                    // transient error. abortTransaction() then throws, which would escape
+                    // assert.soon and fail the test.
+                    try {
+                        session.abortTransaction();
+                    } catch (e) {
+                        if (e.code !== ErrorCodes.NoSuchTransaction) {
+                            throw e;
+                        }
+                    }
                 }
                 session = null;
             });
@@ -49,10 +58,6 @@ function checkCommand(cmd, collName, withinTransaction) {
             mongos.getDB(dbName)[collName].insert({a: 0, x: i++});
         });
 
-        if (withinTransaction) {
-            session = st.s1.getDB(dbName).getMongo().startSession();
-            session.startTransaction({readConcern: {level: "snapshot"}});
-        }
         // Drop and recreate the collection on the primary shard. Now the collection resides on the
         // primary shard rather than the secondary. Note that we are only doing this in one mongos
         // so that the other one has stale information.
@@ -60,6 +65,15 @@ function checkCommand(cmd, collName, withinTransaction) {
         assert.commandWorked(sDb.runCommand({drop: coll.getName()}));
         assert.commandWorked(sDb.adminCommand({shardCollection: coll.getFullName(), key: {a: 1}}));
         const newUuid = sDb.getCollectionInfos({name: coll.getName()})[0].info.uuid;
+
+        // Copy s0's cluster time from after the drop and recreate, then start the snapshot
+        // transaction. This does not refresh s1's route, so the request still goes to the old
+        // shard. That shard returns StaleConfig because the snapshot is after the DDL.
+        st.s1.advanceClusterTime(st.s0.getClusterTime());
+        if (withinTransaction) {
+            session = st.s1.getDB(dbName).getMongo().startSession();
+            session.startTransaction({readConcern: {level: "snapshot"}});
+        }
 
         // Proceed to make a request on the other mongos for the new collection. We expect this
         // request to get sent to the wrong shard as the router is stale. mongos should detect this
