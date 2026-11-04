@@ -1,0 +1,25 @@
+name: Deploy to gh-pages
+description: >-
+  Publish a directory to the gh-pages branch, preserving the other slices of the
+  site (shell, fork-status data, CVE data) that are maintained by other
+  workflows. Callers must run under the shared `gh-pages-deploy` concurrency
+  group so the deploys do not race.
+
+inputs:
+  publish_dir:
+    description: Directory whose contents are published to the gh-pages root.
+    required: true
+  github_token:
+    description: Token with push access to gh-pages (PSMDB bot GitHub App token).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+      with:
+        github_token: ${{ inputs.github_token }}
+        publish_dir: ${{ inputs.publish_dir }}
+        destination_dir: .
+        keep_files: true # additive: never deletes the other slices' files
+        enable_jekyll: true # no .nojekyll; GitHub Pages builds the branch root

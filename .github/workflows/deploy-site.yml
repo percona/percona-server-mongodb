@@ -1,0 +1,51 @@
+name: Deploy GitHub Pages site
+
+# Single owner of the site shell (the Jekyll sources under .github/gh-pages/)
+# and the OpenVEX files (vex/). The data-producing workflows
+# (update-fork-status.yml, update-cve-status.yml) only publish their own data
+# slice and rely on keep_files to preserve this shell.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/gh-pages/**"
+      - "vex/**"
+      - ".github/actions/deploy-gh-pages/**"
+      - ".github/workflows/deploy-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-site:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Stage shell and OpenVEX files
+        run: |
+          set -euo pipefail
+          mkdir -p site/vex
+          cp -r .github/gh-pages/. site/
+          cp -r vex/. site/vex/
+
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PSMDB_BOT_GH_APP_ID }}
+          private-key: ${{ secrets.PSMDB_BOT_GH_APP_PRIVATE_KEY }}
+
+      - name: Deploy shell to gh-pages
+        uses: ./.github/actions/deploy-gh-pages
+        with:
+          publish_dir: ./site # shell + vex only; _data and cve-data are kept
+          github_token: ${{ steps.app-token.outputs.token }}

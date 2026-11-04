@@ -80,18 +80,10 @@ jobs:
           echo "Successfully generated status JSON:"
           jq '.' "$OUTPUT_FILE"
 
-      - name: Copy site sources and OpenVEX files
-        run: |
-          set -euo pipefail
-          cp -r .github/gh-pages/. gh-pages-data/
-          mkdir -p gh-pages-data/vex
-          cp -r vex/. gh-pages-data/vex/
-
-      - name: Deploy data to gh-pages
-        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
+      # The site shell and the OpenVEX files are published by deploy-site.yml;
+      # this workflow owns only the fork-status data slice.
+      - name: Deploy fork-status data to gh-pages
+        uses: ./.github/actions/deploy-gh-pages
         with:
+          publish_dir: ./gh-pages-data # only _data/branches/master.json
           github_token: ${{ steps.app-token.outputs.token }}
-          publish_dir: ./gh-pages-data
-          destination_dir: .
-          keep_files: true # Keep existing templates and the OpenVEX files not in this push
-          enable_jekyll: true
