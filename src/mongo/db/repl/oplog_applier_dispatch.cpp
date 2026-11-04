@@ -294,8 +294,7 @@ Status flushMultikeyPathInfo(OperationContext* opCtx,
                              StorageInterface* storageInterface,
                              std::vector<WorkerMultikeyPathInfo>& multikeyVector,
                              Timestamp firstTimeInBatch,
-                             Timestamp lastTimeInBatch,
-                             Timestamp lastApplied) {
+                             Timestamp lastTimeInBatch) {
     // Merge worker-local multikey info before applying deferred catalog writes. The same index can
     // appear more than once when different paths become multikey at different timestamps.
     MultikeyPathTracker mergedMultikeyPathInfo;
@@ -322,8 +321,8 @@ Status flushMultikeyPathInfo(OperationContext* opCtx,
         // setMultikeyMetadata entry, so this case cannot arise.
         const Timestamp ts =
             info.earliestTimestamp.isNull() ? firstTimeInBatch : info.earliestTimestamp;
-        invariant(ts >= firstTimeInBatch && ts <= lastTimeInBatch && ts > lastApplied,
-                  "Deferred multikey writes must belong to the unpublished batch");
+        invariant(ts >= firstTimeInBatch && ts <= lastTimeInBatch,
+                  "Deferred multikey writes must belong to the batch");
         auto status = storageInterface->setIndexIsMultikey(opCtx,
                                                            info.nss,
                                                            info.collectionUUID,

@@ -2337,7 +2337,6 @@ protected:
 TEST_F(PipelinedMultikeyPublishTest, SharedFlushMergesEqualTimestampsAndPreservesLaterPaths) {
     const auto uuid =
         createCollectionWithIndex(_opCtx.get(), kNss, BSON("a" << 1 << "b" << 1 << "c" << 1));
-    const auto lastApplied = nextOpTime().getTimestamp();
     const auto first = nextOpTime().getTimestamp();
     const auto later = nextOpTime().getTimestamp();
     std::vector<WorkerMultikeyPathInfo> metadata{
@@ -2350,7 +2349,7 @@ TEST_F(PipelinedMultikeyPublishTest, SharedFlushMergesEqualTimestampsAndPreserve
 
     // Equal recorded timestamps merge; legacy null timestamps use the fallback only when flushed.
     UnreplicatedWritesBlock noRep(_opCtx.get());
-    ASSERT_OK(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later, lastApplied));
+    ASSERT_OK(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later));
     const WorkerMultikeyPathInfo expected{
         {kNss, uuid, "idx", {}, {{0U}, {}, {}}, first},
         {kNss, uuid, "idx", {}, {{0U}, {0U}, {}}, first},
@@ -2362,7 +2361,6 @@ TEST_F(PipelinedMultikeyPublishTest, SharedFlushMergesEqualTimestampsAndPreserve
 
 TEST_F(PipelinedMultikeyPublishTest, SharedFlushSkipsEmptyMetadataAndStopsOnStorageError) {
     const auto uuid = createCollectionWithIndex(_opCtx.get(), kNss, BSON("a" << 1 << "b" << 1));
-    const auto lastApplied = nextOpTime().getTimestamp();
     const auto first = nextOpTime().getTimestamp();
     const auto later = nextOpTime().getTimestamp();
     size_t attempts = 0;
@@ -2373,13 +2371,13 @@ TEST_F(PipelinedMultikeyPublishTest, SharedFlushSkipsEmptyMetadataAndStopsOnStor
 
     UnreplicatedWritesBlock noRep(_opCtx.get());
     std::vector<WorkerMultikeyPathInfo> metadata(3);
-    ASSERT_OK(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later, lastApplied));
+    ASSERT_OK(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later));
     ASSERT_EQ(attempts, 0U);
 
     // A failure must be returned to the caller without attempting the next timestamp's write.
     metadata[0] = {{kNss, uuid, "idx", {}, {{0U}, {}}, first}};
     metadata[1] = {{kNss, uuid, "idx", {}, {{}, {0U}}, later}};
-    ASSERT_EQ(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later, lastApplied),
+    ASSERT_EQ(flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, first, later),
               ErrorCodes::IndexNotFound);
     ASSERT_EQ(attempts, 1U);
     ASSERT_TRUE(_storage.writes().empty());
@@ -2604,35 +2602,54 @@ using PipelinedMultikeyPublishDeathTest = PipelinedMultikeyPublishTest;
 
 DEATH_TEST_REGEX_F(PipelinedMultikeyPublishDeathTest,
                    SharedFlushRejectsTimestampBeforeBatch,
-                   "Deferred multikey writes must belong to the unpublished batch") {
+                   "Deferred multikey writes must belong to the batch") {
     std::vector<WorkerMultikeyPathInfo> metadata{
         {{kNss, UUID::gen(), "idx", {}, {{0U}}, Timestamp(2, 0)}},
     };
-    // Being above lastApplied is insufficient if the write predates this batch.
-    ASSERT_OK(flushMultikeyPathInfo(
-        _opCtx.get(), &_storage, metadata, Timestamp(3, 0), Timestamp(5, 0), Timestamp(1, 0)));
+    ASSERT_OK(
+        flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, Timestamp(3, 0), Timestamp(5, 0)));
 }
 
 DEATH_TEST_REGEX_F(PipelinedMultikeyPublishDeathTest,
                    SharedFlushRejectsTimestampAfterBatch,
-                   "Deferred multikey writes must belong to the unpublished batch") {
+                   "Deferred multikey writes must belong to the batch") {
     std::vector<WorkerMultikeyPathInfo> metadata{
         {{kNss, UUID::gen(), "idx", {}, {{0U}}, Timestamp(6, 0)}},
     };
     // A batch must not flush metadata belonging to a later write.
-    ASSERT_OK(flushMultikeyPathInfo(
-        _opCtx.get(), &_storage, metadata, Timestamp(3, 0), Timestamp(5, 0), Timestamp(1, 0)));
+    ASSERT_OK(
+        flushMultikeyPathInfo(_opCtx.get(), &_storage, metadata, Timestamp(3, 0), Timestamp(5, 0)));
 }
 
 DEATH_TEST_REGEX_F(PipelinedMultikeyPublishDeathTest,
-                   SharedFlushRejectsAlreadyPublishedTimestamp,
-                   "Deferred multikey writes must belong to the unpublished batch") {
-    std::vector<WorkerMultikeyPathInfo> metadata{
-        {{kNss, UUID::gen(), "idx", {}, {{0U}}, Timestamp(3, 0)}},
-    };
-    // Even a write within the batch must be strictly newer than lastApplied.
-    ASSERT_OK(flushMultikeyPathInfo(
-        _opCtx.get(), &_storage, metadata, Timestamp(3, 0), Timestamp(5, 0), Timestamp(3, 0)));
+                   PublishRejectsAlreadyPublishedTimestamp,
+                   "Deferred multikey writes must commit above the published timestamp") {
+    createCollectionWithIndex(_opCtx.get(), kNss, BSON("a" << 1));
+    auto* replCoord = ReplicationCoordinator::get(serviceContext);
+
+    // A first plain batch sets the dispatcher's baseline so the second batch is not rejected at
+    // dispatch time once lastApplied is forced ahead of it. Wait for its publication: the applier
+    // reads lastApplied asynchronously at startup, so bumping it earlier would race the dispatcher.
+    const auto plain = insertOp(kNss, BSON("_id" << 0 << "a" << 1));
+    pushToBuffer({plain});
+    startApplier(&_storage);
+    const auto deadline = Date_t::now() + Seconds(60);
+    while (replCoord->getMyLastAppliedOpTime() != plain.getOpTime()) {
+        ASSERT_LT(Date_t::now(), deadline);
+        sleepFor(Milliseconds(10));
+    }
+
+    // A batch whose multikey writes are at or below lastApplied must not publish. Wait for the
+    // batcher to pick the batch up before shutting down: a shutdown request sent before pickup
+    // empties the batcher without applying the batch, and publication would never fail.
+    replCoord->setMyLastAppliedOpTimeAndWallTimeForward(
+        {OpTime(Timestamp(Seconds(1000), 0), 1LL), Date_t{}});
+    pushToBuffer({insertOp(kNss, BSON("_id" << 1 << "a" << BSON_ARRAY(1 << 2)))});
+    while (!_buffer.isEmpty()) {
+        ASSERT_LT(Date_t::now(), deadline);
+        sleepFor(Milliseconds(10));
+    }
+    finishApplier();
 }
 
 DEATH_TEST_REGEX_F(PipelinedMultikeyPublishDeathTest,

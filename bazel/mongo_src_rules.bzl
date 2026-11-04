@@ -204,11 +204,6 @@ GDB_GENERATE_INDEX = select({
     "//conditions:default": "//bazel:gdb-generate-index-noop",
 })
 
-GDB_INDEX_MESSAGE_DATA = select({
-    "//bazel/config:gdb_index_enabled_linux": [],
-    "//conditions:default": ["//bazel:gdb-index-message"],
-})
-
 TCMALLOC_ERROR_MESSAGE = """
 Error:\n" +
     Build failed due to unsupported platform for current allocator selection:
@@ -708,7 +703,7 @@ def _mongo_cc_binary_and_test(
         "visibility": visibility,
         "testonly": testonly,
         "copts": copts,
-        "data": data + SANITIZER_DATA + ["//bazel:test_wrapper"] + GDB_INDEX_MESSAGE_DATA,
+        "data": data + SANITIZER_DATA + ["//bazel:test_wrapper"],
         "tags": tags,
         "linkopts": linkopts + rpath_flags + select({
             "//bazel/config:thin_lto_enabled": ["-Wl,--threads=" + str(NUM_CPUS)],
@@ -786,6 +781,11 @@ def _mongo_cc_binary_and_test(
             type = "program",
             tags = original_tags + ["final_target"],
             enabled = SEPARATE_DEBUG_ENABLED,
+            debug_resource_profile = select({
+                "//bazel/config:measured_debug_processing": "split",
+                "//bazel/config:conservative_debug_processing": "conservative",
+                "//conditions:default": "unmeasured",
+            }),
             enable_pdb = PDB_GENERATION_ENABLED,
             gdb_index_enabled = GDB_INDEX_ENABLED,
             gdb_generate_index = GDB_GENERATE_INDEX,
@@ -809,6 +809,11 @@ def _mongo_cc_binary_and_test(
             size = kwargs.get("size", "medium"),
             tags = original_tags + ["final_target"],
             enabled = SEPARATE_DEBUG_ENABLED,
+            debug_resource_profile = select({
+                "//bazel/config:measured_debug_processing": "split",
+                "//bazel/config:conservative_debug_processing": "conservative",
+                "//conditions:default": "unmeasured",
+            }),
             enable_pdb = PDB_GENERATION_ENABLED,
             gdb_index_enabled = GDB_INDEX_ENABLED,
             gdb_generate_index = GDB_GENERATE_INDEX,
