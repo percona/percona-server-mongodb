@@ -29,8 +29,7 @@ class SessionUpdateTracker;
                                            StorageInterface* storageInterface,
                                            std::vector<WorkerMultikeyPathInfo>& multikeyVector,
                                            Timestamp firstTimeInBatch,
-                                           Timestamp lastTimeInBatch,
-                                           Timestamp lastApplied);
+                                           Timestamp lastTimeInBatch);
 
 /**
  * ops - This only modifies the isForCappedCollection and hasRetryImage fields on each op. It does

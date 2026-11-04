@@ -687,8 +687,7 @@ StatusWith<OpTime> OplogApplierImpl::_applyOplogBatch(OperationContext* opCtx,
                                   _storageInterface,
                                   multikeyVector,
                                   ops.front().getTimestamp(),
-                                  ops.back().getTimestamp(),
-                                  _replCoord->getMyLastAppliedOpTime().getTimestamp()));
+                                  ops.back().getTimestamp()));
 
     // Increment the counter for the number of ops applied during catchup if the node is in catchup
     // mode.

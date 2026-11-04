@@ -279,12 +279,20 @@ void PipelinedOplogApplier::_publishBatch(
         opCtx.get(), AdmissionContext::Priority::kExempt);
     UnreplicatedWritesBlock noRep(opCtx.get());
     setWorkerOpCtxStates(opCtx.get());
+    const Timestamp lastApplied = _replCoord->getMyLastAppliedOpTime().getTimestamp();
+    for (const auto& infoVector : *batch.multikeyMetadata) {
+        for (const auto& info : infoVector) {
+            const Timestamp ts = info.earliestTimestamp.isNull() ? batch.ops.front().getTimestamp()
+                                                                 : info.earliestTimestamp;
+            invariant(ts > lastApplied,
+                      "Deferred multikey writes must commit above the published timestamp");
+        }
+    }
     uassertStatusOK(flushMultikeyPathInfo(opCtx.get(),
                                           _storageInterface,
                                           *batch.multikeyMetadata,
                                           batch.ops.front().getTimestamp(),
-                                          batch.lastOpTime.opTime.getTimestamp(),
-                                          _replCoord->getMyLastAppliedOpTime().getTimestamp()));
+                                          batch.lastOpTime.opTime.getTimestamp()));
     _replCoord->setMyLastAppliedOpTimeAndWallTimeForward(batch.lastOpTime);
     signalOplogWaiters();
 }
