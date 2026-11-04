@@ -58,7 +58,10 @@ import {reconfig, isConfigCommitted} from "jstests/replsets/rslib.js";
     jsTest.log("--XXXX-- Added new member");
 
     // Output serverStatus for reference
-    jsTest.log("--XXXX-- newNode serverStatus: " + tojson(newNode.adminCommand({"serverStatus": 1, repl: 1})));
+    jsTest.log(
+        "--XXXX-- newNode serverStatus: " +
+            tojson(newNode.adminCommand({"serverStatus": 1, repl: 1})),
+    );
 
     // Make the new member become primary
     assert.commandWorked(newNode.adminCommand({replSetStepUp: 1}));
