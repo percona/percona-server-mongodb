@@ -52,7 +52,6 @@ def generate_targets(
     write_bazel_file(targets, output_file)
 
 
-<<<<<<< HEAD
 # Don't pass args after '--' to bazel as these args are for the target executable
 def get_extra_args(args):
     extra_args = []
@@ -64,12 +63,7 @@ def get_extra_args(args):
     return extra_args
 
 
-def get_bazel_labels_from_tags(args, bazel, tag):
-||||||| e37ae17db50
-def get_bazel_labels_from_tags(args, bazel, tag):
-=======
 def get_bazel_targets(args: Sequence[str], bazel: str) -> list[str]:
->>>>>>> d459f71596e544dc54b5df14111cef9c9f605123
     # This way we mostly keep the passed config, this parsing isn't perfect
     # for the ways you can call bazel configs but this should mostly just be used in CI
     # where we control how things are called
@@ -138,13 +132,8 @@ def create_target(tag: str, labels: Iterable[str]) -> str:
 
 
 # We default write the enterprise directory so we can access both bazel package targets
-<<<<<<< HEAD
-def write_bazel_file(targets, output_file):
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-||||||| e37ae17db50
-def write_bazel_file(targets, output_file):
-=======
 def write_bazel_file(targets: Iterable[str], output_file: str | os.PathLike[str]) -> None:
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     content = "".join(target + "\n\n" for target in targets)
     try:
         with open(output_file) as buildfile:
@@ -152,7 +141,6 @@ def write_bazel_file(targets: Iterable[str], output_file: str | os.PathLike[str]
                 return
     except FileNotFoundError:
         pass
->>>>>>> d459f71596e544dc54b5df14111cef9c9f605123
     with open(output_file, "w") as buildfile:
         buildfile.write(content)
 
