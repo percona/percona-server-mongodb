@@ -1,0 +1,187 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://percona.github.io/percona-server-mongodb/vex/percona-server-mongodb-7.0.40-22.vex.json",
+  "author": "Percona Security <security@percona.com>",
+  "timestamp": "2026-07-31T15:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": { "name": "CVE-2016-7415" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "The `Locale::Locale(const char*, const char*, const char*, const char*)` constructor in `locid.cpp` already contains the upstream security fix (ICU ticket #12592): each component length is bounds-checked against `ULOC_STRING_LIMIT` with a `setToBogus()` bailout on overflow (locid.cpp:306, 319, 337, 365), and the combined locale string is built with a dynamically-growing `CharString` object rather than the original fixed-size stack buffer.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-14952" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "The double-free code pattern in `zonemeta.cpp:createMetazoneMappings()` has already been patched: the redundant free after a failed `addElement()` has been removed, matching the upstream fix.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2016-6293" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "The missing bounds-check and termination that the CVE describes have been fixed locally: `locale[ULOC_FULLNAME_CAPACITY+1]` is the fixed-size buffer, `slen` is bounds-checked against `ULOC_FULLNAME_CAPACITY` before copying (lines 2342-2345, bailing out with `U_BUFFER_OVERFLOW_ERROR` if too large), and the buffer is explicitly `NULL`-terminated at `items[n].locale[slen]=0`, immediately after the `strncpy`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-17484" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerability was introduced by upstream commit `fa2ddc8`, which rewrites the `while(i<3 && i<(count-toULimit))` loop in `ucnv_UTF8FromUTF8()` (file `ucnv_u8.c`). Our vendored `icu4c-57.1/source/common/ucnv_u8.c` still has the original, pre-rewrite loop (line 832). Note that upstream's actual fix for this landed later, in commits `c1a8c3a` and `90b7a6e`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-7867" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "The heap-buffer-overflow fix (https://github.com/unicode-org/icu/commit/35a07bf.diff) is applied locally.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-7868" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "This CVE shares the same underlying bug (the undersized `mapToUChars` buffer in `utext.cpp`:`utf8TextAccess()`) and the same fix as CVE-2017-7867, but affects a different entry point: `utext_moveIndex32*` instead of `utext_setNativeIndex*`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2020-10531" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "fixed",
+      "impact_statement": "Fixed locally: `uprv_add32_overflow()` promotes both operands to `int64_t`, computes the sum, truncates back to `int32_t`, and returns `true` if the truncation lost information; `UnicodeString::doAppend()` in `common/unistr.cpp` (line 1514) guards the length computation.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-15422" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "The vulnerability is in `Calendar::computeMillisInDay()`, which is never called in Percona Server for MongoDB.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-15396" },
+      "products": [ { "@id": "pkg:github/unicode-org/icu@icu-release-57-1" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "The vulnerability is in `NumberingSystem::createInstance()`, which has already been fixed locally and is never called in Percona Server for MongoDB anyway.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-33186" },
+      "products": [ { "@id": "pkg:github/grpc/grpc@1.46.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "CVE-2026-33186 affects grpc-go (pkg:golang/google.golang.org/grpc), a separate repository. The vulnerable HTTP/2 :path handling and the authz RBAC engine do not exist in the vendored C++ implementation. NVD CPE grpc:grpc cannot distinguish language implementations.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2023-44487" },
+      "products": [ { "@id": "pkg:github/grpc/grpc@1.46.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2023-4785" },
+      "products": [ { "@id": "pkg:github/grpc/grpc@1.46.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2023-33953" },
+      "products": [ { "@id": "pkg:github/grpc/grpc@1.46.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2023-32732" },
+      "products": [ { "@id": "pkg:github/grpc/grpc@1.46.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2024-25629" },
+      "products": [ { "@id": "pkg:github/c-ares/c-ares@cares-1_19_1" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The `c-ares` library is only used in gRPC. The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2024-7254" },
+      "products": [ { "@id": "pkg:github/protocolbuffers/protobuf@v3.19.5" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The `protobuf` library is only used in gRPC. The entire gRPC build is gated behind `ENABLE_GRPC_BUILD` (default `off`) and Percona never enables it.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2022-41409" },
+      "products": [ { "@id": "pkg:github/pcre2project/pcre2@pcre2-10.40" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerability is in `pcre2test.c`, which is an interactive command-line testing and debugging utility that ships in the PCRE2 source distribution but is not part of the `libpcre2` library itself and is not compiled.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2019-17362" },
+      "products": [ { "@id": "pkg:github/libtom/libtomcrypt@v1.18.2" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerability is in `der_decode_utf8_string()`, but the build only includes a stripped-down subset: `der_decode_utf8_string.c` doesn't exist in the vendored tree.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2017-2665" },
+      "products": [ { "@id": "pkg:github/mongodb/mongo@7.0.40" } ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "Not related to Percona Server for MongoDB. The vulnerability is that the `skyring-setup` command creates a random password for the backing MongoDB database and writes the password in plain text to a configuration file.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2014-8180" },
+      "products": [ { "@id": "pkg:github/mongodb/mongo@7.0.40" } ],
+      "status": "not_affected",
+      "justification": "component_not_present",
+      "impact_statement": "Not related to Percona Server for MongoDB. The vulnerability is a misconfiguration in Red Hat Satellite 6, which uses MongoDB as a backend database; the Satellite 6 installer leaves the admin account configured with an empty password, allowing local users to authenticate with a blank password and delete data.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-6231" },
+      "products": [ { "@id": "pkg:github/mongodb/mongo-c-driver@1.27.6" } ],
+      "status": "affected",
+      "action_statement": "This vulnerability is only reachable through the Queryable Encryption (QE) / Field Level Encryption (FLE2) payload and key-document parsing path. If your deployment does not use Queryable Encryption, this CVE has no impact and no action is required. If your deployment does use Queryable Encryption, treat this as an outstanding risk until a fixed `libbson` ships in a future Percona Server for MongoDB release.",
+      "impact_statement": "The vulnerability is in `libbson`'s `bson_validate()`/`bson_validate_with_error()` function family where validation could return early on certain crafted inputs and incorrectly report success, letting malformed BSON or invalid UTF-8 bypass validation. No functionality apart from Queryable Encryption / Field Level Encryption is affected. In particular, Percona Server for MongoDB does not use `libbson` for validating incoming wire-protocol BSON. The server has its own, completely independent, native C++ BSON validator at `src/mongo/bson/bson_validate.cpp`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2025-12119" },
+      "products": [ { "@id": "pkg:github/mongodb/mongo-c-driver@1.27.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Mongo C Driver comprises two libraries: `libbson` and `libmongoc`. The vulnerability is in `libmongoc`, but Percona Server for MongoDB includes only `libbson`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    },
+    {
+      "vulnerability": { "name": "CVE-2026-4359" },
+      "products": [ { "@id": "pkg:github/mongodb/mongo-c-driver@1.27.6" } ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "Mongo C Driver comprises two libraries: `libbson` and `libmongoc`. The vulnerability is in `libmongoc`, but Percona Server for MongoDB includes only `libbson`.",
+      "timestamp": "2026-07-31T15:00:00Z"
+    }
+  ]
+}
