@@ -13,6 +13,11 @@
  *   # Uses a knob (internalQueryTransformHoistPolicy) that does not exist on older binaries.
  *   multiversion_incompatible,
  *   assumes_unsharded_collection,
+ *   # The sampling after the property sets a server parameter on every shard.
+ *   # setParametersOnAllNonConfigNodes refuses to do that while shards are being added and removed.
+ *   assumes_stable_shard_list,
+ *   # The sampling calls explain().aggregate(), which cannot run inside a multi-document transaction.
+ *   does_not_support_transactions,
  *   exclude_from_timeseries_crud_passthrough,
  * ]
  */
