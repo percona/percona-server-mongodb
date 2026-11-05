@@ -1,0 +1,108 @@
+<div class="table-container">
+<table class="commits-table">
+<thead>
+<tr>
+<th class="col-num">#</th>
+<th class="col-status">Status</th>
+<th class="col-details">Details</th>
+<th class="col-pr">PR</th>
+<th class="col-sha">SHA</th>
+<th class="col-date">Date</th>
+<th class="col-title">Title</th>
+</tr>
+</thead>
+<tbody>
+
+{% comment %} Last merged commit row {% endcomment %}
+{% if include.data.last_merged_commit %}
+<tr class="row-merged" data-filter="merged">
+<td class="col-num">-</td>
+<td class="col-status">✅ Merged</td>
+<td class="col-details"></td>
+<td class="col-pr"></td>
+<td class="col-sha"><button type="button" class="copy-sha-btn" data-sha="{{ include.data.last_merged_commit.sha }}" title="Copy full SHA" aria-label="Copy full SHA">⎘</button><a href="{{ include.data.repo_url }}/commit/{{ include.data.last_merged_commit.sha }}">{{ include.data.last_merged_commit.short_sha }}</a></td>
+<td class="col-date">{{ include.data.last_merged_commit.date | slice: 0, 10 }}</td>
+<td class="col-title">{{ include.data.last_merged_commit.summary | escape }}</td>
+</tr>
+{% endif %}
+
+{% comment %} Unmerged commits (reversed for chronological order) {% endcomment %}
+{% assign reversed_commits = include.data.unmerged_commits | reverse %}
+{% for commit in reversed_commits %}
+  {% comment %} Determine if this is first unmerged (guard: first_unmerged_commit may be absent) {% endcomment %}
+  {% assign is_first = false %}
+  {% if include.data.first_unmerged_commit and commit.sha == include.data.first_unmerged_commit.sha %}
+    {% assign is_first = true %}
+  {% endif %}
+
+  {% comment %} Determine if this is a merge pick {% endcomment %}
+  {% assign is_pick = false %}
+  {% assign pick_info = nil %}
+  {% for mp in include.data.merge_picks %}
+    {% if mp.commit.sha == commit.sha %}
+      {% assign is_pick = true %}
+      {% assign pick_info = mp %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+
+  {% comment %} Build row classes {% endcomment %}
+  {% assign row_classes = "" %}
+  {% if is_first %}{% assign row_classes = row_classes | append: " row-next" %}{% endif %}
+  {% if is_pick %}{% assign row_classes = row_classes | append: " row-priority" %}{% endif %}
+  {% assign row_classes = row_classes | strip %}
+
+  {% comment %} Build data-filter attribute for filtering {% endcomment %}
+  {% assign filters = "" %}
+  {% if is_first %}{% assign filters = "first-unmerged" %}{% endif %}
+  {% if is_pick %}
+    {% if filters != "" %}
+      {% assign filters = filters | append: " merge-pick" %}
+    {% else %}
+      {% assign filters = "merge-pick" %}
+    {% endif %}
+  {% endif %}
+  {% unless is_first or is_pick %}
+    {% assign filters = "normal" %}
+  {% endunless %}
+
+  <tr{% if row_classes != "" %} class="{{ row_classes }}"{% endif %} data-filter="{{ filters }}" data-sha="{{ commit.sha }}">
+    <td class="col-num">{{ forloop.index }}</td>
+    <td class="col-status">
+      {% if is_pick and is_first %}⏳⭐ 1st | {% elsif is_pick %}⭐ {% elsif is_first %}⏳ 1st Unmerged{% endif %}
+      {% if is_pick %}
+        {% case pick_info.strategy_name %}
+          {% when 'conflict' %}⚠️ conflict
+          {% when 'huge_commit' %}📦 huge_commit
+          {% when 'important_files' %}📌 important_files
+          {% when 'branching_point' %}🔀 branching_point
+        {% endcase %}
+      {% endif %}
+    </td>
+    <td class="col-details">
+      <span class="col-details-content" title="{% if pick_info.strategy_name == 'conflict' %}{% for f in pick_info.result.conflicting_files %}{% assign fname = f | split: '/' | last %}{% if forloop.first == false %}, {% endif %}{{ fname }}{% endfor %}{% elsif pick_info.strategy_name == 'important_files' %}{% for f in pick_info.result.matched_files %}{% assign fname = f | split: '/' | last %}{% if forloop.first == false %}, {% endif %}{{ fname }}{% endfor %}{% elsif pick_info.strategy_name == 'huge_commit' and pick_info.result.evaluated_vars %}files={{ pick_info.result.evaluated_vars.num_of_files }}, lines={{ pick_info.result.evaluated_vars.num_of_lines }}{% if pick_info.result.evaluated_vars.num_of_dirs %}, dirs={{ pick_info.result.evaluated_vars.num_of_dirs }}{% endif %}{% endif %}">
+        {% if pick_info.strategy_name == 'conflict' %}
+          {% for f in pick_info.result.conflicting_files %}
+            {% assign fname = f | split: "/" | last %}
+            {% if forloop.first == false %}, {% endif %}{{ fname }}
+          {% endfor %}
+        {% elsif pick_info.strategy_name == 'important_files' %}
+          {% for f in pick_info.result.matched_files %}
+            {% assign fname = f | split: "/" | last %}
+            {% if forloop.first == false %}, {% endif %}{{ fname }}
+          {% endfor %}
+        {% elsif pick_info.strategy_name == 'huge_commit' and pick_info.result.evaluated_vars %}
+          files={{ pick_info.result.evaluated_vars.num_of_files }}, lines={{ pick_info.result.evaluated_vars.num_of_lines }}{% if pick_info.result.evaluated_vars.num_of_dirs %}, dirs={{ pick_info.result.evaluated_vars.num_of_dirs }}{% endif %}
+        {% endif %}
+      </span>
+    </td>
+    <td class="col-pr"><span class="pr-status" data-sha="{{ commit.sha }}"></span></td>
+    <td class="col-sha"><button type="button" class="copy-sha-btn" data-sha="{{ commit.sha }}" title="Copy full SHA" aria-label="Copy full SHA">⎘</button><a href="{{ include.data.repo_url }}/commit/{{ commit.sha }}">{{ commit.short_sha }}</a></td>
+    <td class="col-date">{{ commit.date | slice: 0, 10 }}</td>
+    <td class="col-title">{{ commit.summary | escape }}</td>
+  </tr>
+{% endfor %}
+
+</tbody>
+</table>
+</div>
