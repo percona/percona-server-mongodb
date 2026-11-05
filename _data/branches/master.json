@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 17,
-    "days_behind": 7,
-    "unmerged_oldest_age_days": 7.807917633206019,
-    "files_affected": 116,
-    "total_additions": 5306,
-    "total_deletions": 399,
+    "commits_behind": 28,
+    "days_behind": 8,
+    "unmerged_oldest_age_days": 8.300996190601852,
+    "files_affected": 184,
+    "total_additions": 7501,
+    "total_deletions": 1227,
     "date_range": {
       "first": "2026-10-27T22:54:38+00:00",
-      "last": "2026-10-28T15:35:07+00:00"
+      "last": "2026-10-28T22:26:47+00:00"
     }
   },
   "last_merged_commit": {
@@ -38,9 +38,119 @@
   },
   "gate": {
     "open": true,
-    "reason": "max_age (7.8d >= 2d)"
+    "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+      "short_sha": "d48ca0a141a",
+      "date": "2026-10-28T22:26:47+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 53779d8614042585d16b72c4826ce94ced3369d6 from branch mongodb-master (#65417)"
+    },
+    {
+      "sha": "4abf387147043d9edb42b72f9a37878ee48d5897",
+      "short_sha": "4abf3871470",
+      "date": "2026-10-28T20:46:53+00:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-137749 Mark chunk migration batch inserts as internal (#64684)"
+    },
+    {
+      "sha": "d3fdd38a10c26f4092819f3c274ab1c0050c3ec8",
+      "short_sha": "d3fdd38a10c",
+      "date": "2026-10-28T20:46:52+00:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-137748 Mark resharding operations as internal (#64683)"
+    },
+    {
+      "sha": "b3a9813d6bdbb052b7cfda90402d7b6337d19005",
+      "short_sha": "b3a9813d6bd",
+      "date": "2026-10-28T20:46:51+00:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-137747 Add isInternal to the query stats key for internal operations (#64682)"
+    },
+    {
+      "sha": "3f69eff5a3b1da1caf635ab363fa6ac62892675a",
+      "short_sha": "3f69eff5a3b",
+      "date": "2026-10-28T20:46:49+00:00",
+      "author": {
+        "name": "Chi-I Huang",
+        "email": "8468853+chiihuang@users.noreply.github.com"
+      },
+      "summary": "SERVER-137746 Add isInternalOperation origin flag and propagate it between nodes (#64681)"
+    },
+    {
+      "sha": "1e3b6de3858e527cba56600bc3857bc8edeea18d",
+      "short_sha": "1e3b6de3858",
+      "date": "2026-10-28T20:18:14+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "Revert \"SERVER-134788 Replace ThreadPool with a new primitive in PipelinedApplierWorkerPool\" (#65442)"
+    },
+    {
+      "sha": "a6d3b488899b9babc34c789ad9fd8a3455228a0f",
+      "short_sha": "a6d3b488899",
+      "date": "2026-10-28T20:10:23+00:00",
+      "author": {
+        "name": "Parker Felix",
+        "email": "68665637+parker-felix@users.noreply.github.com"
+      },
+      "summary": "SERVER-137894 Add order-insensitive input consumption stage constraints (#65233)"
+    },
+    {
+      "sha": "823b62cdd3e2481141bf292b9ed9aa58deb17860",
+      "short_sha": "823b62cdd3e",
+      "date": "2026-10-28T19:37:59+00:00",
+      "author": {
+        "name": "Ali Mir",
+        "email": "ali.mir@mongodb.com"
+      },
+      "summary": "SERVER-137053 Assign ownership of retryable_writes_util.js to server-transactions (#65391)"
+    },
+    {
+      "sha": "5b9e4ee23c3261754d3fdbcf4b3ac08f33f0ac09",
+      "short_sha": "5b9e4ee23c3",
+      "date": "2026-10-28T19:25:27+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-137665 Replica set and disagg EOT passthrough suites (#65256)"
+    },
+    {
+      "sha": "d12888dc3803df87d58f171c9dba4374af47a440",
+      "short_sha": "d12888dc380",
+      "date": "2026-10-28T18:17:29+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-137822 Remove tenantId invariants in change_stream_pre_images_op_observer (#65170)"
+    },
+    {
+      "sha": "211fb1fb8652f6bab6911887350709427b46a24f",
+      "short_sha": "211fb1fb865",
+      "date": "2026-10-28T18:02:12+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-138089: Add TODO for removing recordCollectionImport() (#65432)"
+    },
     {
       "sha": "f794dc708edeae2a5c8a064710076af2ec537a93",
       "short_sha": "f794dc708ed",
@@ -235,10 +345,28 @@
           "num_of_dirs": 15
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "3f69eff5a3b1da1caf635ab363fa6ac62892675a",
+        "short_sha": "3f69eff5a3b",
+        "date": "2026-10-28T20:46:49+00:00",
+        "author": {
+          "name": "Chi-I Huang",
+          "email": "8468853+chiihuang@users.noreply.github.com"
+        },
+        "summary": "SERVER-137746 Add isInternalOperation origin flag and propagate it between nodes (#64681)"
+      },
+      "strategy_name": "conflict",
+      "result": {
+        "conflicting_files": [
+          "src/mongo/db/commands/profile_common.cpp"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-04 18:17:51",
+  "generated_at": "2026-11-05 06:07:50",
   "branch_name": "master",
   "display_name": "master"
 }
