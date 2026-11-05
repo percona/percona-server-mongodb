@@ -1,0 +1,191 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "7dc2269df5229d331297764c1a3b651b0f5d2291",
+    "merge_commit": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "7dc2269df5229d331297764c1a3b651b0f5d2291",
+    "theirs_commit": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+    "base_commit": "d459f71596e544dc54b5df14111cef9c9f605123",
+    "files": [
+      "src/mongo/db/commands/profile_common.cpp"
+    ],
+    "conflict_types": {
+      "src/mongo/db/commands/profile_common.cpp": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/commands/profile_common.cpp": "diff --cc src/mongo/db/commands/profile_common.cpp\nindex 54c2b8ebb11,e633761f9fc..00000000000\n--- a/src/mongo/db/commands/profile_common.cpp\n+++ b/src/mongo/db/commands/profile_common.cpp\n@@@ -38,1 -38,1 +38,7 @@@ namespace \n++<<<<<<< HEAD\n +MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53 + 1);\n++||||||| d459f71596e\n++MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 53);\n++=======\n+ MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 54);\n++>>>>>>> d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb"
+    },
+    "their_commits": {
+      "src/mongo/db/commands/profile_common.cpp": [
+        "3f69eff5a3b1da1caf635ab363fa6ac62892675a"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+    "merged_commits": [
+      "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+      "4abf387147043d9edb42b72f9a37878ee48d5897",
+      "d3fdd38a10c26f4092819f3c274ab1c0050c3ec8",
+      "b3a9813d6bdbb052b7cfda90402d7b6337d19005",
+      "3f69eff5a3b1da1caf635ab363fa6ac62892675a",
+      "1e3b6de3858e527cba56600bc3857bc8edeea18d",
+      "a6d3b488899b9babc34c789ad9fd8a3455228a0f",
+      "823b62cdd3e2481141bf292b9ed9aa58deb17860",
+      "5b9e4ee23c3261754d3fdbcf4b3ac08f33f0ac09",
+      "d12888dc3803df87d58f171c9dba4374af47a440",
+      "211fb1fb8652f6bab6911887350709427b46a24f",
+      "f794dc708edeae2a5c8a064710076af2ec537a93",
+      "ef1083ef6aceca26d91f3706db2bac3fa901123e",
+      "f67d9495b4e1cace0db23fb0bd1e06e005011626",
+      "419e2123f397b48564acf09485b4692245f2ad65",
+      "f20d0025a9db95983e37e049e0d121c425f9562f",
+      "a173c824671b8277846e9992332144cff8ea8009",
+      "856565d523a17aa454532f94b17404c6055e9b70",
+      "ca0123b438c266f92fad64f7b7831ff18d1b67cd",
+      "156c9470cfaf7eb754b4aefa34732f19134d9545",
+      "ce7127b0e2bd9c290482c7c1e9699a2b9fe7c0b3",
+      "0c04b266dfff0e2ed3e65c7328d2abaf6d25b2b0",
+      "342918c111cf1e28544c46599ece0f2ab1bc78cd",
+      "c20a5cd049f4aa621c0ee9ab85705353c0b4345d",
+      "8deaa679cbd184903ec6454279f3295455e54786",
+      "0c2c29bc872d0fbdae507e1123d54102b474d54d",
+      "bcdf51a6e4e3352437a335028be8fe78222e1e9c",
+      "8c3486498dc713e22b6ee109b1fbd8ec769d1f75"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "bazel/config/BUILD.bazel",
+        "src/mongo/db/commands/profile_common.cpp",
+        "src/mongo/db/extension/test_examples/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/rpc/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 35887,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.17849375,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2780,
+        "cacheReadInputTokens": 41290,
+        "cacheCreationInputTokens": 14131,
+        "webSearchRequests": 0,
+        "costUSD": 0.17849375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 194,
+        "cacheCreationEphemeral5mInputTokens": 14131,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2780,
+            "cache_read": 41290,
+            "cache_creation": 14131
+          },
+          "cost_usd": 0.17849375
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diffs for every file under `merge_context.auto_merged.files` and written the JSON response.\n\nKey findings from the real diffs:\n\n- **profile_common.cpp** \u2014 the only true conflict. Upstream bumped the `ProfileCmdRequest::fieldMetadata.size()` static-assert from 53 to 54. The fork expressed it as `53 + 1` (= 54). I flagged in the review notes that reviewers should confirm whether the fork's `+ 1` was a Percona-specific extra field \u2014 if so the resolved value might need to be 55, not 54.\n- **MODULE.bazel** \u2014 adds the `windows_cross_def_parser.patch` to rules_cc patches.\n- **bazel/config/BUILD.bazel** \u2014 new `windows_cross_zip_source_only` flag + config_setting.\n- **extension/test_examples/BUILD.bazel** \u2014 new `search_index_management_extension` test target.\n- **pipeline/BUILD.bazel** \u2014 wires in new `lookup_result_cache.cpp`.\n- **common_mongod_process_interface.cpp** \u2014 enum rename `kIgnoreConflicts` \u2192 `ignoreAndDisallowWrites`.\n- **repl/BUILD.bazel** \u2014 removes `serial_processor_test`.\n- **rpc/BUILD.bazel** \u2014 adds `internal_operation` dep.\n\nI deliberately kept the `MODULE.bazel.lock` description generic since it is a regenerated lock file, and stuck strictly to symbols/behaviors visible in the diffs.",
+    "response": {
+      "summary": "This merge pulls in upstream mongodb-master changes. The notable code-visible changes are: the addition of a new Windows cross-compilation def-parser patch and a 'windows_cross_zip_source_only' bazel config flag; a new ProfileCmdRequest command option (the field count static-assert goes from 53 to 54); a new 'search_index_management' test extension; a new '$lookup' result cache stage (lookup_result_cache.cpp) wired into the pipeline library; the removal of the 'serial_processor_test' unit test target; a new 'internal_operation' dependency in src/mongo/rpc; and an API rename in the mongod process interface where PrepareConflictBehavior::kIgnoreConflicts is replaced by PrepareConflictBehavior::ignoreAndDisallowWrites.",
+      "auto_merged": {
+        "MODULE.bazel": "Adds '//bazel/rules_cc:windows_cross_def_parser.patch' to the list of patches applied via single_version_override for the rules_cc module (version 0.2.18), alongside the existing link_memory.patch.",
+        "MODULE.bazel.lock": "Lock file entries regenerated to correspond to the MODULE.bazel changes; no manually meaningful content to describe.",
+        "bazel/config/BUILD.bazel": "Adds a new bool_flag 'windows_cross_zip_source_only' (default False) and a matching config_setting 'windows_cross_zip_source_only_enabled' that is active when the flag is set to True. Related to Windows cross-compilation zip handling.",
+        "src/mongo/db/commands/profile_common.cpp": "Upstream adds a new command option to ProfileCmdRequest, so the MONGO_STATIC_ASSERT guarding the field count changes from 53 to 54. This file was a conflict: the fork side expressed the count as '53 + 1' (54) while upstream changed the plain base value from 53 to 54; the resolution keeps a single assert equal to 54, consistent with the new upstream field count.",
+        "src/mongo/db/extension/test_examples/BUILD.bazel": "Adds a new 'search_index_management_extension' signed_mongo_cc_extension_shared_library target (built from search_index_management.cpp) and registers ':search_index_management_extension_signed_lib' in the extensions_with_config list. A comment explains it is used to test overriding built-in search index management commands and the $listSearchIndexes stage, and deliberately lacks the _mongo_extension suffix so it is not auto-loaded in the Extensions-enabled variant.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds '//src/mongo/db/exec/agg:lookup_result_cache.cpp' to the source list of a pipeline mongo_cc_library, wiring in a new $lookup result cache stage.",
+        "src/mongo/db/pipeline/process_interface/common_mongod_process_interface.cpp": "In assertIgnorePrepareConflictsBehavior, the comparison against PrepareConflictBehavior::kIgnoreConflicts is replaced with PrepareConflictBehavior::ignoreAndDisallowWrites, reflecting an upstream rename/change of the enum value used in this check.",
+        "src/mongo/db/repl/BUILD.bazel": "Removes the 'serial_processor_test' mongo_cc_unit_test target (which built serial_processor_test.cpp with the serial_processor.h private header).",
+        "src/mongo/rpc/BUILD.bazel": "Adds the '//src/mongo/db/stats:internal_operation' dependency to a mongo_cc_library's deps list."
+      },
+      "review_notes": "Only src/mongo/db/commands/profile_common.cpp was a real conflict ('both modified'). The fork previously carried the field-count assert as '53 + 1' (effectively 54); upstream independently bumped the base count from 53 to 54. The resolved file uses a single 'MONGO_STATIC_ASSERT(ProfileCmdRequest::fieldMetadata.size() == 54)'. Verify this matches the fork's intent: if the fork's '+ 1' represented a Percona-specific added field on top of upstream's 53, the correct post-merge value should be 54 + 1 = 55 rather than 54. Confirm whether the fork adds its own ProfileCmdRequest field before accepting 54. All other files were clean auto-merges and are straightforward upstream additions/removals."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each auto-merged file before describing anything."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have the actual diffs for each file. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for every file under `merge_context.auto_merged.files` and written the JSON response.\n\nKey findings from the real diffs:\n\n- **profile_common.cpp** \u2014 the only true conflict. Upstream bumped the `ProfileCmdRequest::fieldMetadata.size()` static-assert from 53 to 54. The fork expressed it as `53 + 1` (= 54). I flagged in the review notes that reviewers should confirm whether the fork's `+ 1` was a Percona-specific extra field \u2014 if so the resolved value might need to be 55, not 54.\n- **MODULE.bazel** \u2014 adds the `windows_cross_def_parser.patch` to rules_cc patches.\n- **bazel/config/BUILD.bazel** \u2014 new `windows_cross_zip_source_only` flag + config_setting.\n- **extension/test_examples/BUILD.bazel** \u2014 new `search_index_management_extension` test target.\n- **pipeline/BUILD.bazel** \u2014 wires in new `lookup_result_cache.cpp`.\n- **common_mongod_process_interface.cpp** \u2014 enum rename `kIgnoreConflicts` \u2192 `ignoreAndDisallowWrites`.\n- **repl/BUILD.bazel** \u2014 removes `serial_processor_test`.\n- **rpc/BUILD.bazel** \u2014 adds `internal_operation` dep.\n\nI deliberately kept the `MODULE.bazel.lock` description generic since it is a regenerated lock file, and stuck strictly to symbols/behaviors visible in the diffs."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261105_153945_619262.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.318 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+    "short_sha": "d48ca0a141a",
+    "strategy": null,
+    "summary": "The final candidate is a vendored WiredTiger third-party import - a well-isolated, atomic, self-contained commit that is an ideal merge boundary and easy to validate post-merge. Picking it takes the entire 28-commit window, which is appropriate since the window (28) is below the ~50 target and the gate (force:conflict) has already decided it is time to merge. This boundary keeps important units intact: the revert pair SERVER-136906 (0c04b266) and its revert (f67d9495) are both inside the batch so they cancel out instead of importing a feature now and removing it next merge; the stacked SERVER-137746..137749 series by Chi-I Huang (3f69eff5, b3a9813d, d3fdd38a, 4abf3871), which includes the 'conflict' flagged commit, lands as a complete group; and the standalone revert 1e3b6de3 is included. Cutting on the WT import avoids splitting any coherent unit and lands on a clean, settled boundary rather than mid-stream churn.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/42056529812"
+  }
+}
