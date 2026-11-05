@@ -66,7 +66,7 @@
     {% assign filters = "normal" %}
   {% endunless %}
 
-  <tr{% if row_classes != "" %} class="{{ row_classes }}"{% endif %} data-filter="{{ filters }}" data-sha="{{ commit.sha }}">
+  <tr {% if row_classes != "" %} class="{{ row_classes }}"{% endif %} data-filter="{{ filters }}" data-sha="{{ commit.sha }}">
     <td class="col-num">{{ forloop.index }}</td>
     <td class="col-status">
       {% if is_pick and is_first %}⏳⭐ 1st | {% elsif is_pick %}⭐ {% elsif is_first %}⏳ 1st Unmerged{% endif %}
