@@ -1,0 +1,111 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "08497a7f95ad9a24bf6890a16cf423edb9124f2a",
+    "merge_commit": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 21214,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.13407075,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 1711,
+          "cacheReadInputTokens": 53974,
+          "cacheCreationInputTokens": 10283,
+          "webSearchRequests": 0,
+          "costUSD": 0.13407075,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 313,
+          "cacheCreationEphemeral5mInputTokens": 10283,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 1711,
+              "cache_read": 53974,
+              "cache_creation": 10283
+            },
+            "cost_usd": 0.13407075
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/commands/profile_common.cpp`.\n\nThe conflict was over the `MONGO_STATIC_ASSERT` checking `ProfileCmdRequest::fieldMetadata.size()`:\n- **Base**: `53`\n- **Ours (HEAD)**: `53 + 1` \u2014 Percona adds one field (the `ratelimit` profile option, confirmed by the Percona-specific `!request.getRatelimit()` in `isReadOnly`)\n- **Theirs (upstream)**: `54` \u2014 upstream added a new field\n\nI merged both changes into `54 + 1`, preserving upstream's new base count while keeping the `+ 1` that documents Percona's extra field. All conflict markers were removed, and the JSON response was written to the specified path.",
+      "response": {
+        "summary": "Resolved the static-assert count conflict in profile_common.cpp by combining upstream's bumped base field count with Percona's extra profile command field.",
+        "resolved": {
+          "src/mongo/db/commands/profile_common.cpp": "The conflict was over the expected ProfileCmdRequest::fieldMetadata.size(). Base was 53; Percona adds one field (the 'ratelimit' profile option, still referenced in isReadOnly via !request.getRatelimit()), so ours expressed the count as '53 + 1'. Upstream added a new field, bumping its base count to 54. Combined the two changes to '54 + 1' = 55, keeping the '+ 1' to document Percona's additional field on top of upstream's new count."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Percona's ratelimit field accounts for the '+ 1' term (verified by the Percona-specific !request.getRatelimit() check in isReadOnly). Upstream's merge raised the base count from 53 to 54, so the combined assert is '54 + 1'. If upstream's new field count ever changes again, only the base number (54) should be adjusted while keeping the '+ 1' for the Percona field."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "The Percona change is the `+ 1` (the `ratelimit` field, visible in `isReadOnly`'s `!request.getRatelimit()`). Base was 53, upstream bumped to 54, so combined is `54 + 1`."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/commands/profile_common.cpp`.\n\nThe conflict was over the `MONGO_STATIC_ASSERT` checking `ProfileCmdRequest::fieldMetadata.size()`:\n- **Base**: `53`\n- **Ours (HEAD)**: `53 + 1` \u2014 Percona adds one field (the `ratelimit` profile option, confirmed by the Percona-specific `!request.getRatelimit()` in `isReadOnly`)\n- **Theirs (upstream)**: `54` \u2014 upstream added a new field\n\nI merged both changes into `54 + 1`, preserving upstream's new base count while keeping the `+ 1` that documents Percona's extra field. All conflict markers were removed, and the JSON response was written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261105_051138_788119.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.318 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
