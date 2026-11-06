@@ -23,6 +23,17 @@ const st = new ShardingTest({
                 chunkDefragmentationThrottlingMS: 0,
             },
         },
+        rsOptions: {
+            setParameter: {
+                // Resmoke keeps one second of recipient ownership history. A defrag move that only
+                // partly covers a chunk the destination owned inside that window is aborted
+                // (ConflictingOperationInProgress, seen by the balancer as OperationFailed).
+                // MoveAndMergeChunksPhase treats that as fatal and restarts the phase, which
+                // rebuilds the same move and restamps the history, so defragmentation never
+                // finishes. This collection is not read at a snapshot, so keep no extra history.
+                migrationRecipientPITHistoryToPreserveInSecs: 0,
+            },
+        },
     },
 });
 

@@ -1,7 +1,7 @@
 /**
  * Tests that new node added via FCBIS works correctly as primary.
  *
- * @tags: [requires_wiredtiger]
+ * @tags: [requires_wiredtiger, multiversion_incompatible]
  */
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {reconfig, isConfigCommitted} from "jstests/replsets/rslib.js";
@@ -58,7 +58,10 @@ import {reconfig, isConfigCommitted} from "jstests/replsets/rslib.js";
     jsTest.log("--XXXX-- Added new member");
 
     // Output serverStatus for reference
-    jsTest.log("--XXXX-- newNode serverStatus: " + tojson(newNode.adminCommand({"serverStatus": 1, repl: 1})));
+    jsTest.log(
+        "--XXXX-- newNode serverStatus: " +
+            tojson(newNode.adminCommand({"serverStatus": 1, repl: 1})),
+    );
 
     // Make the new member become primary
     assert.commandWorked(newNode.adminCommand({replSetStepUp: 1}));

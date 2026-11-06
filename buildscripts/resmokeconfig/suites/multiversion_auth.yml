@@ -19,6 +19,12 @@ selector:
     # it attempts to connect to an upgraded mongoD. Un-denylist when SERVER-42919 fixes this issue.
     - jstests/multiVersion/genericSetFCVUsage/fcv_core/crash_mongos_against_upgraded_cluster.js
 
+    # SERVER-80249 is the 7.0-to-8.0 mixed cluster-role upgrade. On this 9.0 branch last-lts is
+    # 8.0 and an omitted binVersion is latest (9.0). That pair never elects a writable primary
+    # after the shardsvr restart, so getPrimary times out. Pinning 7.0 and 8.0 does not exercise
+    # the 9.0 binary under test.
+    - jstests/multiVersion/genericBinVersion/mixed_cluster_roles.js
+
     # Skip any tests that run with auth explicitly.
     - jstests/multiVersion/genericBinVersion/load_keys_on_upgrade.js
     - jstests/multiVersion/genericBinVersion/server-security/dollar_audit_mixed_version_mongods.js

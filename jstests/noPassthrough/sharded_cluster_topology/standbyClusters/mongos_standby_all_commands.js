@@ -62,6 +62,7 @@ const allCommands = {
         command: {appendOplogNote: 1, data: {a: 1}},
         isAdminCommand: true,
     },
+    auditGetOptions: {command: {auditGetOptions: 1}, isAdminCommand: true, standbyAllowed: true},
     authenticate: {skip: "tested separately in auth tests"},
     autoSplitVector: {
         command: {
