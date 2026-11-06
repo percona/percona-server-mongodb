@@ -1,7 +1,6 @@
 # Section that is ignored by resmoke.py.
 config_variables:
-  - &keyFileGood jstests/percona/tde/ekf
-  - &keyFileWrong jstests/percona/tde/ekfw
+  - &keyFile jstests/percona/tde/ekf
   - &cipherMode AES256-GCM
 
 test_kind: js_test
@@ -16,7 +15,6 @@ executor:
     shell_options:
       global_vars:
         TestData:
-          keyFileGood: *keyFileGood
-          keyFileWrong: *keyFileWrong
+          keyFile: *keyFile
           cipherMode: *cipherMode
       nodb: ""

@@ -15,7 +15,7 @@
 (function () {
     "use strict";
 
-    run("chmod", "600", TestData.keyFileGood);
+    run("chmod", "600", TestData.keyFile);
 
     const dbPath = MongoRunner.dataPath + "psmdb1997-orphan-key-cleanup";
     const dbNames = ["psmdb1997_a", "psmdb1997_b", "psmdb1997_c"];
@@ -23,7 +23,7 @@
     const startOpts = {
         dbpath: dbPath,
         enableEncryption: "",
-        encryptionKeyFile: TestData.keyFileGood,
+        encryptionKeyFile: TestData.keyFile,
         encryptionCipherMode: TestData.cipherMode,
     };
 
