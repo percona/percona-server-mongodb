@@ -258,7 +258,6 @@ const allCommands = {
     },
     cpuload: {skip: isNotAUserDataRead},
     create: {skip: isPrimaryOnly},
-    createBackup: {skip: isNotAUserDataRead},
     createIndexes: {skip: isPrimaryOnly},
     createRole: {skip: isPrimaryOnly},
     createSearchIndexes: {skip: isNotAUserDataRead},

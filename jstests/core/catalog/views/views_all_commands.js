@@ -884,7 +884,6 @@ let viewsCommandTests = {
 
     // Percona commands
     auditGetOptions: {skip: isUnrelated},
-    createBackup: {skip: isUnrelated},
 };
 
 commandsRemovedFromMongodSinceLastLTS.forEach(function (cmd) {
