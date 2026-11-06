@@ -23,6 +23,7 @@ export const commandsRemovedFromMongodSinceLastLTS = [
     "abortShardSplit",
     "captrunc",
     "commitShardSplit",
+    "createBackup",
     "donorAbortMigration",
     "donorForgetMigration",
     "donorStartMigration",

@@ -450,7 +450,6 @@ let testCases = {
     create: {
         skip: "The create command is not passed through and instead it goes out to the shards as _shardsvrCreateCollection with the user-specified write concern",
     },
-    createBackup: {skip: "does not accept read or write concern"},
     createIndexes: {
         setUp: function (conn) {
             assert.commandWorked(conn.getCollection(nss).insert({x: 1}, {writeConcern: {w: 1}}));
