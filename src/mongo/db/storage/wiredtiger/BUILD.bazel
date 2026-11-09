@@ -109,7 +109,6 @@ mongo_cc_library(
         "//src/mongo/util:log_and_backoff",
         "//src/mongo/util:pcre_wrapper",
         "//src/mongo/util:processinfo",
-        "//src/third_party/aws-sdk-cpp:aws-sdk",
         "//src/third_party/libarchive",
         "//src/third_party/snappy",
         "//src/third_party/wiredtiger",
