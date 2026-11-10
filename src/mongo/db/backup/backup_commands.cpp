@@ -39,8 +39,11 @@ Copyright (C) 2018-present Percona and/or its affiliates. All rights reserved.
 #include "mongo/db/service_context.h"
 #include "mongo/db/storage/engine_extension.h"
 #include "mongo/db/storage/storage_options.h"
+#include "mongo/logv2/log.h"
 
 #include <boost/filesystem.hpp>
+
+#define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
 namespace mongo {
 extern StorageGlobalParams storageGlobalParams;
@@ -48,14 +51,20 @@ extern StorageGlobalParams storageGlobalParams;
 using namespace mongo;
 
 namespace percona {
+namespace {
+constexpr char kDeprecationMsg[] = "The `createBackup` command has been deprecated and will be "
+                                   "removed in version 9.0; use Percona Backup for MongoDB instead";
+}
 
 class CreateBackupCommand : public ErrmsgCommandDeprecated {
 public:
     CreateBackupCommand() : ErrmsgCommandDeprecated("createBackup") {}
     std::string help() const override {
-        return "Creates a hot backup, into the given directory, of the files currently in the "
-               "storage engine's data directory.\n"
-               "{ createBackup: 1, backupDir: <destination directory> }";
+        return std::string{"Creates a hot backup, into the given directory, of the files "
+                           "currently in the storage engine's data directory.\n"
+                           "{ createBackup: 1, backupDir: <destination directory> }\n\n"
+                           "Warning. "} +
+            kDeprecationMsg;
     }
     Status checkAuthForOperation(OperationContext* opCtx,
                                  const DatabaseName& dbname,
@@ -90,6 +99,9 @@ bool CreateBackupCommand::errmsgRun(mongo::OperationContext* opCtx,
                                     const BSONObj& cmdObj,
                                     std::string& errmsg,
                                     BSONObjBuilder& result) {
+    LOGV2_WARNING(29176, kDeprecationMsg);
+    result.append("warning", kDeprecationMsg);
+
     BSONElement destPathElem = cmdObj["backupDir"];
     BSONElement archiveElem = cmdObj["archive"];
     BSONElement s3Elem = cmdObj["s3"];
