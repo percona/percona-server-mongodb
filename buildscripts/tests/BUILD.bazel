@@ -510,6 +510,10 @@ py_test(
     deps = [
         "//buildscripts:generate_bazel_spawn_pb2",
         "//buildscripts/package_test:package_test_provenance",
+        dependency(
+            "evergreen-py",
+            group = "testing",
+        ),
     ],
 )
 
@@ -621,6 +625,19 @@ py_test(
         dependency(
             "mock",
             group = "testing",
+        ),
+    ],
+)
+
+py_test(
+    name = "test_validate_rebase_merge",
+    srcs = ["test_validate_rebase_merge.py"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//buildscripts:validate_rebase_merge",
+        dependency(
+            "gitpython",
+            group = "evergreen",
         ),
     ],
 )

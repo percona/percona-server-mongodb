@@ -1,4 +1,4 @@
-load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_library", "mongo_cc_unit_test")
+load("//bazel:mongo_src_rules.bzl", "idl_generator", "mongo_cc_fuzztest", "mongo_cc_library", "mongo_cc_unit_test")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -64,6 +64,7 @@ mongo_cc_unit_test(
     deps = [
         ":handoff_s2n_init",
         ":handoff_session",
+        ":handoff_test_util",
         "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/db/shard_role:service_context_non_d",
         "//src/mongo/rpc:message",
@@ -81,6 +82,31 @@ mongo_cc_library(
     target_compatible_with = HANDOFF_TARGET_COMPATIBLE_WITH,
     deps = [
         "//src/mongo/transport:session_manager",
+    ],
+)
+
+mongo_cc_fuzztest(
+    name = "handoff_proxy_header_fuzz_test",
+    srcs = ["handoff_proxy_header_fuzz_test.cpp"],
+    target_compatible_with = HANDOFF_TARGET_COMPATIBLE_WITH,
+    deps = [
+        ":handoff_session",
+        ":handoff_test_util",
+        "//src/mongo:base",
+        "//src/mongo/rpc:message",
+    ],
+)
+
+mongo_cc_fuzztest(
+    name = "handoff_message_fuzz_test",
+    srcs = ["handoff_message_fuzz_test.cpp"],
+    data = ["//jstests/libs:test_pem_files"],
+    target_compatible_with = HANDOFF_TARGET_COMPATIBLE_WITH,
+    deps = [
+        ":handoff_session",
+        ":handoff_test_util",
+        "//src/mongo:base",
+        "//src/mongo/rpc:message",
     ],
 )
 
@@ -106,13 +132,18 @@ mongo_cc_library(
 mongo_cc_library(
     name = "handoff_test_util",
     testonly = True,
+    srcs = ["handoff_test_util.cpp"],
     hdrs = ["handoff_test_util.h"],
     target_compatible_with = HANDOFF_TARGET_COMPATIBLE_WITH,
     deps = [
         ":handoff_posix_interface",
+        ":handoff_s2n_init",
+        ":handoff_session",
         "//src/mongo:base",
+        "//src/mongo/rpc:message",
         "//src/mongo/transport:session_manager",
         "//src/mongo/unittest",
+        "//src/third_party/s2n:s2n-tls",
     ],
 )
 

@@ -574,7 +574,7 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults& re
     // of records when we begin traversing, even if this number may deviate from the final number.
     const auto& coll = _validateState->getCollection();
     const char* curopMessage = "Validate: scanning documents for 'collHash' drill-down";
-    const auto totalRecords = coll->getRecordStore()->numRecords();
+    const auto totalRecords = coll->getRecordStore()->approximateNumRecords();
     {
         std::unique_lock<Client> lk(*opCtx->getClient());
         _progress.set(lk, CurOp::get(opCtx)->setProgress(lk, curopMessage, totalRecords), opCtx);
@@ -644,7 +644,7 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults& re
 ScopeGuard<std::function<void()>> ValidateAdaptor::preTraverseRecordStoreImpl(
     OperationContext* opCtx) {
     const auto& coll = _validateState->getCollection();
-    const int64_t totalRecords = coll->getRecordStore()->numRecords();
+    const int64_t totalRecords = coll->getRecordStore()->approximateNumRecords();
 
     // In case validation occurs twice and the progress meter persists after index traversal.
     const bool progressStillActive = ([&] {
@@ -691,9 +691,9 @@ void ValidateAdaptor::postTraverseRecordStoreImpl(OperationContext* opCtx,
         opCtx, *_validateState, *coll.get(), _numRecords, dataSizeTotal, validateResults);
 
     // TODO(SERVER-119193): Add condition for the fastCountType being valid.
-    // Do not update the record store stats if we're in the background as we've validated a
-    // checkpoint and it may not have the most up-to-date changes.
-    if (validateResults.isValid() && !_validateState->isBackground()) {
+    // Only update the record store stats when repairing. Background validation reads a checkpoint
+    // that may not have the most up-to-date changes.
+    if (validateResults.isValid() && _validateState->fixErrors()) {
         coll->getRecordStore()->updateStatsAfterRepair(_numRecords, dataSizeTotal);
     }
 }
