@@ -1,0 +1,119 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "86dfdac576a7bd912824137e1ce1ec8c568297bb",
+    "merge_commit": "22f8d922015bdc2e05db1d6627912be14849a274"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 19431,
+      "num_turns": 5,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.145467,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 10,
+          "outputTokens": 1439,
+          "cacheReadInputTokens": 75184,
+          "cacheCreationInputTokens": 11496,
+          "webSearchRequests": 0,
+          "costUSD": 0.145467,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 126,
+          "cacheCreationEphemeral5mInputTokens": 11496,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 10,
+              "output": 1439,
+              "cache_read": 75184,
+              "cache_creation": 11496
+            },
+            "cost_usd": 0.145467
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h`.\n\nBoth sides simply inserted a different `#include` at the same spot:\n- **HEAD:** `mongo/logv2/log_component.h`\n- **Upstream:** `mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h`\n\nThis was a purely additive conflict, so I kept both includes (alphabetically ordered) and removed all conflict markers. The JSON response has been written to the specified path.",
+      "response": {
+        "summary": "Resolved an include-only conflict in wiredtiger_kv_engine.h by keeping both sides' added headers.",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Both sides added a different #include with no other changes: HEAD added \"mongo/logv2/log_component.h\" and theirs (upstream) added \"mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h\". Kept both includes, in alphabetical order between \"mongo/db/tenant_id.h\" and \"mongo/platform/atomic.h\", and removed all conflict markers."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Trivial additive conflict: each branch inserted one include at the same location. No symbols were removed or renamed; both headers are retained."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides simply add a different `#include`. I'll keep both, in alphabetical order."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h`.\n\nBoth sides simply inserted a different `#include` at the same spot:\n- **HEAD:** `mongo/logv2/log_component.h`\n- **Upstream:** `mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h`\n\nThis was a purely additive conflict, so I kept both includes (alphabetically ordered) and removed all conflict markers. The JSON response has been written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261110_051348_082268.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.322 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
