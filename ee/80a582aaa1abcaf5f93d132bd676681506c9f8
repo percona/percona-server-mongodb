@@ -1,0 +1,443 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "86dfdac576a7bd912824137e1ce1ec8c568297bb",
+    "merge_commit": "22f8d922015bdc2e05db1d6627912be14849a274"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "86dfdac576a7bd912824137e1ce1ec8c568297bb",
+    "theirs_commit": "22f8d922015bdc2e05db1d6627912be14849a274",
+    "base_commit": "d48ca0a141adc807e22d47ee8cfd9e3d0ecb2bbb",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\nindex c7006ccfc32,ce5610265a6..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n@@@ -34,1 -33,1 +34,6 @@@\n++<<<<<<< HEAD\n +#include \"mongo/logv2/log_component.h\"\n++||||||| d48ca0a141a\n++=======\n+ #include \"mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h\"\n++>>>>>>> 22f8d922015bdc2e05db1d6627912be14849a274"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": [
+        "d94cc2691550bace5f02e42149bda06a7308c528"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "22f8d922015bdc2e05db1d6627912be14849a274",
+    "merged_commits": [
+      "22f8d922015bdc2e05db1d6627912be14849a274",
+      "32b221066228260bd1afa5be897990ad7cd486cd",
+      "f7f9a382c848f240bec989be0d3318429821a559",
+      "32cc5bad19d594467d4dba5cd1393c8d09afc90c",
+      "d94cc2691550bace5f02e42149bda06a7308c528",
+      "2d90ab181f4f7f80dfae7970e9304817200fbf73",
+      "d13c2f7f0c0a4c4ce8da65fcaf00d41b2c7d36da",
+      "67f50555a6f69b3ad165989d2c19eae3f5bbee43",
+      "7d6e9cbd6fd0f125a48caf87bf431bcaa738c95e",
+      "6e085b983090df2b00f63211d63a5c00d6725fca",
+      "6a369c1b3f53bafd6217e889a7249194369fdf74",
+      "b438a585516881bd6d65277a4f67aef8f28b4cab",
+      "2394da4b7976c09df665b0cdc9f6fe247095f429",
+      "bef72ecf5f40bec85fe8c7327f06f1922eb24e29",
+      "621559a1c6e0b98b673880178b775ded6f9a7152",
+      "acba645eab67e1e8f8b6342077cdd95e2e78ea3f",
+      "3ec2a7f1c5b449ad2fc5a79c2fd92b1687cca933",
+      "bc39d663c403487fafb91f43bc99856fa63ee023",
+      "d30914d5316c216c7c9b5dc682863edafa69ff13",
+      "f5d21633dff9f0d288917d860d794d37fa807b1e",
+      "d347c480d400dd75369c402ecc9cc998a03f68ce",
+      "c91089184a0d282512be03b105d9d1794df62811",
+      "e570842aaa9a6e5663bed6edba29a182cc6b76be",
+      "c3d0c4aac71d070a849e52ce7f8f988822493657",
+      "3a07d1ab310a373089cf5a02bd5c237717367034",
+      "88125d9fd08993ca5d33695ba1910b5b3dd1dd34",
+      "4f7312464296c2f2e6b5d88379c627729e22ea4f",
+      "4d72d3f17e1c1dd07cb8009f996a1c633df73003",
+      "8c0974ab967dc357aa42a616c20d01339b32709d",
+      "5e9392325774cfde28fc534aa943878a3944885c",
+      "bccab7e539f26949d35d68ea6ef944fcfa35c83d",
+      "f42f1354879ed8519aba2195e37ddb3022cba770",
+      "20e4bb24603aadc4f5404b873572fc351462830b",
+      "30ef2c5d5576cb2ed91dc0aea37a50f34cc83922",
+      "c3ac0e763eaa10cc0a2cc44b9b2c6f5a31c2b7b2",
+      "6fefa715c436ce5334cfc7f9af49d818540bba9a",
+      "43051d204b902a7746ef778658396b257964e56e",
+      "61198806a84e3e3eaa928eb770140e16c6ef9281",
+      "7ee4091baa0045cf69bebda5c4ffebf9900ae1c2",
+      "991bd243947b8388e057da62aeac70f54744fe49",
+      "6cdadce07f8d4c646be626107aff31d029ceff78",
+      "b99907bcde9a4fd1780a2f367bcdf003f5b1404f",
+      "b25cab62e5104ba1d0d4f9178c86502ad9080523",
+      "bb8e6be0e2619cbd41d8805275e77bd27a73d5c3",
+      "4c61289c1b6324d8f109db909a22aa81458682cb",
+      "f9e5b6be1accbf18f24f684e65a6caca7d9f6d34",
+      "cdedc61679683a01a500191d1f80dcbf7bb4f425",
+      "16f5d0de96a5e1fde57fe05e2059be5129a89aac",
+      "37b3f01f30c4ae01f34bf58a57c4ba444c3b9e36",
+      "98ad91d5912c983f8339c866a026e9258aec4cca",
+      "01060ab7b96161c3928cc8461088e025bc2254d2",
+      "3702c719ad42db91aba8da4f2e47406069fd7042",
+      "a068e80f18037c7b91b27a5dc06d93054df208a5",
+      "020a09f6132e780f42af97fc6aa41c3c7a83a750",
+      "13c6b7139795989ebe05114bc16bb31c93d511cf",
+      "d3fcbceb8506aa79b7ae603e581c279b8fea1f90",
+      "6067eae433c5811b3839211f8d283564623ffe37",
+      "6edbeed8c673f5f94e70d0db14497781c9c71d1d"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "jstests/auth/lib/commands_lib.js",
+        "jstests/core/catalog/views/views_all_commands.js",
+        "jstests/libs/write_concern_all_commands.js",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js",
+        "jstests/sharding/database_versioning_all_commands.js",
+        "jstests/sharding/read_write_concern_defaults_application.js",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/extension/test_examples/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp",
+        "src/mongo/db/storage/storage_engine_impl.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/executor/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 19431,
+      "num_turns": 5,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.145467,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 10,
+          "outputTokens": 1439,
+          "cacheReadInputTokens": 75184,
+          "cacheCreationInputTokens": 11496,
+          "webSearchRequests": 0,
+          "costUSD": 0.145467,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 126,
+          "cacheCreationEphemeral5mInputTokens": 11496,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 10,
+              "output": 1439,
+              "cache_read": 75184,
+              "cache_creation": 11496
+            },
+            "cost_usd": 0.145467
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h`.\n\nBoth sides simply inserted a different `#include` at the same spot:\n- **HEAD:** `mongo/logv2/log_component.h`\n- **Upstream:** `mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h`\n\nThis was a purely additive conflict, so I kept both includes (alphabetically ordered) and removed all conflict markers. The JSON response has been written to the specified path.",
+      "response": {
+        "summary": "Resolved an include-only conflict in wiredtiger_kv_engine.h by keeping both sides' added headers.",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Both sides added a different #include with no other changes: HEAD added \"mongo/logv2/log_component.h\" and theirs (upstream) added \"mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h\". Kept both includes, in alphabetical order between \"mongo/db/tenant_id.h\" and \"mongo/platform/atomic.h\", and removed all conflict markers."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "Trivial additive conflict: each branch inserted one include at the same location. No symbols were removed or renamed; both headers are retained."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides simply add a different `#include`. I'll keep both, in alphabetical order."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h`.\n\nBoth sides simply inserted a different `#include` at the same spot:\n- **HEAD:** `mongo/logv2/log_component.h`\n- **Upstream:** `mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h`\n\nThis was a purely additive conflict, so I kept both includes (alphabetically ordered) and removed all conflict markers. The JSON response has been written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261110_051348_082268.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.322 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ],
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 99559,
+    "num_turns": 10,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.5008845,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 20,
+        "outputTokens": 7024,
+        "cacheReadInputTokens": 262719,
+        "cacheCreationInputTokens": 31012,
+        "webSearchRequests": 0,
+        "costUSD": 0.5008845,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 1446,
+        "cacheCreationEphemeral5mInputTokens": 31012,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 20,
+            "output": 7024,
+            "cache_read": 262719,
+            "cache_creation": 31012
+          },
+          "cost_usd": 0.5008845
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. Here's a summary of what I found and documented:\n\n## Merge overview\nThe merge pulls upstream mongodb-master changes (base `d48ca0a141a` \u2192 merge commit `22f8d922015`) into the fork. The main themes:\n\n1. **New `failInvariant` internal command** \u2014 registered across 8 all-commands test registries (as skipped/internal).\n2. **OTel metrics for WiredTiger stats** \u2014 a new `WiredTigerMetricRegistry` is threaded through `wiredtiger_kv_engine.h`, `wiredtiger_util.{h,cpp}` and its tests.\n3. **`numRecords()` \u2192 `approximateNumRecords()`** renames in storage code.\n4. **Three new error codes** (534\u2013536).\n5. **BUILD.bazel** dependency/test-target additions and a new WiredTiger stat constant with renumbering in the vendored header.\n\n## Key review flag\nThe **only conflicting file was `wiredtiger_kv_engine.h`** \u2014 an include collision. The fork (HEAD) had a Percona-added `#include \"mongo/logv2/log_component.h\"` (from PSMDB-1148); upstream added the OTel registry include. The automatic resolution kept **only** the upstream include and **dropped the Percona one**. I flagged this in `review_notes` as something to verify, since per the conflict guidelines both non-overlapping includes should normally be preserved (though `log_component.h` isn't otherwise referenced in the header, so it may still compile).",
+    "response": {
+      "summary": "Merge of upstream mongodb-master changes since the fork diverged (base d48ca0a141a -> merge commit 22f8d922015). The main themes are: (1) a new internal 'failInvariant' command registered in the various all-commands test registries; (2) wiring of OpenTelemetry (OTel) metrics for WiredTiger connection statistics via a new WiredTigerMetricRegistry; (3) renaming of RecordStore numRecords() to approximateNumRecords() at several call sites; (4) three new error codes (StreamProcessorPreviewSuperseded 534, ReshardingPreconditionFailure 535, ReshardingPostconditionFailure 536); (5) assorted BUILD.bazel dependency and test-target additions; and (6) new/renumbered WiredTiger connection statistic constants in the vendored third_party header. The only conflicting file was wiredtiger_kv_engine.h (an include collision), resolved automatically otherwise via the ort strategy.",
+      "auto_merged": {
+        "jstests/auth/lib/commands_lib.js": "Adds 'failInvariant' to the skippedAuthTestingCommands list (one new entry, alphabetically between exportCollection and getAuditConfig).",
+        "jstests/core/catalog/views/views_all_commands.js": "Registers the new command in viewsCommandTests as failInvariant: {skip: isAnInternalCommand}.",
+        "jstests/libs/write_concern_all_commands.js": "Adds failInvariant: {skip: \"internal command\"} to both the wcCommandsTests and wcTimeseriesCommandsTests command maps.",
+        "jstests/replsets/all_commands_downgrading_to_upgraded.js": "Adds failInvariant: {skip: isAnInternalCommand} to the allCommands map.",
+        "jstests/replsets/db_reads_while_recovering_all_commands.js": "Adds failInvariant: {skip: isAnInternalCommand} to the allCommands map.",
+        "jstests/sharding/all_commands_direct_shard_connection_auth.js": "Adds failInvariant: {skip: isAnInternalCommand} to the allCommands map.",
+        "jstests/sharding/database_versioning_all_commands.js": "Adds failInvariant: {skip: \"internal command\", conditional: true} to two command-case maps in allTestCases.",
+        "jstests/sharding/read_write_concern_defaults_application.js": "Adds failInvariant: {skip: \"internal command\"} to the testCases map.",
+        "src/mongo/base/error_codes.yml": "Appends three new error codes: 534 StreamProcessorPreviewSuperseded (categories StreamProcessorUserError, StreamProcessorRetryableError), 535 ReshardingPreconditionFailure (InternalOnly) and 536 ReshardingPostconditionFailure (InternalOnly).",
+        "src/mongo/db/BUILD.bazel": "Adds two dependency entries: '//src/mongo/db/exec/sbe:result_materializer' to one mongo_cc_library and '//src/mongo/db/auth:security_token' to another.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds '//src/mongo/util:false_invariant.inl' to the srcs of the test-commands library (supports the new failInvariant command).",
+        "src/mongo/db/extension/test_examples/BUILD.bazel": "Adds the returned_major_version_mismatch and returned_minor_version_mismatch bad-extension test examples to the signed-lib list and to the filegroup iteration list.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds a new mongo_cc_unit_test target 'pipeline_d_test' (srcs pipeline_d_test.cpp, mongo_unittest_fifth_group) with its deps.",
+        "src/mongo/db/storage/kv/kv_engine_test_harness.cpp": "Updates the RollingBackToLastStable test to call rs->approximateNumRecords() instead of rs->numRecords() in three ASSERT_EQUALS checks.",
+        "src/mongo/db/storage/storage_engine_impl.cpp": "In loadMDBCatalog, the 'Initializing durable catalog' log now reports approximateNumRecords (attr renamed from numRecords) using _catalogRecordStore->approximateNumRecords().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Adds OTel metrics support: includes mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h, adds a virtual getOTelMetricRegistry() returning nullptr by default, overrides it in WiredTigerKVEngine to return &_otelMetricRegistry, and adds the private _otelMetricRegistry member. This was the single conflicting file (an include collision); see review_notes.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "Threads a WiredTigerMetricRegistry* through the stat export path: collectConnectionStatistics now passes engine.getOTelMetricRegistry(); the two exportStatsBSONAndOTel overloads gain a 'registry' parameter (reordered before filter/filterBehavior); historyStoreStatistics passes nullptr.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Updates the exportStatsBSONAndOTel declarations to add a 'WiredTigerMetricRegistry* registry' parameter to the short overload and move the (previously default-nullptr trailing) registry parameter to sit before filter/filterBehavior in the long overload.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Updates test call sites to match the new exportStatsBSONAndOTel signature, inserting the registry argument (nullptr or &_registry) in its new position.",
+        "src/mongo/executor/BUILD.bazel": "Adds exhaust_response_reader_tl_test.cpp to the srcs of an executor mongo_cc_unit_test.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Vendored WiredTiger header update: adds a new connection statistic WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY (1171) and renumbers the subsequent WT_STAT_CONN_* constants by +1 (a large mechanical renumbering block)."
+      },
+      "review_notes": "Conflict file wiredtiger_kv_engine.h: the base had neither include; the fork (HEAD) had added '#include \"mongo/logv2/log_component.h\"' (from Percona commit 297ca1118f9, PSMDB-1148), while upstream added '#include \"mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h\"'. The automatic resolution in the merge commit kept ONLY the upstream OTel include and dropped the Percona log_component.h include. Verify this is intentional: per the conflict guidelines both non-overlapping includes should normally be kept. The log_component.h include is not otherwise referenced within this header, so compilation may still succeed, but confirm nothing relying on the transitive include regresses. All other listed files merged cleanly and consist of straightforward additive upstream changes (new failInvariant command registrations, OTel metric-registry plumbing, numRecords->approximateNumRecords renames, new error codes, and BUILD/test additions) with no Percona-specific code touched."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each auto-merged file before describing anything."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I now have enough to write an accurate description. Let me verify the conflict-resolution concern about the dropped Percona include is real before writing."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. Here's a summary of what I found and documented:\n\n## Merge overview\nThe merge pulls upstream mongodb-master changes (base `d48ca0a141a` \u2192 merge commit `22f8d922015`) into the fork. The main themes:\n\n1. **New `failInvariant` internal command** \u2014 registered across 8 all-commands test registries (as skipped/internal).\n2. **OTel metrics for WiredTiger stats** \u2014 a new `WiredTigerMetricRegistry` is threaded through `wiredtiger_kv_engine.h`, `wiredtiger_util.{h,cpp}` and its tests.\n3. **`numRecords()` \u2192 `approximateNumRecords()`** renames in storage code.\n4. **Three new error codes** (534\u2013536).\n5. **BUILD.bazel** dependency/test-target additions and a new WiredTiger stat constant with renumbering in the vendored header.\n\n## Key review flag\nThe **only conflicting file was `wiredtiger_kv_engine.h`** \u2014 an include collision. The fork (HEAD) had a Percona-added `#include \"mongo/logv2/log_component.h\"` (from PSMDB-1148); upstream added the OTel registry include. The automatic resolution kept **only** the upstream include and **dropped the Percona one**. I flagged this in `review_notes` as something to verify, since per the conflict guidelines both non-overlapping includes should normally be preserved (though `log_component.h` isn't otherwise referenced in the header, so it may still compile)."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261110_051205_582271.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.322 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "22f8d922015bdc2e05db1d6627912be14849a274",
+    "short_sha": "22f8d922015",
+    "strategy": null,
+    "summary": "This lands a ~58-commit batch, comfortably inside the ~30-65 target band, and ends on an ideal boundary: SERVER-138173 'Add golden tests for timelib' is a well-isolated, auto-generated artifact commit (2771 lines of golden test data in 3 dirs) that nothing after it depends on, making it easy to validate post-merge. Crucially, this cut keeps every in-range revert pair whole so they cancel within the batch instead of importing a change upstream undoes: SERVER-130246 (orig+revert), SERVER-133846 (orig+revert+reapply, fully settled), SERVER-136538 (orig+revert), SERVER-138011 (orig+revert), and SERVER-138098 (orig #10 + revert #53, net-zero this batch with its reapply left cleanly for the next). The next later revert pairs (SERVER-134938, SERVER-133447, SERVER-135301) only begin around position 77+, so stopping here splits no coherent unit of work and leaves the freshest, still-churning commits for the following batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/42760147216"
+  },
+  "note_index": [
+    {
+      "sha": "ee80a582aaa1abcaf5f93d132bd676681506c9f8",
+      "fields": [
+        "conflict_context",
+        "merge_context",
+        "solutions[0]",
+        "merge_description",
+        "merge_pick",
+        "squashed_commits"
+      ]
+    }
+  ],
+  "squashed_commits": [
+    {
+      "sha": "8ed6f59a6d9882a7133f1c7ea9c0e0951e2c9982",
+      "message": "Merge commit '22f8d922015' into master"
+    },
+    {
+      "sha": "ae52d7b65c93e27a33594644e40bc84001c54bdd",
+      "message": "Resolve conflicts for merge commit '22f8d922015' into master"
+    }
+  ]
+}
