@@ -31,12 +31,8 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_snapshot_manager.h"
 #include "mongo/db/tenant_id.h"
-<<<<<<< HEAD
 #include "mongo/logv2/log_component.h"
-||||||| d48ca0a141a
-=======
 #include "mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h"
->>>>>>> 22f8d922015bdc2e05db1d6627912be14849a274
 #include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/clock_source.h"
