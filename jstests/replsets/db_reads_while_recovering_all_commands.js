@@ -309,6 +309,7 @@ const allCommands = {
         expectFailure: true,
         expectedErrorCode: ErrorCodes.NotPrimaryOrSecondary,
     },
+    failInvariant: {skip: isAnInternalCommand},
     features: {skip: isNotAUserDataRead},
     filemd5: {skip: isNotAUserDataRead},
     find: {

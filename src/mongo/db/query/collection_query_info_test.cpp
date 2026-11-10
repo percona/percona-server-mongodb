@@ -152,10 +152,20 @@ TEST_F(CollectionQueryInfoTest, SchemaTypeInfoChangesOnValidationLevelTransition
         auto coll = acquireForMetadataWrite();
         CollectionWriter collectionWriter(operationContext(), &coll);
         auto writableColl = collectionWriter.getWritableCollection(operationContext());
-        ASSERT_OK(writableColl->setValidationOptions(
-            operationContext(), ValidationLevelEnum::strict, boost::none, boost::none));
-        CollectionQueryInfo::get(writableColl)
-            .rebuildSchemaTypeInfo(operationContext(), writableColl);
+        // The validator is immutable at 'constraint', so it can only be replaced below that level.
+        ASSERT_OK(writableColl->updateValidator(operationContext(),
+                                                BSON("a" << BSON("$type" << "number")),
+                                                ValidationLevelEnum::strict,
+                                                boost::none));
+        auto& collectionQueryInfo = CollectionQueryInfo::get(writableColl);
+        collectionQueryInfo.rebuildSchemaTypeInfo(operationContext(), writableColl);
+        const auto rebuilt = collectionQueryInfo.getSchemaTypeInfo();
+        // Dropping below 'constraint' validation level yields an unconstrained schema.
+        ASSERT_EQ(rebuilt->getRootType(), pipeline::type_system::Type::anyObject());
+        // Rebuilding again with the same inferred root type is idempotent and does not republish
+        // a new snapshot.
+        collectionQueryInfo.rebuildSchemaTypeInfo(operationContext(), writableColl);
+        ASSERT_EQ(collectionQueryInfo.getSchemaTypeInfo().get(), rebuilt.get());
         wuow.commit();
     }
     const auto newSchemaTypeInfo = readSchemaTypeInfo();

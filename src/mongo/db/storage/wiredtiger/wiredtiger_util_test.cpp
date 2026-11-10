@@ -679,7 +679,7 @@ TEST_F(WiredTigerUtilTest, ExportStatsBSONAndOtelFilter) {
     // No filter
     BSONObjBuilder bob0;
     Status status = WiredTigerUtil::exportStatsBSONAndOTel(
-        session, "statistics:" + uri, "statistics=(fast)", bob0);
+        session, "statistics:" + uri, "statistics=(fast)", bob0, nullptr);
     ASSERT_OK(status);
     auto totalNumFields = bob0.obj().nFields();
 
@@ -690,6 +690,7 @@ TEST_F(WiredTigerUtilTest, ExportStatsBSONAndOtelFilter) {
                                                "statistics:" + uri,
                                                "statistics=(fast)",
                                                bob1,
+                                               nullptr,
                                                categoryFilter,
                                                WiredTigerUtil::FilterBehavior::kExcludeCategories);
     ASSERT_OK(status);
@@ -703,6 +704,7 @@ TEST_F(WiredTigerUtilTest, ExportStatsBSONAndOtelFilter) {
                                                     "statistics:" + uri,
                                                     "statistics=(fast)",
                                                     bob2,
+                                                    nullptr,
                                                     categoryFilter,
                                                     WiredTigerUtil::FilterBehavior::kIncludeStats);
     ASSERT_OK(status);
@@ -714,6 +716,7 @@ TEST_F(WiredTigerUtilTest, ExportStatsBSONAndOtelFilter) {
                                                     "statistics:" + uri,
                                                     "statistics=(fast)",
                                                     bob3,
+                                                    nullptr,
                                                     statFilter,
                                                     WiredTigerUtil::FilterBehavior::kIncludeStats);
     ASSERT_OK(status);
@@ -728,6 +731,7 @@ TEST_F(WiredTigerUtilTest, ExportStatsBSONAndOtelFilter) {
                                                "statistics:" + uri,
                                                "statistics=(fast)",
                                                bob4,
+                                               nullptr,
                                                statFilter,
                                                WiredTigerUtil::FilterBehavior::kExcludeCategories);
     ASSERT_OK(status);
@@ -1504,9 +1508,9 @@ TEST_F(StatVisitorTest, ExportExcludeCategoriesSkipsOTelUpdatesForExcludedStats)
                                                "statistics:",
                                                "statistics=(fast)",
                                                bob,
+                                               &_registry,
                                                {"cache"},
-                                               WiredTigerUtil::FilterBehavior::kExcludeCategories,
-                                               &_registry));
+                                               WiredTigerUtil::FilterBehavior::kExcludeCategories));
 
     ASSERT_GTE(readCounter(counter), 0);
     ASSERT_THROWS_CODE(readGauge(gauge), DBException, ErrorCodes::KeyNotFound);
@@ -1520,13 +1524,14 @@ TEST_F(StatVisitorTest, ExportIncludeStatsOnlyUpdatesOTelForIncludedStats) {
     WiredTigerSession session(harnessHelper.getConnection());
 
     BSONObjBuilder bob;
-    ASSERT_OK(WiredTigerUtil::exportStatsBSONAndOTel(session,
-                                                     "statistics:",
-                                                     "statistics=(fast)",
-                                                     bob,
-                                                     {counter},
-                                                     WiredTigerUtil::FilterBehavior::kIncludeStats,
-                                                     &_registry));
+    ASSERT_OK(
+        WiredTigerUtil::exportStatsBSONAndOTel(session,
+                                               "statistics:",
+                                               "statistics=(fast)",
+                                               bob,
+                                               &_registry,
+                                               {counter},
+                                               WiredTigerUtil::FilterBehavior::kIncludeStats));
 
     ASSERT_GTE(readCounter(counter), 0);
     ASSERT_THROWS_CODE(readGauge(gauge), DBException, ErrorCodes::KeyNotFound);
@@ -1552,9 +1557,9 @@ TEST_F(StatVisitorTest, ExportReportsCounterIncrementsNotTotals) {
                                                    "statistics:",
                                                    "statistics=(fast)",
                                                    bob,
+                                                   &_registry,
                                                    {counter},
-                                                   WiredTigerUtil::FilterBehavior::kIncludeStats,
-                                                   &_registry));
+                                                   WiredTigerUtil::FilterBehavior::kIncludeStats));
     };
 
     exportCounters();

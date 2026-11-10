@@ -855,6 +855,7 @@ const allCommands = {
             assert.commandWorked(conn.getDB(dbName).runCommand({drop: collName}));
         },
     },
+    failInvariant: {skip: isAnInternalCommand},
     features: {command: {features: 1}},
     filemd5: {
         setUp: function (conn) {

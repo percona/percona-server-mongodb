@@ -1088,6 +1088,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/express:express_executor",
         "//src/mongo/db/exec/sbe:query_sbe_stages",
         "//src/mongo/db/exec/sbe:query_sbe_storage",
+        "//src/mongo/db/exec/sbe:result_materializer",
         "//src/mongo/db/fts:base_fts",
         "//src/mongo/db/matcher:expressions_mongod_only",
         "//src/mongo/db/memory_tracking",
@@ -1404,6 +1405,7 @@ mongo_cc_library(
         "//src/mongo/db/admission/execution_control:execution_admission_context",
         "//src/mongo/db/auth",
         "//src/mongo/db/auth:authprivilege",
+        "//src/mongo/db/auth:security_token",
         "//src/mongo/db/repl:repl_coordinator_interface",
     ],
 )

@@ -112,8 +112,8 @@ void checkCommittedSizeCount(OperationContext* opCtx,
     const Collection* collection = catalog->lookupCollectionByUUID(opCtx, uuid);
     invariant(collection);
     const RecordStore* recordStore = collection->getRecordStore();
-    EXPECT_EQ(recordStore->accurateNumRecords(), expectedSizeCount.count);
-    EXPECT_EQ(recordStore->accurateDataSize(), expectedSizeCount.size);
+    EXPECT_EQ(recordStore->numRecords(), expectedSizeCount.count);
+    EXPECT_EQ(recordStore->dataSize(), expectedSizeCount.size);
 }
 
 void insertDocs(OperationContext* opCtx,
@@ -707,7 +707,10 @@ repl::OplogEntry makeCreateOplogEntry(Timestamp ts, NsAndUUID userColl) {
         .opType = repl::OpTypeEnum::kCommand,
         .nss = userColl.nss.getCommandNS(),
         .uuid = userColl.uuid,
-        .oField = BSON("create" << userColl.nss.coll()),
+        // Replicated record IDs must be enabled for a collection while we use functions like
+        // makeInsertOplogEntryWithRecordIdAndSizeMetadata(). Otherwise, we hit tassert 11454701.
+        // TODO(SERVER-137466): Remove this recordIdsReplicated BSON field.
+        .oField = BSON("create" << userColl.nss.coll() << "recordIdsReplicated" << true),
         .wallClockTime = Date_t::now(),
     }};
 }
@@ -882,6 +885,9 @@ repl::OplogEntry makeWatermarkEntry(Timestamp ts) {
 
 repl::OplogEntry makeCheckpointEntry(Timestamp validAsOf,
                                      const std::vector<CheckpointWriteSpec>& writes) {
+    invariant(!writes.empty(),
+              "A checkpoint must carry at least one metadata store write to be classified as a "
+              "checkpoint");
     std::vector<BSONObj> innerOps;
     for (const auto& spec : writes) {
         const auto keyBytes = SizeCountStore::uuidToContainerKey(spec.uuid);

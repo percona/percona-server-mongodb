@@ -31,7 +31,12 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_snapshot_manager.h"
 #include "mongo/db/tenant_id.h"
+<<<<<<< HEAD
 #include "mongo/logv2/log_component.h"
+||||||| d48ca0a141a
+=======
+#include "mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h"
+>>>>>>> 22f8d922015bdc2e05db1d6627912be14849a274
 #include "mongo/platform/atomic.h"
 #include "mongo/stdx/condition_variable.h"
 #include "mongo/util/clock_source.h"
@@ -299,6 +304,14 @@ public:
             return permit;
         }
         return boost::none;
+    }
+
+    /**
+     * Returns the registry that statistics read from this connection are reported to as OTel
+     * metrics, or nullptr if they are not reported.
+     */
+    virtual WiredTigerMetricRegistry* getOTelMetricRegistry() {
+        return nullptr;
     }
 
     std::unique_ptr<PreparedTransactionsIterator>
@@ -818,6 +831,10 @@ public:
 
     boost::optional<BSONObj> collectStorageStats() override;
 
+    WiredTigerMetricRegistry* getOTelMetricRegistry() override {
+        return &_otelMetricRegistry;
+    }
+
     // TODO SERVER-81069: Remove this since it's intrinsically tied to encryption options only.
     BSONObj getSanitizedStorageOptionsForSecondaryReplication(
         const BSONObj& options) const override;
@@ -1071,6 +1088,9 @@ private:
 
     // Reference to the persistence provider for accessing storage configuration.
     rss::PersistenceProvider& _provider;
+
+    // OTel instruments for the statistics of this connection.
+    WiredTigerMetricRegistry _otelMetricRegistry;
 };
 
 /**
