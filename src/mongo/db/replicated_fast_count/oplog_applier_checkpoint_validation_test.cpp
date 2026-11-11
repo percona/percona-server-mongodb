@@ -9,10 +9,13 @@
 #include "mongo/db/repl/oplog_entry_test_helpers.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
+#include "mongo/db/server_options.h"
 #include "mongo/db/storage/ident.h"
+#include "mongo/db/topology/cluster_role.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/scopeguard.h"
 
 namespace mongo {
 namespace repl {
@@ -40,14 +43,27 @@ protected:
                                                     ident::kFastCountMetadataStoreTimestamps,
                                                     KeyFormat::Long,
                                                     /*writeToOplog=*/false));
+
+        // The `SizeCountCheckpointValidator` needs to adopt one checkpoint before it can begin
+        // performing validation, so we do that here.
+        const Timestamp adoptWatermarkTs = nextOpTime().getTimestamp();
+        std::vector<OplogEntry> adoptOplog;
+        adoptOplog.push_back(makeWatermarkEntry(adoptWatermarkTs));
+        adoptOplog.push_back(makeCheckpointEntry(
+            adoptWatermarkTs,
+            {{.uuid = adoptUuid,
+              .metadata = CollectionReplicatedMetadata{
+                  .sizeCount = CollectionSizeCount{.size = 5, .count = 1}, .hash = boost::none}}}));
+        ASSERT_OK(runThroughApplyOplogBatch(std::move(adoptOplog)));
     }
 
-    Status runThroughApplyOplogBatch(std::vector<OplogEntry> oplog,
-                                     boost::optional<size_t> numWorkers = boost::none) {
-        invariant(!numWorkers || !_oplogApplier,
-                  "Cannot change the worker count across batches of the same applier");
+    virtual boost::optional<size_t> workerCount() const {
+        return boost::none;
+    }
+
+    Status runThroughApplyOplogBatch(std::vector<OplogEntry> oplog) {
         if (!_oplogApplier) {
-            _workerPool = numWorkers ? makeReplWorkerPool(*numWorkers) : makeReplWorkerPool();
+            _workerPool = workerCount() ? makeReplWorkerPool(*workerCount()) : makeReplWorkerPool();
             _oplogApplier = std::make_unique<OplogApplierImpl>(
                 /*executor=*/nullptr,
                 /*oplogBuffer=*/nullptr,
@@ -69,6 +85,7 @@ protected:
     }
 
 private:
+    const UUID adoptUuid = UUID::gen();
     std::unique_ptr<ThreadPool> _workerPool;
     std::unique_ptr<OplogApplierImpl> _oplogApplier;
     unittest::ServerParameterGuard _recordIdsFlag{"featureFlagRecordIdsReplicated", true};
@@ -77,6 +94,15 @@ private:
     unittest::ServerParameterGuard _perDocumentFlag{
         "featureFlagContinuousInternodeValidationPerDocument", true};
 };
+
+class SingleWorkerCheckpointValidationTest : public CheckpointValidationTest {
+protected:
+    boost::optional<size_t> workerCount() const override {
+        return 1;
+    }
+};
+
+using SingleWorkerCheckpointValidationDeathTest = SingleWorkerCheckpointValidationTest;
 
 TEST_F(CheckpointValidationTest, CheckpointValidationSkippedWhenInternodeValidationDisabled) {
     unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
@@ -125,7 +151,8 @@ TEST_F(CheckpointValidationTest, CheckpointValidatesCrudDeltas) {
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
-TEST_F(CheckpointValidationTest, CheckpointValidatesGroupedInsertsWithInterleavedWatermark) {
+TEST_F(SingleWorkerCheckpointValidationTest,
+       CheckpointValidatesGroupedInsertsWithInterleavedWatermark) {
     unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
         "enableContinuousInternodePerCollectionValidation", true);
 
@@ -157,8 +184,7 @@ TEST_F(CheckpointValidationTest, CheckpointValidatesGroupedInsertsWithInterleave
     // By using exactly one worker thread, the first two inserts are grouped and the grouped insert
     // oplog application path is exercised. The watermark delimits the insert group, so the
     // checkpoint at the watermark must validate against only the first two inserts.
-    const size_t numWorkers = 1;
-    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog), numWorkers));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
 TEST_F(CheckpointValidationTest, TwoWatermarksTwoCheckpointsValidateCumulativeDeltas) {
@@ -230,26 +256,6 @@ TEST_F(CheckpointValidationTest, TwoWatermarksCheckpointForFirstOnly) {
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
-TEST_F(CheckpointValidationTest, TwoCheckpointsNoWatermarksAreSkipped) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
-
-    std::vector<OplogEntry> oplog;
-    // We can see checkpoints without watermarks if the watermarks were written before the standby
-    // restarted and the checkpoints were written after.
-    oplog.push_back(makeCheckpointEntry(
-        nextOpTime().getTimestamp(),
-        {{.uuid = UUID::gen(),
-          .metadata = CollectionReplicatedMetadata{
-              .sizeCount = CollectionSizeCount{.size = 999, .count = 999}, .hash = boost::none}}}));
-    oplog.push_back(makeCheckpointEntry(
-        nextOpTime().getTimestamp(),
-        {{.uuid = UUID::gen(),
-          .metadata = CollectionReplicatedMetadata{
-              .sizeCount = CollectionSizeCount{.size = 888, .count = 888}, .hash = boost::none}}}));
-    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
-}
-
 TEST_F(CheckpointValidationTest, TwoWatermarksNoCheckpointsPasses) {
     unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
         "enableContinuousInternodePerCollectionValidation", true);
@@ -305,6 +311,26 @@ TEST_F(CheckpointValidationTest, CheckpointValidatesDroppedCollection) {
 }
 
 using CheckpointValidationDeathTest = CheckpointValidationTest;
+
+TEST_F(CheckpointValidationTest,
+       DroppedCollectionRecreatedWithSameUuidDoesNotFailInShardedCluster) {
+    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
+        "enableContinuousInternodePerCollectionValidation", true);
+
+    serverGlobalParams.clusterRole = {ClusterRole::ShardServer};
+    ON_BLOCK_EXIT([] { serverGlobalParams.clusterRole = ClusterRole::None; });
+
+    const NamespaceString nss =
+        NamespaceString::createNamespaceString_forTest("test.checkpointDroppedRecreatedSharded");
+    const NsAndUUID coll{.nss = nss, .uuid = UUID::gen()};
+
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeCreateOplogEntry(nextOpTime().getTimestamp(), coll));
+    oplog.push_back(makeWatermarkEntry(nextOpTime().getTimestamp()));
+    oplog.push_back(makeDropOplogEntry(nextOpTime().getTimestamp(), coll));
+    oplog.push_back(makeCreateOplogEntry(nextOpTime().getTimestamp(), coll));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
 
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenStandbyMissingEntry,
@@ -413,7 +439,7 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
-DEATH_TEST_F(CheckpointValidationDeathTest,
+DEATH_TEST_F(SingleWorkerCheckpointValidationDeathTest,
              CheckpointValidationFailsOnGroupedInsertSizeMismatch,
              "13626005") {
     unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
@@ -448,8 +474,7 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 
     // By using exactly one worker thread, the first two inserts are grouped and the grouped insert
     // oplog application path is exercised.
-    const size_t numWorkers = 1;
-    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog), numWorkers));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
 DEATH_TEST_F(CheckpointValidationDeathTest,

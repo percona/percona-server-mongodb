@@ -90,17 +90,22 @@ int compareObjects(const BSONObj& firstObj,
 
 const BSONObj BSONObj::kEmptyObject;
 
-void BSONObj::_assertInvalid(int maxSize) const {
-    StringBuilder ss;
-    int os = objsize();
-    ss << "BSONObj size: " << os << " (0x" << unsignedHex(os) << ") is invalid. "
-       << "Size must be between 0 and " << maxSize << "(" << (maxSize / (1024 * 1024)) << "MB)";
-    try {
-        BSONElement e = firstElement();
-        ss << " First element: " << e.toString();
-    } catch (...) {
+void BSONObj::_throwInvalidSize(int size, int maxSize) const {
+    std::string msg =
+        fmt::format("BSONObj size: {} ({:#x}) is invalid. Size must be between {} and {} ({} MiB).",
+                    size,
+                    size,
+                    kMinBSONLength,
+                    maxSize,
+                    maxSize >> 20);
+    if (size >= kMinBSONLength) {
+        try {
+            fmt::format_to(
+                std::back_inserter(msg), " First element: {}", firstElement().toString());
+        } catch (...) {
+        }
     }
-    massert(ErrorCodes::BSONObjectTooLarge, ss.str(), 0);
+    massert(ErrorCodes::BSONObjectTooLarge, msg, 0);
 }
 
 BSONObj BSONObj::copy() const {
@@ -575,7 +580,22 @@ Status BSONObj::storageValidEmbedded() const {
 
 BSONElement BSONObj::getField(std::string_view name) const {
     const char* elem = objdata() + sizeof(int);
-    while (*elem) {
+    const char* const end = _end();
+
+    // Helper lambda to calculate the total size of the element for iteration, while performing
+    // spatial safety checks.
+    auto checkAndGetTotalSize = [&](int fieldNameSize) -> int64_t {
+        const int valueSize = BSONElement::valueSizeFromBuffer(std::span{elem, end}, fieldNameSize);
+        const auto totalSize = static_cast<int64_t>(valueSize) + 1 + fieldNameSize;
+        // Leave room for the terminating EOO byte.
+        bson_details::tassertBSONOverread(totalSize < end - elem);
+        return totalSize;
+    };
+
+    // The top level while must be bounds checked, but the inner loops may rely on the constraint
+    // that this is a `BSONObj` and has an eoo byte. Therefore, the inner loops are guaranteed to
+    // iterate within the buffer.
+    while (elem < end && *elem) {
         auto ptr = elem;
         // Use the name comparison while computing the name length: this avoids having to look at
         // the same name bytes twice.
@@ -584,8 +604,11 @@ BSONElement BSONObj::getField(std::string_view name) const {
                 goto next;  // *ptr is the first non-matching byte, possibly the 0 terminator
 
         // If the field name is found and complete, return the element.
-        if (!*++ptr)
-            return BSONElement(std::span{elem, _end()}, ptr - elem, BSONElement::TrustedInitTag{});
+        if (!*++ptr) {
+            const int fieldNameSize = ptr - elem;
+            checkAndGetTotalSize(fieldNameSize);
+            return BSONElement(std::span{elem, end}, fieldNameSize, BSONElement::TrustedInitTag{});
+        }
 
         // The name is found, but the field name is not yet complete, so there's no match.
         ++ptr;
@@ -594,15 +617,16 @@ next:
         while (*ptr)
             ++ptr;
 
-        elem +=
-            BSONElement(std::span{elem, _end()}, ptr - elem, BSONElement::TrustedInitTag{}).size();
+        // 'ptr - elem' counts the type byte, so it is the field name size including its NUL
+        // terminator, as expected by _valuesizeForType.
+        elem += checkAndGetTotalSize(ptr - elem);
     }
     return BSONElement();
 }
 
 int BSONObj::getIntField(std::string_view name) const {
     BSONElement e = getField(name);
-    return e.isNumber() ? (int)e.number() : std::numeric_limits<int>::min();
+    return e.isNumber() ? e.numberInt() : std::numeric_limits<int>::min();
 }
 
 bool BSONObj::getBoolField(std::string_view name) const {
