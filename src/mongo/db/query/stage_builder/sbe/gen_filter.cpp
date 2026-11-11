@@ -422,7 +422,8 @@ void generatePredicate(MatchExpressionVisitorContext* context,
             "Expected either input expr or top-level field slot to be defined",
             !frame.inputExpr.isNull() || topLevelFieldSlot.has_value());
 
-    const bool canPathBeArray = !context->canUsePathArrayness ||
+    // $elemMatch object expressions push a frame before visiting the child.
+    const bool canPathBeArray = !isFieldPathOnRootDoc || !context->canUsePathArrayness ||
         context->state.expCtx->canPathBeArrayForNss(path,
                                                     context->state.expCtx->getNamespaceString());
 
@@ -1299,7 +1300,13 @@ SbExpr generateFilter(StageBuilderState& state,
     }
 
     MatchExpressionVisitorContext context{
-        state, rootSlot, root, &slots, isFilterOverIxscan, canUsePathArrayness};
+        state,
+        rootSlot,
+        root,
+        &slots,
+        isFilterOverIxscan,
+        canUsePathArrayness &&
+            state.expCtx->getQueryKnobConfiguration().getEnablePathArraynessTraverseFElision()};
 
     MatchExpressionPreVisitor preVisitor{&context};
     MatchExpressionInVisitor inVisitor{&context};

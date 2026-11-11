@@ -297,12 +297,6 @@ setup_bolt_data = use_repo_rule("//bazel/repository_rules:bolt_data.bzl", "setup
 
 setup_bolt_data(name = "bolt_data")
 
-mothra_repository = use_repo_rule("//bazel/repository_rules:mothra.bzl", "mothra_repository")
-
-# This repository is created in CI setup or by manually cloning the 10gen/mothra repo to ./mothra.
-# If the directory doesn't exist, a stub with empty teams will be created.
-mothra_repository(name = "mothra")
-
 jstestfuzz_repository = use_extension(
     "//bazel/repository_rules:jstestfuzz_repository.bzl",
     "jstestfuzz_repository",
@@ -342,6 +336,18 @@ rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
 # Make sure this version is set to one of those, or specify the hashes yourself
 rust.toolchain(
     edition = "2024",
+    # Keep rules_rust's default cross targets and add s390x for ARM64-hosted
+    # Rust builds and the Wasmtime AOT rule's target triple.
+    extra_target_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "s390x-unknown-linux-gnu",
+        "wasm32-unknown-unknown",
+        "wasm32-wasip1",
+        "wasm32-wasip2",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+    ],
     versions = ["nightly/2026-02-12"],
 )
 
@@ -450,6 +456,7 @@ crate.spec(
         "logging",
         "demangle",
         "cranelift",
+        "all-arch",
         "profiling",
         "coredump",
         "addr2line",

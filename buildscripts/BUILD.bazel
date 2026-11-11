@@ -346,10 +346,6 @@ py_binary(
 py_binary(
     name = "generate_result_tasks",
     srcs = ["generate_result_tasks.py"],
-    data = [
-        "@codeowners_binary//:codeowners",
-        "@mothra//:teams",
-    ],
     visibility = ["//visibility:public"],
     deps = [
         "//buildscripts/ciconfig",
@@ -363,8 +359,8 @@ py_binary(
             group = "testing",
         ),
         dependency(
-            "bazel-runfiles",
-            group = "testing",
+            "boto3",
+            group = "aws",
         ),
     ],
 )
@@ -492,6 +488,12 @@ py_binary(
             "pyright",
         ),
     ],
+)
+
+py_library(
+    name = "archive_artifacts_lib",
+    srcs = ["archive_artifacts.py"],
+    visibility = ["//buildscripts/tests:__pkg__"],
 )
 
 py_binary(
@@ -721,10 +723,6 @@ py_library(
             group = "core",
         ),
         dependency(
-            "requests",
-            group = "core",
-        ),
-        dependency(
             "structlog",
             group = "evergreen",
         ),
@@ -816,6 +814,7 @@ py_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//bazel/wrapper_hook:release_distro",
         dependency(
             "protobuf",
             group = "testing",

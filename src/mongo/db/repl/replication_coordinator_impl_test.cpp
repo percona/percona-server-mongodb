@@ -12,6 +12,7 @@
 #include "mongo/db/repl/bson_extract_optime.h"
 #include "mongo/db/repl/data_replicator_external_state_impl.h"
 #include "mongo/db/repl/hello/hello_response.h"
+#include "mongo/db/repl/intent_guard.h"
 #include "mongo/db/repl/optime.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
@@ -270,6 +271,58 @@ TEST_F(ReplCoordTest, NodeEntersStartupStateWhenStartingUpWithNoLocalConfig) {
     logs.stop();
     ASSERT_EQUALS(3, logs.countTextContaining("Did not find local "));
     ASSERT_EQUALS(MemberState::RS_STARTUP, getReplCoord()->getMemberState().s);
+}
+
+TEST_F(ReplCoordTest, RecordsACleanShutdownDocumentWhenStartingUpAfterACleanShutdown) {
+    init();
+    const auto opCtx = makeOperationContext();
+    getReplCoord()->startup(opCtx.get(), StorageEngine::LastShutdownState::kClean);
+
+    // The first recorded shutdown starts the id sequence at 0, one past the sentinel.
+    auto doc =
+        unittest::assertGet(getStorageInterface()->getLastCleanShutdownDocument(opCtx.get()));
+    ASSERT_TRUE(doc);
+    ASSERT_EQUALS(0LL, doc->getId());
+}
+
+TEST_F(ReplCoordTest, ContinuesTheCleanShutdownIdSequenceFromWhatIsAlreadyRecorded) {
+    init();
+    const auto opCtx = makeOperationContext();
+
+    // This node has already recorded three clean shutdowns, the most recent with _id 2.
+    ASSERT_OK(getStorageInterface()->initializeCleanShutdownCollection(opCtx.get()));
+    ASSERT_OK(getStorageInterface()->recordCleanShutdown(opCtx.get(), Timestamp(1, 1)));
+    ASSERT_OK(getStorageInterface()->recordCleanShutdown(opCtx.get(), Timestamp(2, 1)));
+    ASSERT_OK(getStorageInterface()->recordCleanShutdown(opCtx.get(), Timestamp(3, 1)));
+
+    getReplCoord()->startup(opCtx.get(), StorageEngine::LastShutdownState::kClean);
+
+    // The fourth shutdown continues the sequence from the most recent recorded id rather than
+    // restarting it, so ids never repeat or move backwards.
+    auto doc =
+        unittest::assertGet(getStorageInterface()->getLastCleanShutdownDocument(opCtx.get()));
+    ASSERT_TRUE(doc);
+    ASSERT_EQUALS(3LL, doc->getId());
+}
+
+TEST_F(ReplCoordTest, DoesNotRecordACleanShutdownDocumentAfterAnUncleanShutdown) {
+    init();
+    const auto opCtx = makeOperationContext();
+    getReplCoord()->startup(opCtx.get(), StorageEngine::LastShutdownState::kUnclean);
+
+    // Only clean shutdowns are recorded, so the collection holds nothing but the sentinel here.
+    ASSERT_FALSE(
+        unittest::assertGet(getStorageInterface()->getLastCleanShutdownDocument(opCtx.get())));
+}
+
+TEST_F(ReplCoordTest, CreatesTheCleanShutdownCollectionEvenAfterAnUncleanShutdown) {
+    init();
+    const auto opCtx = makeOperationContext();
+    getReplCoord()->startup(opCtx.get(), StorageEngine::LastShutdownState::kUnclean);
+
+    // The collection is created on every startup, not just clean ones, so recording a shutdown
+    // afterwards must succeed rather than report a missing collection.
+    ASSERT_OK(getStorageInterface()->recordCleanShutdown(opCtx.get(), Timestamp(1, 1)));
 }
 
 TEST_F(ReplCoordTest, RSNodeHandlesInterruptedAtShutdownDuringStartupRecovery) {
@@ -1807,11 +1860,21 @@ TEST_F(ReplCoordTest, ConcurrentStepDownShouldNotSignalTheSameFinishEventMoreTha
 
     auto replExec = getReplExec();
 
-    // Prevent _stepDownFinish() from running and becoming secondary by blocking in this
-    // exclusive task.
-    const auto opCtx = makeOperationContext();
+    // Prevent _stepDownFinish() from completing and becoming secondary. With intent registration,
+    // hold a write intent, which the stepdown must wait to drain. The client must be unkillable
+    // during stepdown so the stepdown cannot interrupt this operation and release the intent
+    // early. Without intent registration, hold the RSTL in mode X, which the stepdown must acquire.
+    // TODO SERVER-106669: Remove the RSTL path when featureFlagIntentRegistration is removed.
+    auto client = getServiceContext()->getService()->makeClient("stepDownBlocker");
+    client->setOperationUnkillable_ForTest();
+    const auto opCtx = client->makeOperationContext();
+    boost::optional<rss::consensus::WriteIntentGuard> writeIntent;
     boost::optional<ReplicationStateTransitionLockGuard> transitionGuard;
-    transitionGuard.emplace(opCtx.get(), MODE_X);
+    if (gFeatureFlagIntentRegistration.isEnabled()) {
+        writeIntent.emplace(opCtx.get());
+    } else {
+        transitionGuard.emplace(opCtx.get(), MODE_X);
+    }
 
     TopologyCoordinator::UpdateTermResult termUpdated2;
     auto updateTermEvh2 = getReplCoord()->updateTerm_forTest(2, &termUpdated2);
@@ -1837,6 +1900,7 @@ TEST_F(ReplCoordTest, ConcurrentStepDownShouldNotSignalTheSameFinishEventMoreTha
                   ReplicationMetrics::get(svcCtx).getNumStepDownsCausedByHigherTerm_forTesting());
 
     // Unblock the tasks for updateTerm and _stepDownFinish.
+    writeIntent.reset();
     transitionGuard.reset();
 
     // Wait stepdown to finish and term 3 to be installed.

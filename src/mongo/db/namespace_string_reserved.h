@@ -120,6 +120,9 @@
       DatabaseName::kConfig,                                                                       \
       "localMigrationBlockingOperations.multiUpdateCoordinators")                                  \
                                                                                                    \
+    /*  Pseudo Namespace to act a namespace resource for internal collections. */                  \
+    X(kAuthForInternalNamespace, DatabaseName::kAdmin, "system.authForInternalNamespace")          \
+                                                                                                   \
     /*  Namespace for persisting sharding DDL rename participant state documents */                \
     X(kShardingRenameParticipantsNamespace, DatabaseName::kConfig, "localRenameParticipants")      \
                                                                                                    \
@@ -261,6 +264,9 @@
                                                                                                    \
     /*  Namespace used for local system rollback id. */                                            \
     X(kDefaultRollbackIdNamespace, DatabaseName::kLocal, "system.rollback.id")                     \
+                                                                                                   \
+    /*  Namespace used for local clean shutdown metadata. */                                       \
+    X(kCleanShutdownLogNamespace, DatabaseName::kLocal, "system.cleanShutdownLog")                 \
                                                                                                    \
     /*  Namespace used for the local oplog dollar main namespace. */                               \
     X(kLocalOplogDollarMain, DatabaseName::kLocal, "oplog.$main")                                  \

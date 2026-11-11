@@ -864,8 +864,13 @@ void InitialSyncerFCB::_rollbackCheckerResetCallback(
     }
 
     // we will need shared data to clone files from sync source
+    // The clean shutdown check (SERVER-133683) is not implemented for file copy based initial
+    // sync, so it is disabled here and the related baseline values are unused.
     _sharedData =
         std::make_unique<InitialSyncSharedData>(_rollbackChecker->getBaseRBID(),
+                                                false /* cleanShutdownCheckEnabled */,
+                                                kNoCleanShutdownId,
+                                                Timestamp() /* beginApplyingTimestamp */,
                                                 _allowedOutageDuration,
                                                 getGlobalServiceContext()->getFastClockSource());
     // schedule $backupCursor on the sync source

@@ -16,7 +16,6 @@ Options:
     --outfile           File path for the generated task config.
 """
 
-import glob
 import json
 import os
 import re
@@ -27,7 +26,6 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from typing import Optional
 
-import runfiles
 import typer
 import yaml
 from shrub.v2 import BuildVariant, FunctionCall, Task, TaskGroup
@@ -257,34 +255,72 @@ def get_codeowners(target: str) -> list[str]:
     return resolve_codeowners().get(package)
 
 
+MOTHRA_EXPORT_BUCKET = "mothra-teams-prod"
+MOTHRA_EXPORT_PREFIX = "exports/"
+MOTHRA_EXPORT_REGION = "us-east-1"
+
+
+def assignment_tags_from_teams(teams: list[dict]) -> dict[str, str]:
+    """Build the GitHub team name to assignment tag mapping from Mothra team entries."""
+    assignment_tags = {}
+    for team in teams:
+        evergreen_tag_name = team.get("evergreen_tag_name")
+        github_teams = team.get("code_owners", {}).get("github_teams", [])
+        if not evergreen_tag_name:
+            continue
+        for github_team in github_teams:
+            name = github_team.get("team_name")
+            if name:
+                assignment_tags[name] = "assigned_to_jira_team_" + evergreen_tag_name
+    return assignment_tags
+
+
+def resolve_assignment_tags_from_s3(
+    bucket: str = MOTHRA_EXPORT_BUCKET,
+    prefix: str = MOTHRA_EXPORT_PREFIX,
+    region: str = MOTHRA_EXPORT_REGION,
+) -> dict[str, str]:
+    """Read every department's latest.yaml from the Mothra S3 export."""
+    import boto3
+
+    prefix = prefix.rstrip("/") + "/"
+    s3 = boto3.client("s3", region_name=region)
+
+    latest_keys = []
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for item in page.get("Contents", []):
+            if item["Key"].endswith("/latest.yaml"):
+                latest_keys.append(item["Key"])
+
+    if not latest_keys:
+        raise RuntimeError(f"No Mothra exports found under s3://{bucket}/{prefix}")
+
+    teams = []
+    for key in sorted(latest_keys):
+        response = s3.get_object(Bucket=bucket, Key=key)
+        export = yaml.safe_load(response["Body"].read()) or {}
+        if not isinstance(export, dict) or not isinstance(export.get("teams"), list):
+            raise ValueError(f"Invalid Mothra export: s3://{bucket}/{key}")
+        teams += export["teams"]
+
+    assignment_tags = assignment_tags_from_teams(teams)
+    if not assignment_tags:
+        raise RuntimeError(
+            f"Mothra export under s3://{bucket}/{prefix} produced no assignment tags"
+        )
+    return assignment_tags
+
+
 @cache
 def resolve_assignment_tags() -> dict[str, str]:
+    """Resolve assignment tags from the Mothra S3 export."""
     try:
-        # Find the teams directory in the runfiles. Unfortunately, resolving the
-        # directory requires resolving a specific file within the runfiles, so
-        # an arbitrary team's YAML is used.
-        r = runfiles.Create()
-        teams_dir = os.path.dirname(r.Rlocation("mothra/mothra/teams/devprod.yaml"))
-
-        teams = []
-        for file in glob.glob(teams_dir + "/*.yaml"):
-            with open(file, "rt") as f:
-                teams += yaml.safe_load(f).get("teams", [])
-
-        assignment_tags = {}
-        for team in teams:
-            evergreen_tag_name = team.get("evergreen_tag_name")
-            github_teams = team.get("code_owners", {}).get("github_teams", [])
-            for github_team in github_teams:
-                name = github_team.get("team_name")
-                if name and evergreen_tag_name:
-                    assignment_tags[name] = "assigned_to_jira_team_" + evergreen_tag_name
-        return assignment_tags
+        return resolve_assignment_tags_from_s3()
     except Exception as e:
-        # Conservatively except any exception here. In the worst case, the contents/format of the
-        # Mothra repo could change out from under us, and it should not completely fail
-        # task generation.
-        print(f"Failed to resolve assignment tags: {e}", file=sys.stderr)
+        # Conservatively except any exception here. The S3 export requires credentials that not every caller has,
+        # and the export could change out from under us.
+        print(f"Failed to resolve assignment tags from S3: {e}", file=sys.stderr)
         return {}
 
 
@@ -368,23 +404,23 @@ def _build_tag_query(tags: list[str], target_pattern: str) -> str:
     positive_tags = [t for t in tags if not t.startswith("-")]
     negative_tags = [t[1:] for t in tags if t.startswith("-")]
 
-    excluded_parts = [
-        f"attr(tags, '\\bincompatible_with_bazel_remote_test(?![a-zA-Z0-9_-])', kind('py_test', {target_pattern}))"
-    ]
-    for tag in negative_tags:
-        excluded_parts.append(
-            f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', kind('py_test', {target_pattern}))"
+    def tagged(tag: str) -> str:
+        # resmoke_suite_test targets carrying `tag` as a whole word (the negative
+        # lookahead prevents matching tag prefixes). The macro expands to the custom
+        # _resmoke_test rule, and the ci-*/exclusion tags this query filters on are
+        # only ever applied to resmoke suites, so no other rule kind is relevant.
+        return (
+            f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', " f"kind('_resmoke_test', {target_pattern}))"
         )
+
+    excluded_parts = [tagged("incompatible_with_bazel_remote_test")]
+    excluded_parts += [tagged(tag) for tag in negative_tags]
     excluded = " + ".join(excluded_parts)
 
     if len(positive_tags) == 1:
-        inclusion = f"attr(tags, '\\b{positive_tags[0]}(?![a-zA-Z0-9_-])', kind('py_test', {target_pattern}))"
+        inclusion = tagged(positive_tags[0])
     else:
-        tag_queries = [
-            f"attr(tags, '\\b{tag}(?![a-zA-Z0-9_-])', kind('py_test', {target_pattern}))"
-            for tag in positive_tags
-        ]
-        inclusion = f"({' + '.join(tag_queries)})"
+        inclusion = f"({' + '.join(tagged(tag) for tag in positive_tags)})"
 
     return f"{inclusion} - ({excluded})"
 
@@ -407,6 +443,10 @@ def _variant_cquery_flags(variant, resmoke_task, expansions) -> tuple[list[str],
     cquery_flags.append("--noincompatible_enable_cc_toolchain_resolution")
     cquery_flags.append("--repo_env=no_c++_toolchain=1")
     cquery_flags.append("--keep_going")
+    # Suites with shard_count above Bazel's native cap of 50 get their shard count from a rule
+    # transition, and Bazel omits a target whose own transition changed its configuration from
+    # cquery output. Turning the flag off makes the transition a no-op so the targets are visible.
+    cquery_flags.append("--//bazel/resmoke:support_extended_shard_count=False")
 
     if " " in target_pattern and not target_pattern.startswith("set("):
         target_pattern = f"set({target_pattern})"
@@ -452,15 +492,17 @@ def query_targets(
             candidate_set,
             "--output=starlark",
             "--starlark:expr",
-            'target.label if "IncompatiblePlatformProvider" not in providers(target) else ""',
+            "str(target.label) + "
+            '(" INCOMPATIBLE" if "IncompatiblePlatformProvider" in providers(target) else " OK")',
         ]
     )
     result = subprocess.run(cquery_cmd, capture_output=True, text=True)
-    compatible = {
-        line.strip().removeprefix("@@")
-        for line in result.stdout.strip().split("\n")
-        if line.strip()
-    }
+    compatible = set()
+    for line in result.stdout.splitlines():
+        label, _, verdict = line.strip().rpartition(" ")
+        if verdict == "OK":
+            compatible.add(label.removeprefix("@@").removeprefix("@"))
+
     targets = [c for c in candidates if c in compatible]
     print(f"Variant {variant.name}: Found {len(targets)} targets total", file=sys.stderr)
 

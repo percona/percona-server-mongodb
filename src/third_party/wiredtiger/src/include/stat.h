@@ -593,6 +593,7 @@ struct __wt_connection_stats {
     int64_t eviction_server_skip_pages_prune_timestamp_not_move;
     int64_t eviction_server_skip_pages_retry;
     int64_t eviction_server_skip_unwanted_pages;
+    int64_t eviction_server_skip_trees_walk_complete;
     int64_t eviction_server_skip_stable_trees;
     int64_t eviction_server_skip_unwanted_tree;
     int64_t eviction_server_skip_trees_too_many_active_walks;
@@ -1322,6 +1323,7 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t rec_skip_write;
+    int64_t session_hs_verify_btrees_checked;
     int64_t session_open;
     int64_t session_query_ts;
     int64_t session_table_alter_fail;

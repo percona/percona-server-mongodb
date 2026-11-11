@@ -18,6 +18,8 @@
 #include "mongo/db/ifr_flag_retry_info.h"
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/document_source.h"
+#include "mongo/db/pipeline/document_source_graph_lookup.h"
+#include "mongo/db/pipeline/document_source_graph_lookup_gen.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/expression_context_builder.h"
 #include "mongo/db/pipeline/lite_parsed_pipeline.h"
@@ -42,8 +44,10 @@
 #include "mongo/util/version/releases.h"
 
 #include <algorithm>
+#include <functional>
 #include <iterator>
 #include <list>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -51,25 +55,16 @@ namespace mongo {
 namespace view_catalog_helpers {
 
 namespace {
+
+// Lite-parses 'pipeline' (retrying on IFR flag rejections) and validates it for use as a view
+// definition.
 LiteParsedPipeline liteParseAndValidateWithIfrRetry(const OperationContext* opCtx,
                                                     const NamespaceString& nss,
                                                     const std::vector<BSONObj>& pipeline,
                                                     bool performApiVersionChecks) {
-    auto ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
-
-    return retryOn<ErrorCodes::IFRFlagRetry>(
-        "validateViewPipeline",
-        [&] {
-            LiteParsedPipeline liteParsedPipeline(
-                nss, pipeline, false, LiteParserOptions{.ifrContext = ifrContext});
+    return LiteParsedPipeline::liteParseWithIfrRetry(
+        nss, pipeline, [&](LiteParsedPipeline& liteParsedPipeline) {
             liteParsedPipeline.validate(opCtx, performApiVersionChecks);
-            return liteParsedPipeline;
-        },
-        kDefaultMaxRetries,
-        [&](const ExceptionFor<ErrorCodes::IFRFlagRetry>& ex) {
-            auto* flag = IncrementalRolloutFeatureFlag::findByName(
-                ex.extraInfo<IFRFlagRetryInfo>()->getDisabledFlagName());
-            ifrContext->disableFlag(*flag);
         });
 }
 }  // namespace
@@ -205,6 +200,33 @@ StatusWith<ResolvedNamespace> resolveView(OperationContext* opCtx,
                              tsOptions, mixedData, hasExtendedRange, fixedBuckets},
                      .validateIsNotViewlessTimeseries = true,
                      .isViewlessTimeseries = isNewTimeseriesWithoutView}});
+        }
+
+        // Block views created with a $graphLookup stage containing the $_internalFromPipeline
+        // field.
+        // TODO SERVER-137345 centralize view validation on read time for all internal fields.
+        std::function<bool(const BSONObj&)> containsInternalFromPipeline = [&](const BSONObj& obj) {
+            return std::ranges::any_of(obj, [&](const BSONElement& elem) {
+                if (!elem.isABSONObj()) {
+                    return false;
+                }
+                if (elem.fieldNameStringData() == DocumentSourceGraphLookUp::kStageName &&
+                    elem.type() == BSONType::object &&
+                    elem.Obj().hasField(
+                        DocumentSourceGraphLookUpSpec::kInternalFromPipelineFieldName)) {
+                    return true;
+                }
+                return containsInternalFromPipeline(elem.Obj());
+            });
+        };
+        if (std::ranges::any_of(view->pipeline(), containsInternalFromPipeline)) {
+            return Status(ErrorCodes::Error(13687800),
+                          str::stream()
+                              << "View " << view->name().toStringForErrorMsg()
+                              << " has an invalid definition: '"
+                              << DocumentSourceGraphLookUpSpec::kInternalFromPipelineFieldName
+                              << "' is an internal field and cannot be used in a view "
+                                 "definition");
         }
 
         lastViewDefinition = view;

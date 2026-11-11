@@ -44,7 +44,7 @@ a notice will be included in
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [json-c]                                             | MIT                                            | 0.17                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
-| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
+| [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public-Domain | 2.1.0                                    |                      |                                 |
 | [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
 | [libunwind]                                          | MIT                                            | 1.8.1                                    |                      | ✗                               |
@@ -59,7 +59,7 @@ a notice will be included in
 | [Prometheus Client Library for Modern C++]           | MIT                                            | 1.2.2                                    |                      | ✗                               |
 | [Protobuf]                                           | BSD-3-Clause                                   | 6.31.1                                   |                      | ✗                               |
 | [pypi/ocspbuilder]                                   | MIT                                            | 0.10.2                                   |                      |                                 |
-| [pypi/ocspresponder]                                 | Apache-2.0, OTHER                              | 0.5.0                                    |                      |                                 |
+| [pypi/ocspresponder]                                 | Apache-2.0                                     | 0.5.0                                    |                      |                                 |
 | [re2]                                                | BSD-3-Clause                                   | 2025-08-12                               |                      | ✗                               |
 | [rnp]                                                | Apache-2.0, BSD-2-Clause, MIT                  | 0.18.1                                   |                      | ✗                               |
 | [S2 Geometry Library]                                | Apache-2.0                                     | a25c502bda9d7e0274b9e2b7825fbddf13cc0306 | ✗                    | ✗                               |
@@ -69,7 +69,7 @@ a notice will be included in
 | [snappy]                                             | BSD-3-Clause                                   | 1.1.10                                   | ✗                    | ✗                               |
 | [Snowball Stemming Algorithms (libstemmer)]          | BSD-3-Clause                                   | 1.0.0                                    | ✗                    | ✗                               |
 | [tcmalloc]                                           | Apache-2.0                                     | f3b20f9a07e175c5d897df7b49d9830d4efa6110 |                      | ✗                               |
-| [timelib]                                            | MIT                                            | 2022.13                                  |                      | ✗                               |
+| [timelib]                                            | MIT                                            | 2026.02                                  |                      | ✗                               |
 | [Unicode Character Database]                         | Unicode-DFS-2016                               | 8.0.0                                    | ✗                    | ✗                               |
 | [valgrind.h]                                         | BSD-4-Clause                                   | 3.17.0                                   |                      | ✗                               |
 | [yaml-cpp]                                           | MIT                                            | 0.6.3                                    |                      | ✗                               |

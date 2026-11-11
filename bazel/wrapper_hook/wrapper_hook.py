@@ -13,6 +13,7 @@ sys.path.append(str(REPO_ROOT))
 sys.stdout = sys.stderr
 
 from bazel.wrapper_hook.install_modules import bootstrap_modules
+from bazel.wrapper_hook.release_distro import ReleaseDistroError, check_evergreen_release_distro
 from bazel.wrapper_hook.wrapper_debug import wrapper_debug
 from bazel.wrapper_hook.wrapper_util import get_terminal_stream
 
@@ -92,7 +93,16 @@ def run_with_terminal_output(func, *args, **kwargs):
         sys.stderr = old_stderr
 
 
+def _check_release_distro(args: list[str]) -> None:
+    try:
+        check_evergreen_release_distro(args, repo_root=REPO_ROOT)
+    except ReleaseDistroError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(4)
+
+
 def main():
+    _check_release_distro(sys.argv[2:])
     bootstrap_modules(sys.argv[1], sys.argv[1:])
 
     from bazel.auto_header.auto_header import gen_auto_headers
@@ -189,8 +199,14 @@ def main():
         if any(arg.startswith("--include_mongot") for arg in args):
             os.makedirs("mongot-localdev", exist_ok=True)
 
+        # resmoke_suite_test tests get their shard count from a rule transition that sets
+        # --test_sharding_strategy, which would silently overrule the requested strategy.
+        if any(arg.startswith("--test_sharding_strategy") for arg in args):
+            args.append("--//bazel/resmoke:support_extended_shard_count=False")
+
         write_workstation_bazelrc(args)
         write_wrapper_hook_bazelrc(args)
+        _check_release_distro(args[2:])
         # Disable git age check for now, to avoid issues wth merge commits
         # git_age_check()
         check_resource()

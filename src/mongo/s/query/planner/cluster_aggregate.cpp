@@ -25,6 +25,8 @@
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_hint_translation.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
+#include "mongo/db/pipeline/document_source_change_stream.h"
+#include "mongo/db/pipeline/document_source_change_stream_gen.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
 #include "mongo/db/pipeline/document_source_internal_unpack_bucket.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -175,6 +177,35 @@ Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& 
         : req.toBSON();
 
     return Document(cmdObj);
+}
+
+/**
+ * A '$_passthroughToShard' change stream is forwarded unparsed to the shard, which runs it as the
+ * router's internal user and so cannot tell whether the actual user may read system.js. If the
+ * stream uses 'showSystemEvents' and the user is not authorized for system.js events, add a $match
+ * right after $changeStream that drops them, before any user stage can change the event shape.
+ */
+Document filterSystemJsEventsForPassthroughIfNeeded(OperationContext* opCtx,
+                                                    const NamespaceString& nss,
+                                                    Document cmd) {
+    auto pipeline = cmd[AggregateCommandRequest::kPipelineFieldName].getArray();
+    if (pipeline.empty()) {
+        return cmd;
+    }
+    const auto spec = pipeline[0][DocumentSourceChangeStream::kStageName];
+    if (spec.getType() != BSONType::object ||
+        !spec[DocumentSourceChangeStreamSpec::kShowSystemEventsFieldName].coerceToBool() ||
+        DocumentSourceChangeStream::isAuthorizedForSystemJsEvents(opCtx, nss)) {
+        return cmd;
+    }
+
+    constexpr auto systemJs = NamespaceString::kSystemDotJavascriptCollectionName;
+    pipeline.insert(pipeline.begin() + 1,
+                    Value(BSON("$match" << BSON("ns.coll" << BSON("$ne" << systemJs) << "to.coll"
+                                                          << BSON("$ne" << systemJs)))));
+    MutableDocument newCmd(std::move(cmd));
+    newCmd[AggregateCommandRequest::kPipelineFieldName] = Value(std::move(pipeline));
+    return newCmd.freeze();
 }
 
 // Build an appropriate ExpressionContext for the pipeline. This helper instantiates an appropriate
@@ -406,10 +437,18 @@ std::vector<BSONObj> patchPipelineForTimeSeriesQuery(
 }
 
 /**
+ * The result of parsePipelineAndRegisterQueryStats() below.
+ */
+struct ParsedAggregationPipeline {
+    std::unique_ptr<Pipeline> pipeline;
+    bool untrackedIsViewlessTimeseries = false;
+};
+
+/**
  * Builds an expCtx with which to parse the request's pipeline, then parses the pipeline and
  * registers the pre-optimized pipeline with query stats collection.
  */
-std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
+ParsedAggregationPipeline parsePipelineAndRegisterQueryStats(
     OperationContext* opCtx,
     const ClusterAggregate::Namespaces& nsStruct,
     AggregateCommandRequest& request,
@@ -429,14 +468,18 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
     // collation, and since collectionless aggregations generally run on the 'admin'
     // database, the standard logic would attempt to resolve its non-existent UUID and
     // collation by sending a specious 'listCollections' command to the config servers.
-    auto [collationObj, collationMatchesDefault] = hasChangeStream
-        ? std::pair(request.getCollation().value_or(BSONObj()),
-                    ExpressionContextCollationMatchesDefault::kYes)
-        : cluster_aggregation_planner::getCollation(opCtx,
-                                                    cri,
-                                                    nsStruct.executionNss,
-                                                    request.getCollation().value_or(BSONObj()),
-                                                    requiresCollationForParsingUnshardedAggregate);
+    const cluster_aggregation_planner::ResolvedCollectionInfo collectionInfo = hasChangeStream
+        ? cluster_aggregation_planner::
+              ResolvedCollectionInfo{request.getCollation().value_or(BSONObj()),
+                                     ExpressionContextCollationMatchesDefault::kYes}
+        : cluster_aggregation_planner::resolveCollectionInfo(
+              opCtx,
+              cri,
+              nsStruct.executionNss,
+              request.getCollation().value_or(BSONObj()),
+              requiresCollationForParsingUnshardedAggregate);
+    const BSONObj& collationObj = collectionInfo.collation;
+    const auto collationMatchesDefault = collectionInfo.collationMatchesDefault;
 
     bool extensionsInHybridSearchEnabled = ifrContext &&
         ifrContext->getSavedFlagValue(feature_flags::gFeatureFlagExtensionsInsideHybridSearch);
@@ -589,7 +632,7 @@ std::unique_ptr<Pipeline> parsePipelineAndRegisterQueryStats(
         pipeline->setTranslated();
     }
 
-    return pipeline;
+    return {std::move(pipeline), collectionInfo.untrackedIsViewlessTimeseries};
 }
 
 Status _parseQueryStatsAndReturnEmptyResult(
@@ -638,7 +681,7 @@ Status _parseQueryStatsAndReturnEmptyResult(
         liteParsedPipeline.requiresCollationForParsingUnshardedAggregate();
 
     try {
-        auto pipeline =
+        auto parsedPipeline =
             parsePipelineAndRegisterQueryStats(opCtx,
                                                namespaces,
                                                request,
@@ -654,7 +697,7 @@ Status _parseQueryStatsAndReturnEmptyResult(
                                                std::move(ifrContext),
                                                std::move(preResolvedNamespaces));
 
-        pipeline->validateCommon(false);
+        parsedPipeline.pipeline->validateCommon(false);
     } catch (const ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
         // Ignore redundant NamespaceNotFound errors.
         LOGV2_DEBUG(8396400,
@@ -800,7 +843,7 @@ Status runAggregateImpl(OperationContext* opCtx,
     // any policy other than "specific shard only".
     auto [pipeline, expCtx] =
         [&]() -> std::tuple<std::unique_ptr<Pipeline>, boost::intrusive_ptr<ExpressionContext>> {
-        auto pipeline =
+        auto [pipeline, untrackedIsViewlessTimeseries] =
             parsePipelineAndRegisterQueryStats(opCtx,
                                                namespaces,
                                                request,
@@ -847,7 +890,12 @@ Status runAggregateImpl(OperationContext* opCtx,
 
         pipelineCtx->initializeReferencedSystemVariables();
 
-        // Optimize the pipeline if:
+        const bool rawData = request.getRawData().value_or(false);
+        const bool timeseriesRewriteDeferredToShard = untrackedIsViewlessTimeseries && !rawData;
+
+        // Untracked viewless timeseries collections must defer their rewrite to a shard unless this
+        // is a rawData query, which does not require the rewrite. Otherwise, optimize the pipeline
+        // if any of:
         // - We have a valid routing table.
         // - We know the collection's collation.
         // - We have a change stream.
@@ -856,9 +904,10 @@ Status runAggregateImpl(OperationContext* opCtx,
         // This is because the results of optimization may depend on knowing the collation.
         // TODO SERVER-81991: Determine whether this is necessary once all unsharded collections are
         // tracked as unsplittable collections in the sharding catalog.
-        if (routingTableIsAvailable || requiresCollationForParsingUnshardedAggregate ||
-            hasChangeStream || shouldDoFLERewrite ||
-            pipelineCtx->getNamespaceString().isCollectionlessAggregateNS()) {
+        if (!timeseriesRewriteDeferredToShard &&
+            (routingTableIsAvailable || requiresCollationForParsingUnshardedAggregate ||
+             hasChangeStream || shouldDoFLERewrite ||
+             pipelineCtx->getNamespaceString().isCollectionlessAggregateNS())) {
             pipeline_optimization::optimizePipeline(*pipeline);
 
             // Validate the pipeline post-optimization.
@@ -869,6 +918,8 @@ Status runAggregateImpl(OperationContext* opCtx,
                        "Skipping optimization!",
                        "routingTableIsAvailable"_attr = routingTableIsAvailable,
                        "requiresCollation..."_attr = requiresCollationForParsingUnshardedAggregate,
+                       "rawData"_attr = rawData,
+                       "timeseriesRewriteDeferredToShard"_attr = timeseriesRewriteDeferredToShard,
                        "hasChangeStream"_attr = hasChangeStream,
                        "shouldDoFLERewrite"_attr = shouldDoFLERewrite,
                        "collectionLess"_attr =
@@ -999,7 +1050,10 @@ Status runAggregateImpl(OperationContext* opCtx,
                         routingCtx,
                         namespaces,
                         expCtx->getExplain(),
-                        serializeForPassthrough(expCtx, request, namespaces.executionNss),
+                        filterSystemJsEventsForPassthroughIfNeeded(
+                            opCtx,
+                            namespaces.executionNss,
+                            serializeForPassthrough(expCtx, request, namespaces.executionNss)),
                         privileges,
                         shardId,
                         &result,

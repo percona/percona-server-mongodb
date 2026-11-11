@@ -37,6 +37,12 @@ last-patch:
       ticket: SERVER-83322
     - test_file: jstests/core/query/boolean_simplifier_tautology.js
       ticket: SERVER-131802
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-130677
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-135206
+    - test_file: jstests/core/query/bson_size_limit_convert.js
+      ticket: SERVER-135206
     - test_file: jstests/core/query/distinct/distinct_replanning.js
       ticket: SERVER-125858
     - test_file: jstests/core/query/group_sbe_accumulator_limit.js
@@ -51,20 +57,44 @@ last-patch:
       ticket: SERVER-127051
     - test_file: jstests/core/timeseries/query/timeseries_empty_metafield.js
       ticket: SERVER-121084
+    - test_file: jstests/core/timeseries/write/timeseries_empty_metafield_write.js
+      ticket: SERVER-134555
     - test_file: jstests/core/txns/multi_statement_transaction_command_args.js
       ticket: SERVER-127661
+    - test_file: jstests/core/views/views_internal_only_stages.js
+      ticket: SERVER-137361
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
     - test_file: jstests/fle2/implicit_ecoc_creation.js
       ticket: SERVER-126384
+    - test_file: jstests/noPassthrough/index_builds/index_build_stepup_abandoned_before_writable.js
+      ticket: SERVER-136502
     - test_file: jstests/noPassthrough/network/min_wait_streaming_hello_mongos.js
       ticket: SERVER-132650
+    - test_file: jstests/replsets/clean_shutdown_log.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
     - test_file: jstests/sharding/internal_txns/retryable_writes_oplog_entries.js
       ticket: SERVER-131326
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
+    - test_file: jstests/sharding/migration_blocking_operation/multi_update_coordinator_state_document_privilege_escalation.js
+      ticket: SERVER-133600
     - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_uncataloged_db.js
       ticket: SERVER-134952
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
       ticket: SERVER-130431
+    - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
+      ticket: SERVER-126814
     - test_file: jstests/sharding/txn_prepared_participant_unauthorized_commit_abort.js
       ticket: SERVER-130544
   suites: null
@@ -88,6 +118,8 @@ last-continuous:
       ticket: SERVER-134618
     - test_file: jstests/auth/apply_ops_uuid_ddl_auth_divergence.js
       ticket: SERVER-130139
+    - test_file: jstests/change_streams/change_stream_large_event_resumption.js
+      ticket: SERVER-134795
     - test_file: jstests/change_streams/change_stream_metrics_update_lookup.js
       ticket: SERVER-133661
     - test_file: jstests/change_streams/update_lookup_before_ddl.js
@@ -122,6 +154,12 @@ last-continuous:
       ticket: SERVER-83322
     - test_file: jstests/core/query/boolean_simplifier_tautology.js
       ticket: SERVER-131802
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-130677
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-135206
+    - test_file: jstests/core/query/bson_size_limit_convert.js
+      ticket: SERVER-135206
     - test_file: jstests/core/query/distinct/distinct_replanning.js
       ticket: SERVER-125858
     - test_file: jstests/core/query/group_sbe_accumulator_limit.js
@@ -146,12 +184,20 @@ last-continuous:
       ticket: SERVER-95352
     - test_file: jstests/core/timeseries/write/timeseries_bypass_document_validation_raw_buckets.js
       ticket: SERVER-121714
+    - test_file: jstests/core/timeseries/write/timeseries_empty_metafield_write.js
+      ticket: SERVER-134555
     - test_file: jstests/core/txns/multi_statement_transaction_command_args.js
       ticket: SERVER-127661
+    - test_file: jstests/core/views/views_internal_only_stages.js
+      ticket: SERVER-137361
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
     - test_file: jstests/fle2/implicit_ecoc_creation.js
       ticket: SERVER-126384
     - test_file: jstests/noPassthrough/ddl/clear_jumbo.js
       ticket: SERVER-125661
+    - test_file: jstests/noPassthrough/index_builds/index_build_stepup_abandoned_before_writable.js
+      ticket: SERVER-136502
     - test_file: jstests/noPassthrough/network/min_wait_streaming_hello_mongos.js
       ticket: SERVER-132650
     - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
@@ -164,22 +210,46 @@ last-continuous:
       ticket: SERVER-108215
     - test_file: jstests/replsets/arbiter_afterClusterTime_read_concern.js
       ticket: SERVER-130759
+    - test_file: jstests/replsets/clean_shutdown_log.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
+    - test_file: jstests/replsets/initial_sync_replSetGetStatus.js
+      ticket: SERVER-121218
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/replsets/server_status_metrics.js
       ticket: SERVER-120318
     - test_file: jstests/sharding/analyze_shard_key/cardinality_and_frequency_sample.js
       ticket: SERVER-127620
     - test_file: jstests/sharding/chunk_migration_maxkey_boundary.js
       ticket: SERVER-121533
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/index_builds/resharding_recipient_buildindex_stepup_deadlock.js
       ticket: SERVER-127745
     - test_file: jstests/sharding/index_commands_shard_targeting.js
       ticket: SERVER-131386
     - test_file: jstests/sharding/internal_txns/retryable_writes_oplog_entries.js
       ticket: SERVER-131326
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
+    - test_file: jstests/sharding/migration_blocking_operation/multi_update_coordinator_state_document_privilege_escalation.js
+      ticket: SERVER-133600
     - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_sharded_insert_update.js
       ticket: SERVER-131202
+    - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_sharded_insert_update.js
+      ticket: SERVER-134715
     - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_uncataloged_db.js
       ticket: SERVER-134952
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_cluster.js
+      ticket: SERVER-134795
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_collection.js
+      ticket: SERVER-134795
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_database.js
+      ticket: SERVER-134795
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
       ticket: SERVER-130431
     - test_file: jstests/sharding/range_deleter_does_not_block_stepdown_with_prepare_conflict.js
@@ -192,6 +262,8 @@ last-continuous:
       ticket: SERVER-133988
     - test_file: jstests/sharding/safe_secondary_reads_single_migration_suspend_range_deletion.js
       ticket: SERVER-127620
+    - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
+      ticket: SERVER-126814
     - test_file: jstests/sharding/txn_prepared_participant_unauthorized_commit_abort.js
       ticket: SERVER-130544
   suites: null
@@ -263,6 +335,8 @@ last-lts:
       ticket: SERVER-89664
     - test_file: jstests/change_streams/always_show_expanded_fields.js
       ticket: SERVER-86688
+    - test_file: jstests/change_streams/change_stream_large_event_resumption.js
+      ticket: SERVER-134795
     - test_file: jstests/change_streams/change_stream_metrics_update_lookup.js
       ticket: SERVER-133661
     - test_file: jstests/change_streams/change_stream_metrics_update_lookup.js
@@ -411,6 +485,12 @@ last-lts:
       ticket: SERVER-114126
     - test_file: jstests/core/query/boolean_simplifier_tautology.js
       ticket: SERVER-131802
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-130677
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-135206
+    - test_file: jstests/core/query/bson_size_limit_convert.js
+      ticket: SERVER-135206
     - test_file: jstests/core/query/collation/collation.js
       ticket: SERVER-115810
     - test_file: jstests/core/query/collation/collation_mismatch_mapreduce.js
@@ -575,6 +655,8 @@ last-lts:
       ticket: SERVER-121714
     - test_file: jstests/core/timeseries/write/timeseries_closed_update_delete.js
       ticket: SERVER-95726
+    - test_file: jstests/core/timeseries/write/timeseries_empty_metafield_write.js
+      ticket: SERVER-134555
     - test_file: jstests/core/timeseries/write/timeseries_insert_mixed_schema_bucket.js
       ticket: SERVER-93099
     - test_file: jstests/core/timeseries/write/timeseries_insert_mixed_schema_docs.js
@@ -589,6 +671,8 @@ last-lts:
       ticket: SERVER-127661
     - test_file: jstests/core/txns/rename_collection_not_blocked_by_txn.js
       ticket: SERVER-106706
+    - test_file: jstests/core/views/views_internal_only_stages.js
+      ticket: SERVER-137361
     - test_file: jstests/core/write/bypass_empty_ts_replacement.js
       ticket: SERVER-88750
     - test_file: jstests/core/write/bypass_empty_ts_replacement_bulk_write.js
@@ -613,6 +697,8 @@ last-lts:
       ticket: SERVER-103993
     - test_file: jstests/core_sharding/resharding/reshard_collection_timeseries.js
       ticket: SERVER-93149
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
     - test_file: jstests/fle2/implicit_ecoc_creation.js
       ticket: SERVER-126384
     - test_file: jstests/noPassthrough/ddl/clear_jumbo.js
@@ -621,6 +707,8 @@ last-lts:
       ticket: SERVER-92476
     - test_file: jstests/noPassthrough/ftdc/ftdc_connection_reuse.js
       ticket: SERVER-102477
+    - test_file: jstests/noPassthrough/index_builds/index_build_stepup_abandoned_before_writable.js
+      ticket: SERVER-136502
     - test_file: jstests/noPassthrough/move_collection_not_tracked.js
       ticket: SERVER-93149
     - test_file: jstests/noPassthrough/move_primary_failpoint.js
@@ -661,14 +749,20 @@ last-lts:
       ticket: SERVER-91195
     - test_file: jstests/replsets/catchup_ignores_old_heartbeats.js
       ticket: SERVER-86674
+    - test_file: jstests/replsets/clean_shutdown_log.js
+      ticket: SERVER-132245
     - test_file: jstests/replsets/configurable_fetcher_timeout.js
       ticket: SERVER-106165
     - test_file: jstests/replsets/election_term_over_int_max.js
       ticket: SERVER-119413
     - test_file: jstests/replsets/index_builds/rollback_index_build_start_abort.js
       ticket: SERVER-103955
+    - test_file: jstests/replsets/initial_sync_clean_shutdown_sync_source.js
+      ticket: SERVER-132245
     - test_file: jstests/replsets/initial_sync_collStats_resumes_after_network_error.js
       ticket: SERVER-94259
+    - test_file: jstests/replsets/initial_sync_data_consistent_after_sync_source_clean_restart.js
+      ticket: SERVER-132245
     - test_file: jstests/replsets/initial_sync_during_stepdown.js
       ticket: SERVER-89664
     - test_file: jstests/replsets/initial_sync_index_conflict_recreate.js
@@ -679,6 +773,8 @@ last-lts:
       ticket: SERVER-88447
     - test_file: jstests/replsets/large_dockey_succeeds_on_secondary.js
       ticket: SERVER-104405
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/replsets/log_unprepared_abort_txns.js
       ticket: SERVER-111017
     - test_file: jstests/replsets/malformed_heartbeat_request.js
@@ -749,6 +845,8 @@ last-lts:
       ticket: SERVER-90334
     - test_file: jstests/sharding/coll_mod_unsplittable_collection.js
       ticket: SERVER-99618
+    - test_file: jstests/sharding/collection_uuid_find.js
+      ticket: SERVER-134519
     - test_file: jstests/sharding/config_shards_on_repl_set_changes.js
       ticket: SERVER-106614
     - test_file: jstests/sharding/configsvr_metadata_commands_require_majority_write_concern.js
@@ -787,6 +885,8 @@ last-lts:
       ticket: SERVER-88735
     - test_file: jstests/sharding/killop.js
       ticket: SERVER-89664
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/sharding/metadata_refresh_on_shard_removal.js
       ticket: SERVER-99277
     - test_file: jstests/sharding/migration_after_resharding_multi_insert_session_history.js
@@ -795,6 +895,8 @@ last-lts:
       ticket: SERVER-110574
     - test_file: jstests/sharding/migration_blocking_operation/implicit_create_from_upsert_with_paused_migrations.js
       ticket: SERVER-90157
+    - test_file: jstests/sharding/migration_blocking_operation/multi_update_coordinator_state_document_privilege_escalation.js
+      ticket: SERVER-133600
     - test_file: jstests/sharding/migration_coordinator_abort_failover.js
       ticket: SERVER-91331
     - test_file: jstests/sharding/migration_coordinator_commit_failover.js
@@ -831,8 +933,16 @@ last-lts:
       ticket: SERVER-95976
     - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_sharded_insert_update.js
       ticket: SERVER-131202
+    - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_sharded_insert_update.js
+      ticket: SERVER-134715
     - test_file: jstests/sharding/query/change_streams/change_stream_update_lookup_uncataloged_db.js
       ticket: SERVER-134952
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_cluster.js
+      ticket: SERVER-134795
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_collection.js
+      ticket: SERVER-134795
+    - test_file: jstests/sharding/query/change_streams/change_stream_v2_resume_pbrt_monotonic_database.js
+      ticket: SERVER-134795
     - test_file: jstests/sharding/query/explain/explain_find_transformed_query.js
       ticket: SERVER-82471
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
@@ -941,6 +1051,8 @@ last-lts:
       ticket: SERVER-92190
     - test_file: jstests/sharding/sharded_data_distribution.js
       ticket: SERVER-92419
+    - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
+      ticket: SERVER-126814
     - test_file: jstests/sharding/timeseries/timeseries_insert_move_collection.js
       ticket: SERVER-93149
     - test_file: jstests/sharding/timeseries/timeseries_out_conflicting_namespace_on_shard.js

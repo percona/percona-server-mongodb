@@ -438,10 +438,10 @@
       "evidence": {
         "occurrences": [
           {
-            "location": "src/mongo/shell/linenoise.cpp"
+            "location": "src/mongo/shell/linenoise.h"
           },
           {
-            "location": "src/mongo/shell/linenoise.h"
+            "location": "src/mongo/shell/linenoise.cpp"
           }
         ],
         "licenses": [
@@ -835,7 +835,7 @@
         },
         {
           "license": {
-            "name": "Public Domain",
+            "name": "Public-Domain",
             "acknowledgement": "declared"
           }
         }
@@ -858,20 +858,17 @@
         "licenses": [
           {
             "license": {
-              "id": "BSD-3-Clause",
-              "acknowledgement": "declared"
+              "id": "BSD-3-Clause"
             }
           },
           {
             "license": {
-              "id": "LGPL-2.1-or-later",
-              "acknowledgement": "declared"
+              "id": "LGPL-2.1-or-later"
             }
           },
           {
             "license": {
-              "name": "Public Domain",
-              "acknowledgement": "declared"
+              "name": "Public Domain"
             }
           }
         ]
@@ -943,7 +940,7 @@
     },
     {
       "type": "library",
-      "bom-ref": "pkg:github/derickr/timelib@2022.13",
+      "bom-ref": "pkg:github/derickr/timelib@2026.02",
       "authors": [
         {
           "name": "Derick Rethans"
@@ -951,7 +948,7 @@
       ],
       "group": "derickr",
       "name": "timelib",
-      "version": "2022.13",
+      "version": "2026.02",
       "description": "Timelib is a timezone and date/time library that can calculate local time, convert between timezones and parse textual descriptions of date/time information.",
       "scope": "required",
       "licenses": [
@@ -963,7 +960,7 @@
         }
       ],
       "copyright": "Copyright (c) 2015-2021 Derick Rethans, Copyright (c) 2017-2019,2021 MongoDB, Inc.",
-      "purl": "pkg:github/derickr/timelib@2022.13",
+      "purl": "pkg:github/derickr/timelib@2026.02",
       "externalReferences": [
         {
           "url": "https://github.com/derickr/timelib.git",
@@ -1293,20 +1290,17 @@
         "licenses": [
           {
             "license": {
-              "id": "Apache-2.0",
-              "acknowledgement": "declared"
+              "id": "Apache-2.0"
             }
           },
           {
             "license": {
-              "id": "BSD-3-Clause",
-              "acknowledgement": "declared"
+              "id": "BSD-3-Clause"
             }
           },
           {
             "license": {
-              "id": "HPND",
-              "acknowledgement": "declared"
+              "id": "HPND"
             }
           }
         ]
@@ -2432,7 +2426,8 @@
       "scope": "required",
       "licenses": [
         {
-          "expression": "SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License"
+          "expression": "SSPL-1.0 OR LicenseRef-MongoDB-Enterprise-Advanced-License",
+          "acknowledgement": "concluded"
         }
       ],
       "copyright": "MongoDB, Inc.",
@@ -2732,7 +2727,8 @@
       "description": "A C implementation of the KMIP specification",
       "licenses": [
         {
-          "expression": "Apache-2.0 OR BSD-3-Clause"
+          "expression": "Apache-2.0 OR BSD-3-Clause",
+          "acknowledgement": "declared"
         }
       ],
       "copyright": "Copyright (C) Peter Hamilton",
@@ -2940,20 +2936,17 @@
         "licenses": [
           {
             "license": {
-              "id": "Apache-2.0",
-              "acknowledgement": "declared"
+              "id": "Apache-2.0"
             }
           },
           {
             "license": {
-              "id": "BSD-2-Clause",
-              "acknowledgement": "declared"
+              "id": "BSD-2-Clause"
             }
           },
           {
             "license": {
-              "id": "MIT",
-              "acknowledgement": "declared"
+              "id": "MIT"
             }
           }
         ]
@@ -3331,13 +3324,7 @@
         {
           "license": {
             "id": "MIT",
-            "acknowledgement": "declared"
-          }
-        },
-        {
-          "license": {
-            "name": "MIT",
-            "acknowledgement": "declared"
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -3347,11 +3334,6 @@
         {
           "url": "https://pypi.org/project/ocspbuilder/",
           "type": "distribution"
-        },
-        {
-          "url": "https://api.clearlydefined.io/definitions/pypi/pypi/-/ocspbuilder/0.10.2",
-          "comment": "License metadata retrieved via clearlydefined.io lookup.",
-          "type": "evidence"
         },
         {
           "url": "https://github.com/wbond/ocspbuilder",
@@ -3367,8 +3349,7 @@
         "licenses": [
           {
             "license": {
-              "name": "MIT",
-              "acknowledgement": "declared"
+              "id": "MIT"
             }
           }
         ]
@@ -3403,19 +3384,7 @@
         {
           "license": {
             "id": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        },
-        {
-          "license": {
-            "name": "Apache-2.0",
-            "acknowledgement": "declared"
-          }
-        },
-        {
-          "license": {
-            "name": "OTHER",
-            "acknowledgement": "declared"
+            "acknowledgement": "concluded"
           }
         }
       ],
@@ -3425,16 +3394,6 @@
         {
           "url": "https://pypi.org/project/ocspresponder/",
           "type": "distribution"
-        },
-        {
-          "url": "https://api.clearlydefined.io/definitions/pypi/pypi/-/ocspresponder/0.5.0",
-          "comment": "License metadata retrieved via clearlydefined.io lookup.",
-          "type": "evidence"
-        },
-        {
-          "url": "https://api.deps.dev/v3/systems/pypi/packages/%2Focspresponder/versions/0.5.0",
-          "comment": "License metadata retrieved via deps.dev lookup.",
-          "type": "evidence"
         },
         {
           "url": "https://github.com/threema-ch/ocspresponder",
@@ -3450,14 +3409,7 @@
         "licenses": [
           {
             "license": {
-              "name": "Apache-2.0",
-              "acknowledgement": "declared"
-            }
-          },
-          {
-            "license": {
-              "name": "OTHER",
-              "acknowledgement": "declared"
+              "id": "Apache-2.0"
             }
           }
         ]
@@ -3517,7 +3469,7 @@
       "ref": "pkg:github/dcleblanc/safeint@3.0.28a"
     },
     {
-      "ref": "pkg:github/derickr/timelib@2022.13"
+      "ref": "pkg:github/derickr/timelib@2026.02"
     },
     {
       "ref": "pkg:github/facebook/folly@v2025.04.21.00"
@@ -3609,7 +3561,7 @@
         "pkg:github/cyrusimap/cyrus-sasl@cyrus-sasl-2.1.28",
         "pkg:github/davea42/libdwarf-code@libdwarf-2.1.0",
         "pkg:github/dcleblanc/safeint@3.0.28a",
-        "pkg:github/derickr/timelib@2022.13",
+        "pkg:github/derickr/timelib@2026.02",
         "pkg:github/facebook/folly@v2025.04.21.00",
         "pkg:github/facebook/zstd@v1.5.5",
         "pkg:github/fmtlib/fmt@11.2.0",
@@ -3707,6 +3659,5 @@
     {
       "ref": "pkg:pypi/ocspresponder@0.5.0"
     }
-  ],
-  "vulnerabilities": []
+  ]
 }

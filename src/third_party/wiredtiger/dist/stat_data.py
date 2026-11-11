@@ -447,6 +447,7 @@ conn_stats = [
     EvictStat('eviction_server_skip_trees_read_only', 'eviction server skips trees that are read-only if it is not looking for clean pages'),
     EvictStat('eviction_server_skip_trees_stick_in_cache', 'eviction server skips trees that are configured to stick in cache'),
     EvictStat('eviction_server_skip_trees_too_many_active_walks', 'eviction server skips trees because there are too many active walks'),
+    EvictStat('eviction_server_skip_trees_walk_complete', 'eviction server skips resuming trees whose walk already traversed the whole tree'),
     EvictStat('eviction_server_skip_unwanted_pages', 'eviction server skips pages that we do not want to evict'),
     EvictStat('eviction_server_skip_unwanted_tree', 'eviction server skips tree that we do not want to evict'),
     EvictStat('eviction_server_slept', 'eviction server slept, because we did not make progress with eviction'),
@@ -889,6 +890,7 @@ conn_stats = [
     ##########################################
     # Session operations
     ##########################################
+    SessionOpStat('session_hs_verify_btrees_checked', 'history store verify number of btrees checked against the data store', 'no_clear,no_scale'),
     SessionOpStat('session_open', 'open session count', 'no_clear,no_scale'),
     SessionOpStat('session_query_ts', 'session query timestamp calls'),
     SessionOpStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),

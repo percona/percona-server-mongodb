@@ -3063,6 +3063,15 @@ std::vector<MetadataInconsistencyItem> checkCollectionShardingMetadataConsistenc
 
 std::vector<MetadataInconsistencyItem> checkDatabaseMetadataConsistency(
     OperationContext* opCtx, const DatabaseType& dbInGlobalCatalog, RSNodeMode rsMode) {
+
+    if (rsMode == RSNodeMode::kDelayedSecondary) {
+        const OptimisticFCVFeatureFlagGuard authoritativeShardsGuard(
+            opCtx, feature_flags::gAuthoritativeShardsCRUD);
+        if (!authoritativeShardsGuard.wasEnabled()) {
+            return {};
+        }
+    }
+
     const auto dbName = dbInGlobalCatalog.getDbName();
     const auto dbVersionInGlobalCatalog = dbInGlobalCatalog.getVersion();
     const auto primaryShard = dbInGlobalCatalog.getPrimary();

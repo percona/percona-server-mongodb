@@ -13,7 +13,9 @@ import {describe, before, afterEach, after} from "jstests/libs/mochalite.js";
 import {ChangeStreamTest, ChangeStreamWatchMode} from "jstests/libs/query/change_stream_util.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
 import {
+    kDataDistributions,
     runChainedResumePbrtMonotonicTest,
+    runControlEventPbrtResumableTest,
     runResumePbrtMonotonicTests,
     setupShardedCollection,
 } from "jstests/libs/query/change_stream_resume_pbrt_monotonic_helpers.js";
@@ -34,6 +36,7 @@ describe("database-level change stream resume token monotonicity", function () {
 
         ctx.db = st.s.getDB(jsTestName() + "_dbwatch");
         ctx.coll = ctx.db.test;
+        ctx.st = st;
 
         setupShardedCollection({db: ctx.db, coll: ctx.coll, st});
 
@@ -95,5 +98,10 @@ describe("database-level change stream resume token monotonicity", function () {
             ctx,
             watchMode: ChangeStreamWatchMode.kDb,
         });
+    });
+
+    runControlEventPbrtResumableTest({
+        ctx,
+        watchMode: ChangeStreamWatchMode.kDb,
     });
 });
