@@ -164,7 +164,7 @@ generate_release_sbom() {
                 "type": "application",
                 "bom-ref": $psmdb_purl_release,
                 "supplier": {"name": "Percona LLC", "url": ["https://percona.com"]},
-                "author": "Percona LLC",
+                "authors": [{"name": "Percona LLC"}],
                 "publisher": "Percona LLC",
                 "group": "percona",
                 "name": "percona-server-mongodb",
@@ -202,8 +202,8 @@ generate_release_sbom() {
           else
               error("no dependency entry found matching \($psmdb_purl_branch)")
           end
-        | (.dependencies[].dependsOn[] | select(. == $mdb_purl_branch)) |= $mdb_purl_release
-        | (.dependencies[].dependsOn[] | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
+        | (.dependencies[].dependsOn[]? | select(. == $mdb_purl_branch)) |= $mdb_purl_release
+        | (.dependencies[].dependsOn[]? | select(. == $psmdb_purl_branch)) |= $psmdb_purl_release' \
         "$src" > "$dst" || abort '`generate_release_sbom`: `jq` failed'
 }
 
