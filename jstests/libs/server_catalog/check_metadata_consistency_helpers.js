@@ -1,5 +1,5 @@
 export var MetadataConsistencyChecker = (function () {
-    const run = (mongos, ignoreInconsistenciesTempWorkaround = false) => {
+    const run = (mongos) => {
         const adminDB = mongos.getDB("admin");
 
         // The isTransientError() function is responsible for setting an error as transient and
@@ -77,7 +77,8 @@ export var MetadataConsistencyChecker = (function () {
 
             // Since bucket collections are not created atomically with their view, it may happen
             // that checkMetadataConsistency interleaves with the creation steps in case of stepdown
-            const isStepdownSuite = Boolean(jsTest.options().runningWithShardStepdowns);
+            const isStepdownSuite =
+                Boolean(TestData.runningWithShardStepdowns) || Boolean(TestData.runningWithStepdowns);
             if (isStepdownSuite) {
                 for (let i = inconsistencies.length - 1; i >= 0; i--) {
                     if (inconsistencies[i].type == "MalformedTimeseriesBucketsCollection") {
@@ -98,23 +99,6 @@ export var MetadataConsistencyChecker = (function () {
                         inconsistencies.splice(i, 1); // Remove inconsistency
                     }
                 }
-            }
-
-            // Temporary workaround: tolerate these inconsistencies until linked tickets are fixed.
-            const knownInconsistencyTempWorkaround = [
-                // TODO(SERVER-130694): Fix false positives and remove inconsistency type
-                "MalformedTimeseriesBucketsCollection",
-                // TODO(SERVER-131327): Fix false positives and remove inconsistency type
-                "MissingShardKeyIndex",
-            ];
-            if (ignoreInconsistenciesTempWorkaround) {
-                inconsistencies = inconsistencies.filter((inconsistency) => {
-                    if (!knownInconsistencyTempWorkaround.includes(inconsistency.type)) {
-                        return true;
-                    }
-                    jsTest.log.info("Ignored metadata inconsistency (workaround)", {inconsistency});
-                    return false;
-                });
             }
 
             assert.eq(0, inconsistencies.length, `Found metadata inconsistencies: ${tojson(inconsistencies)}`);
@@ -144,9 +128,6 @@ export var MetadataConsistencyChecker = (function () {
                 // If this were an unexpected collection disappearance, the test would tassert so
                 // simply accept the error here.
                 jsTest.log("Ignoring ConflictingOperationInProgress error during checkMetadataConsistency");
-            } else if (ignoreInconsistenciesTempWorkaround && e.code === 4793301) {
-                // TODO(SERVER-131526): Remove once duplicated attribute in log line is fixed
-                jsTest.log("Ignoring LOGV2 attribute collision error during checkMetadataConsistency");
             } else {
                 // For all the other errors re-throw the exception
                 jsTest.log("Caught error during check metadata consistency hook: " + errorWithCode);

@@ -29,18 +29,19 @@ from simple_report import Report, Result
 from buildscripts.package_test_provenance import (
     RELEASE_BINARY_NAMES,
     combine_execution_log_validation_summaries,
+    create_release_binary_provenance_from_archive_dist_test,
+    extract_file_from_tar_by_basename,
     fetch_release_binary_provenance_from_tasks,
     fetch_release_execution_log_from_tasks,
     fetch_task_artifact_to_file,
     find_build_task,
     find_task_artifact_url_with_retry,
-    hash_release_binaries_in_archive,
     is_release_branch_project,
     is_server_release_project,
     release_binary_name_from_path,
     validate_compact_execution_log_file,
     validate_release_binary_provenance_against_archive,
-    validate_release_build_command,
+    validate_release_binary_provenance_distro,
 )
 from buildscripts.resmokelib.utils import evergreen_conn
 
@@ -53,7 +54,6 @@ formatter = logging.Formatter("[%(asctime)s]%(levelname)s:%(message)s")
 handler.setFormatter(formatter)
 root.addHandler(handler)
 
-ARCHIVE_DIST_TEST_BUILD_COMMAND_PATH = ".bazel_build_invocation"
 ARCHIVE_DIST_TEST_EXECUTION_LOG_PATH = ".bazel_release_execution_log.binpb.zst"
 DEFAULT_RELEASE_BINARY_ARCHIVE_PATH = Path("mongo-binaries.tgz")
 
@@ -125,7 +125,12 @@ def get_release_binary_provenance_for_validation(
     if binary_provenance_file:
         binary_provenance_path = Path(binary_provenance_file)
         logging.info("Reading release binary provenance from: %s", binary_provenance_path)
-        return binary_provenance_path.read_text()
+        provenance_text = binary_provenance_path.read_text()
+        if evg_build_id:
+            tasks = evergreen_conn.get_evergreen_api().tasks_by_build(evg_build_id)
+            build_task = find_build_task(tasks, binary_provenance_task_name)
+            validate_release_binary_provenance_distro(json.loads(provenance_text), build_task)
+        return provenance_text
 
     if not evg_build_id:
         raise RuntimeError(
@@ -157,35 +162,6 @@ def get_release_binary_provenance_for_validation(
     )
     return create_release_binary_provenance_from_archive_dist_test(
         tasks, evg_build_id, download_dir
-    )
-
-
-def create_release_binary_provenance_from_archive_dist_test(
-    tasks: list[Any], evg_build_id: str, download_dir: Path
-) -> str:
-    """Create release binary provenance from archive_dist_test's existing artifacts."""
-
-    task_name = "archive_dist_test"
-    archive_task = find_build_task(tasks, task_name)
-    artifacts_path = fetch_task_artifact_to_file(
-        archive_task, "Artifacts", download_dir / "archive_dist_test_artifacts.tgz"
-    )
-    build_command_path = extract_file_from_tar_by_basename(
-        artifacts_path, ARCHIVE_DIST_TEST_BUILD_COMMAND_PATH, download_dir
-    )
-    binary_archive_path = fetch_task_artifact_to_file(
-        archive_task, "Binaries", download_dir / "archive_dist_test_binaries"
-    )
-
-    build_command = build_command_path.read_text()
-    validate_release_build_command(build_command)
-    return json.dumps(
-        {
-            "build_id": evg_build_id,
-            "task_name": task_name,
-            "build_command": build_command,
-            "binaries": hash_release_binaries_in_archive(binary_archive_path),
-        }
     )
 
 
@@ -300,34 +276,6 @@ def fetch_release_execution_log_from_archive_artifacts(
     return extract_file_from_tar_by_basename(
         artifacts_path, ARCHIVE_DIST_TEST_EXECUTION_LOG_PATH, output_dir
     )
-
-
-def extract_file_from_tar_by_basename(
-    artifacts_path: Path, artifact_basename: str, output_dir: Path
-) -> Path:
-    """Extract a file from a tar archive by basename."""
-
-    output_path = output_dir / artifact_basename
-    with tarfile.open(artifacts_path, "r:*") as artifacts:
-        for member in artifacts.getmembers():
-            if not member.isfile():
-                continue
-            if Path(member.name).name != artifact_basename:
-                continue
-
-            extracted = artifacts.extractfile(member)
-            if extracted is None:
-                continue
-
-            try:
-                with output_path.open("wb") as output:
-                    while chunk := extracted.read(1024 * 1024):
-                        output.write(chunk)
-            finally:
-                extracted.close()
-            return output_path
-
-    raise RuntimeError(f"Could not find {artifact_basename} in {artifacts_path}")
 
 
 def should_validate_package_build_provenance() -> bool:

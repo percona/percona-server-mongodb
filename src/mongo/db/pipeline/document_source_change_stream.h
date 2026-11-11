@@ -303,14 +303,32 @@ public:
     static constexpr StringData kRegexAllCollectionsShowSystemEvents =
         R"((?!(\$|system\.(?!(js$|resharding\.|buckets\.|views$)))))"_sd;
 
+    // Same as 'kRegexAllCollectionsShowSystemEvents', but without system.js. Used when the user is
+    // not authorized to read the system.js collections covered by the stream.
+    static constexpr StringData kRegexAllCollectionsShowSystemEventsExceptSystemJs =
+        R"((?!(\$|system\.(?!(resharding\.|buckets\.|views$)))))"_sd;
+
     static constexpr StringData kRegexAllDBs = R"(^(?!(admin|config|local)\.)[^.]+)"_sd;
     static constexpr StringData kRegexCmdColl = R"(\$cmd$)"_sd;
 
     /**
      * Helpers for determining which regex to match a change stream against.
+     *
+     * When 'showSystemEvents' is set, 'resolveAllCollectionsRegex()' only includes system.js if
+     * the user is authorized for 'find' and 'changeStream' on every system.js collection covered by
+     * the stream. The scope privileges of whole-db and whole-cluster streams do not cover system
+     * collections, so without such a grant system.js events are filtered out.
      */
     static StringData resolveAllCollectionsRegex(
         const boost::intrusive_ptr<ExpressionContext>& expCtx);
+
+    /**
+     * Returns whether the client of 'opCtx' may read the events on every system.js collection
+     * covered by a change stream on 'nss'. 'showSystemEvents' exposes system.js, but the privileges
+     * required to open a whole-db or whole-cluster stream do not cover system collections, so
+     * system.js events are filtered out when this returns false.
+     */
+    static bool isAuthorizedForSystemJsEvents(OperationContext* opCtx, const NamespaceString& nss);
 
     static std::string getNsRegexForChangeStream(
         const boost::intrusive_ptr<ExpressionContext>& expCtx);

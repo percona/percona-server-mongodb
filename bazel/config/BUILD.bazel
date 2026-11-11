@@ -1,5 +1,5 @@
 load("@bazel_skylib//lib:selects.bzl", "selects")
-load("@rules_python//python:defs.bzl", "py_binary")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load(
     "@bazel_skylib//rules:common_settings.bzl",
     "bool_flag",
@@ -68,8 +68,11 @@ load(
     "use_wiredtiger",
     "visibility_support",
 )
+load(":target_platform_arch_test.bzl", "target_platform_arch_test_suite")
 
 package(default_visibility = ["//visibility:public"])
+
+target_platform_arch_test_suite(name = "target_platform_arch_test")
 
 # --------------------------------------
 # WASI / WebAssembly builds
@@ -183,6 +186,17 @@ selects.config_setting_group(
         "@platforms//cpu:ppc",
         ":compiler_type_gcc",
         "//bazel/platforms:rhel9",
+        ":linkstatic_enabled",
+    ],
+)
+
+selects.config_setting_group(
+    name = "rhel10_ppc64le_gcc_linkstatic",
+    match_all = [
+        "@platforms//os:linux",
+        "@platforms//cpu:ppc",
+        ":compiler_type_gcc",
+        "//bazel/platforms:rhel10",
         ":linkstatic_enabled",
     ],
 )
@@ -3188,4 +3202,13 @@ selects.config_setting_group(
         "//bazel/platforms:amazon_linux_2",
         "@platforms//cpu:aarch64",
     ],
+)
+
+py_test(
+    name = "mongo_config_header_test",
+    srcs = [
+        "//src/mongo:mongo_config_header.py",
+        "//src/mongo:mongo_config_header_test.py",
+    ],
+    main = "//src/mongo:mongo_config_header_test.py",
 )

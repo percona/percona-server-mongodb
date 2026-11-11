@@ -12,6 +12,7 @@ sys.path.append(str(REPO_ROOT))
 sys.stdout = sys.stderr
 
 from bazel.wrapper_hook.install_modules import install_modules
+from bazel.wrapper_hook.release_distro import ReleaseDistroError, check_evergreen_release_distro
 from bazel.wrapper_hook.wrapper_debug import wrapper_debug
 from bazel.wrapper_hook.wrapper_util import get_terminal_stream
 
@@ -72,35 +73,19 @@ def _fmt_duration(seconds: float) -> str:
 
 
 def _info(msg: str, printer=print, stream=None):
-    term_err = get_terminal_stream("MONGO_WRAPPER_STDERR_FD")
-    # Save current stdout/stderr
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-
-    try:
-        sys.stdout = term_err
-        sys.stderr = term_err
-
-        stream = stream or sys.stdout
-        prefix = _info_prefix(stream)
-        printer(f"{prefix} {msg}")
-
-    finally:
-        # Restore original stdout/stderr to whatever wrapper has
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
+    run_with_terminal_output(lambda: printer(f"{_info_prefix(stream or sys.stdout)} {msg}"))
 
 
 def run_with_terminal_output(func, *args, **kwargs):
     term_err = get_terminal_stream("MONGO_WRAPPER_STDERR_FD")
-    sys.stdout = None
     # Save current stdout/stderr
     old_stdout = sys.stdout
     old_stderr = sys.stderr
 
     try:
-        sys.stdout = term_err
-        sys.stderr = term_err
+        if term_err is not None:
+            sys.stdout = term_err
+            sys.stderr = term_err
         return func(*args, **kwargs)
 
     finally:
@@ -109,7 +94,16 @@ def run_with_terminal_output(func, *args, **kwargs):
         sys.stderr = old_stderr
 
 
+def _check_release_distro(args: list[str]) -> None:
+    try:
+        check_evergreen_release_distro(args, repo_root=REPO_ROOT)
+    except ReleaseDistroError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(4)
+
+
 def main():
+    _check_release_distro(sys.argv[2:])
     install_modules(sys.argv[1], sys.argv[1:])
 
     from bazel.auto_header.auto_header import gen_auto_headers
@@ -185,6 +179,7 @@ def main():
 
         write_workstation_bazelrc(args)
         write_wrapper_hook_bazelrc(args)
+        _check_release_distro(args[2:])
         # Disable git age check for now, to avoid issues wth merge commits
         # git_age_check()
         check_resource()

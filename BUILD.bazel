@@ -18,6 +18,9 @@ package(
 )
 
 exports_files([
+    ".bazelrc",
+    "tools/bazel",
+    "tools/bazel.bat",
     ".bazelversion",
     ".bazelrc.target_mongo_version",
     ".prettierrc",

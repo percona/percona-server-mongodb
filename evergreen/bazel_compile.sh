@@ -20,6 +20,11 @@ set -o pipefail
 bazel_evergreen_shutils::activate_and_cd_src
 bazel_evergreen_shutils::export_ssl_paths_if_needed
 
+# These files are generated only for tasks that consume a provenance invocation. Remove any
+# leftover copies before deciding whether this compile should create one.
+rm -f .bazel_provenance_build_invocation .bazel_crypt_build_invocation \
+    .bazel_provenance_build_invocation.distro_id .bazel_crypt_build_invocation.distro_id
+
 # if build_patch_id is passed, try to download binaries from specified
 # evergreen patch.
 build_patch_id="${build_patch_id:-${reuse_compile_from}}"
@@ -114,9 +119,6 @@ LOCAL_ARG="$(bazel_evergreen_shutils::compute_local_arg build)"
 # the building", so we do want that flag.
 LOCAL_ARG="$(bazel_evergreen_shutils::maybe_release_flag "$LOCAL_ARG")"
 
-# Ensure server is up and print PID
-bazel_evergreen_shutils::ensure_server_and_print_pid "$BAZEL_BINARY"
-
 MONGO_VERSION_ARG="--define=MONGO_VERSION=${version}"
 if [[ -n "${no_mongo_version}" ]]; then
     MONGO_VERSION_ARG=""
@@ -163,7 +165,21 @@ ALL_FLAGS+=" ${RELEASE_EXECUTION_LOG_FLAGS}"
 echo "${ALL_FLAGS}" >.bazel_build_flags
 
 # Save the entire bazel build invocation to attach to the task for re-running locally
-echo "bazel build ${ALL_FLAGS} ${targets} ${RELEASE_LOCAL_SAFETY_FLAGS}" >.bazel_build_invocation
+BUILD_INVOCATION="bazel build ${ALL_FLAGS} ${targets} ${RELEASE_LOCAL_SAFETY_FLAGS}"
+bazel_evergreen_shutils::check_release_distro build ${ALL_FLAGS} ${targets} ${RELEASE_LOCAL_SAFETY_FLAGS}
+export distro_id
+echo "${BUILD_INVOCATION}" >.bazel_build_invocation
+
+PROVENANCE_BUILD_INVOCATION_FILE="$(
+    bazel_evergreen_shutils::get_provenance_build_invocation_file "${task_name:-}" "${project:-}"
+)"
+if [[ -n "${PROVENANCE_BUILD_INVOCATION_FILE}" ]]; then
+    echo "${BUILD_INVOCATION}" >"${PROVENANCE_BUILD_INVOCATION_FILE}"
+    printf '%s\n' "${distro_id:-}" >"${PROVENANCE_BUILD_INVOCATION_FILE}.distro_id"
+fi
+
+# Reject unsafe distro assignments before starting Bazel, even for its info call.
+bazel_evergreen_shutils::ensure_server_and_print_pid "$BAZEL_BINARY"
 
 set +o errexit
 

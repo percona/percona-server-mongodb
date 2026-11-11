@@ -1,13 +1,13 @@
 # This file is intended to track tests that should be denylisted from multiversion testing due to
-# changes that have not yet been backported to the last-lts or last-continuous development
-# branches.
+# changes that have not yet been backported to the last-lts, last-continuous or last-patch
+# development branches.
 #
 # Usage:
 # Add the server ticket number and the path to the test file for the test you intend to denylist
 # under the appropriate multiversion branch. Any test in a (ticket, test_file) pair that appears in this file but
-# not in the last-lts or last-continuous branch version of this file indicates that a commit has
-# not yet been backported to the last-lts or last-continuous branch and will be excluded from the
-# multiversion suite corresponding to the root level suite key.
+# not in the last-lts, last-continuous or last-patch branch version of this file indicates that a
+# commit has not yet been backported to the last-lts, last-continuous or last-patch branch and will
+# be excluded from the multiversion suite corresponding to the root level suite key.
 #
 # Example: To prevent 'my_test_file.js' from running with the last-continuous binary
 # last-continuous:
@@ -19,6 +19,16 @@
 # last-continuous branch until this file has been updated with the same
 # (ticket, test_file) pair on the last-continuous branch.
 #
+last-patch:
+  all:
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
+  suites: null
+
 last-continuous:
   all:
     - test_file: jstests/core/query/doc_validation/doc_validation_invalid_validators.js
@@ -35,6 +45,8 @@ last-continuous:
       ticket: SERVER-129617
     - test_file: jstests/core/query/json_schema/json_schema.js
       ticket: SERVER-130111
+    - test_file: jstests/core/query/boolean_simplifier_tautology.js
+      ticket: SERVER-131802
     - test_file: jstests/aggregation/expressions/const_literal_bindata_restricted_subtypes.js
       ticket: SERVER-130168
     - test_file: jstests/core/query/sbe/sbe_prepare_for_decimal123_invalidation.js
@@ -207,8 +219,12 @@ last-continuous:
       ticket: SERVER-83322
     - test_file: jstests/core/index/wildcard/wildcard_index_basic_index_bounds.js
       ticket: SERVER-83322
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-130677
     - test_file: jstests/core/timeseries/query/timeseries_lookup_index_use.js
       ticket: SERVER-95352
+    - test_file: jstests/core/query/boolean_simplifier_tautology.js
+      ticket: SERVER-131802
     - test_file: jstests/core/clustered/clustered_collection_bounded_scan.js
       ticket: SERVER-121822
     - test_file: jstests/core/index/not_index_tagging.js
@@ -223,8 +239,6 @@ last-continuous:
       ticket: SERVER-124967
     - test_file: jstests/core/txns/multi_statement_transaction_command_args.js
       ticket: SERVER-127661
-    - test_file: jstests/replsets/atlas_initialsync_workflows.js
-      ticket: SERVER-128307
     - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
       ticket: SERVER-128433
     - test_file: jstests/aggregation/expressions/expression_function.js
@@ -235,10 +249,18 @@ last-continuous:
       ticket: SERVER-131326
     - test_file: jstests/noPassthrough/network/min_wait_streaming_hello_mongos.js
       ticket: SERVER-132650
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
       ticket: SERVER-130431
     - test_file: jstests/sharding/reshard_collection_hashed_prefix_with_zones.js
       ticket: SERVER-133282
+    - test_file: jstests/sharding/migration_blocking_operation/multi_update_coordinator_state_document_privilege_escalation.js
+      ticket: SERVER-133600
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
   suites: null
 last-lts:
   all:
@@ -304,8 +326,12 @@ last-lts:
       ticket: SERVER-97297
     - test_file: jstests/core/index/wildcard/wildcard_index_basic_index_bounds.js
       ticket: SERVER-83322
+    - test_file: jstests/core/query/bson_size_limit_agg.js
+      ticket: SERVER-130677
     - test_file: jstests/core/query/query_settings/query_settings_and_index_filters.js
       ticket: SERVER-91954
+    - test_file: jstests/core/query/boolean_simplifier_tautology.js
+      ticket: SERVER-131802
     - test_file: jstests/core/query/query_settings/query_settings_cmds.js
       ticket: SERVER-91954
     - test_file: jstests/core/query/query_settings/query_settings_cmds_validation.js
@@ -350,8 +376,6 @@ last-lts:
       ticket: SERVER-92665
     - test_file: jstests/noPassthrough/server_status_metrics_retryable_writes.js
       ticket: SERVER-86253
-    - test_file: jstests/replsets/atlas_initialsync_workflows.js
-      ticket: SERVER-128307
     - test_file: jstests/sharding/retryable_update_one_by_id_chunk_migration.js
       ticket: SERVER-89018
     - test_file: jstests/sharding/auth_catalog_shard_localhost_exception.js
@@ -412,6 +436,8 @@ last-lts:
       ticket: SERVER-89664
     - test_file: jstests/replsets/read_operations_during_step_up.js
       ticket: SERVER-89664
+    - test_file: jstests/replsets/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/replsets/unconditional_step_down.js
       ticket: SERVER-89664
     - test_file: jstests/sharding/conn_pool_stats.js
@@ -432,6 +458,8 @@ last-lts:
       ticket: SERVER-83760
     - test_file: jstests/replsets/catchup_ignores_old_heartbeats.js
       ticket: SERVER-86674
+    - test_file: jstests/sharding/localhostAuthBypass.js
+      ticket: SERVER-134872
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
       ticket: SERVER-130431
     - test_file: jstests/sharding/reshard_collection_hashed_prefix_with_zones.js
@@ -972,4 +1000,8 @@ last-lts:
       ticket: SERVER-131326
     - test_file: jstests/noPassthrough/network/min_wait_streaming_hello_mongos.js
       ticket: SERVER-132650
+    - test_file: jstests/sharding/migration_blocking_operation/multi_update_coordinator_state_document_privilege_escalation.js
+      ticket: SERVER-133600
+    - test_file: jstests/fle2/create_encrypted_collection.js
+      ticket: SERVER-130498
   suites: null

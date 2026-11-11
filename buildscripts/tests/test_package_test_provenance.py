@@ -68,6 +68,105 @@ def compact_log_with_spawns(*spawns: tuple[str, bool]) -> bytes:
 
 
 class PackageTestProvenanceTest(unittest.TestCase):
+    def test_archive_fallback_checks_captured_distro_against_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            command = root / under_test.ARCHIVE_DIST_TEST_PROVENANCE_BUILD_COMMAND_PATH
+            command.write_text(f"bazel build archive-dist-stripped {release_local_suffix()}")
+            distro = Path(f"{command}.distro_id")
+            distro.write_text("release-build-host\n")
+            artifacts_path = root / "artifacts.tgz"
+            with tarfile.open(artifacts_path, "w:gz") as artifacts:
+                artifacts.add(command, f"src/{command.name}")
+                artifacts.add(distro, f"src/{distro.name}")
+            task = types.SimpleNamespace(
+                display_name="archive_dist_test",
+                task_id="archive_task",
+                distro_id="release-build-host",
+            )
+            with (
+                mock.patch.object(
+                    under_test, "fetch_task_artifact_to_file", return_value=artifacts_path
+                ),
+                mock.patch.object(under_test, "hash_release_binaries_in_archive", return_value={}),
+            ):
+                provenance = json.loads(
+                    under_test.create_release_binary_provenance_from_archive_dist_test(
+                        [task], "build", root
+                    )
+                )
+                self.assertEqual(task.distro_id, provenance["distro_id"])
+                self.assertEqual(task.task_id, provenance["task_id"])
+                task.distro_id = "release-other"
+                with self.assertRaisesRegex(ValueError, "distro_id does not match"):
+                    under_test.create_release_binary_provenance_from_archive_dist_test(
+                        [task], "build", root
+                    )
+
+    def test_provenance_distro_must_be_release_and_match_build_task(self) -> None:
+        task = types.SimpleNamespace(task_id="build_task", distro_id="release-rhel93-arm64")
+        provenance = {"task_id": task.task_id, "distro_id": task.distro_id}
+        under_test.validate_release_binary_provenance_distro(provenance, task)
+        for distro in (None, "", "rhel93-arm64", "release-other"):
+            with self.subTest(distro=distro), self.assertRaises(ValueError):
+                under_test.validate_release_binary_provenance_distro(
+                    {**provenance, "distro_id": distro}, task
+                )
+        with self.assertRaisesRegex(ValueError, "task_id does not match"):
+            under_test.validate_release_binary_provenance_distro(
+                {**provenance, "task_id": "different_task"}, task
+            )
+        for distro in (None, "", "regular"):
+            task.distro_id = distro
+            with self.assertRaises(ValueError):
+                under_test.validate_release_binary_provenance_distro(provenance, task)
+
+    def test_provenance_uses_captured_build_distro(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command = Path(temp_dir) / "invocation"
+            command.write_text(f"bazel build archive-dist-stripped {release_local_suffix()}")
+            Path(f"{command}.distro_id").write_text("release-build-host\n")
+            with (
+                mock.patch.dict(os.environ, {"distro_id": "release-later-host"}),
+                mock.patch.object(under_test, "hash_release_binaries_in_archive", return_value={}),
+            ):
+                provenance = under_test.make_release_binary_provenance(command, Path("unused"))
+            self.assertEqual("release-build-host", provenance["distro_id"])
+
+    def test_provenance_creation_rejects_missing_or_regular_captured_distro(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command = Path(temp_dir) / "invocation"
+            command.write_text(f"bazel build archive-dist-stripped {release_local_suffix()}")
+            with self.assertRaisesRegex(ValueError, "distro"):
+                under_test.make_release_binary_provenance(command, Path("unused"))
+            Path(f"{command}.distro_id").write_text("regular-host\n")
+            with self.assertRaisesRegex(ValueError, "distro"):
+                under_test.make_release_binary_provenance(command, Path("unused"))
+
+    def test_archive_provenance_extracts_dedicated_invocation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            archive_path = temp_path / "artifacts.tgz"
+            normal_invocation = temp_path / ".bazel_build_invocation"
+            provenance_invocation = temp_path / ".bazel_provenance_build_invocation"
+            normal_invocation.write_text("normal invocation")
+            provenance_invocation.write_text("provenance invocation")
+
+            with tarfile.open(archive_path, "w:gz") as archive:
+                archive.add(normal_invocation, "src/.bazel_build_invocation")
+                archive.add(
+                    provenance_invocation,
+                    "src/.bazel_provenance_build_invocation",
+                )
+
+            extracted = under_test.extract_file_from_tar_by_basename(
+                archive_path,
+                under_test.ARCHIVE_DIST_TEST_PROVENANCE_BUILD_COMMAND_PATH,
+                temp_path,
+            )
+
+            self.assertEqual("provenance invocation", extracted.read_text())
+
     def test_release_branch_projects_are_detected(self) -> None:
         for project in (
             "mongodb-mongo-v9.0",
@@ -146,7 +245,8 @@ class PackageTestProvenanceTest(unittest.TestCase):
             ],
         )
         response = mock.Mock()
-        response.text = "{}"
+        task.distro_id = "release-build-host"
+        response.text = json.dumps({"task_id": task.task_id, "distro_id": task.distro_id})
         response.raise_for_status = mock.Mock()
 
         with mock.patch.object(under_test.requests, "get", return_value=response) as get_mock:
@@ -335,6 +435,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
             (bin_dir / "mongos").write_text("mongos bytes")
 
             provenance = {
+                "distro_id": "release-build-host",
                 "build_id": "build_id",
                 "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
                 "binaries": under_test.hash_release_binaries_in_directory(bin_dir),
@@ -353,6 +454,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
             (bin_dir / "mongos.exe").write_text("mongos bytes")
 
             provenance = {
+                "distro_id": "release-build-host",
                 "build_id": "build_id",
                 "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
                 "binaries": under_test.hash_release_binaries_in_directory(bin_dir),
@@ -387,6 +489,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
             (bin_dir / "mongos").write_text("mongos bytes")
 
             provenance = {
+                "distro_id": "release-build-host",
                 "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
                 "binaries": under_test.hash_release_binaries_in_directory(bin_dir),
             }
@@ -404,6 +507,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
             (bin_dir / "mongos").write_text("mongos bytes")
 
             provenance = {
+                "distro_id": "release-build-host",
                 "build_id": "other_build_id",
                 "build_command": f"bazel build archive-dist-stripped {release_local_suffix()}",
                 "binaries": under_test.hash_release_binaries_in_directory(bin_dir),
@@ -418,6 +522,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-dist-stripped {release_local_suffix()}"
             )
@@ -443,6 +548,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-dist-stripped {release_local_suffix()}"
             )
@@ -470,6 +576,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-mongo_crypt-stripped {release_local_suffix()}"
             )
@@ -492,6 +599,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-mongo_crypt-stripped {release_local_suffix()}"
             )
@@ -518,6 +626,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-mongo_crypt-stripped {release_local_suffix()}"
             )
@@ -550,6 +659,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
                 archive.add(crypt_library, arcname="mongodb/lib/mongo_crypt_v1.so")
 
             provenance = {
+                "distro_id": "release-build-host",
                 "build_id": "build_id",
                 "build_command": f"bazel build archive-mongo_crypt-stripped {release_local_suffix()}",
                 "binaries": under_test.hash_release_binaries_in_archive(
@@ -568,6 +678,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 f"bazel build archive-dist-stripped {release_local_suffix()}"
             )
@@ -592,6 +703,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 "bazel build --config=public-release archive-dist-stripped"
             )
@@ -611,6 +723,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text("bazel build archive-mongo_crypt-stripped")
             output_file = temp_path / "release_binary_provenance.json"
             output_file.write_text("stale provenance")
@@ -629,6 +742,7 @@ class PackageTestProvenanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             build_command_file = temp_path / "build_command.txt"
+            Path(f"{build_command_file}.distro_id").write_text("release-build-host\n")
             build_command_file.write_text(
                 "bazel build --config=public-release archive-dist-stripped"
             )

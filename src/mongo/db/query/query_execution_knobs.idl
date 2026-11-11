@@ -262,6 +262,19 @@ server_parameters:
             gt: 0
         redact: false
 
+    internalQueryKeyStringValueMaxCollationBytes:
+        description: >-
+            Limits the total size of the collation comparison strings that a single
+            $_internalKeyStringValue evaluation may generate.
+        set_at: [startup, runtime]
+        cpp_varname: "internalQueryKeyStringValueMaxCollationBytes"
+        cpp_vartype: AtomicWord<long long>
+        default:
+            expr: 1024 * 1024
+        validator:
+            gt: 0
+        redact: false
+
     internalQueryMaxAddToSetBytes:
         description: >-
             Limits the vector of values pushed into a single array while grouping with the
@@ -384,6 +397,21 @@ server_parameters:
         validator:
             gt: 0
         on_update: plan_cache_util::clearSbeCacheOnParameterChange
+        redact: false
+
+    internalQuerySlotBasedExecutionBlockProcessingMaxRecursiveOpArgs:
+        mod_visibility: needs_replacement
+        description: >-
+            Maximum number of arguments of an n-ary operation (e.g. $and, $or, $add, $multiply)
+            or of the branches of a $switch that the SBE vectorizer will attempt to convert to
+            block processing. Expressions exceeding this limit are not vectorized, to avoid
+            generating deeply recursive trees.
+        set_at: [startup, runtime]
+        cpp_varname: "internalQuerySlotBasedExecutionBlockProcessingMaxRecursiveOpArgs"
+        cpp_vartype: Atomic<int>
+        default: 100
+        validator:
+            gt: 0
         redact: false
 
     internalQueryMaxDocValidationErrorConsideredValues:

@@ -76,3 +76,11 @@ echo "common --color=yes" >>.bazelrc.evergreen # force ANSI colors as parsley ca
 # Disable remote execution in evergreen only since it runs on every PR, but we still
 # want it to be fast on workstations
 echo "coverage --config=no-remote-exec" >>.bazelrc.evergreen
+
+# The same variant schedules build tasks on ARM64 and target tests on IBM hosts.
+# Apply cross flags only on its ARM64 build host so native unit/integration
+# tasks retain the native GCC toolchain and can execute their test binaries.
+mongo_cross_config="${mongo_ppc64le_cross_config:-${mongo_s390x_cross_config:-}}"
+if [[ -n "${mongo_cross_config}" && "$(uname -m)" == "aarch64" ]]; then
+    echo "build --config=${mongo_cross_config}" >>.bazelrc.evergreen
+fi

@@ -51,6 +51,8 @@
 #include "mongo/db/pipeline/aggregate_command_gen.h"
 #include "mongo/db/pipeline/aggregation_hint_translation.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
+#include "mongo/db/pipeline/document_source_change_stream.h"
+#include "mongo/db/pipeline/document_source_change_stream_gen.h"
 #include "mongo/db/pipeline/document_source_geo_near.h"
 #include "mongo/db/pipeline/document_source_internal_unpack_bucket.h"
 #include "mongo/db/pipeline/expression_context.h"
@@ -200,6 +202,35 @@ Document serializeForPassthrough(const boost::intrusive_ptr<ExpressionContext>& 
         : req.toBSON();
 
     return Document(cmdObj);
+}
+
+/**
+ * A '$_passthroughToShard' change stream is forwarded unparsed to the shard, which runs it as the
+ * router's internal user and so cannot tell whether the actual user may read system.js. If the
+ * stream uses 'showSystemEvents' and the user is not authorized for system.js events, add a $match
+ * right after $changeStream that drops them, before any user stage can change the event shape.
+ */
+Document filterSystemJsEventsForPassthroughIfNeeded(OperationContext* opCtx,
+                                                    const NamespaceString& nss,
+                                                    Document cmd) {
+    auto pipeline = cmd[AggregateCommandRequest::kPipelineFieldName].getArray();
+    if (pipeline.empty()) {
+        return cmd;
+    }
+    const auto spec = pipeline[0][DocumentSourceChangeStream::kStageName];
+    if (spec.getType() != BSONType::object ||
+        !spec[DocumentSourceChangeStreamSpec::kShowSystemEventsFieldName].coerceToBool() ||
+        DocumentSourceChangeStream::isAuthorizedForSystemJsEvents(opCtx, nss)) {
+        return cmd;
+    }
+
+    constexpr auto systemJs = NamespaceString::kSystemDotJavascriptCollectionName;
+    pipeline.insert(pipeline.begin() + 1,
+                    Value(BSON("$match" << BSON("ns.coll" << BSON("$ne" << systemJs) << "to.coll"
+                                                          << BSON("$ne" << systemJs)))));
+    MutableDocument newCmd(std::move(cmd));
+    newCmd[AggregateCommandRequest::kPipelineFieldName] = Value(std::move(pipeline));
+    return newCmd.freeze();
 }
 
 // Build an appropriate ExpressionContext for the pipeline. This helper instantiates an appropriate
@@ -649,7 +680,11 @@ Status _parseQueryStatsAndReturnEmptyResult(
     // never happens on the sharding node for single shard/sharded cluster with unsharded collection
     // topologies.
     try {
-        performValidationChecks(opCtx, request, liteParsedPipeline);
+        // As in runAggregateImpl(): validate only the original (pre-desugar) pipeline; an
+        // already-desugared resolved-view pipeline contains server-generated internal stages.
+        if (!alreadyDesugared) {
+            performValidationChecks(opCtx, request, liteParsedPipeline);
+        }
     } catch (const DBException& ex) {
         return ex.toStatus();
     }
@@ -764,7 +799,12 @@ Status runAggregateImpl(OperationContext* opCtx,
     BSONObjBuilder result;
     AggregateCommandRequest request{req};
 
-    performValidationChecks(opCtx, request, liteParsedPipeline);
+    // An already-desugared resolved-view pipeline was validated pre-desugar on the first pass;
+    // re-validating would wrongly reject server-generated internal stages (e.g. the
+    // kInternal-only $_internalSearchIdLookup) under the user's client.
+    if (!alreadyDesugared) {
+        performValidationChecks(opCtx, request, liteParsedPipeline);
+    }
 
     const auto isSharded = [](OperationContext* opCtx, const NamespaceString& nss) {
         // Note that if this decision is stale, and a collection has transitioned from sharded to
@@ -1009,7 +1049,10 @@ Status runAggregateImpl(OperationContext* opCtx,
                         routingCtx,
                         namespaces,
                         expCtx->getExplain(),
-                        serializeForPassthrough(expCtx, request, namespaces.executionNss),
+                        filterSystemJsEventsForPassthroughIfNeeded(
+                            opCtx,
+                            namespaces.executionNss,
+                            serializeForPassthrough(expCtx, request, namespaces.executionNss)),
                         privileges,
                         shardId,
                         &result,
@@ -1223,16 +1266,16 @@ bool needsCollectionRouter(const LiteParsedPipeline& lpp, const RetryState& stat
 }
 }  // namespace
 
-Status ClusterAggregate::runAggregate(
-    OperationContext* opCtx,
-    const Namespaces& namespaces,
-    AggregateCommandRequest& request,
-    const LiteParsedPipeline& liteParsedPipeline,
-    const PrivilegeVector& privileges,
-    boost::optional<ExplainOptions::Verbosity> verbosity,
-    BSONObjBuilder* result,
-    StringData comment,
-    std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext) {
+Status ClusterAggregate::runAggregate(OperationContext* opCtx,
+                                      const Namespaces& namespaces,
+                                      AggregateCommandRequest& request,
+                                      const LiteParsedPipeline& liteParsedPipeline,
+                                      const PrivilegeVector& privileges,
+                                      boost::optional<ExplainOptions::Verbosity> verbosity,
+                                      BSONObjBuilder* result,
+                                      StringData comment,
+                                      std::shared_ptr<IncrementalFeatureRolloutContext> ifrContext,
+                                      bool alreadyDesugared) {
     // Use the provided IFRContext if available, otherwise create a new one. This ensures consistent
     // flag values throughout the operation, including retries on view errors.
     if (!ifrContext) {
@@ -1241,6 +1284,7 @@ Status ClusterAggregate::runAggregate(
 
     RetryState retryState;
     retryState.currentNamespaces = namespaces;
+    retryState.alreadyDesugared = alreadyDesugared;
 
     // Main retry body.
     auto body = [&](RetryState& state) -> Status {
@@ -1452,7 +1496,8 @@ Status ClusterAggregate::runAggregate(
                                                         state.resolvedView,
                                                         state.originalRequest,
                                                         verbosity,
-                                                        result);
+                                                        result,
+                                                        state.alreadyDesugared);
         }
 
         // Return the final status (either from routing or aggregation).
@@ -1582,15 +1627,25 @@ Status ClusterAggregate::retryOnViewOrIFRKickbackError(
     auto resolved = PipelineResolver::buildResolvedMongosViewRequest(
         opCtx, request, resolvedView, requestedNss, verbosity, ifrContext, helpers);
 
-    // Now call runAggregate with the resolved namespace and request.
+    // When view resolution returns a LiteParsedPipeline, the resolved pipeline has already been
+    // desugared. Thread it and the 'alreadyDesugared' signal through so runAggregate does not
+    // re-validate the resolved pipeline under the external client, which would reject
+    // server-generated internal stages.
+    const bool alreadyDesugared = resolved.liteParsedPipeline.has_value();
+    LiteParsedPipeline liteParsedPipeline = alreadyDesugared
+        ? std::move(*resolved.liteParsedPipeline)
+        : LiteParsedPipeline(resolved.resolvedRequest);
+
     return runAggregate(opCtx,
                         Namespaces{requestedNss, resolvedView.getNamespace()},
                         resolved.resolvedRequest,
+                        liteParsedPipeline,
                         privileges,
                         verbosity,
                         result,
                         "ClusterAggregate::retryOnViewOrIFRKickbackError"_sd,
-                        ifrContext);
+                        ifrContext,
+                        alreadyDesugared);
 }
 
 }  // namespace mongo

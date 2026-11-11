@@ -53,6 +53,7 @@
 #include "mongo/db/query/plan_executor_factory.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/query_planner_params.h"
+#include "mongo/db/query/query_stats/supplemental_metrics_stats.h"
 #include "mongo/db/repl/read_concern_args.h"
 #include "mongo/db/repl/read_concern_level.h"
 #include "mongo/db/service_context.h"
@@ -324,6 +325,49 @@ TEST_F(CursorManagerTest, InactiveCursorShouldTimeout) {
          BSONObj(),
          PrivilegeVector()});
     ASSERT_EQ(1UL, _cursorManager.timeoutCursors(_opCtx.get(), Date_t::max()));
+    ASSERT_EQ(0UL, _cursorManager.numCursors());
+}
+
+TEST_F(CursorManagerTest, DisposeIdleMongotCursorsForShutdownDisposesOnlyMarkedIdleCursors) {
+    auto unmarkedIdleCursor = makeCursor(_opCtx.get());
+    const auto unmarkedIdleCursorId = unmarkedIdleCursor->cursorid();
+    unmarkedIdleCursor.release();
+
+    auto markedIdleCursor = makeCursor(_opCtx.get());
+    markedIdleCursor->setMayHoldMongotTaskExecutor();
+    markedIdleCursor.release();
+
+    auto markedPinnedCursor = makeCursor(_opCtx.get());
+    const auto markedPinnedCursorId = markedPinnedCursor->cursorid();
+    markedPinnedCursor->setMayHoldMongotTaskExecutor();
+
+    ASSERT_EQ(3UL, _cursorManager.numCursors());
+    ASSERT_EQ(1UL, _cursorManager.disposeIdleMongotCursorsForShutdown(_opCtx.get()));
+    ASSERT_EQ(2UL, _cursorManager.numCursors());
+
+    // The unmarked idle cursor and marked pinned cursor are not disposed by the targeted shutdown
+    // cleanup.
+    ASSERT_OK(_cursorManager.killCursor(_opCtx.get(), unmarkedIdleCursorId));
+    markedPinnedCursor.release();
+    ASSERT_OK(_cursorManager.killCursor(_opCtx.get(), markedPinnedCursorId));
+    ASSERT_EQ(0UL, _cursorManager.numCursors());
+}
+
+TEST_F(CursorManagerTest, DisposeIdleMongotCursorsForShutdownIsIdempotent) {
+    // An empty CursorManager has nothing to dispose.
+    ASSERT_EQ(0UL, _cursorManager.disposeIdleMongotCursorsForShutdown(_opCtx.get()));
+    ASSERT_EQ(0UL, _cursorManager.numCursors());
+
+    // Disposing a marked idle cursor removes it, so a second call disposes nothing. This guards
+    // against the shutdown cleanup being invoked more than once (or an accounting bug in the
+    // count).
+    auto markedIdleCursor = makeCursor(_opCtx.get());
+    markedIdleCursor->setMayHoldMongotTaskExecutor();
+    markedIdleCursor.release();
+
+    ASSERT_EQ(1UL, _cursorManager.disposeIdleMongotCursorsForShutdown(_opCtx.get()));
+    ASSERT_EQ(0UL, _cursorManager.numCursors());
+    ASSERT_EQ(0UL, _cursorManager.disposeIdleMongotCursorsForShutdown(_opCtx.get()));
     ASSERT_EQ(0UL, _cursorManager.numCursors());
 }
 
@@ -974,6 +1018,33 @@ TEST_F(CursorManagerTest, KillCursorWithFailingAuthCheckFails) {
     ASSERT_THROWS_CODE(_cursorManager.killCursorWithAuthCheck(_opCtx.get(), cursorId, pinCheck),
                        DBException,
                        ErrorCodes::Unauthorized);
+}
+
+TEST_F(CursorManagerTest, SupplementalMetricsCapturedOnceAndFlushedOnTake) {
+    // Supplemental metrics describe planning-time work and are captured once from the planning
+    // OpDebug, then stashed on the cursor to be flushed by takeSupplementalMetrics() at dispose.
+    auto& opDebug = CurOp::get(_opCtx.get())->debug();
+    opDebug.vectorSearchMetrics = OpDebug::VectorSearchMetrics{5, 2.0};
+
+    auto cursorPin = makeCursor(_opCtx.get());
+
+    // The first capture computes supplemental metrics from the planning OpDebug.
+    cursorPin->captureSupplementalMetricsIfNeeded(opDebug);
+    auto firstTake = cursorPin->takeSupplementalMetrics();
+    ASSERT_EQ(firstTake.size(), 1u);
+    ASSERT_EQ(firstTake[0]->metricType, query_stats::SupplementalMetricType::VectorSearch);
+
+    // A second take returns nothing since the stash was moved out, and the optional stays engaged
+    // so has_value() keeps guarding re-capture across getMores.
+    auto secondTake = cursorPin->takeSupplementalMetrics();
+    ASSERT_TRUE(secondTake.empty());
+
+    // Re-capture is a no-op even with a populated OpDebug, because the optional is still engaged
+    // from the first capture.
+    opDebug.vectorSearchMetrics = OpDebug::VectorSearchMetrics{99, 9.0};
+    cursorPin->captureSupplementalMetricsIfNeeded(opDebug);
+    auto thirdTake = cursorPin->takeSupplementalMetrics();
+    ASSERT_TRUE(thirdTake.empty());
 }
 
 }  // namespace

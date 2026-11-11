@@ -3,6 +3,8 @@ load("//bazel:mongo_src_rules.bzl", "symlink")
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "evergreen_yml_components/tasks/compile_tasks.yml",
+    "evergreen_yml_components/variants/ibm/test_release_master_and_lts_branches_only.yml",
     "lsan.suppressions",
     "tsan.suppressions",
     "burn_in_tests.yml",
@@ -35,4 +37,21 @@ filegroup(
 filegroup(
     name = "mac_plist",
     srcs = ["macos_mongodb.plist"],
+)
+
+filegroup(
+    name = "evergreen_release_variant_test_data",
+    srcs = glob(["evergreen_yml_components/variants/*/test_release*.yml"]) + [
+        "evergreen_yml_components/tasks/compile_tasks_shared.yml",
+    ],
+)
+
+filegroup(
+    name = "evergreen_s390x_cross_test_data",
+    srcs = glob(["evergreen_yml_components/tasks/**/*.yml"]) + [
+        "evergreen_yml_components/definitions.yml",
+        "evergreen_yml_components/variants/ibm/test_release_master_and_lts_branches_only.yml",
+        "//:.bazelrc",
+        "//evergreen:bazel_evergreen_shutils.sh",
+    ],
 )
