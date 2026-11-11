@@ -1,0 +1,220 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ee80a582aaa1abcaf5f93d132bd676681506c9f8",
+    "merge_commit": "4c4c52cbe055c7644e545e1e9aebcaf23124e098"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "4c4c52cbe055c7644e545e1e9aebcaf23124e098",
+    "merged_commits": [
+      "4c4c52cbe055c7644e545e1e9aebcaf23124e098",
+      "0e7fa3c879073db083c8154a3f1ca9db24ff1d74",
+      "830be8f4fda8d8130b474bd089cd0485375eafac",
+      "003c3bdeed739a25d6fc2d1f48bed731e47fcbb1",
+      "757edfcfb9abf355f8415c151aa4df4938def0df",
+      "398c3e3c3032ea4d6d49b2eb276856f0532e679b",
+      "bddb19ad82bdafa7e10b09255abdbf5bdb9dd6db",
+      "f56e97a6b6426fc6f9ff6ffffc6e59d2ff287b68",
+      "c39017edc4178e6e58a48e1f40c26aa7a8c2bf98",
+      "f748a550d22d2c37c4b47593a64561a63cc61521",
+      "6146da6bc13199691c9b5db88daf08984af2b58d",
+      "08a8728216e3dceaceb4efd25c8dc68aca2b4408",
+      "78f0d4e1c2c5b459f4fe868e0bb79aad61e827c0",
+      "8c23660b8583af703908c4a4198cba0cf49d4dba",
+      "40e3eb722e418f70fe4ea180a78b4e6989a7e5be",
+      "dcd705108f8bea31daa7997b28acd02bf5fc3bb5",
+      "ebe97f0a0367269d6cab828c4fe7c320217c22f5",
+      "8099fafb8612e994466344a6a1fe571f8dc290b1",
+      "0f2aca88ca74ba458326966b87bd84153d7e938e",
+      "4ade2d8ec67064d6ef49ad77e27be3fd7aec6944",
+      "ad339f81a70fc6449064e2e149fc9e6eda7e3513",
+      "53f069c047e064498ac1f74912615254ef534213",
+      "0e1aefff3c5b987260da9c9600c25300c7554fd4",
+      "d9209718a6f208ea3221b080d2f08b638fb9e80f",
+      "c9b1079eeca8982c5349d6a1fe125523cc8e2edd",
+      "f6141e5df2b86a32df79d8ce1b721fbdac18c840",
+      "8918c99b15244165005b0b56dfa2eed5556222c6",
+      "4cadc4ba503efb95f48c5b103a1f032d7710073b",
+      "1acf5e554f87b18d99d0c83a80e880be7f938a69",
+      "c297195f9e478cb9ec39fbfbbb914f61dc977c66",
+      "df4650f667396261d6f5285030e6a24de6abcad1",
+      "10f52e78023a9586724318ab188bd10ef73d4f54",
+      "fa513989d225a772191f1065663dbb18797f0d95",
+      "fabc56783730ba5aae3f46e8fe5e6c5b06bfa53e",
+      "3c52050d43b89d967f95d9f7e9fe38340dbe5b3b",
+      "3d0efb491c182208aa24aae08ef9cc9076322272",
+      "8ebfd9315c88c9b1199b10fdfa2cd1d3e25dc571",
+      "c197e0b2fef0eb1ebdfc52dfb5c3735d7348db1f",
+      "5b17bb3dc0cb4f358756aa5c1803e9e7418bd2e9",
+      "8ced9f124a0079fc3bdca971b96ef1a6e81357df",
+      "5e52f7ed5a83b0d52cd3299fa4685019132349d0",
+      "ac79a11f73b205c167184a473f34d69e12d04068",
+      "e88a7d888d6690a281abbb303d4f9a7c24193529",
+      "04d846dbe4d9757643de58b51b1c180a14562229",
+      "06abfe4a4803dcdfbe849fd4996608eb509c7162",
+      "f226c6839d9f8b2f893dcd85292f0c38a32cdcf3",
+      "c4405ae95a05f60603f5dffab91e85fe632a54f1",
+      "7bef85fb958934f5638079a2afcb03feebc75b51"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 36814,
+    "num_turns": 7,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.22546750000000002,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 2866,
+        "cacheReadInputTokens": 66755,
+        "cacheCreationInputTokens": 19264,
+        "webSearchRequests": 0,
+        "costUSD": 0.22546750000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 164,
+        "cacheCreationEphemeral5mInputTokens": 19264,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 2866,
+            "cache_read": 66755,
+            "cache_creation": 19264
+          },
+          "cost_usd": 0.22546750000000002
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diff for all four auto-merged files and written the JSON response. Summary of what the merge introduces:\n\n- **`src/mongo/db/repl/BUILD.bazel`** \u2014 build-graph additions only: a `:oplog` dep, the `oplog_constraint_violation_logger_test.cpp` source with its `:oplog_constraint_violation_logger` dep, and a `collection_options` dep on another test target.\n- **`pipelined_applier_advancer_test.cpp`** \u2014 swaps `beforeWait.waitForOneNewEntry()` for `beforeWait.wait()` in five tests (test synchronization only).\n- **`replication_coordinator_impl.cpp`** \u2014 `_killConflictingOperations` gains an optional `timeoutSecs` parameter that is forwarded (as `uint32_t`) to `IntentRegistry::killConflictingOperations`.\n- **`wiredtiger.h.in`** \u2014 generated header: statistics-config doc text expanded, one eviction-server stat removed, and subsequent `WT_STAT_CONN_*` values decremented by one.\n\nThe response was written to the requested path with no changes made to any source files.",
+    "response": {
+      "summary": "Upstream merge pulling in replication and WiredTiger changes. In repl, _killConflictingOperations gains an optional timeout parameter that is forwarded to IntentRegistry::killConflictingOperations; the pipelined applier advancer test switches its failpoint synchronization from waitForOneNewEntry() to wait(); and the repl BUILD.bazel adds deps/sources for the oplog_constraint_violation_logger test and related targets. The WiredTiger public header (wiredtiger.h.in) updates statistics config documentation and removes one eviction-server statistic, renumbering the subsequent WT_STAT_CONN_* constants.",
+      "auto_merged": {
+        "src/mongo/db/repl/BUILD.bazel": "Adds build graph entries: a `:oplog` dep to one mongo_cc_library target; adds `oplog_constraint_violation_logger_test.cpp` to a mongo_cc_unit_test srcs list together with a `:oplog_constraint_violation_logger` dep; and adds the `//src/mongo/db/shard_role/shard_catalog:collection_options` dep to another unit test target. Build-only wiring, no code logic.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "In five test bodies, replaces `beforeWait.waitForOneNewEntry()` with `beforeWait.wait()` on the `hangBeforePipelinedApplierBatchWait` FailPointEnableBlock. Test-synchronization change only; assertions are unchanged.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "ReplicationCoordinatorImpl::_killConflictingOperations gains a new `boost::optional<int> timeoutSecs` parameter. When set, it is converted to a `boost::optional<uint32_t>` and passed as an additional argument to `_intentRegistry.killConflictingOperations(...)`; otherwise the timeout is left unset. No other behavior change in this function.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Documentation text for the `statistics` configuration (on session/cursor open and on wiredtiger_open/reconfigure) is expanded to describe the cost of the `tree_walk` and `cache_walk` options and to note that `size` is cursor-only and cannot be combined with `all`/`fast`/`clear`/`tree_walk`/`cache_walk`. The generated statistics constants are updated: `WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY` (value 1171) is removed and all subsequent `WT_STAT_CONN_*` define values are decremented by one accordingly. Generated header; no hand-written logic."
+      },
+      "review_notes": "All four files auto-merged cleanly with no conflict markers and no Percona-specific hunks involved. The only behavioral source change is the added optional timeout parameter to _killConflictingOperations in replication_coordinator_impl.cpp; confirm callers and the IntentRegistry::killConflictingOperations signature match the forwarded timeout argument. The wiredtiger.h.in change is a generated-header stat renumbering plus doc edits; verify the corresponding stat tables/stat.c regenerate consistently if used in the build. The BUILD.bazel and test-sync edits are low risk."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diffs for each of the four auto-merged files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me look at the wiredtiger.h.in diff more closely."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Grep"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diff for all four auto-merged files and written the JSON response. Summary of what the merge introduces:\n\n- **`src/mongo/db/repl/BUILD.bazel`** \u2014 build-graph additions only: a `:oplog` dep, the `oplog_constraint_violation_logger_test.cpp` source with its `:oplog_constraint_violation_logger` dep, and a `collection_options` dep on another test target.\n- **`pipelined_applier_advancer_test.cpp`** \u2014 swaps `beforeWait.waitForOneNewEntry()` for `beforeWait.wait()` in five tests (test synchronization only).\n- **`replication_coordinator_impl.cpp`** \u2014 `_killConflictingOperations` gains an optional `timeoutSecs` parameter that is forwarded (as `uint32_t`) to `IntentRegistry::killConflictingOperations`.\n- **`wiredtiger.h.in`** \u2014 generated header: statistics-config doc text expanded, one eviction-server stat removed, and subsequent `WT_STAT_CONN_*` values decremented by one.\n\nThe response was written to the requested path with no changes made to any source files."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261111_182726_639220.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.322 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "4c4c52cbe055c7644e545e1e9aebcaf23124e098",
+    "short_sha": "4c4c52cbe05",
+    "strategy": "huge_commit",
+    "summary": "This 'Import wiredtiger' commit is a large, self-contained vendored third-party import (huge_commit) that touches an isolated set of files and rarely depends on commits after it - an ideal, easy-to-validate merge boundary. Cutting here yields 48 commits, squarely in the ~50 target band. Critically, all three revert pairs in the window land before this boundary and cancel out: SERVER-134938 narrowing (#64138) and its revert (53f069c0), SERVER-133447 (#65384) and its revert (f748a550), and SERVER-135301 (#65451) and its revert (f56e97a6). Their re-lands (9cc8e3cb, 968bd155) sit after the import and are left to settle in the next batch. The BSONObj/BSONElement bounds-checking stacked series (757edfcf, 003c3bde, 830be8f4, 0e7fa3c8) is also fully included, keeping that coherent group intact. This avoids importing features upstream already undid and ends on a clean atomic commit rather than mid-stream churn.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/43077254785"
+  }
+}
