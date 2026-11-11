@@ -55,9 +55,6 @@ struct StorageEngineOptions {
 
 class StorageEngineImpl final : public StorageEngine {
     // percona::EngineExtension implementaion
-    Status hotBackup(OperationContext* opCtx, const std::string& path) override;
-    Status hotBackupTar(OperationContext* opCtx, const std::string& path) override;
-    Status hotBackup(OperationContext* opCtx, const percona::S3BackupParameters& s3params) override;
     bool keydbDropKeyId(std::string_view keyId) override;
 
     void cleanupOrphanedEncryptionKeys(OperationContext* opCtx, std::string_view trigger) override;

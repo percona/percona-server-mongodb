@@ -98,19 +98,6 @@ std::string generateNewResumableIndexBuildIdent() {
 }
 }  // namespace
 
-Status StorageEngineImpl::hotBackup(OperationContext* opCtx, const std::string& path) {
-    return _engine->hotBackup(opCtx, path);
-}
-
-Status StorageEngineImpl::hotBackupTar(OperationContext* opCtx, const std::string& path) {
-    return _engine->hotBackupTar(opCtx, path);
-}
-
-Status StorageEngineImpl::hotBackup(OperationContext* opCtx,
-                                    const percona::S3BackupParameters& s3params) {
-    return _engine->hotBackup(opCtx, s3params);
-}
-
 bool StorageEngineImpl::keydbDropKeyId(std::string_view keyId) {
     return _engine->keydbDropKeyId(keyId);
 }

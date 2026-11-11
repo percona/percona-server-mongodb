@@ -309,7 +309,10 @@ void shellHistoryAdd(const char* line) {
     // via runCommand.
     static pcre::Regex hiddenCommands(
         "(run|admin)Command\\s*\\(\\s*{\\s*(createUser|updateUser)\\s*:");
-    // Hide createBackup command if it contains s3 credentials
+    // Hide createBackup command if it contains s3 credentials.
+    // Even though the command has been removed (as of version 9.0), we still
+    // need to hide the credentials in case a user mistakenly runs the command
+    // against version 9.0 or later.
     static pcre::Regex hiddenCreateBackup(
         "(run|admin)Command\\s*\\(\\s*{\\s*createBackup\\s*:.*s3.*(accessKeyId|secretAccessKey)");
 

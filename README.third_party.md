@@ -25,7 +25,6 @@ a notice will be included in
 | ---------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | -------------------- | ------------------------------- |
 | [Abseil Common Libraries (C++)]                      | Apache-2.0                                     | 20250512.1                               |                      | ✗                               |
 | [Asio C++ Library]                                   | BSL-1.0                                        | 1.34.2                                   |                      | ✗                               |
-| [AWS SDK for C++]                                    | Apache-2.0                                     | 1.11.471                                 |                      | ✗                               |
 | [benchmark]                                          | Apache-2.0                                     | 1.5.2                                    |                      |                                 |
 | [Boost C++ Libraries]                                | BSL-1.0                                        | 1.88.0                                   |                      | ✗                               |
 | [bzip2]                                              | bzip2-1.0.6                                    | 1.0.8                                    |                      | ✗                               |
@@ -45,7 +44,6 @@ a notice will be included in
 | [JSON Schema Store]                                  | Apache-2.0                                     | 6847cfc3a17a04a7664474212db50c627e1e3408 |                      |                                 |
 | [json-c]                                             | MIT                                            | 0.17                                     |                      | ✗                               |
 | [JSON-Schema-Test-Suite]                             | MIT                                            | 728066f9c5c258ba3b1804a22a5b998f2ec77ec0 |                      |                                 |
-| [libarchive]                                         | A mix of BSD-2-Clause and others               | 3.8.4                                    | ✗                    | ✗                               |
 | [libdwarf]                                           | BSD-3-Clause, LGPL-2.1-or-later, Public Domain | 2.1.0                                    |                      |                                 |
 | [libkmip]                                            | Apache-2.0 OR BSD-3-Clause                     | 66119416e2c89ab182343900418cecafe02b6e8d |                      | ✗                               |
 | [LibTomCrypt]                                        | Unlicense                                      | 1.18.2                                   | ✗                    | ✗                               |
@@ -87,7 +85,6 @@ SPDX resolution) differs from the license as originally declared by the componen
 [3]: Declared as Apache-2.0 OR MIT; concluded via automated SPDX resolution.
 
 
-[AWS SDK for C++]: https://aws.amazon.com/sdk-for-cpp/
 [Abseil Common Libraries (C++)]: https://github.com/abseil/abseil-cpp.git
 [Asio C++ Library]: https://github.com/chriskohlhoff/asio.git
 [Boost C++ Libraries]: https://github.com/boostorg/boost.git
@@ -120,7 +117,6 @@ SPDX resolution) differs from the license as originally declared by the componen
 [gperftools]: https://github.com/gperftools/gperftools.git
 [immer]: https://github.com/arximboldi/immer.git
 [json-c]: https://github.com/json-c/json-c
-[libarchive]: https://www.libarchive.org
 [libdwarf]: https://github.com/davea42/libdwarf-code.git
 [libkmip]: https://github.com/OpenKMIP/libkmip.git
 [libunwind]: https://github.com/libunwind/libunwind.git

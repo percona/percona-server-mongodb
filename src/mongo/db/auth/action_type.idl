@@ -185,7 +185,11 @@ enums:
             shutdown: "shutdown"
             splitChunk: "splitChunk"
             splitVector: "splitVector"
-            startBackup: "startBackup"
+            # Even though the `createBackup` command has been removed
+            # (as of version 9.0), we still need to keep its corresponding
+            # action type. Otherwise, custom roles created earlier that contain
+            # this privilege could not be restored in versions 9.0 and later.
+            startBackup: "startBackup" # Removed (backwards compatibility)
             storageDetails: "storageDetails"
             top: "top"
             touch: "touch"

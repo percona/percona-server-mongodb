@@ -24,7 +24,7 @@
 (function () {
     "use strict";
 
-    run("chmod", "600", TestData.keyFileGood);
+    run("chmod", "600", TestData.keyFile);
 
     const dbPath = MongoRunner.dataPath + "psmdb1997-index-build-spill";
 
@@ -36,7 +36,7 @@
     const conn = MongoRunner.runMongod({
         dbpath: dbPath,
         enableEncryption: "",
-        encryptionKeyFile: TestData.keyFileGood,
+        encryptionKeyFile: TestData.keyFile,
         encryptionCipherMode: TestData.cipherMode,
         setParameter: {maxIndexBuildMemoryUsageMegabytes: maxMemUsageMB},
     });
