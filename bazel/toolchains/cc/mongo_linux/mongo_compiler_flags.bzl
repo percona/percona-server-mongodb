@@ -11,7 +11,10 @@ load(
 )
 
 # Flags listed in this file is only visible to the bazel build system.
-visibility("//bazel/toolchains/cc")
+visibility([
+    "//bazel/toolchains/cc",
+    "//bazel/toolchains/cc/mongo_linux_cross",
+])
 
 # SERVER-9761: Ensure early detection of missing symbols in dependent libraries
 # at program startup. For non-release dynamic builds we disable this behavior in
@@ -199,7 +202,7 @@ DETECT_ODR_VIOLATIONS_LINKFLAGS = select({
 # TODO(SERVER-101099): Remove this once builds are containerized and system libraries inside the containers
 # no longer contain debug symbols.
 #
-# In RHEL8 and RHEL9 the debug symbols for libgcc aren't stripped and are instead split, which still leaves behind
+# In RHEL8, RHEL9, and RHEL10 the debug symbols for libgcc aren't stripped and are instead split, which still leaves behind
 # debug symbols in the libgcc shared object file. These debug symbols are created with gdwarf32, so they're limited to
 # a 32 bit address space. Even if the mongodb binaries are compiled with gdwarf64, there's a chance that the gdwarf32
 # libgcc debug symbols will be placed after the gdwarf64 debug symbols. This started happening in the RHEL9 ppc64le
@@ -211,6 +214,7 @@ DETECT_ODR_VIOLATIONS_LINKFLAGS = select({
 # before gdwarf64 symbols. See https://reviews.llvm.org/D96144
 LIBGCC_LINKFLAGS = select({
     "//bazel/config:rhel9_ppc64le_gcc_linkstatic": ["-static-libgcc"],
+    "//bazel/config:rhel10_ppc64le_gcc_linkstatic": ["-static-libgcc"],
     "//conditions:default": [],
 })
 
@@ -227,6 +231,11 @@ DEBUG_TYPES_SECTION_FLAGS = select({
 })
 
 COMPRESS_DEBUG_COPTS = select({
+    # ARM64-hosted v4 gold cannot decompress s390x SHF_COMPRESSED sections.
+    # GNU-style zlib compression works across the two byte orders.
+    "//bazel/config:compress_debug_compile_s390x_cross_v4_gold": [
+        "-Wa,--compress-debug-sections=zlib-gnu",
+    ],
     # Debug compression significantly reduces .o, .dwo, and .a sizes
     "//bazel/config:compress_debug_compile_enabled": [
         "-Wa,--compress-debug-sections",

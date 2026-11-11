@@ -36,6 +36,10 @@
 #include <boost/optional/optional.hpp>
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
+#include "mongo/db/auth/action_set.h"
+#include "mongo/db/auth/action_type.h"
+#include "mongo/db/auth/authorization_session.h"
+#include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/basic_types.h"
 #include "mongo/db/commands/server_status_metric.h"
 #include "mongo/db/database_name.h"
@@ -60,6 +64,8 @@
 #include "mongo/db/vector_clock.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/util/intrusive_counter.h"
+#include "mongo/util/namespace_string_util.h"
+#include "mongo/util/pcre_util.h"
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kCommand
 
@@ -116,6 +122,41 @@ constexpr StringData DocumentSourceChangeStream::kRegexAllCollectionsShowSystemE
 constexpr StringData DocumentSourceChangeStream::kRegexAllDBs;
 constexpr StringData DocumentSourceChangeStream::kRegexCmdColl;
 
+bool DocumentSourceChangeStream::isAuthorizedForSystemJsEvents(OperationContext* opCtx,
+                                                               const NamespaceString& nss) {
+    if (!opCtx || !opCtx->getClient()) {
+        // Without a client we cannot check authorization, so do not expose system.js.
+        return false;
+    }
+
+    auto* client = opCtx->getClient();
+    if (!AuthorizationSession::exists(client)) {
+        // No authorization manager is set up for this service, so authorization is not enforced.
+        return true;
+    }
+
+    const ActionSet actions{ActionType::find, ActionType::changeStream};
+    constexpr auto systemJs = NamespaceString::kSystemDotJavascriptCollectionName;
+    auto* authzSession = AuthorizationSession::get(client);
+    switch (DocumentSourceChangeStream::getChangeStreamType(nss)) {
+        case DocumentSourceChangeStream::ChangeStreamType::kSingleCollection:
+            // A collection stream only matches its own namespace, which is authorized by the
+            // privileges required to open the stream.
+            return true;
+        case DocumentSourceChangeStream::ChangeStreamType::kSingleDatabase:
+            return authzSession->isAuthorizedForActionsOnResource(
+                ResourcePattern::forExactNamespace(
+                    NamespaceStringUtil::deserialize(nss.dbName(), systemJs)),
+                actions);
+        case DocumentSourceChangeStream::ChangeStreamType::kAllChangesForCluster:
+            // Grants on system.js of individual databases are not considered: a whole-cluster
+            // stream only shows system.js events if system.js is readable in every database.
+            return authzSession->isAuthorizedForActionsOnResource(
+                ResourcePattern::forCollectionName(nss.tenantId(), systemJs), actions);
+    }
+    MONGO_UNREACHABLE;
+}
+
 void DocumentSourceChangeStream::checkValueType(const Value v,
                                                 const StringData fieldName,
                                                 BSONType expectedType) {
@@ -149,10 +190,15 @@ StringData DocumentSourceChangeStream::resolveAllCollectionsRegex(
     tassert(6189300,
             "Expected change stream spec to be set on the expression context",
             expCtx->changeStreamSpec);
-    // If 'showSystemEvents' is set, return a less stringent regex.
-    return (expCtx->changeStreamSpec->getShowSystemEvents()
-                ? DocumentSourceChangeStream::kRegexAllCollectionsShowSystemEvents
-                : DocumentSourceChangeStream::kRegexAllCollections);
+    if (!expCtx->changeStreamSpec->getShowSystemEvents()) {
+        return DocumentSourceChangeStream::kRegexAllCollections;
+    }
+
+    // If 'showSystemEvents' is set, return a less stringent regex. system.js is only included if
+    // the user is authorized to read it.
+    return isAuthorizedForSystemJsEvents(expCtx->opCtx, expCtx->ns)
+        ? DocumentSourceChangeStream::kRegexAllCollectionsShowSystemEvents
+        : DocumentSourceChangeStream::kRegexAllCollectionsShowSystemEventsExceptSystemJs;
 }
 
 std::string DocumentSourceChangeStream::getNsRegexForChangeStream(
@@ -162,21 +208,20 @@ std::string DocumentSourceChangeStream::getNsRegexForChangeStream(
     switch (type) {
         case ChangeStreamType::kSingleCollection:
             // Match the target namespace exactly.
-            return "^" +
-                // Change streams will only be enabled in serverless when multitenancy and
-                // featureFlag are on, therefore we don't have a tenantid prefix.
-                regexEscapeNsForChangeStream(
-                       NamespaceStringUtil::serialize(nss, expCtx->serializationCtxt)) +
-                "$";
+            // Change streams will only be enabled in serverless when multitenancy and
+            // featureFlag are on, therefore we don't have a tenantid prefix.
+            return fmt::format("^{}$",
+                               pcre_util::quoteMeta(
+                                   NamespaceStringUtil::serialize(nss, expCtx->serializationCtxt)));
         case ChangeStreamType::kSingleDatabase:
             // Match all namespaces that start with db name, followed by ".", then NOT followed by
             // '$' or 'system.' unless 'showSystemEvents' is set.
-            return "^" +
-                // Change streams will only be enabled in serverless when multitenancy and
-                // featureFlag are on, therefore we don't have a tenantid prefix.
-                regexEscapeNsForChangeStream(
-                       DatabaseNameUtil::serialize(nss.dbName(), expCtx->serializationCtxt)) +
-                "\\." + resolveAllCollectionsRegex(expCtx);
+            // Change streams will only be enabled in serverless when multitenancy and
+            // featureFlag are on, therefore we don't have a tenantid prefix.
+            return fmt::format("^{}\\.{}",
+                               pcre_util::quoteMeta(DatabaseNameUtil::serialize(
+                                   nss.dbName(), expCtx->serializationCtxt)),
+                               resolveAllCollectionsRegex(expCtx));
         case ChangeStreamType::kAllChangesForCluster:
             // Match all namespaces that start with any db name other than admin, config, or local,
             // followed by ".", then NOT '$' or 'system.' unless 'showSystemEvents' is set.
@@ -193,10 +238,9 @@ std::string DocumentSourceChangeStream::getViewNsRegexForChangeStream(
         case ChangeStreamType::kSingleDatabase:
             // For a single database, match any events on the system.views collection on that
             // database.
-            return "^" +
-                regexEscapeNsForChangeStream(
-                       DatabaseNameUtil::serialize(nss.dbName(), expCtx->serializationCtxt)) +
-                "\\.system.views$";
+            return fmt::format("^{}\\.system\\.views$",
+                               pcre_util::quoteMeta(DatabaseNameUtil::serialize(
+                                   nss.dbName(), expCtx->serializationCtxt)));
         case ChangeStreamType::kAllChangesForCluster:
             // Match all system.views collections on all databases.
             return kRegexAllDBs + "\\.system.views$";
@@ -213,7 +257,7 @@ std::string DocumentSourceChangeStream::getCollRegexForChangeStream(
     switch (type) {
         case ChangeStreamType::kSingleCollection:
             // Match the target collection exactly.
-            return "^" + regexEscapeNsForChangeStream(nss.coll()) + "$";
+            return fmt::format("^{}$", pcre_util::quoteMeta(nss.coll()));
         case ChangeStreamType::kSingleDatabase:
         case ChangeStreamType::kAllChangesForCluster:
             // Match any collection; database filtering will be done elsewhere.
@@ -231,28 +275,15 @@ std::string DocumentSourceChangeStream::getCmdNsRegexForChangeStream(
         case ChangeStreamType::kSingleCollection:
         case ChangeStreamType::kSingleDatabase:
             // Match the target database command namespace exactly.
-            return "^" +
-                regexEscapeNsForChangeStream(NamespaceStringUtil::serialize(
-                    nss.getCommandNS(), SerializationContext::stateDefault())) +
-                "$";
+            return fmt::format("^{}$",
+                               pcre_util::quoteMeta(NamespaceStringUtil::serialize(
+                                   nss.getCommandNS(), SerializationContext::stateDefault())));
         case ChangeStreamType::kAllChangesForCluster:
             // Match all command namespaces on any database.
             return kRegexAllDBs + "\\." + kRegexCmdColl;
         default:
             MONGO_UNREACHABLE;
     }
-}
-
-std::string DocumentSourceChangeStream::regexEscapeNsForChangeStream(StringData source) {
-    std::string result = "";
-    std::string escapes = "*+|()^?[]./\\$";
-    for (const char& c : source) {
-        if (escapes.find(c) != std::string::npos) {
-            result.append("\\");
-        }
-        result += c;
-    }
-    return result;
 }
 
 Timestamp DocumentSourceChangeStream::getStartTimeForNewStream(

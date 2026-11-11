@@ -144,6 +144,16 @@ platform(
 )
 
 platform(
+    name = "rhel10_ppc64le",
+    constraint_values = [
+        "@platforms//cpu:ppc",
+        "@platforms//os:linux",
+        ":use_mongo_toolchain",
+        ":rhel10",
+    ],
+)
+
+platform(
     name = "rhel8_s390x",
     constraint_values = [
         "@platforms//cpu:s390x",
@@ -163,8 +173,41 @@ platform(
     ],
 )
 
+platform(
+    name = "rhel10_s390x",
+    constraint_values = [
+        "@platforms//cpu:s390x",
+        "@platforms//os:linux",
+        ":use_mongo_toolchain",
+        ":rhel10",
+    ],
+)
+
 py_binary(
     name = "remote_execution_containers_generator",
     srcs = ["remote_execution_containers_generator.py"],
     visibility = ["//visibility:public"],
 )
+
+# Cross target toolchains must not compete with native C++ toolchains.
+constraint_value(
+    name = "use_mongo_s390x_cross_toolchain",
+    constraint_setting = ":mongo_toolchain",
+)
+
+[
+    platform(
+        name = distro + "_s390x_cross",
+        constraint_values = [
+            "@platforms//cpu:s390x",
+            "@platforms//os:linux",
+            ":use_mongo_s390x_cross_toolchain",
+            ":" + distro,
+        ],
+    )
+    for distro in [
+        "rhel8",
+        "rhel9",
+        "rhel10",
+    ]
+]

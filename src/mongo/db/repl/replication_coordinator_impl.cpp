@@ -986,48 +986,66 @@ void ReplicationCoordinatorImpl::_startDataReplication(OperationContext* opCtx) 
 void ReplicationCoordinatorImpl::startup(OperationContext* opCtx,
                                          StorageEngine::LastShutdownState lastShutdownState) {
     if (!_settings.isReplSet()) {
-        // We do not need to check for magic restore since magic restore always runs in a replica
-        // set.
-        if (ReplSettings::shouldRecoverFromOplogAsStandalone()) {
-            uassert(ErrorCodes::InvalidOptions,
-                    str::stream() << "Cannot set parameter 'recoverToOplogTimestamp' "
-                                  << "when recovering from the oplog as a standalone",
-                    recoverToOplogTimestamp.empty());
-            _replicationProcess->getReplicationRecovery()->recoverFromOplogAsStandalone(opCtx);
-        }
+        try {
+            // We do not need to check for magic restore since magic restore always runs in a
+            // replica set.
+            if (ReplSettings::shouldRecoverFromOplogAsStandalone()) {
+                uassert(ErrorCodes::InvalidOptions,
+                        str::stream() << "Cannot set parameter 'recoverToOplogTimestamp' "
+                                      << "when recovering from the oplog as a standalone",
+                        recoverToOplogTimestamp.empty());
+                _replicationProcess->getReplicationRecovery()->recoverFromOplogAsStandalone(opCtx);
+            }
 
-        if (storageGlobalParams.queryableBackupMode && !recoverToOplogTimestamp.empty()) {
-            BSONObj recoverToTimestampObj = fromjson(recoverToOplogTimestamp);
-            uassert(ErrorCodes::BadValue,
-                    str::stream() << "'recoverToOplogTimestamp' needs to have a 'timestamp' field",
-                    recoverToTimestampObj.hasField("timestamp"));
+            if (storageGlobalParams.queryableBackupMode && !recoverToOplogTimestamp.empty()) {
+                BSONObj recoverToTimestampObj = fromjson(recoverToOplogTimestamp);
+                uassert(ErrorCodes::BadValue,
+                        str::stream()
+                            << "'recoverToOplogTimestamp' needs to have a 'timestamp' field",
+                        recoverToTimestampObj.hasField("timestamp"));
 
-            Timestamp recoverToTimestamp = recoverToTimestampObj.getField("timestamp").timestamp();
-            uassert(ErrorCodes::BadValue,
-                    str::stream() << "'recoverToOplogTimestamp' needs to be a valid timestamp",
-                    !recoverToTimestamp.isNull());
+                Timestamp recoverToTimestamp =
+                    recoverToTimestampObj.getField("timestamp").timestamp();
+                uassert(ErrorCodes::BadValue,
+                        str::stream() << "'recoverToOplogTimestamp' needs to be a valid timestamp",
+                        !recoverToTimestamp.isNull());
 
-            StatusWith<BSONObj> cfg = _externalState->loadLocalConfigDocument(opCtx);
-            uassert(ErrorCodes::InvalidReplicaSetConfig,
+                StatusWith<BSONObj> cfg = _externalState->loadLocalConfigDocument(opCtx);
+                uassert(
+                    ErrorCodes::InvalidReplicaSetConfig,
                     str::stream()
                         << "No replica set config document was found, 'recoverToOplogTimestamp' "
                         << "must be used with a node that was previously part of a replica set",
                     cfg.isOK());
 
-            // Need to perform replication recovery up to and including the given timestamp.
-            _replicationProcess->getReplicationRecovery()->recoverFromOplogUpTo(opCtx,
-                                                                                recoverToTimestamp);
+                // Need to perform replication recovery up to and including the given timestamp.
+                _replicationProcess->getReplicationRecovery()->recoverFromOplogUpTo(
+                    opCtx, recoverToTimestamp);
+            }
+
+            // In standalone mode, inform the storage engine that startup recovery has completed. We
+            // should not be holding on to the replication coordinator mutex before calling this
+            // function to avoid deadlock.
+            auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
+            invariant(storageEngine);
+            storageEngine->notifyReplStartupRecoveryComplete(opCtx);
+
+            stdx::lock_guard lk(_mutex);
+            _setConfigState_inlock(kConfigReplicationDisabled);
+        } catch (DBException& e) {
+            if (ErrorCodes::isShutdownError(e.code())) {
+                // Shutdown was initiated while we were performing standalone oplog recovery. Do not
+                // crash, and transition out of startup configState so we can continue past
+                // _waitForStartUpComplete to continue shutting down.
+                LOGV2_WARNING(9687400,
+                              "Interrupted standalone oplog recovery due to shutdown",
+                              "error"_attr = e.toStatus());
+                stdx::lock_guard lk(_mutex);
+                _setConfigState_inlock(kConfigUninitialized);
+                return;
+            }
+            throw;
         }
-
-        // In standalone mode, inform the storage engine that startup recovery has completed. We
-        // should not be holding on to the replication coordinator mutex before calling this
-        // function to avoid deadlock.
-        auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
-        invariant(storageEngine);
-        storageEngine->notifyReplStartupRecoveryComplete(opCtx);
-
-        stdx::lock_guard lk(_mutex);
-        _setConfigState_inlock(kConfigReplicationDisabled);
         return;
     }
 
@@ -1076,6 +1094,17 @@ void ReplicationCoordinatorImpl::startup(OperationContext* opCtx,
         }
     } catch (DBException& e) {
         auto status = e.toStatus();
+        if (ErrorCodes::isShutdownError(status.code())) {
+            // Shutdown was initiated while we were performing standalone oplog recovery. Do not
+            // crash, and transition out of startup configState so we can continue past
+            // _waitForStartUpComplete to continue shutting down.
+            LOGV2_WARNING(9687401,
+                          "Interrupted loading local replica set config due to shutdown",
+                          "error"_attr = status);
+            stdx::lock_guard lk(_mutex);
+            _setConfigState_inlock(kConfigUninitialized);
+            return;
+        }
         LOGV2_FATAL_NOTRACE(
             6111701, "Failed to load local replica set config on startup", "status"_attr = status);
     }
@@ -5141,7 +5170,7 @@ void ReplicationCoordinatorImpl::_postWonElectionUpdateMemberState(WithLock lk) 
     _startHeartbeats_inlock(lk);
 
     invariant(!_catchupState);
-    _catchupState = std::make_unique<CatchupState>(this);
+    _catchupState = std::make_shared<CatchupState>(this);
     _catchupState->start_inlock(lk);
 }
 
@@ -5276,18 +5305,31 @@ void ReplicationCoordinatorImpl::CatchupState::signalHeartbeatUpdate_inlock() {
         ReplicationMetrics::get(getGlobalServiceContext()).incrementNumCatchUps();
     }
 
-    auto targetOpTimeCB = [this](Status status) {
-        // Double check the target time since stepdown may signal us too.
-        const auto myLastApplied = _repl->_getMyLastAppliedOpTime_inlock();
-        if (_targetOpTime <= myLastApplied) {
+    auto targetOpTimeCB = [weakSelf = weak_from_this()](Status status) {
+        // A non-OK status means the waiter was destroyed or failed: by abort(), by a change of
+        // target, or by stepdown or shutdown. That caller concludes catch-up itself and may be in
+        // the middle of destroying this state, so concluding it here as well would run abort()
+        // twice and use the state after it is freed.
+        if (!status.isOK()) {
+            return;
+        }
+        // The waiter can outlive this state, for example if remove() did not find it, so only the
+        // current catch-up may be concluded.
+        auto self = weakSelf.lock();
+        if (!self || self->_repl->_catchupState != self) {
+            return;
+        }
+        const auto myLastApplied = self->_repl->_getMyLastAppliedOpTime_inlock();
+        if (self->_targetOpTime <= myLastApplied) {
             LOGV2(21368,
                   "Caught up to the latest known optime successfully after becoming primary",
-                  "targetOpTime"_attr = _targetOpTime,
+                  "targetOpTime"_attr = self->_targetOpTime,
                   "myLastApplied"_attr = myLastApplied);
             // Report the number of ops applied during catchup in replSetGetStatus once the primary
             // is caught up.
-            ReplicationMetrics::get(getGlobalServiceContext()).setNumCatchUpOps(_numCatchUpOps);
-            abort_inlock(PrimaryCatchUpConclusionReason::kSucceeded);
+            ReplicationMetrics::get(getGlobalServiceContext())
+                .setNumCatchUpOps(self->_numCatchUpOps);
+            self->abort_inlock(PrimaryCatchUpConclusionReason::kSucceeded);
         }
     };
     auto pf = makePromiseFuture<void>();

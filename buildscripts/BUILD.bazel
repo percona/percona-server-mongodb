@@ -165,24 +165,6 @@ py_library(
     ],
 )
 
-py_binary(
-    name = "sbom_linter",
-    srcs = [
-        "sbom_linter.py",
-    ],
-    visibility = ["//visibility:public"],
-    deps = [
-        dependency(
-            "jsonschema",
-            group = "build-metrics",
-        ),
-        dependency(
-            "license-expression",
-            group = "lint",
-        ),
-    ],
-)
-
 bin.eslint_binary(
     name = "eslint_binary",
     # Allow the binary to be run outside bazel
@@ -293,6 +275,12 @@ py_library(
 )
 
 py_library(
+    name = "package_test_archive",
+    srcs = ["package_test_archive.py"],
+    visibility = ["//visibility:public"],
+)
+
+py_library(
     name = "package_test_provenance",
     srcs = [
         "bazel_spawn_pb2.py",
@@ -300,6 +288,7 @@ py_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
+        "//bazel/wrapper_hook:release_distro",
         dependency(
             "protobuf",
             group = "testing",
