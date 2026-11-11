@@ -705,6 +705,8 @@ last-continuous:
     ticket: SERVER-120668
   - test_file: jstests/change_streams/events_containing_version_literals.js
     ticket: SERVER-111406
+  - test_file: jstests/noPassthrough/transaction_open_limit.js
+    ticket: SERVER-108215
   - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
     ticket: SERVER-128433
   - test_file: jstests/sharding/change_stream_update_lookup_sharded_insert_update.js
@@ -717,6 +719,10 @@ last-continuous:
     ticket: SERVER-132650
   - test_file: jstests/replsets/sync_source_override_secondary_read_preference.js
     ticket: SERVER-104343
+  - test_file: jstests/fle2/create_encrypted_collection.js
+    ticket: SERVER-130498
+  - test_file: jstests/sharding/localhostAuthBypass.js
+    ticket: SERVER-134872
   suites: null
 last-lts:
   all:
@@ -1474,6 +1480,8 @@ last-lts:
     ticket: SERVER-120668
   - test_file: jstests/change_streams/events_containing_version_literals.js
     ticket: SERVER-111406
+  - test_file: jstests/noPassthrough/transaction_open_limit.js
+    ticket: SERVER-108215
   - test_file: jstests/noPassthrough/query/runtime_constants_user_roles_auth_bypass.js
     ticket: SERVER-128433
   - test_file: jstests/sharding/change_stream_update_lookup_sharded_insert_update.js
@@ -1486,4 +1494,8 @@ last-lts:
     ticket: SERVER-132650
   - test_file: jstests/replsets/sync_source_override_secondary_read_preference.js
     ticket: SERVER-104343
+  - test_file: jstests/fle2/create_encrypted_collection.js
+    ticket: SERVER-130498
+  - test_file: jstests/sharding/localhostAuthBypass.js
+    ticket: SERVER-134872
   suites: null

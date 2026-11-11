@@ -74,6 +74,7 @@
 #include "mongo/idl/server_parameter_test_util.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/pcre.h"
 #include "mongo/util/uuid.h"
 
 namespace mongo {
@@ -2982,6 +2983,74 @@ TEST_F(ChangeStreamStageTest, UsesResumeTokenAsSortKeyIfNeedsMergeIsFalse) {
 //
 // Test class for change stream of a single database.
 //
+TEST_F(ChangeStreamStageTest, ShowSystemEventsDoesNotChangeRequiredPrivileges) {
+    // 'showSystemEvents' must not require privileges beyond those of the stream's scope. Events on
+    // system.js are filtered out instead when the user cannot read system.js.
+    const auto collNss = NamespaceString::createNamespaceString_forTest("testdb", "userColl");
+    const auto dbNss =
+        NamespaceString::makeCollectionlessAggregateNSS(DatabaseName(boost::none, "testdb"));
+    const auto clusterNss = NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin);
+
+    const auto requiredPrivilegeCount = [](const NamespaceString& nss,
+                                           boost::optional<bool> showSystemEvents) {
+        BSONObjBuilder specBuilder;
+        if (showSystemEvents) {
+            specBuilder.append("showSystemEvents", *showSystemEvents);
+        }
+        auto spec = BSON(DSChangeStream::kStageName << specBuilder.obj());
+        auto liteParsed = DSChangeStream::LiteParsed::parse(nss, spec.firstElement());
+        return liteParsed->requiredPrivileges(false /*isMongos*/, false /*bypass*/).size();
+    };
+
+    for (const auto& showSystemEvents :
+         {boost::optional<bool>{}, boost::optional<bool>{false}, boost::optional<bool>{true}}) {
+        ASSERT_EQ(requiredPrivilegeCount(collNss, showSystemEvents), 1U);
+        ASSERT_EQ(requiredPrivilegeCount(dbNss, showSystemEvents), 1U);
+        ASSERT_EQ(requiredPrivilegeCount(clusterNss, showSystemEvents), 1U);
+    }
+}
+
+/**
+ * Tests the namespace regex of 'showSystemEvents' streams. The cases that depend on the user's
+ * privileges are covered by change_streams_show_system_events_auth.js.
+ */
+class ChangeStreamShowSystemEventsAuthTest : public ChangeStreamStageTest {
+protected:
+    const NamespaceString dbStreamNss =
+        NamespaceString::makeCollectionlessAggregateNSS(DatabaseName(boost::none, "testdb"));
+    const NamespaceString clusterStreamNss =
+        NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin);
+
+    // Returns whether a 'showSystemEvents' stream on 'streamNss' matches events on 'eventNs'.
+    bool streamMatches(const NamespaceString& streamNss, StringData eventNs) {
+        auto expCtx = getExpCtx();
+        expCtx->ns = streamNss;
+        DocumentSourceChangeStreamSpec spec;
+        spec.setShowSystemEvents(true);
+        expCtx->changeStreamSpec = spec;
+        return static_cast<bool>(
+            pcre::Regex(DSChangeStream::getNsRegexForChangeStream(expCtx)).matchView(eventNs));
+    }
+};
+
+TEST_F(ChangeStreamShowSystemEventsAuthTest, SystemJsVisibleWhenAuthorizationIsNotEnforced) {
+    ASSERT_TRUE(streamMatches(dbStreamNss, "testdb.system.js"));
+    ASSERT_TRUE(streamMatches(clusterStreamNss, "testdb.system.js"));
+}
+
+TEST_F(ChangeStreamShowSystemEventsAuthTest, RegexExceptSystemJsOnlyExcludesSystemJs) {
+    const pcre::Regex regex(std::string{"^testdb\\."} +
+                            DSChangeStream::kRegexAllCollectionsShowSystemEventsExceptSystemJs);
+    for (auto ns : {"testdb.userColl",
+                    "testdb.system.buckets.coll",
+                    "testdb.system.resharding.coll",
+                    "testdb.system.views"}) {
+        ASSERT_TRUE(regex.matchView(ns)) << ns;
+    }
+    ASSERT_FALSE(regex.matchView("testdb.system.js"));
+    ASSERT_FALSE(regex.matchView("testdb.system.users"));
+}
+
 class ChangeStreamStageDBTest : public ChangeStreamStageTest {
 public:
     ChangeStreamStageDBTest()
@@ -3094,6 +3163,32 @@ TEST_F(ChangeStreamStageDBTest, MatchFiltersAllSystemDotCollections) {
     nss = NamespaceString::createNamespaceString_forTest("unittests.system.keys");
     insert = makeOplogEntry(OpTypeEnum::kInsert, nss, BSON("_id" << 1));
     checkTransformation(insert, boost::none);
+}
+
+TEST_F(ChangeStreamStageDBTest, ShowSystemEventsReturnsSystemJsWhenAuthorizationIsNotEnforced) {
+    const auto spec = fromjson("{$changeStream: {showSystemEvents: true}}");
+    const auto systemJsNss = NamespaceString::createNamespaceString_forTest(
+        nss.db(), NamespaceString::kSystemDotJavascriptCollectionName);
+    auto insert = makeOplogEntry(OpTypeEnum::kInsert,
+                                 systemJsNss,
+                                 BSON("_id" << 1),
+                                 testUuid(),
+                                 boost::none,
+                                 BSON("_id" << 1));
+    Document expectedInsert{
+        {DSChangeStream::kIdField,
+         makeResumeToken(kDefaultTs, testUuid(), BSON("_id" << 1), DSChangeStream::kInsertOpType)},
+        {DSChangeStream::kOperationTypeField, DSChangeStream::kInsertOpType},
+        {DSChangeStream::kClusterTimeField, kDefaultTs},
+        {DSChangeStream::kWallTimeField, Date_t()},
+        {DSChangeStream::kFullDocumentField, D{{"_id", 1}}},
+        {DSChangeStream::kNamespaceField,
+         D{{"db", systemJsNss.db()}, {"coll", systemJsNss.coll()}}},
+        {DSChangeStream::kDocumentKeyField, D{{"_id", 1}}},
+    };
+
+    // Without authorization enforcement the system.js event is returned.
+    checkTransformation(insert, expectedInsert, spec);
 }
 
 TEST_F(ChangeStreamStageDBTest, TransformsEntriesForLegalClientCollectionsWithSystem) {

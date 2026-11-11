@@ -268,7 +268,11 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
-        /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
+        /*
+         * Use a sequentially consistent CAS to swap the on-page cell pointer to the off-page addr.
+         * This ensures the addr conversion is visible to readers before ref->home is later updated
+         * to the new child page during split. Pairs with the read barrier on the read side.
+         */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }
@@ -1485,6 +1489,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             for (; tmp != NULL && tmp != supd->onpage_upd; tmp = tmp->next)
                 WT_ASSERT(session, tmp == supd->onpage_tombstone || tmp->txnid == WT_TXN_ABORTED);
 #endif
+            /* Discard updates/tombstone after prev_onpage. */
             prev_onpage->next = NULL;
         }
 
@@ -1498,7 +1503,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
             /* Apply the modification. */
-            WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_col_modify(&cbt, recno, NULL, &upd, WT_UPDATE_INVALID, true, true));
             break;
         case WT_PAGE_ROW_LEAF:
             /* Build a key. */
@@ -1513,7 +1518,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
 
             /* Apply the modification. */
-            WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, true));
+            WT_ERR(__wt_row_modify(&cbt, key, NULL, &upd, WT_UPDATE_INVALID, true, true));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, orig->type));
