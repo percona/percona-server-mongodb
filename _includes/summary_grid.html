@@ -23,13 +23,13 @@
     <span class="stat-label">Files Affected</span>
   </div>
   <div class="stat-card additions">
-    {% assign additions = include.data.divergence.total_additions | default: 0 %}
-    {% include format_stat_number.html prefix="+" value=additions %}
+    {% assign additions = include.data.divergence.total_additions | default: 0
+    %} {% include format_stat_number.html prefix="+" value=additions %}
     <span class="stat-label">Additions</span>
   </div>
   <div class="stat-card deletions">
-    {% assign deletions = include.data.divergence.total_deletions | default: 0 %}
-    {% include format_stat_number.html prefix="-" value=deletions %}
+    {% assign deletions = include.data.divergence.total_deletions | default: 0
+    %} {% include format_stat_number.html prefix="-" value=deletions %}
     <span class="stat-label">Deletions</span>
   </div>
 </div>

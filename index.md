@@ -1,6 +1,7 @@
 ---
-layout: default
+layout: peak
 title: Fork Status
+nav: fork
 ---
 
 {% assign data = site.data.branches.master %}
@@ -20,6 +21,7 @@ title: Fork Status
 <p class="upstream-link">Upstream: <a href="{{ data.upstream_url | replace: '.git', '' }}" target="_blank">{{ data.upstream_url | replace: '.git', '' | split: '/' | last }}</a> ({{ data.upstream_branch }})</p>
 
 {% include filter_controls.html %}
+
 {% include commits_table.html data=data %}
 
 <script src="{{ '/assets/js/filter.js' | relative_url }}"></script>
