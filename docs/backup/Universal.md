@@ -2,6 +2,8 @@
 
 This document describes how to build, configure and use HotBackup for WiredTiger and RocksDB storage engines.
 
+Note. The `createBackup` command has been deprecated and will be removed in version 9.0; use Percona Backup for MongoDB instead.
+
 ## Building Percona Server for MongoDB
 
 When running SCons, from the top level of the MongoDB source tree, an extra option is needed to build the HotBackup commands. The `--hotbackup` flag must be added to the SCons arguments to build MongoDB.
