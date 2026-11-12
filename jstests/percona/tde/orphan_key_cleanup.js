@@ -15,7 +15,7 @@
 (function () {
     "use strict";
 
-    run("chmod", "600", TestData.keyFile);
+    run("chmod", "600", TestData.encryptionKeyFile);
 
     const dbPath = MongoRunner.dataPath + "psmdb1997-orphan-key-cleanup";
     const dbNames = ["psmdb1997_a", "psmdb1997_b", "psmdb1997_c"];
@@ -23,7 +23,7 @@
     const startOpts = {
         dbpath: dbPath,
         enableEncryption: "",
-        encryptionKeyFile: TestData.keyFile,
+        encryptionKeyFile: TestData.encryptionKeyFile,
         encryptionCipherMode: TestData.cipherMode,
     };
 
@@ -69,7 +69,11 @@
     }
 
     // The cleanup completion log line must be present.
-    assert.gte(cleanupIdx, 0, 'expected "Orphaned encryption key cleanup completed" (logId 29169) in log');
+    assert.gte(
+        cleanupIdx,
+        0,
+        'expected "Orphaned encryption key cleanup completed" (logId 29169) in log',
+    );
 
     // Ordering: if reconcile dropped any idents this startup, the cleanup
     // line must come AFTER the last "Dropping unknown ident" line. This is
@@ -79,7 +83,8 @@
         assert.lt(
             lastDropIdx,
             cleanupIdx,
-            "orphan-key cleanup (logId 29169) must come after the last 'Dropping " + "unknown ident' (logId 22251)",
+            "orphan-key cleanup (logId 29169) must come after the last 'Dropping " +
+                "unknown ident' (logId 22251)",
         );
     }
 
@@ -115,7 +120,11 @@
             if (m) cleanupDeleted2 = parseInt(m[1]);
         }
     }
-    assert.eq(cleanupDeleted2, 0, "on a second restart cleanup should find no orphans, got deleted=" + cleanupDeleted2);
+    assert.eq(
+        cleanupDeleted2,
+        0,
+        "on a second restart cleanup should find no orphans, got deleted=" + cleanupDeleted2,
+    );
 
     MongoRunner.stopMongod(conn);
 })();
