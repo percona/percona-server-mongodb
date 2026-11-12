@@ -485,6 +485,131 @@ functions:
     params:
       directory: ${git_project_directory|src}
 
+  "log into devprod container registry":
+    - command: ec2.assume_role
+      params:
+        role_arn: ${ecr_role_evergreen_arn}
+    - command: shell.exec
+      params:
+        shell: bash
+        include_expansions_in_env:
+          - AWS_ACCESS_KEY_ID
+          - AWS_SECRET_ACCESS_KEY
+          - AWS_SESSION_TOKEN
+        script: |
+          cd src
+          set -oe
+          attempts=0
+          max_attempts=4
+          while ! aws ecr get-login-password --region us-east-1 | podman login --password-stdin --username ${release_tools_container_registry_username_ecr} ${release_tools_container_registry_ecr}; do
+            [ "$attempts" -ge "$max_attempts" ] && exit 1
+            ((attempts++))
+            sleep 10
+          done
+
+  "upload waterfall artifact":
+    - command: s3.put
+      display_name: "upload artifact"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: ${upload_content_type}
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .sig file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.sig
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.sig
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: application/pgp-signature
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .sha1 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.sha1
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.sha1
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .sha256 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.sha256
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.sha256
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .md5 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.md5
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.md5
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+
+  "upload waterfall msi artifact":
+    - command: s3.put
+      display_name: "upload artifact"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: ${upload_content_type}
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .sha1 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.sha1
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.sha1
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .sha256 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.sha256
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.sha256
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+    - command: s3.put
+      display_name: "upload artifact .md5 file"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ${local_file}.md5
+        remote_file: server-waterfall/${project}/${revision}/${remote_file}.md5
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: text/plain
+        skip_existing: true
+
   "fetch artifacts": &fetch_artifacts
     command: s3.get
     params:
@@ -1391,7 +1516,7 @@ functions:
                 ${resmoke_args}                           \
                 $extra_args                               \
                 ${test_flags}                             \
-                --log=buildlogger                         \
+                ${resmoke_log_option|--log=buildlogger}   \
                 --staggerJobs=on                          \
                 --installDir=${install_dir|dist-test/bin} \
                 --buildId=${build_id}                     \
@@ -1820,68 +1945,97 @@ functions:
         exit $exit_status
 
   "generate compile expansions":
-    command: shell.exec
-    params:
-      working_dir: src
-      script: |
-        set -o errexit
-        set -o verbose
+    # Custom build hook (no-op unless the variant sets custom_build_version_suffix):
+    # compute MONGO_VERSION_OVERRIDE and apply it before the compile expansions are
+    # generated, so the override is folded into the version expansion. See
+    # etc/evergreen_yml_components/custom_builds/README.md.
+    - command: subprocess.exec
+      params:
+        binary: bash
+        add_expansions_to_env: true
+        args:
+          - "src/evergreen/custom_builds/set_version_override.sh"
+    - command: expansions.update
+      params:
+        file: src/custom_build_version.yml
+    - command: shell.exec
+      params:
+        working_dir: src
+        script: |
+          set -o errexit
+          set -o verbose
 
-        # We get the raw version string (r1.2.3-45-gabcdef) from git
-        MONGO_VERSION=$(git describe --abbrev=7)
-        # If this is a patch build, we add the patch version id to the version string so we know
-        # this build was a patch, and which evergreen task it came from
-        if [ "${is_patch}" = "true" ] && [ "${bypass_compile|false}" = "false" ]; then
-          MONGO_VERSION="$MONGO_VERSION-patch-${version_id}"
-        fi
-
-        ${activate_virtualenv}
-
-        # shared scons cache testing
-        # if 'scons_cache_scope' enabled and project level 'disable_shared_scons_cache' is not true
-        # 'scons_cache_scope' is set on a per variant basis
-        # 'disable_shared_scons_cache' is set on a project level and applies to all variants
-
-        # Shared - if scons_cache_scope is set, then use new shared scons cache settings
-        if [ ! -z ${scons_cache_scope} ]; then
-
-          if [ "${disable_shared_scons_cache}" = "true" ]; then
-
-            echo "SCons Cache disabled. All shared scons settings will be ignored"
-            scons_cache_scope=none
-
-          else
-            scons_cache_scope=${scons_cache_scope}
+          # Extract version from .bazelrc.target_mongo_version (e.g., "common --define=MONGO_VERSION=4.4.30").
+          # awk is used instead of grep -oP for portability (macOS grep does not support -P), and the
+          # result is checked explicitly because a pipeline would mask a read or match failure.
+          TARGET_MONGO_VERSION=$(awk -F'MONGO_VERSION=' '/MONGO_VERSION=/ { split($2, version, /[[:space:]]/); print version[1]; exit }' .bazelrc.target_mongo_version)
+          if [ -z "$TARGET_MONGO_VERSION" ]; then
+            echo "Unable to extract MONGO_VERSION from .bazelrc.target_mongo_version" >&2
+            exit 1
+          fi
+          MONGO_VERSION="r$TARGET_MONGO_VERSION"
+          # If this is a patch build, we add the patch version id to the version string so we know
+          # this build was a patch, and which evergreen task it came from
+          if [ "${is_patch}" = "true" ] && [ "${bypass_compile|false}" = "false" ]; then
+            MONGO_VERSION="$MONGO_VERSION-patch-${version_id}"
           fi
 
-          if [ "$scons_cache_scope" = "shared" ]; then
-            set +o errexit
-            if [ "Windows_NT" = "$OS" ]; then
-              ./win_mount.sh
+          # Forcefully override the version for purposes of testing against a different version than
+          # the branch is targeting.
+          #
+          # Artifacts from runs with this enabled still should not be used for a final (non-rc) public
+          # release unless the associated packaging tests have completed successfully.
+          if [ -n "${MONGO_VERSION_OVERRIDE|}" ]; then
+            MONGO_VERSION="${MONGO_VERSION_OVERRIDE|}"
+          fi
+
+          ${activate_virtualenv}
+
+          # shared scons cache testing
+          # if 'scons_cache_scope' enabled and project level 'disable_shared_scons_cache' is not true
+          # 'scons_cache_scope' is set on a per variant basis
+          # 'disable_shared_scons_cache' is set on a project level and applies to all variants
+
+          # Shared - if scons_cache_scope is set, then use new shared scons cache settings
+          if [ ! -z ${scons_cache_scope} ]; then
+
+            if [ "${disable_shared_scons_cache}" = "true" ]; then
+
+              echo "SCons Cache disabled. All shared scons settings will be ignored"
+              scons_cache_scope=none
+
             else
-              mount | grep "\/efs" > /dev/null
-              if [ $? -eq 0 ]; then
-                echo "Shared cache is already mounted"
-              else
-                echo "Shared cache - mounting file system"
-                ${set_sudo}
-                $sudo mount /efs
-              fi
+              scons_cache_scope=${scons_cache_scope}
             fi
-            set -o errexit
+
+            if [ "$scons_cache_scope" = "shared" ]; then
+              set +o errexit
+              if [ "Windows_NT" = "$OS" ]; then
+                ./win_mount.sh
+              else
+                mount | grep "\/efs" > /dev/null
+                if [ $? -eq 0 ]; then
+                  echo "Shared cache is already mounted"
+                else
+                  echo "Shared cache - mounting file system"
+                  ${set_sudo}
+                  $sudo mount /efs
+                fi
+              fi
+              set -o errexit
+            fi
+
+            echo "Shared Cache with setting: ${scons_cache_scope}"
+            MONGO_VERSION=$MONGO_VERSION SCONS_CACHE_MODE=${scons_cache_mode|nolinked} SCONS_CACHE_SCOPE=$scons_cache_scope IS_PATCH=${is_patch} IS_RELEASE=${is_release|} IS_COMMIT_QUEUE=${is_commit_queue|false} $python buildscripts/generate_compile_expansions_shared_cache.py --out compile_expansions.yml
+
+          # Legacy Expansion generation
+          else
+            echo "Using legacy expansion generation"
+            # Proceed with regular expansions generated
+            # This script converts the generated version string into a sanitized version string for
+            # use by scons and uploading artifacts as well as information about for the scons cache.
+            MONGO_VERSION=$MONGO_VERSION SCONS_CACHE_MODE=${scons_cache_mode|nolinked} USE_SCONS_CACHE=${use_scons_cache|false} IS_RELEASE=${is_release|} $python buildscripts/generate_compile_expansions.py --out compile_expansions.yml
           fi
-
-          echo "Shared Cache with setting: ${scons_cache_scope}"
-          MONGO_VERSION=$MONGO_VERSION SCONS_CACHE_MODE=${scons_cache_mode|nolinked} SCONS_CACHE_SCOPE=$scons_cache_scope IS_PATCH=${is_patch} IS_COMMIT_QUEUE=${is_commit_queue|false} $python buildscripts/generate_compile_expansions_shared_cache.py --out compile_expansions.yml
-
-        # Legacy Expansion generation
-        else
-          echo "Using legacy expansion generation"
-          # Proceed with regular expansions generated
-          # This script converts the generated version string into a sanitized version string for
-          # use by scons and uploading artifacts as well as information about for the scons cache.
-          MONGO_VERSION=$MONGO_VERSION SCONS_CACHE_MODE=${scons_cache_mode|nolinked} USE_SCONS_CACHE=${use_scons_cache|false} $python buildscripts/generate_compile_expansions.py --out compile_expansions.yml
-        fi
 
   "apply compile expansions":
     command: expansions.update
@@ -3763,6 +3917,15 @@ tasks:
 - name: compile
   depends_on: []
   commands:
+    # Custom build hook (no-op unless the variant sets custom_build_patch_files):
+    # apply the variant's patch files before compiling. See
+    # etc/evergreen_yml_components/custom_builds/README.md.
+    - command: subprocess.exec
+      params:
+        binary: bash
+        add_expansions_to_env: true
+        args:
+          - "src/evergreen/custom_builds/apply_patches.sh"
     - func: "scons compile"
       vars:
         targets: >-
@@ -3973,7 +4136,6 @@ tasks:
           --detect-odr-violations
           --separate-debug
         compiling_for_test: true
-    - func: "run diskstats"
     - func: "monitor process threads"
     - func: "collect system resource info"
     - func: "run tests"
@@ -4043,7 +4205,6 @@ tasks:
           --detect-odr-violations
           --separate-debug
         compiling_for_test: true
-    - func: "run diskstats"
     - func: "monitor process threads"
     - func: "collect system resource info"
     - func: "run tests"
@@ -7739,6 +7900,15 @@ tasks:
 
 - name: package
   commands:
+    # Custom build hook (no-op unless the variant sets custom_build_patch_files):
+    # apply the variant's patch files before compiling. See
+    # etc/evergreen_yml_components/custom_builds/README.md.
+    - command: subprocess.exec
+      params:
+        binary: bash
+        add_expansions_to_env: true
+        args:
+          - "src/evergreen/custom_builds/apply_patches.sh"
     - func: "scons compile"
       vars:
         targets: >-
@@ -7979,12 +8149,28 @@ tasks:
         aws_secret_remote: ${repo_aws_secret}
 
     # login to container registry
+    - command: ec2.assume_role
+      params:
+        role_arn: ${ecr_role_evergreen_arn}
     - command: shell.exec
       params:
         shell: bash
+        include_expansions_in_env:
+          - AWS_ACCESS_KEY_ID
+          - AWS_SECRET_ACCESS_KEY
+          - AWS_SESSION_TOKEN
         script: |
+          cd src
+
           set -oe
-          echo "${release_tools_container_registry_password}" | podman login --password-stdin --username ${release_tools_container_registry_username} ${release_tools_container_registry}
+          attempts=0
+          max_attempts=4
+
+          while ! aws ecr get-login-password --region us-east-1 | podman login --password-stdin --username ${release_tools_container_registry_username_ecr} ${release_tools_container_registry_ecr}; do
+            [ "$attempts" -ge "$max_attempts" ] && exit 1
+            ((attempts++))
+            sleep 10
+          done
 
     # signing windows artifacts
     - command: subprocess.exec
@@ -8618,9 +8804,330 @@ tasks:
     vars:
       resmoke_args: --suites=mqlrun
 
-#######################################
-#             Task Groups             #
-#######################################
+# Custom build delivery task. See
+# etc/evergreen_yml_components/custom_builds/README.md for an explanation of the
+# custom build framework and the expansions used here.
+#
+# Custom builds do not define their own compile task: the custom build hooks in
+# the shared "generate compile expansions" function and in the compile/package
+# tasks (MONGO_VERSION_OVERRIDE handling and patch application, gated on the
+# custom_build_* expansions) make the standard compile tasks themselves produce
+# the custom artifacts. All of the standard test tasks depend on compile, whose
+# patched build is what package archives, so the binaries under test are the
+# exact binaries being delivered. The task below only picks up the resulting
+# dist tarball (built and uploaded by the package task), smoke-tests it, and
+# delivers it to the consumer's S3 location.
+- name: custom_build_deliver
+  tags: ["assigned_to_jira_team_devprod_build"]
+  depends_on:
+  - name: package
+  commands:
+  - command: manifest.load
+  - func: "git get project"
+  - func: "set up virtualenv"
+  # prepare_upload.sh needs src_suffix (the branch path component of the delivery
+  # destination), which only exists in the generated compile expansions — generate
+  # and apply them, as the compile tasks do. "generate compile expansions" also
+  # runs the custom build version-override hook, so the expansions reflect
+  # MONGO_VERSION_OVERRIDE.
+  - func: "generate compile expansions"
+  - func: "apply compile expansions"
+  # The package task uploaded the dist tarball to the standard dist location in
+  # mciuploads (build_id is shared by all tasks of this variant's build).
+  - command: s3.get
+    display_name: "fetch custom build dist tarball"
+    params:
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}.${ext|tgz}
+      local_file: dist-stripped.${ext|tgz}
+      bucket: mciuploads
+  - command: subprocess.exec
+    display_name: "verify custom build dist"
+    type: test
+    params:
+      binary: bash
+      add_expansions_to_env: true
+      args:
+      - "src/evergreen/custom_builds/verify_dist.sh"
+      - "dist-stripped.${ext|tgz}"
+  # Deliver the tarball to the consumer's location. Patch builds are redirected to a
+  # patch-specific path by prepare_upload.sh so they never overwrite the artifact the
+  # consumer picks up.
+  - command: subprocess.exec
+    display_name: "prepare custom build upload"
+    params:
+      binary: bash
+      add_expansions_to_env: true
+      args:
+      - "src/evergreen/custom_builds/prepare_upload.sh"
+      - "dist-stripped.${ext|tgz}"
+  - command: expansions.update
+    display_name: "apply custom build upload expansions"
+    params:
+      file: custom_build_upload.yml
+  # Uses the aws_key_build/aws_secret_build project variables: the standard
+  # project credentials (aws_key/aws_secret) have no PutObject on
+  # mdb-build-private, which is managed with dedicated uploader credentials
+  # (the same pattern as the release uploads). The object is private; consumers
+  # download it via signed URLs.
+  - command: s3.put
+    display_name: "deliver custom build dist tarball"
+    type: test
+    params:
+      aws_key: ${aws_key_build}
+      aws_secret: ${aws_secret_build}
+      local_file: dist-stripped-custom.${ext|tgz}
+      remote_file: ${custom_build_upload_remote_file}
+      bucket: ${custom_build_upload_bucket}
+      permissions: private
+      visibility: signed
+      content_type: application/tar
+      display_name: Custom Build Dist Tarball
+
+- name: save_waterfall_artifacts_binaries
+  run_on: rhel8.7-small
+  tags: ["assigned_to_jira_team_devprod_release_infrastructure", "auxiliary"]
+  allowed_requesters: ["commit"]
+  stepback: false
+  depends_on:
+    - name: package
+    - name: jsCore
+  commands:
+    - command: manifest.load
+    - *git_get_project
+    - *fetch_artifacts
+    - func: "set up virtualenv"
+    - func: "apply compile expansions"
+    - command: s3.get
+      display_name: "fetch dist tarball"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}.${ext|tgz}
+        bucket: mciuploads
+        local_file: ./src/mongodb-${push_name}-${push_arch}-${version}.${ext|tgz}
+    - command: s3.get
+      display_name: "fetch dist debugsymbols"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}-debugsymbols.${ext|tgz}
+        bucket: mciuploads
+        local_file: ./src/mongodb-${push_name}-${push_arch}-debugsymbols-${version}.${ext|tgz}
+    - func: "log into devprod container registry"
+    - command: subprocess.exec
+      display_name: "sign and generate checksums"
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/waterfall_gpg_sign.sh"
+          - "mongodb-${push_name}-${push_arch}-${version}.${ext|tgz}"
+          - "mongodb-${push_name}-${push_arch}-debugsymbols-${version}.${ext|tgz}"
+        env:
+          GARASIGN_USERNAME: ${garasign_gpg_username_44}
+          GARASIGN_PASSWORD: ${garasign_gpg_password_44}
+          GARASIGN_IMAGE: ${garasign_gpg_image_ecr}
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mongodb-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        remote_file: "mongodb-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        upload_content_type: "${content_type|application/gzip}"
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mongodb-${push_name}-${push_arch}-debugsymbols-${version}.${ext|tgz}"
+        remote_file: "mongodb-${push_name}-${push_arch}-debugsymbols-${version}.${ext|tgz}"
+        upload_content_type: "${content_type|application/gzip}"
+
+- name: save_waterfall_artifacts_binaries_windows
+  run_on: rhel8.7-small
+  tags: ["assigned_to_jira_team_devprod_release_infrastructure", "auxiliary"]
+  allowed_requesters: ["commit"]
+  stepback: false
+  depends_on:
+    - name: package
+    - name: jsCore
+  commands:
+    - command: manifest.load
+    - *git_get_project
+    - *fetch_artifacts
+    - func: "fetch packages"
+    - func: "set up virtualenv"
+    - func: "apply compile expansions"
+    - command: s3.get
+      display_name: "fetch dist zip"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}.zip
+        bucket: mciuploads
+        local_file: ./src/mongodb-${push_name}-${push_arch}-${version}.zip
+    - command: s3.get
+      display_name: "fetch dist debugsymbols"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${project}/${build_variant}/${revision}/dist/mongo-${build_id}-debugsymbols.zip
+        bucket: mciuploads
+        local_file: ./src/mongodb-${push_name}-${push_arch}-debugsymbols-${version}.zip
+    - func: "log into devprod container registry"
+    - command: subprocess.exec
+      display_name: "sign and generate checksums"
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/waterfall_gpg_sign.sh"
+          - "mongodb-${push_name}-${push_arch}-${version}.zip"
+          - "mongodb-${push_name}-${push_arch}-debugsymbols-${version}.zip"
+        env:
+          GARASIGN_USERNAME: ${garasign_gpg_username_44}
+          GARASIGN_PASSWORD: ${garasign_gpg_password_44}
+          GARASIGN_IMAGE: ${garasign_gpg_image_ecr}
+    - command: subprocess.exec
+      display_name: "sign msi"
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/waterfall_jsign_sign.sh"
+          - "./build/opt/msi/mongodb-win32-${push_arch}-windows-${version}.msi"
+          - "mongodb-${push_name}-${push_arch}-${version}-signed.msi"
+        env:
+          GARASIGN_USERNAME: ${garasign_jsign_username}
+          GARASIGN_PASSWORD: ${garasign_jsign_password}
+          GARASIGN_IMAGE: ${garasign_jsign_image_ecr}
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mongodb-${push_name}-${push_arch}-${version}.zip"
+        remote_file: "mongodb-${push_name}-${push_arch}-${version}.zip"
+        upload_content_type: "application/zip"
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mongodb-${push_name}-${push_arch}-debugsymbols-${version}.zip"
+        remote_file: "mongodb-${push_name}-${push_arch}-debugsymbols-${version}.zip"
+        upload_content_type: "application/zip"
+    - func: "upload waterfall msi artifact"
+      vars:
+        local_file: "./src/mongodb-${push_name}-${push_arch}-${version}-signed.msi"
+        remote_file: "mongodb-${push_name}-${push_arch}-${version}-signed.msi"
+        upload_content_type: "application/x-msi"
+
+- name: save_waterfall_artifacts_cryptd
+  run_on: rhel8.7-small
+  tags: ["assigned_to_jira_team_devprod_release_infrastructure", "auxiliary"]
+  allowed_requesters: ["commit"]
+  stepback: false
+  depends_on:
+    - name: package
+    - name: jsCore
+  commands:
+    - command: manifest.load
+    - *git_get_project
+    - *fetch_artifacts
+    - func: "set up virtualenv"
+    - func: "apply compile expansions"
+    - command: s3.get
+      display_name: "fetch cryptd binary"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${mongo_cryptd}
+        bucket: mciuploads
+        local_file: ./src/mongodb-cryptd-${push_name}-${push_arch}-${version}.${ext|tgz}
+    - func: "log into devprod container registry"
+    - command: subprocess.exec
+      display_name: "sign and generate checksums"
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/waterfall_gpg_sign.sh"
+          - "mongodb-cryptd-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        env:
+          GARASIGN_USERNAME: ${garasign_gpg_username_44}
+          GARASIGN_PASSWORD: ${garasign_gpg_password_44}
+          GARASIGN_IMAGE: ${garasign_gpg_image_ecr}
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mongodb-cryptd-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        remote_file: "mongodb-cryptd-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        upload_content_type: "${content_type|application/gzip}"
+
+- name: save_waterfall_artifacts_mh
+  run_on: rhel8.7-small
+  tags: ["assigned_to_jira_team_devprod_release_infrastructure", "auxiliary"]
+  allowed_requesters: ["commit"]
+  stepback: false
+  depends_on:
+    - name: package
+    - name: jsCore
+  commands:
+    - command: manifest.load
+    - *git_get_project
+    - *fetch_artifacts
+    - func: "set up virtualenv"
+    - func: "apply compile expansions"
+    - command: s3.get
+      display_name: "fetch mh binary"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${mh_archive}
+        bucket: mciuploads
+        local_file: ./src/mh-${push_name}-${push_arch}-${version}.${ext|tgz}
+    - func: "log into devprod container registry"
+    - command: subprocess.exec
+      display_name: "sign and generate checksums"
+      params:
+        binary: bash
+        args:
+          - "./src/evergreen/waterfall_gpg_sign.sh"
+          - "mh-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        env:
+          GARASIGN_USERNAME: ${garasign_gpg_username_44}
+          GARASIGN_PASSWORD: ${garasign_gpg_password_44}
+          GARASIGN_IMAGE: ${garasign_gpg_image_ecr}
+    - func: "upload waterfall artifact"
+      vars:
+        local_file: "./src/mh-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        remote_file: "mh-${push_name}-${push_arch}-${version}.${ext|tgz}"
+        upload_content_type: "${content_type|application/gzip}"
+
+- name: save_waterfall_artifacts_linux_packages
+  run_on: rhel8.7-small
+  tags: ["assigned_to_jira_team_devprod_release_infrastructure", "auxiliary"]
+  allowed_requesters: ["commit"]
+  stepback: false
+  depends_on:
+    - name: package
+    - name: jsCore
+  commands:
+    - command: manifest.load
+    - *git_get_project
+    - *fetch_artifacts
+    - func: "set up virtualenv"
+    - func: "apply compile expansions"
+    - command: s3.get
+      display_name: "fetch linux packages file"
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: ${project}/${build_variant}/${revision}/artifacts/${build_id}-packages.tgz
+        bucket: mciuploads
+        local_file: ./src/mongo-packages-${push_name}-${push_arch}-${version}.tgz
+    - command: s3.put
+      display_name: "upload artifact"
+      params:
+        role_arn: ${waterfall_role_arn}
+        local_file: ./src/mongo-packages-${push_name}-${push_arch}-${version}.tgz
+        remote_file: server-waterfall/${project}/${revision}/mongo-packages-${push_name}-${push_arch}-${version}.tgz
+        bucket: origin-mongodb-server-waterfall
+        permissions: private
+        visibility: signed
+        content_type: "application/gzip"
+        skip_existing: true
+
+ #######################################
+ #             Task Groups             #
+ #######################################
 task_groups:
 - <<: *compile_task_group_template
   name: compile_without_package_TG
@@ -8694,6 +9201,19 @@ task_groups:
   - dbtest
   - compile_all
   - package
+
+# Same tasks as compile_all_run_unittests_TG, but with package right after compile:
+# a task group stops running its remaining tasks after a failure, and this order
+# keeps a test failure from blocking the build (and therefore custom_build_deliver).
+# Used by the custom build variants.
+- <<: *compile_task_group_template
+  name: compile_package_run_unittests_TG
+  tasks:
+  - compile
+  - package
+  - unittests
+  - dbtest
+  - compile_all
 
 - name: clang_tidy_TG
   setup_group_can_fail_task: true
@@ -8912,7 +9432,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu1804-build
+    - release-ubuntu1804-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -8933,6 +9453,8 @@ buildvariants:
   - name: watchdog_wiredtiger
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: ubuntu2204
@@ -8999,7 +9521,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu1804-build
+    - release-ubuntu1804-build
   - name: compile_ninja_next_TG
     distros:
     - ubuntu1804-build
@@ -9025,6 +9547,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .watchdog
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: enterprise-ubuntu2204-64
@@ -9089,7 +9615,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu1604-build
+    - release-ubuntu1604-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -9122,6 +9648,8 @@ buildvariants:
   - name: .sharding .txns
   - name: .stitch
   - name: .ssl
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-ubuntu1604-arm64
@@ -9149,6 +9677,8 @@ buildvariants:
     test_flags: --excludeWithAnyTags=requires_increased_memlock_limits
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-ubuntu1604-arm64-large
   - name: aggregation
   - name: .auth !.audit !.multiversion !.jscore
   - name: .misc_js
@@ -9161,6 +9691,9 @@ buildvariants:
   - name: sharding_gen
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: enterprise-ubuntu1804-arm64
@@ -9188,6 +9721,8 @@ buildvariants:
     scons_cache_scope: shared
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-ubuntu1804-arm64-build
   - name: aggregation
   - name: aggregation_wildcard_fuzzer_gen
   - name: .auth !.audit !.multiversion !.jscore
@@ -9206,6 +9741,9 @@ buildvariants:
   - name: sharding_jscore_passthrough
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: enterprise-ubuntu2204-arm64
@@ -9269,8 +9807,12 @@ buildvariants:
     scons_cache_scope: shared
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-ubuntu1804-arm64-build
   - name: jsCore
   - name: replica_sets_jscore_passthrough
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: ubuntu2204-arm64
@@ -9320,7 +9862,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu2004-large
+    - release-ubuntu2004-large
   - name: .aggfuzzer .common !.multiversion
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -9340,6 +9882,8 @@ buildvariants:
   - name: sharding_jscore_passthrough
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-ubuntu2004-64
@@ -9366,7 +9910,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu2004-large
+    - release-ubuntu2004-large
   - name: compile_ninja_next_TG
     distros:
     - ubuntu2004-large
@@ -9388,6 +9932,10 @@ buildvariants:
   - name: sasl
   - name: sharding_auth_gen
   - name: snmp
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: enterprise-ubuntu2004-arm64
@@ -9414,6 +9962,8 @@ buildvariants:
     scons_cache_scope: shared
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-ubuntu2004-arm64-large
   - name: aggregation
   - name: aggregation_wildcard_fuzzer_gen
   - name: .auth !.audit !.multiversion !.jscore
@@ -9432,6 +9982,9 @@ buildvariants:
   - name: sharding_jscore_passthrough
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: ubuntu2004-arm64
@@ -9458,8 +10011,12 @@ buildvariants:
     scons_cache_scope: shared
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-ubuntu2004-arm64-large
   - name: jsCore
   - name: replica_sets_jscore_passthrough
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-linux-64-amazon-ami
@@ -9485,7 +10042,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon1-2018-build
+    - release-amazon1-2018-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.gle !.multiversion
@@ -9508,6 +10065,9 @@ buildvariants:
   - name: slow1_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: amazon
@@ -9534,7 +10094,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon1-2018-build
+    - release-amazon1-2018-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -9555,6 +10115,8 @@ buildvariants:
   - name: .sharding .txns
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-amazon2
@@ -9581,7 +10143,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon2-build
+    - release-amazon2-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: audit
@@ -9603,6 +10165,9 @@ buildvariants:
   - name: slow1_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: amazon2
@@ -9630,7 +10195,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon2-build
+    - release-amazon2-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -9651,6 +10216,8 @@ buildvariants:
   - name: .sharding .txns
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-amazon2-arm64
@@ -9673,7 +10240,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon2-arm64-large
+    - release-amazon2-arm64-large
   - name: .aggfuzzer !.multiversion
   - name: audit
   - name: auth_audit_gen
@@ -9697,6 +10264,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: amazon2-arm64
@@ -9720,7 +10291,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - amazon2-arm64-large
+    - release-amazon2-arm64-large
   - name: aggregation
   - name: .auth !.audit !.multiversion
   - name: causally_consistent_jscore_txns_passthrough
@@ -9739,6 +10310,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs !.multiversion
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: tig-daily-cron
@@ -9889,7 +10462,7 @@ buildvariants:
   tasks:
     - name: compile_all_run_unittests_TG
       distros:
-        - windows-vsCurrent-large
+        - release-windows-vsCurrent-large
     - name: audit
     - name: auth_audit_gen
     - name: buildscripts_test
@@ -9923,6 +10496,9 @@ buildvariants:
     - name: sharding_opportunistic_secondary_targeting_gen
     - name: snmp
     - name: unittest_shell_hang_analyzer_gen
+    - name: save_waterfall_artifacts_binaries_windows
+    - name: save_waterfall_artifacts_cryptd
+    - name: save_waterfall_artifacts_mh
     - name: push
 
 - <<: *enterprise-windows-nopush-template
@@ -10002,7 +10578,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - windows-vsCurrent-large
+    - release-windows-vsCurrent-large
   - name: .aggfuzzer
   - name: .aggregation !.auth !.encrypt !.unwind !.large
   - name: .aggregation .large
@@ -10035,6 +10611,7 @@ buildvariants:
   - name: .ssl
   - name: .stitch
   - name: .updatefuzzer
+  - name: save_waterfall_artifacts_binaries_windows
   - name: push
 
 - name: enterprise-windows-debug-unoptimized
@@ -10082,6 +10659,8 @@ buildvariants:
     test_flags: --excludeWithAnyTags=requires_increased_memlock_limits --enableEnterpriseTests=off
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-macos-1014
   - name: .aggregation !.auth !.encrypt !.unwind
   - name: .auth .gle
   - name: auth_gen
@@ -10109,6 +10688,7 @@ buildvariants:
   - name: .sharding .txns
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
   - name: push
 
 - name: macos-debug
@@ -10152,6 +10732,8 @@ buildvariants:
     resmoke_jobs_max: 6
   tasks:
   - name: compile_all_run_unittests_TG
+    distros:
+    - release-macos-1014
   - name: compile_ninja_next_TG
   - name: audit
   - name: auth_audit_gen
@@ -10164,6 +10746,9 @@ buildvariants:
   - name: replica_sets_auth_gen
   - name: replica_sets_jscore_passthrough
   - name: sasl
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: push
 
 ###########################################
@@ -10253,7 +10838,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel62-large
+    - release-rhel62-large
   - name: lint_pylinters
   - name: lint_clang_format
   - name: lint_eslint
@@ -10327,6 +10912,10 @@ buildvariants:
   - name: snmp
   - name: .stitch
   - name: secondary_reads_passthrough_gen
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
   - name: server_discovery_and_monitoring_json_test_TG
   - name: server_selection_json_test_TG
@@ -10801,7 +11390,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel70
+    - release-rhel70
   - name: compile_build_tools_next_TG
     distros:
     - rhel70
@@ -10834,6 +11423,10 @@ buildvariants:
   - name: snmp
   - name: .stitch
   - name: .updatefuzzer
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - &enterprise-rhel-80-64-bit-template
@@ -10859,7 +11452,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel80-build
+    - release-rhel80-build
   - name: .aggfuzzer
   - name: audit
   - name: auth_audit_gen
@@ -10884,6 +11477,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: enterprise-rhel-82-arm64
@@ -10907,7 +11504,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel82-arm64-large
+    - release-rhel82-arm64-large
   - name: .aggfuzzer !.multiversion
   - name: audit
   - name: auth_audit_gen
@@ -10931,6 +11528,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - <<: *enterprise-rhel-70-64-bit-template
@@ -11016,7 +11617,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel81-power8-large
+    - release-rhel81-power8-large
   - name: .aggregation .common
   - name: audit
   - name: .auth !.multiversion !.jscore
@@ -11035,6 +11636,9 @@ buildvariants:
   - name: .sharding .common !.multiversion
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: ubuntu1604-debug
@@ -11107,7 +11711,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel62-large
+    - release-rhel62-large
   - name: aggregation
   - name: .auth !.multiversion !.audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11126,6 +11730,8 @@ buildvariants:
   - name: .sharding .txns
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: rhel70
@@ -11151,7 +11757,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel70
+    - release-rhel70
   - name: aggregation
   - name: .auth !.audit !.multiversion
   - name: causally_consistent_jscore_txns_passthrough
@@ -11171,6 +11777,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: rhel80
@@ -11196,7 +11804,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel80-build
+    - release-rhel80-build
   - name: aggregation
   - name: .auth !.audit !.multiversion
   - name: causally_consistent_jscore_txns_passthrough
@@ -11216,6 +11824,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: rhel-82-arm64
@@ -11239,7 +11849,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel82-arm64-large
+    - release-rhel82-arm64-large
   - name: aggregation
   - name: .auth !.audit !.multiversion
   - name: causally_consistent_jscore_txns_passthrough
@@ -11258,6 +11868,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs !.multiversion
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 # This variant compiles on RHEL 7.0 and runs tests on RHEL 7.6
@@ -11303,7 +11915,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - rhel71-power8-build
+    - release-rhel71-power8-build
   - name: .aggregation .common
   - name: audit
   - name: .auth !.multiversion !.jscore
@@ -11322,6 +11934,9 @@ buildvariants:
   - name: .sharding .common !.multiversion
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: enterprise-rhel-72-s390x
@@ -11351,7 +11966,7 @@ buildvariants:
   tasks:
   - name: small_compile_TG
     distros:
-    - rhel72-zseries-build
+    - release-rhel72-zseries-build
   - name: .aggregation .common
   - name: audit
   - name: .auth !.multiversion !.jscore
@@ -11370,6 +11985,9 @@ buildvariants:
   - name: .sharding .common !.multiversion
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 ###########################################
@@ -11399,7 +12017,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - ubuntu1604-build
+    - release-ubuntu1604-build
   - name: .aggfuzzer .common
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11417,6 +12035,10 @@ buildvariants:
   - name: snmp
   - name: .stitch
   - name: .watchdog
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 
@@ -11515,7 +12137,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - suse12-sp5-large
+    - release-suse12-sp5-large
   - name: .aggfuzzer .common
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11529,6 +12151,9 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: suse12
@@ -11554,7 +12179,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - suse12-sp5-large
+    - release-suse12-sp5-large
   - name: .aggfuzzer .common
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -11576,6 +12201,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-suse15-64
@@ -11598,7 +12225,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - suse15-build
+    - release-suse15-build
   - name: .aggfuzzer .common !.multiversion
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11612,6 +12239,9 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
   - name: .publish
 
 - name: suse15
@@ -11637,7 +12267,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - suse15-build
+    - release-suse15-build
   - name: .aggfuzzer .common !.multiversion
   - name: aggregation
   - name: .auth !.audit !.multiversion
@@ -11656,6 +12286,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs !.multiversion
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 ###########################################
@@ -11685,7 +12317,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - debian92-build
+    - release-debian92-build
   - name: .aggfuzzer .common
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11699,6 +12331,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: debian92
@@ -11724,7 +12360,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - debian92-build
+    - release-debian92-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: aggregation_auth
@@ -11744,6 +12380,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 - name: enterprise-debian10-64
@@ -11769,7 +12407,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - debian10-build
+    - release-debian10-build
   - name: .aggfuzzer .common
   - name: audit
   - name: causally_consistent_jscore_txns_passthrough
@@ -11783,6 +12421,10 @@ buildvariants:
   - name: sharding_auth_gen
   - name: snmp
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
+  - name: save_waterfall_artifacts_cryptd
+  - name: save_waterfall_artifacts_mh
   - name: .publish
 
 - name: debian10
@@ -11808,7 +12450,7 @@ buildvariants:
   tasks:
   - name: compile_all_run_unittests_TG
     distros:
-    - debian10-build
+    - release-debian10-build
   - name: .aggfuzzer .common
   - name: aggregation
   - name: aggregation_auth
@@ -11828,6 +12470,8 @@ buildvariants:
   - name: .sharding .common !.op_query !.csrs
   - name: .ssl
   - name: .stitch
+  - name: save_waterfall_artifacts_binaries
+  - name: save_waterfall_artifacts_linux_packages
   - name: .publish
 
 ################################
@@ -12402,3 +13046,114 @@ buildvariants:
   tasks:
   - name: sync_repo_with_copybara
     priority: 50
+
+###########################################
+#       Custom build buildvariants        #
+###########################################
+
+# Custom build variants. See etc/evergreen_yml_components/custom_builds/README.md for
+# an explanation of the custom build framework and the expansions used here.
+#
+# The variants below produce the MCAS (Microsoft Defender for Cloud Apps, formerly
+# Adallom) jemalloc builds of 4.4 — community builds that link jemalloc instead of
+# tcmalloc, replacing the one-off hotfix process (previously HELP-95127, where the
+# same change was committed directly on a hotfix branch and artifacts were copied to
+# S3 by hand). Each variant:
+# - applies the mcas-jemalloc-v4.4-*.patch files (the vendored jemalloc-4.3.1, the
+#   SCons allocator wiring, and the bundled fixes MCAS receives) before compiling,
+# - builds with --allocator=jemalloc (the patch adds the jemalloc allocator option
+#   but does not change the "auto" default) and
+#   MONGO_VERSION_OVERRIDE=r4.4.31-mcas-jemalloc via the shared
+#   "generate compile expansions" hook, so every binary carries the custom version,
+# - runs the standard compile/package task group plus a smoke set of test tasks
+#   (the test tasks exercise the exact binaries being delivered),
+# - delivers the dist tarball to s3://mdb-build-private/mcas/version/... via
+#   custom_build_deliver (patch builds are redirected to custom-build-patches/).
+#
+# scons_cache_scope is "none" so jemalloc objects never enter the shared cache used
+# by the stock (tcmalloc) variants.
+
+- name: custom-build-mcas-jemalloc-ubuntu1804
+  display_name: "Custom Build: MCAS jemalloc Ubuntu 18.04 (x86_64)"
+  tags: []
+  cron: "0 4 * * *"
+  run_on:
+  - release-ubuntu1804-test
+  expansions:
+    custom_build_version_suffix: mcas-jemalloc
+    # Latest released 4.4 version; bump when MCAS picks up a newer 4.4 release.
+    custom_build_base_version: "4.4.31"
+    custom_build_patch_files: etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-third-party.patch etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-build.patch etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-server.patch
+    custom_build_upload_bucket: mdb-build-private
+    custom_build_upload_path_prefix: mcas/version
+    custom_build_verify_allocator: jemalloc
+    push_arch: x86_64-ubuntu1804
+    compile_flags: --ssl --ocsp-stapling=off --allocator=jemalloc MONGO_DISTMOD=ubuntu1804 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --modules=
+    # logkeeper2.build.10gen.cc (the buildlogger server this branch's resmoke logs
+    # to) is decommissioned, so every test task would fail before running any tests.
+    # Log to the console (the Evergreen task log) instead.
+    resmoke_log_option: --log=console
+    multiversion_platform: ubuntu1804
+    multiversion_edition: targeted
+    test_flags: --excludeWithAnyTags=requires_ocsp_stapling --enableEnterpriseTests=off
+    has_packages: true
+    packager_script: packager.py
+    packager_arch: x86_64
+    packager_distro: ubuntu1804
+    repo_edition: org
+    scons_cache_scope: none
+    large_distro_name: ubuntu1804-build
+  tasks:
+  - name: custom_build_deliver
+    distros:
+    - release-ubuntu1804-test
+  - name: compile_package_run_unittests_TG
+    distros:
+    - release-ubuntu1804-build
+  # Smoke set: this branch has no .development_critical/.release_critical selectors;
+  # aggregation + jscore broadly exercise the jemalloc-linked binaries.
+  - name: aggregation
+  - name: .jscore .common
+
+- name: custom-build-mcas-jemalloc-amazon2
+  display_name: "Custom Build: MCAS jemalloc Amazon Linux 2 (x86_64)"
+  tags: []
+  cron: "0 4 * * *"
+  run_on:
+  - release-amazon2-test
+  expansions:
+    custom_build_version_suffix: mcas-jemalloc
+    # Latest released 4.4 version; bump when MCAS picks up a newer 4.4 release.
+    custom_build_base_version: "4.4.31"
+    custom_build_patch_files: etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-third-party.patch etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-build.patch etc/evergreen_yml_components/custom_builds/patches/mcas-jemalloc-v4.4-server.patch
+    custom_build_upload_bucket: mdb-build-private
+    custom_build_upload_path_prefix: mcas/version
+    custom_build_verify_allocator: jemalloc
+    push_arch: x86_64-amazon2
+    test_flags: >-
+      --excludeWithAnyTags=SERVER-34286 --enableEnterpriseTests=off
+    compile_flags: --ssl --allocator=jemalloc MONGO_DISTMOD=amazon2 -j$(grep -c ^processor /proc/cpuinfo) --variables-files=etc/scons/mongodbtoolchain_v3_gcc.vars --modules=
+    # logkeeper2.build.10gen.cc (the buildlogger server this branch's resmoke logs
+    # to) is decommissioned, so every test task would fail before running any tests.
+    # Log to the console (the Evergreen task log) instead.
+    resmoke_log_option: --log=console
+    multiversion_platform: amazon
+    multiversion_edition: targeted
+    has_packages: true
+    packager_script: packager.py
+    packager_arch: x86_64
+    packager_distro: amazon2
+    repo_edition: org
+    scons_cache_scope: none
+    large_distro_name: amazon2-build
+  tasks:
+  - name: custom_build_deliver
+    distros:
+    - release-amazon2-test
+  - name: compile_package_run_unittests_TG
+    distros:
+    - release-amazon2-build
+  # Smoke set: this branch has no .development_critical/.release_critical selectors;
+  # aggregation + jscore broadly exercise the jemalloc-linked binaries.
+  - name: aggregation
+  - name: .jscore .common
