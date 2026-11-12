@@ -17,6 +17,7 @@
 #include "mongo/bson/util/builder_fwd.h"
 #include "mongo/config.h"  // IWYU pragma: keep
 #include "mongo/platform/decimal128.h"
+#include "mongo/stdx/utility.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/str.h"
@@ -35,11 +36,27 @@
 #include <utility>
 #include <vector>
 
+#include <boost/optional.hpp>
 #include <fmt/format.h>
 
 [[MONGO_MOD_PUBLIC]];
 
 namespace mongo {
+namespace bson_details {
+MONGO_COMPILER_NORETURN void tassertedBSONOverread();
+
+/**
+ * Prefer this over `tassert` for errors within BSON hot paths.
+ * It avoids inline argument-setup and code-size overhead at
+ * each call site.
+ */
+MONGO_COMPILER_ALWAYS_INLINE inline void tassertBSONOverread(bool cond) {
+    if (MONGO_unlikely(!cond)) {
+        tassertedBSONOverread();
+    }
+}
+}  // namespace bson_details
+
 class BSONObj;
 
 class BSONElement;
@@ -92,6 +109,24 @@ public:
     using ComparisonRulesSet = BSONComparatorInterfaceBase<BSONElement>::ComparisonRulesSet;
 
     /**
+     * Constant double representation of 2^63, the smallest value that will overflow a long long.
+     *
+     * It is not safe to obtain this value by casting std::numeric_limits<long long>::max() to
+     * double, because the conversion loses precision, and the C++ standard leaves it up to the
+     * implementation to decide whether to round up to 2^63 or round down to the next representable
+     * value (2^63 - 2^10).
+     */
+    static const double kLongLongMaxPlusOneAsDouble;
+
+    /**
+     * Constant 'long long' representation of 2^53 (and -2^53). This is the largest (and smallest)
+     * 'long long' such that all 'long long's between the two can be safely represented as a double
+     * without losing precision.
+     */
+    static const long long kLargestSafeLongLongAsDouble;
+    static const long long kSmallestSafeLongLongAsDouble;
+
+    /**
      * Compares two BSON elements of the same canonical type.
      *
      * Returns <0 if 'l' is less than the element 'r'.
@@ -103,6 +138,60 @@ public:
                                ComparisonRulesSet rules,
                                const StringDataComparator* comparator);
 
+    /**
+     * For a buffer representing a BSON element, returns the size of the value that is located
+     * after the field name.
+     */
+    MONGO_COMPILER_ALWAYS_INLINE static int valueSizeFromBuffer(std::span<const char> buffer,
+                                                                int fieldNameSize) {
+        auto type = static_cast<uint8_t>(buffer.front());
+        int32_t size = kFixedSizes[type];
+        if (isVariableTypeByte(type)) {
+            // These types use a 32-bit int to store their size
+            bson_details::tassertBSONOverread(fieldNameSize + 1 + sizeof(int32_t) <= buffer.size());
+            int32_t embeddedSize =
+                ConstDataView(buffer.data() + fieldNameSize + 1).read<LittleEndian<int32_t>>();
+            // Ensure embeddedSize is at least the minimum required size for its type.
+            bson_details::tassertBSONOverread(embeddedSize >= kMinEmbeddedSize[type]);
+            // Use unsigned arithmetic to allow overflow. Overflow may cause the size to be
+            // negative, which is caught by the next check.
+            size = static_cast<int32_t>(static_cast<uint32_t>(size) +
+                                        static_cast<uint32_t>(embeddedSize));
+            bson_details::tassertBSONOverread(size >= 1);
+        }
+        if (MONGO_unlikely(!size)) {
+            // 0 means we have a regex, minkey, maxkey, or invalid element
+            return computeRegexSize(buffer.data(), buffer.size(), fieldNameSize) - fieldNameSize -
+                1;
+        }
+        return size - 1;
+    }
+
+    /**
+     * Returns the field name size from a buffer representing a span. The size of the field name
+     * includes the null terminator.
+     */
+    MONGO_COMPILER_ALWAYS_INLINE static int fieldNameSizeFromBuffer(std::span<const char> buffer) {
+        bson_details::tassertBSONOverread(buffer.size() >= 1);
+        const auto begin = buffer.data();
+        const auto bound = begin + buffer.size();
+        auto ptr = begin;
+        // While we should skip the type, and add 1 for the terminating null byte, just include
+        // the type byte in the strlen loop: the extra byte cancels out. As an extra bonus, this
+        // also handles the EOO case, where the type byte is 0.
+        while (ptr < bound && *ptr)
+            ++ptr;
+        bson_details::tassertBSONOverread(ptr < bound);
+        return static_cast<int>(ptr - begin);
+    }
+
+    static BinDataType binDataType(const char* raw, size_t length) {
+        // BinData: <int len> <byte subtype> <byte[len] data>
+        MONGO_verify(length >= 5);
+        unsigned char c = raw[4];
+        return static_cast<BinDataType>(c);
+    }
+
     constexpr BSONElement() = default;
 
     /**
@@ -111,14 +200,11 @@ public:
      * The passed span starts at the start of the element and extends to one past the last byte
      * of the allocated buffer the element may occupy.
      */
-    explicit BSONElement(std::span<const char> buffer) : _data(buffer.data()) {
-        const char* d = _data;
-        // While we should skip the type, and add 1 for the terminating null byte, just include
-        // the type byte in the strlen loop: the extra byte cancels out. As an extra bonus, this
-        // also handles the EOO case, where the type byte is 0.
-        while (*d)
-            ++d;
-        _fieldNameSize = d - _data;
+    explicit BSONElement(std::span<const char> buffer)
+        : _data(buffer.data()), _fieldNameSize(fieldNameSizeFromBuffer(buffer)) {
+        const auto valSize = valueSizeFromBuffer(buffer, _fieldNameSize);
+        const auto totalSize = static_cast<int64_t>(valSize) + 1 + _fieldNameSize;
+        bson_details::tassertBSONOverread(totalSize <= static_cast<int64_t>(buffer.size()));
     }
 
     /**
@@ -144,13 +230,13 @@ public:
      * std::string foo = obj["foo"].String(); // std::exception if not a std::string type or DNE
      */
     std::string String() const {
-        return chk(BSONType::string).str();
+        return std::string{checkAndGetStringData()};
     }
     std::string_view checkAndGetStringData() const {
-        return chk(BSONType::string).valueStringData();
+        return chk(BSONType::string)._valueStringDataUnchecked();
     }
     Date_t Date() const {
-        return chk(BSONType::date).date();
+        return chk(BSONType::date)._dateUnchecked();
     }
     double Number() const {
         uassert(13118,
@@ -160,19 +246,19 @@ public:
         return number();
     }
     Decimal128 Decimal() const {
-        return chk(BSONType::numberDecimal)._numberDecimal();
+        return chk(BSONType::numberDecimal)._numberDecimalUnchecked();
     }
     double Double() const {
-        return chk(BSONType::numberDouble)._numberDouble();
+        return chk(BSONType::numberDouble)._numberDoubleUnchecked();
     }
     long long Long() const {
-        return chk(BSONType::numberLong)._numberLong();
+        return chk(BSONType::numberLong)._numberLongUnchecked();
     }
     int Int() const {
-        return chk(BSONType::numberInt)._numberInt();
+        return chk(BSONType::numberInt)._numberIntUnchecked();
     }
     bool Bool() const {
-        return chk(BSONType::boolean).boolean();
+        return chk(BSONType::boolean)._booleanUnchecked();
     }
 
     /**
@@ -183,7 +269,7 @@ public:
     std::vector<BSONElement> Array() const;
 
     mongo::OID OID() const {
-        return chk(BSONType::oid).__oid();
+        return chk(BSONType::oid)._oidUnchecked();
     }
 
     /**
@@ -376,12 +462,13 @@ public:
      */
     MONGO_COMPILER_ALWAYS_INLINE int valuesize() const {
         auto type = static_cast<uint8_t>(*_data);
-        uint32_t mask = 1u << (type & 0x1fu);
         int32_t size = kFixedSizes[type];
-        if (mask & kVariableSizeMask)  // These types use a 32-bit int to store their size
+        if (isVariableTypeByte(type)) {
+            // These types use a 32-bit int to store their size
             size += ConstDataView(value()).read<LittleEndian<int32_t>>();
+        }
         if (MONGO_unlikely(!size))  // 0 means we have a regex, minkey, maxkey, or invalid element
-            return computeRegexSize(_data, fieldNameSize()) - fieldNameSize() - 1;
+            return computeRegexSize(_data, boost::none, _fieldNameSize) - _fieldNameSize - 1;
         return size - 1;
     }
 
@@ -389,26 +476,8 @@ public:
         return type() == BSONType::boolean;
     }
 
-    /**
-     * @return value of a boolean element.
-     * You must assure element is a boolean before
-     * calling.
-     */
-    bool boolean() const {
-        return *value() ? true : false;
-    }
-
     bool booleanSafe() const {
-        return isBoolean() && boolean();
-    }
-
-    /**
-     * Retrieve a java style date value from the element.
-     * Ensure element is of type Date before calling.
-     * @see Bool(), trueValue()
-     */
-    Date_t date() const {
-        return Date_t::fromMillisSinceEpoch(ConstDataView(value()).read<LittleEndian<long long>>());
+        return isBoolean() && _booleanUnchecked();
     }
 
     /**
@@ -428,33 +497,166 @@ public:
     bool isNaN() const;
 
     /**
+     * These getters read the element's payload assuming the caller has already validated the
+     * element's BSONType. Calling them on an element of the wrong type is a programmer error and
+     * will trip a tassert (ErrorCodes::BSONInternalError).
+     *
+     * TODO(SERVER-96057): Consider removing some of these methods entirely, using the accessor
+     * variants calling `chk` instead.
+     */
+    bool boolean() const {
+        // We special case eoo and null. Historically this function may have been abused to treat
+        // such types as falsy values (which may or may not have worked correctly). We define the
+        // behavior sensibly for types where a falsy result makes sense and assert for others.
+        if (auto t = type(); t == BSONType::eoo || t == BSONType::null)
+            return false;
+        _checkTypeFixedSize(BSONType::boolean);
+        return _booleanUnchecked();
+    }
+
+    /**
+     * Retrieve a java style date value from the element.
+     * Ensure element is of type Date before calling.
+     */
+    Date_t date() const {
+        _checkTypeFixedSize(BSONType::date);
+        return _dateUnchecked();
+    }
+
+    /**
      * Return double value for this field. MUST be NumberDouble type.
      */
     double _numberDouble() const {
-        return ConstDataView(value()).read<LittleEndian<double>>();
+        _checkTypeFixedSize(BSONType::numberDouble);
+        return _numberDoubleUnchecked();
     }
 
     /**
      * Return int value for this field. MUST be NumberInt type.
      */
     int _numberInt() const {
-        return ConstDataView(value()).read<LittleEndian<int>>();
+        _checkTypeFixedSize(BSONType::numberInt);
+        return _numberIntUnchecked();
     }
 
     /**
      * Return decimal128 value for this field. MUST be NumberDecimal type.
      */
     Decimal128 _numberDecimal() const {
-        uint64_t low = ConstDataView(value()).read<LittleEndian<long long>>();
-        uint64_t high = ConstDataView(value() + sizeof(long long)).read<LittleEndian<long long>>();
-        return Decimal128(Decimal128::Value({low, high}));
+        _checkTypeFixedSize(BSONType::numberDecimal);
+        return _numberDecimalUnchecked();
     }
 
     /**
      * Return long long value for this field. MUST be NumberLong type.
      */
     long long _numberLong() const {
-        return ConstDataView(value()).read<LittleEndian<long long>>();
+        _checkTypeFixedSize(BSONType::numberLong);
+        return _numberLongUnchecked();
+    }
+
+    /**
+     * Retrieve the object ID stored in the object.
+     * You must ensure the element is of type oid first.
+     */
+    mongo::OID __oid() const {
+        _checkTypeFixedSize(BSONType::oid);
+        return _oidUnchecked();
+    }
+
+    /**
+     * Returns a std::string_view pointing into this element's data.
+     * string, symbol, code, and dbRef share the length-prefixed layout.
+     * Must be called on a string, symbol, code, or dbRef type element.
+     */
+    std::string_view valueStringData() const {
+        _checkStringLike();
+        return _valueStringDataUnchecked();
+    }
+
+    /**
+     * Get the embedded object this element holds.
+     */
+    BSONObj embeddedObject() const;
+
+    BSONObj codeWScopeObject() const;
+
+    /**
+     * Get raw binary data. Element must be of type BinData.
+     * Doesn't handle ByteArrayDeprecated (subtype 2).
+     */
+    const char* binData(int& len) const {
+        _checkType(BSONType::binData);
+        return _binDataUnchecked(len);
+    }
+
+    /**
+     * Get binary data. Element must be of type BinData.
+     *
+     * Handles ByteArrayDeprecated (subtype 2) for legacy support. New callers should never
+     * use this subtype.
+     */
+    const char* binDataClean(int& len) const {
+        _checkType(BSONType::binData);
+        return _binDataCleanUnchecked(len);
+    }
+
+    /**
+     * Must be called on a binData type element.
+     */
+    BinDataType binDataType() const {
+        _checkType(BSONType::binData);
+        return _binDataTypeUnchecked();
+    }
+
+    /**
+     * Must be called on a binData type element.
+     */
+    std::vector<uint8_t> _binDataVector() const {
+        _checkType(BSONType::binData);
+        return _binDataVectorUnchecked();
+    }
+
+    /**
+     * Retrieve the regex std::string for a Regex element.
+     * Must be called on a regex type element.
+     */
+    const char* regex() const {
+        _checkType(BSONType::regEx);
+        return _regexUnchecked();
+    }
+
+    /**
+     * Retrieve the regex flags (options) for a Regex element.
+     * Must be called on a regex type element.
+     */
+    const char* regexFlags() const {
+        _checkType(BSONType::regEx);
+        return _regexFlagsUnchecked();
+    }
+
+    /**
+     * Must be called on timestamp type element.
+     */
+    Date_t timestampTime() const {
+        _checkTypeFixedSize(BSONType::timestamp);
+        return _timestampTimeUnchecked();
+    }
+
+    /**
+     * Must be called on timestamp type element.
+     */
+    unsigned int timestampInc() const {
+        _checkTypeFixedSize(BSONType::timestamp);
+        return _timestampIncUnchecked();
+    }
+
+    /**
+     * Must be called on timestamp type element.
+     */
+    unsigned long long timestampValue() const {
+        _checkTypeFixedSize(BSONType::timestamp);
+        return _timestampValueUnchecked();
     }
 
     /**
@@ -575,14 +777,6 @@ public:
     double safeNumberDouble() const;
 
     /**
-     * Retrieve the object ID stored in the object.
-     * You must ensure the element is of type jstOID first.
-     */
-    mongo::OID __oid() const {
-        return OID::from(value());
-    }
-
-    /**
      * True if element is null.
      */
     bool isNull() const {
@@ -595,14 +789,18 @@ public:
      * @return String size including its null-termination.
      */
     int valuestrsize() const {
-        return ConstDataView(value()).read<LittleEndian<int>>();
+        // Prevent buffer overreads when calling this method on elements without values.
+        _checkVariableSize();
+        return _valuestrsizeUnchecked();
     }
 
     /**
      * for objects the size *includes* the size of the size field
      */
     size_t objsize() const {
-        return ConstDataView(value()).read<LittleEndian<uint32_t>>();
+        // Prevent buffer overreads when calling this method on elements without values.
+        _checkVariableSize();
+        return _objsizeUnchecked();
     }
 
     /**
@@ -610,8 +808,7 @@ public:
      * `type() != BSONType::string`.
      */
     std::string_view valueStringDataSafe() const {
-        return type() == BSONType::string ? std::string_view(valuestr(), valuestrsize() - 1)
-                                          : std::string_view();
+        return type() == BSONType::string ? _valueStringDataUnchecked() : std::string_view();
     }
 
     /**
@@ -622,19 +819,11 @@ public:
     }
 
     /**
-     * Returns a std::string_view pointing into this element's data.  Does not validate that the
-     * element is actually of type String.
-     */
-    std::string_view valueStringData() const {
-        return std::string_view(valuestr(), valuestrsize() - 1);
-    }
-
-    /**
      * Get javascript code of a CodeWScope data element.
      */
     const char* codeWScopeCode() const {
         massert(16177, "not codeWScope", type() == BSONType::codeWScope);
-        return value() + 4 + 4;  // two ints precede code (see BSON spec)
+        return _codeWScopeCodeUnchecked();
     }
 
     /**
@@ -643,97 +832,20 @@ public:
      */
     int codeWScopeCodeLen() const {
         massert(16178, "not codeWScope", type() == BSONType::codeWScope);
-        return ConstDataView(value() + 4).read<LittleEndian<int>>();
+        return _codeWScopeCodeLenUnchecked();
     }
 
     /**
      * Get the scope SavedContext of a CodeWScope data element.
      */
     const char* codeWScopeScopeData() const {
-        return codeWScopeCode() + codeWScopeCodeLen();
+        return codeWScopeCode() + _codeWScopeCodeLenUnchecked();
     }
-
-    /**
-     * Get the embedded object this element holds.
-     */
-    BSONObj embeddedObject() const;
 
     /**
      * uasserts if not an object
      */
     BSONObj embeddedObjectUserCheck() const;
-
-    BSONObj codeWScopeObject() const;
-
-    /**
-     * Get raw binary data.  Element must be of type BinData. Doesn't handle type 2 specially
-     */
-    const char* binData(int& len) const {
-        // BinData: <int len> <byte subtype> <byte[len] data>
-        MONGO_verify(type() == BSONType::binData);
-        len = valuestrsize();
-        return value() + 5;
-    }
-    /**
-     * Get binary data.  Element must be of type BinData.
-     *
-     * Handles ByteArrayDeprecated (subtype 2) for legacy support. New callers should never
-     * use this subtype.
-     */
-    const char* binDataClean(int& len) const {
-        // BinData: <int len> <byte subtype> <byte[len] data>
-        if (binDataType() != ByteArrayDeprecated) {
-            return binData(len);
-        } else {
-            // Skip extra size
-            auto ssize = valuestrsize();
-            if (ssize >= 4) {
-                len = ssize - 4;
-                return value() + 5 + 4;
-            } else {
-                len = 0;
-                return nullptr;
-            }
-        }
-    }
-
-    static BinDataType binDataType(const char* raw, size_t length) {
-        // BinData: <int len> <byte subtype> <byte[len] data>
-        MONGO_verify(length >= 5);
-        unsigned char c = raw[4];
-        return static_cast<BinDataType>(c);
-    }
-
-    BinDataType binDataType() const {
-        // BinData: <int len> <byte subtype> <byte[len] data>
-        MONGO_verify(type() == BSONType::binData);
-        unsigned char c = (value() + 4)[0];
-        return static_cast<BinDataType>(c);
-    }
-
-    std::vector<uint8_t> _binDataVector() const {
-        auto first = reinterpret_cast<const uint8_t*>(value()) + 5;
-        auto last = first + valuestrsize();
-        if (binDataType() == ByteArrayDeprecated)
-            first += std::min<size_t>(4, last - first);  // skip extra int32 size.
-        return {first, last};
-    }
-
-    /**
-     * Retrieve the regex std::string for a Regex element
-     */
-    const char* regex() const {
-        MONGO_verify(type() == BSONType::regEx);
-        return value();
-    }
-
-    /**
-     * Retrieve the regex flags (options) for a Regex element
-     */
-    const char* regexFlags() const {
-        const char* p = regex();
-        return p + strlen(p) + 1;
-    }
 
     //
     // Comparison API.
@@ -836,20 +948,20 @@ public:
      */
     Timestamp timestamp() const {
         if (type() == BSONType::date || type() == BSONType::timestamp) {
-            return Timestamp(ConstDataView(value()).read<LittleEndian<unsigned long long>>().value);
+            return Timestamp(_timestampValueUnchecked());
         }
         return Timestamp();
     }
 
     bool isBinData(BinDataType bdt) const {
-        return (type() == BSONType::binData) && (binDataType() == bdt);
+        return (type() == BSONType::binData) && (_binDataTypeUnchecked() == bdt);
     }
 
     std::array<unsigned char, 16> uuid() const {
         int len = 0;
         const char* data = nullptr;
         if (isBinData(BinDataType::newUUID)) {
-            data = binData(len);
+            data = _binDataUnchecked(len);
         }
         uassert(ErrorCodes::InvalidUUID,
                 "uuid must be a 16-byte binary field with UUID (4) subtype",
@@ -863,7 +975,7 @@ public:
         int len = 0;
         const char* data = nullptr;
         if (isBinData(BinDataType::MD5Type)) {
-            data = binData(len);
+            data = _binDataUnchecked(len);
         }
         uassert(40437, "md5 must be a 16-byte binary field with MD5 (5) subtype", len == 16);
         std::array<unsigned char, 16> result;
@@ -871,29 +983,14 @@ public:
         return result;
     }
 
-
-    Date_t timestampTime() const {
-        unsigned long long t = ConstDataView(value() + 4).read<LittleEndian<unsigned int>>();
-        return Date_t::fromMillisSinceEpoch(t * 1000);
-    }
-    unsigned int timestampInc() const {
-        return ConstDataView(value()).read<LittleEndian<unsigned int>>();
-    }
-
-    unsigned long long timestampValue() const {
-        return ConstDataView(value()).read<LittleEndian<unsigned long long>>();
-    }
-
     const char* dbrefNS() const {
         uassert(10063, "not a dbref", type() == BSONType::dbRef);
-        return value() + 4;
+        return _dbrefNSUnchecked();
     }
 
     mongo::OID dbrefOID() const {
         uassert(10064, "not a dbref", type() == BSONType::dbRef);
-        const char* start = value();
-        start += 4 + ConstDataView(start).read<LittleEndian<int>>();
-        return mongo::OID::from(start);
+        return _dbrefOIDUnchecked();
     }
 
     std::string _asCode() const;
@@ -923,25 +1020,11 @@ public:
     template <typename T>
     Status tryCoerce(T* out) const;
 
-    /**
-     * Constant double representation of 2^63, the smallest value that will overflow a long long.
-     *
-     * It is not safe to obtain this value by casting std::numeric_limits<long long>::max() to
-     * double, because the conversion loses precision, and the C++ standard leaves it up to the
-     * implementation to decide whether to round up to 2^63 or round down to the next representable
-     * value (2^63 - 2^10).
-     */
-    static const double kLongLongMaxPlusOneAsDouble;
-
-    /**
-     * Constant 'long long' representation of 2^53 (and -2^53). This is the largest (and smallest)
-     * 'long long' such that all 'long long's between the two can be safely represented as a double
-     * without losing precision.
-     */
-    static const long long kLargestSafeLongLongAsDouble;
-    static const long long kSmallestSafeLongLongAsDouble;
-
 private:
+    static bool isVariableTypeByte(uint8_t t) {
+        return t < 32 && (uint32_t{1} << t) & kVariableSizeMask;
+    }
+
     // This needs to be 2 elements because we check the strlen of data + 1 and GCC sees that as
     // accessing beyond the end of a constant string, even though we always check whether the
     // element is an eoo.
@@ -983,6 +1066,22 @@ private:
     MONGO_STATIC_ASSERT(sizeof(kFixedSizes) == 256);
 
     /**
+     * Minimum allowed embedded size for each variable-size type.
+     */
+    alignas(32) static constexpr std::array<int8_t, 32> kMinEmbeddedSize = [] {
+        std::array<int8_t, 32> mins{};
+        mins[stdx::to_underlying(BSONType::string)] = 1;
+        mins[stdx::to_underlying(BSONType::object)] = 5;
+        mins[stdx::to_underlying(BSONType::array)] = 5;
+        mins[stdx::to_underlying(BSONType::binData)] = 0;
+        mins[stdx::to_underlying(BSONType::dbRef)] = 1;
+        mins[stdx::to_underlying(BSONType::code)] = 1;
+        mins[stdx::to_underlying(BSONType::symbol)] = 1;
+        mins[stdx::to_underlying(BSONType::codeWScope)] = 14;
+        return mins;
+    }();
+
+    /**
      * The kVariableSizeMask table provides a mask for the types that have a variable size. The mask
      * is 1 << type, so that we can use it to check whether a type is variable size with a single
      * bit test.
@@ -1002,8 +1101,12 @@ private:
      * Computes the size of the encoding of a Regex, MinKey or MaxKey. Throws if the element is
      * not any of these. This function is suitable as a fallback after other known BSON types are
      * handled, as it will try to dump extra diagnostic information in case of memory corruption.
+     *
+     * If a buffer size is given, this function will also bound check.
      */
-    static int computeRegexSize(const char* data, int fieldNameSize);
+    static int computeRegexSize(const char* elem,
+                                boost::optional<int> bufferSize,
+                                int fieldNameSize);
 
     /**
      * This is to enable structured bindings for BSONElement, it should not be used explicitly.
@@ -1046,8 +1149,218 @@ private:
     friend class BSONObjIterator;
     friend class BSONObjStlIterator;
     friend class BSONObj;
+
+    bool _booleanUnchecked() const {
+        return static_cast<bool>(*value());
+    }
+
+    Date_t _dateUnchecked() const {
+        return Date_t::fromMillisSinceEpoch(ConstDataView(value()).read<LittleEndian<long long>>());
+    }
+
+    double _numberDoubleUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<double>>();
+    }
+
+    int _numberIntUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<int>>();
+    }
+
+    Decimal128 _numberDecimalUnchecked() const {
+        uint64_t low = ConstDataView(value()).read<LittleEndian<long long>>();
+        uint64_t high = ConstDataView(value() + sizeof(long long)).read<LittleEndian<long long>>();
+        return Decimal128(Decimal128::Value({low, high}));
+    }
+
+    long long _numberLongUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<long long>>();
+    }
+
+    mongo::OID _oidUnchecked() const {
+        return OID::from(value());
+    }
+
+    int _valuestrsizeUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<int>>();
+    }
+
+    size_t _objsizeUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<uint32_t>>();
+    }
+
+    std::string_view _valueStringDataUnchecked() const {
+        return std::string_view(valuestr(), _valuestrsizeUnchecked() - 1);
+    }
+
+    BSONObj _embeddedObjectUnchecked() const;
+
+    // CodeWScope value layout:
+    //   [int32 totalSize][int32 codeLenWithNull][char[codeLenWithNull] code][BSONObj scope]
+    static constexpr int kCodeWScopeHeaderSize =
+        sizeof(int32_t) + sizeof(int32_t);      // totalSize + codeLenWithNull
+    static constexpr int kMinScopeObjSize = 5;  // BSONObj::kMinBSONLength
+    static constexpr int kMinCodeWScopeSize = kCodeWScopeHeaderSize + 1 + kMinScopeObjSize;
+
+    void _checkCodeWScope() const {
+        const int totalSize = _valuestrsizeUnchecked();
+        bson_details::tassertBSONOverread(totalSize >= kMinCodeWScopeSize);
+
+        const int codeLen = ConstDataView(value() + sizeof(int32_t)).read<LittleEndian<int32_t>>();
+        const int maxCodeLen = totalSize - kCodeWScopeHeaderSize - kMinScopeObjSize;
+        bson_details::tassertBSONOverread(codeLen > 0 && codeLen <= maxCodeLen);
+
+        const char* code = value() + kCodeWScopeHeaderSize;
+        bson_details::tassertBSONOverread(code[codeLen - 1] == '\0');
+
+        const char* scopePtr = code + codeLen;
+        const int scopeSize = ConstDataView(scopePtr).read<LittleEndian<int32_t>>();
+        const int maxScopeSize = totalSize - kCodeWScopeHeaderSize - codeLen;
+        bson_details::tassertBSONOverread(scopeSize >= kMinScopeObjSize &&
+                                          scopeSize <= maxScopeSize);
+    }
+
+    const char* _codeWScopeCodeUnchecked() const {
+        _checkCodeWScope();
+        return value() + kCodeWScopeHeaderSize;
+    }
+
+    int _codeWScopeCodeLenUnchecked() const {
+        _checkCodeWScope();
+        return ConstDataView(value() + sizeof(int32_t)).read<LittleEndian<int32_t>>();
+    }
+
+    std::string_view _codeWScopeCodeStringViewUnchecked() const {
+        const int codeLen = _codeWScopeCodeLenUnchecked();
+        return std::string_view(value() + kCodeWScopeHeaderSize, static_cast<size_t>(codeLen - 1));
+    }
+
+    BSONObj _codeWScopeObjectUnchecked() const;
+
+    const char* _binDataUnchecked(int& len) const {
+        // BinData: <int len> <byte subtype> <byte[len] data>
+        len = _valuestrsizeUnchecked();
+        return value() + 5;
+    }
+
+    const char* _binDataCleanUnchecked(int& len) const {
+        // BinData: <int len> <byte subtype> <byte[len] data>
+        if (_binDataTypeUnchecked() != ByteArrayDeprecated) {
+            return _binDataUnchecked(len);
+        } else {
+            // Skip extra size
+            auto ssize = _valuestrsizeUnchecked();
+            if (ssize >= 4) {
+                len = ssize - 4;
+                return value() + 5 + 4;
+            } else {
+                len = 0;
+                return nullptr;
+            }
+        }
+    }
+
+    BinDataType _binDataTypeUnchecked() const {
+        // BinData: <int len> <byte subtype> <byte[len] data>
+        unsigned char c = (value() + 4)[0];
+        return static_cast<BinDataType>(c);
+    }
+
+    std::vector<uint8_t> _binDataVectorUnchecked() const {
+        auto first = reinterpret_cast<const uint8_t*>(value()) + 5;
+        auto last = first + _valuestrsizeUnchecked();
+        if (_binDataTypeUnchecked() == ByteArrayDeprecated)
+            first += std::min<size_t>(4, last - first);  // skip extra int32 size.
+        return {first, last};
+    }
+
+    const char* _regexUnchecked() const {
+        return value();
+    }
+
+    const char* _regexFlagsUnchecked() const {
+        const char* p = _regexUnchecked();
+        return p + strlen(p) + 1;
+    }
+
+    Date_t _timestampTimeUnchecked() const {
+        unsigned long long t = ConstDataView(value() + 4).read<LittleEndian<unsigned int>>();
+        return Date_t::fromMillisSinceEpoch(t * 1000);
+    }
+
+    unsigned int _timestampIncUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<unsigned int>>();
+    }
+
+    unsigned long long _timestampValueUnchecked() const {
+        return ConstDataView(value()).read<LittleEndian<unsigned long long>>();
+    }
+
+    // DBRef value layout:
+    //   [int32 nsLenWithNull][char[nsLenWithNull] ns][byte[12] oid]
+    void _validateDBRef() const {
+        const int nsLen = _valuestrsizeUnchecked();
+        bson_details::tassertBSONOverread(nsLen > 0 && valuestr()[nsLen - 1] == '\0');
+    }
+
+    const char* _dbrefNSUnchecked() const {
+        _validateDBRef();
+        return valuestr();
+    }
+
+    std::string_view _dbrefNSStringViewUnchecked() const {
+        _validateDBRef();
+        return std::string_view(valuestr(), static_cast<size_t>(_valuestrsizeUnchecked() - 1));
+    }
+
+    mongo::OID _dbrefOIDUnchecked() const {
+        _validateDBRef();
+        return mongo::OID::from(valuestr() + _valuestrsizeUnchecked());
+    }
+
+    /**
+     * _check* functions are used on accessors that didn't check the embedded type, because it was
+     * assumed that the caller checked the type already. TODO: Consider removing these functions
+     * and opting for the uassert throwing `chk` for all accessors.
+     */
+    MONGO_COMPILER_ALWAYS_INLINE void _checkType(BSONType expected) const {
+        bson_details::tassertBSONOverread(type() == expected);
+    }
+
+    /**
+     * A looser variant of _checkType for accessors of fixed-size types. Accepts reading the
+     * payload of one fixed-size type through the accessor of a different fixed-size type (type
+     * punning, e.g. a Date through the Timestamp accessors), as long as the actual type
+     * guarantees at least as many value bytes as the accessor reads.
+     */
+    MONGO_COMPILER_ALWAYS_INLINE void _checkTypeFixedSize(BSONType expected) const {
+        const auto t = static_cast<uint8_t>(type());
+        const auto actualSize = kFixedSizes[t];
+        const auto expectedSize = kFixedSizes[static_cast<uint8_t>(expected)];
+        const auto isFixedSize = t < 32 && !((1u << t) & kVariableSizeMask);
+        bson_details::tassertBSONOverread(isFixedSize && actualSize >= expectedSize);
+    }
+
+    MONGO_COMPILER_ALWAYS_INLINE void _checkStringLike() const {
+        const auto t = type();
+        // Expect most callers of this function will be on string types.
+        if (MONGO_unlikely(t != BSONType::string)) {
+            bson_details::tassertBSONOverread(t == BSONType::symbol || t == BSONType::code ||
+                                              t == BSONType::dbRef);
+        }
+    }
+
+    MONGO_COMPILER_ALWAYS_INLINE void _checkObjectLike() const {
+        const auto t = type();
+        bson_details::tassertBSONOverread(t == BSONType::object || t == BSONType::array);
+    }
+
+    MONGO_COMPILER_ALWAYS_INLINE void _checkVariableSize() const {
+        const auto t = static_cast<uint8_t>(type());
+        bson_details::tassertBSONOverread(t < 32 && ((1u << t) & kVariableSizeMask));
+    }
+
     const BSONElement& chk(BSONType t) const {
-        if (t != type()) {
+        if (MONGO_unlikely(t != type())) {
             StringBuilder ss;
             if (eoo())
                 ss << "field not found, expected type " << t;
@@ -1066,15 +1379,15 @@ inline bool BSONElement::trueValue() const {
     // NOTE Behavior changes must be replicated in Value::coerceToBool().
     switch (type()) {
         case BSONType::numberLong:
-            return _numberLong() != 0;
+            return _numberLongUnchecked() != 0;
         case BSONType::numberDouble:
-            return _numberDouble() != 0;
+            return _numberDoubleUnchecked() != 0;
         case BSONType::numberDecimal:
-            return _numberDecimal().isNotEqual(Decimal128(0));
+            return _numberDecimalUnchecked().isNotEqual(Decimal128(0));
         case BSONType::numberInt:
-            return _numberInt() != 0;
+            return _numberIntUnchecked() != 0;
         case BSONType::boolean:
-            return boolean();
+            return _booleanUnchecked();
         case BSONType::eoo:
         case BSONType::null:
         case BSONType::undefined:
@@ -1102,11 +1415,11 @@ inline bool BSONElement::isNumber() const {
 inline bool BSONElement::isNaN() const {
     switch (type()) {
         case BSONType::numberDouble: {
-            double d = _numberDouble();
+            double d = _numberDoubleUnchecked();
             return std::isnan(d);
         }
         case BSONType::numberDecimal: {
-            Decimal128 d = _numberDecimal();
+            Decimal128 d = _numberDecimalUnchecked();
             return d.isNaN();
         }
         default:
@@ -1117,13 +1430,13 @@ inline bool BSONElement::isNaN() const {
 inline Decimal128 BSONElement::numberDecimal() const {
     switch (type()) {
         case BSONType::numberDouble:
-            return Decimal128(_numberDouble());
+            return Decimal128(_numberDoubleUnchecked());
         case BSONType::numberInt:
-            return Decimal128(_numberInt());
+            return Decimal128(_numberIntUnchecked());
         case BSONType::numberLong:
-            return Decimal128(static_cast<int64_t>(_numberLong()));
+            return Decimal128(static_cast<int64_t>(_numberLongUnchecked()));
         case BSONType::numberDecimal:
-            return _numberDecimal();
+            return _numberDecimalUnchecked();
         default:
             return Decimal128::kNormalizedZero;
     }
@@ -1132,13 +1445,13 @@ inline Decimal128 BSONElement::numberDecimal() const {
 inline double BSONElement::numberDouble() const {
     switch (type()) {
         case BSONType::numberDouble:
-            return _numberDouble();
+            return _numberDoubleUnchecked();
         case BSONType::numberInt:
-            return _numberInt();
+            return _numberIntUnchecked();
         case BSONType::numberLong:
-            return _numberLong();
+            return _numberLongUnchecked();
         case BSONType::numberDecimal:
-            return _numberDecimal().toDouble();
+            return _numberDecimalUnchecked().toDouble();
         default:
             return 0;
     }
@@ -1147,17 +1460,17 @@ inline double BSONElement::numberDouble() const {
 inline double BSONElement::safeNumberDouble() const {
     switch (type()) {
         case BSONType::numberDouble: {
-            double d = _numberDouble();
+            double d = _numberDoubleUnchecked();
             if (std::isnan(d)) {
                 return 0;
             }
             return d;
         }
         case BSONType::numberInt: {
-            return _numberInt();
+            return _numberIntUnchecked();
         }
         case BSONType::numberLong: {
-            long long d = _numberLong();
+            long long d = _numberLongUnchecked();
             if (d > 0 && d > kLargestSafeLongLongAsDouble) {
                 return static_cast<double>(kLargestSafeLongLongAsDouble);
             }
@@ -1167,7 +1480,7 @@ inline double BSONElement::safeNumberDouble() const {
             return d;
         }
         case BSONType::numberDecimal: {
-            Decimal128 d = _numberDecimal();
+            Decimal128 d = _numberDecimalUnchecked();
             if (d.isNaN()) {
                 return 0;
             }
@@ -1177,7 +1490,7 @@ inline double BSONElement::safeNumberDouble() const {
             if (d.isLess(Decimal128(std::numeric_limits<double>::min()))) {
                 return std::numeric_limits<double>::min();
             }
-            return _numberDecimal().toDouble();
+            return d.toDouble();
         }
         default:
             return 0;
@@ -1187,13 +1500,13 @@ inline double BSONElement::safeNumberDouble() const {
 inline int BSONElement::numberInt() const {
     switch (type()) {
         case BSONType::numberDouble:
-            return (int)_numberDouble();
+            return safeNumberInt();
         case BSONType::numberInt:
-            return _numberInt();
+            return _numberIntUnchecked();
         case BSONType::numberLong:
-            return (int)_numberLong();
+            return (int)_numberLongUnchecked();
         case BSONType::numberDecimal:
-            return _numberDecimal().toInt();
+            return _numberDecimalUnchecked().toInt();
         default:
             return 0;
     }
@@ -1207,13 +1520,13 @@ inline int BSONElement::safeNumberInt() const {
 inline long long BSONElement::numberLong() const {
     switch (type()) {
         case BSONType::numberDouble:
-            return (long long)_numberDouble();
+            return safeNumberLong();
         case BSONType::numberInt:
-            return _numberInt();
+            return _numberIntUnchecked();
         case BSONType::numberLong:
-            return _numberLong();
+            return _numberLongUnchecked();
         case BSONType::numberDecimal:
-            return _numberDecimal().toLong();
+            return _numberDecimalUnchecked().toLong();
         default:
             return 0;
     }
@@ -1229,7 +1542,7 @@ inline long long BSONElement::numberLong() const {
 inline long long BSONElement::safeNumberLong() const {
     switch (type()) {
         case BSONType::numberDouble: {
-            double d = numberDouble();
+            double d = _numberDoubleUnchecked();
             if (std::isnan(d)) {
                 return 0;
             }
@@ -1239,10 +1552,10 @@ inline long long BSONElement::safeNumberLong() const {
             if (d < std::numeric_limits<long long>::min()) {
                 return std::numeric_limits<long long>::min();
             }
-            return numberLong();
+            return static_cast<long long>(d);
         }
         case BSONType::numberDecimal: {
-            Decimal128 d = numberDecimal();
+            Decimal128 d = _numberDecimalUnchecked();
             if (d.isNaN()) {
                 return 0;
             }
@@ -1270,7 +1583,7 @@ Status BSONElement::tryCoerce(T* out) const {
     if constexpr (std::is_integral<T>::value && !std::is_same<bool, T>::value) {
         long long val;
         if (type() == BSONType::numberDouble) {
-            double d = numberDouble();
+            double d = _numberDoubleUnchecked();
             if (!std::isfinite(d)) {
                 return {ErrorCodes::BadValue, "Unable to coerce NaN/Inf to integral type"};
             }
@@ -1283,7 +1596,7 @@ Status BSONElement::tryCoerce(T* out) const {
             }
             val = static_cast<long long>(d);
         } else if (type() == BSONType::numberDecimal) {
-            Decimal128 d = numberDecimal();
+            Decimal128 d = _numberDecimalUnchecked();
             if (!d.isFinite()) {
                 return {ErrorCodes::BadValue, "Unable to coerce NaN/Inf to integral type"};
             }
@@ -1298,7 +1611,7 @@ Status BSONElement::tryCoerce(T* out) const {
                     "decimal128 number exact conversion to long failed",
                     Decimal128::SignalingFlag::kNoFlag == signalingFlags);
         } else if (type() == BSONType::boolean) {
-            *out = Bool();
+            *out = _booleanUnchecked();
             return Status::OK();
         } else if (!coerce(&val)) {
             return {ErrorCodes::BadValue, "Unable to coerce value to integral type"};
@@ -1341,7 +1654,7 @@ inline long long BSONElement::safeNumberLongForHash() const {
     // Rather than relying on the undefined overflow conversion, we maintain compatibility by
     // explicitly checking for a 2^63 double value and returning -2^63.
     if (type() == BSONType::numberDouble &&
-        numberDouble() == BSONElement::kLongLongMaxPlusOneAsDouble) {
+        _numberDoubleUnchecked() == BSONElement::kLongLongMaxPlusOneAsDouble) {
         return std::numeric_limits<long long>::lowest();
     } else {
         return safeNumberLong();

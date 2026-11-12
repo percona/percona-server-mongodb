@@ -1,15 +1,11 @@
 /**
  * Tests the returnOnStart option of the createIndexes command.
- * @tags: [
- *   # TODO(SERVER-109702): Evaluate if a primary-driven index build compatible test should be created.
- *   requires_commit_quorum,
- * ]
  */
 
 import {getTimeseriesCollForDDLOps} from "jstests/core/timeseries/libs/viewless_timeseries_util.js";
+import {configureFailPoint} from "jstests/libs/fail_point_util.js";
 import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {ShardingTest} from "jstests/libs/shardingtest.js";
-import {restartServerReplication, stopServerReplication} from "jstests/libs/write_concern_util.js";
 
 const indexNameA = "a_1";
 const indexNameB = "b_1";
@@ -99,16 +95,17 @@ const runTest = function (db, replSets, timeseries, setUp) {
         returnOnStart: false,
     };
 
-    const stopReplication = function () {
-        for (const replSet of replSets) {
-            stopServerReplication(replSet.getSecondary());
-        }
+    let indexBuildFailPoints = [];
+    const pauseIndexBuilds = function () {
+        indexBuildFailPoints = replSets.map((replSet) =>
+            configureFailPoint(replSet.getPrimary(), "hangAfterInitializingIndexBuild"),
+        );
     };
-
-    const restartReplication = function () {
-        for (const replSet of replSets) {
-            restartServerReplication(replSet.getSecondaries());
+    const resumeIndexBuilds = function () {
+        for (const fp of indexBuildFailPoints) {
+            fp.off();
         }
+        indexBuildFailPoints = [];
     };
 
     const _assertReady = function (indexName, expected) {
@@ -141,29 +138,23 @@ const runTest = function (db, replSets, timeseries, setUp) {
             for (const [key, value] of Object.entries(res.raw)) {
                 assertCreateIndexesWorked(value);
             }
-        } else {
-            assert.eq(res.commitQuorum, "votingMembers");
         }
     };
 
-    // Stop replication on one of the secondary nodes. This will allow the index build to start
-    // (with majority write concern), but due to commit quorum it will not be able to commit.
-    stopReplication();
+    pauseIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(cmdA));
     assertNotReady(indexNameA);
     assertCreateIndexesWorked(db.runCommand(cmdA));
     assert.commandFailedWithCode(db.runCommand(cmdAB), ErrorCodes.IndexBuildAlreadyInProgress);
-    restartReplication();
+    resumeIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(joinCmdA));
     assertReady(indexNameA);
     assertCreateIndexesWorked(db.runCommand(cmdA));
 
-    // Stop replication on one of the secondary nodes. This will allow the index build to start
-    // (with majority write concern), but due to commit quorum it will not be able to commit.
-    stopReplication();
+    pauseIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(cmdAB));
     assertNotReady(indexNameB);
-    restartReplication();
+    resumeIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(joinCmdB));
     assertReady(indexNameB);
     assertCreateIndexesWorked(db.runCommand(cmdAB));
@@ -171,9 +162,7 @@ const runTest = function (db, replSets, timeseries, setUp) {
     assert.commandWorked(coll.dropIndexes([indexNameA, indexNameB]));
     awaitReplication();
 
-    // Stop replication on one of the secondary nodes. This will allow the index build to start
-    // (with majority write concern), but due to commit quorum it will not be able to commit.
-    stopReplication();
+    pauseIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(cmdAB));
     assertNotReady(indexNameA);
     assertNotReady(indexNameB);
@@ -181,7 +170,7 @@ const runTest = function (db, replSets, timeseries, setUp) {
     assertCreateIndexesWorked(db.runCommand(cmdB));
     assertCreateIndexesWorked(db.runCommand(cmdAB));
     assert.commandFailedWithCode(db.runCommand(cmdAC), ErrorCodes.IndexBuildAlreadyInProgress);
-    restartReplication();
+    resumeIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(joinCmdA));
     assertReady(indexNameA);
     assertReady(indexNameB);
@@ -192,9 +181,7 @@ const runTest = function (db, replSets, timeseries, setUp) {
     assert.commandWorked(coll.dropIndexes([indexNameA, indexNameB]));
     awaitReplication();
 
-    // Stop replication on one of the secondary nodes. This will allow the index build to start
-    // (with majority write concern), but due to commit quorum it will not be able to commit.
-    stopReplication();
+    pauseIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(cmdA));
     assertCreateIndexesWorked(db.runCommand(cmdB));
     assertCreateIndexesWorked(db.runCommand(cmdAB));
@@ -202,7 +189,7 @@ const runTest = function (db, replSets, timeseries, setUp) {
     assert.commandFailedWithCode(db.runCommand(cmdBC), ErrorCodes.IndexBuildAlreadyInProgress);
     assertNotReady(indexNameA);
     assertNotReady(indexNameB);
-    restartReplication();
+    resumeIndexBuilds();
     assertCreateIndexesWorked(db.runCommand(joinCmdAB));
     assertReady(indexNameA);
     assertReady(indexNameB);
@@ -211,16 +198,7 @@ const runTest = function (db, replSets, timeseries, setUp) {
     assertCreateIndexesWorked(db.runCommand(cmdAB));
 };
 
-const reduceOplogMaxTimeParam = {
-    setParameter: {"failpoint.setSmallOplogGetMoreMaxTimeMS": {mode: "alwaysOn"}},
-};
-
-const replSetConfig = {
-    nodes: 3,
-    settings: {chainingAllowed: false},
-};
-
-const replTest = new ReplSetTest({...replSetConfig, nodeOptions: reduceOplogMaxTimeParam});
+const replTest = new ReplSetTest({nodes: 1});
 replTest.startSet();
 replTest.initiate();
 const replDb = replTest.getPrimary().getDB(jsTestName());
@@ -230,52 +208,64 @@ replTest.stopSet();
 
 const shardingTest = new ShardingTest({
     shards: 2,
-    rs: {...replSetConfig, ...reduceOplogMaxTimeParam},
+    rs: {nodes: 1},
 });
 const shardingDb = shardingTest.s.getDB(jsTestName());
+// TODO (SERVER-138181): Remove this function.
+const runShardingSetupCommand = function (cmd) {
+    const diagnostics = {cmd};
+    assert.soon(
+        () => {
+            const res = shardingDb.adminCommand(cmd);
+            diagnostics.res = res;
+            // Migration errors can wrap a write conflict in OperationFailed.
+            if (
+                res.code === ErrorCodes.WriteConflict ||
+                (res.code === ErrorCodes.OperationFailed && res.errmsg.includes("WriteConflict"))
+            ) {
+                jsTest.log.info("Retrying sharding setup after write conflict", {cmd, res});
+                return false;
+            }
+            assert.commandWorked(res);
+            return true;
+        },
+        "Timed out running sharding setup command",
+        undefined,
+        undefined,
+        undefined,
+        diagnostics,
+    );
+};
+
 runTest(shardingDb, [shardingTest.rs0, shardingTest.rs1], false, (coll) => {
-    assert.commandWorked(
-        shardingDb.adminCommand({shardCollection: coll.getFullName(), key: {m: 1}}),
-    );
-    assert.commandWorked(shardingDb.adminCommand({split: coll.getFullName(), middle: {m: 5}}));
-    assert.commandWorked(
-        shardingDb.adminCommand({
-            moveChunk: coll.getFullName(),
-            find: {m: 0},
-            to: shardingTest.shard0.shardName,
-        }),
-    );
-    assert.commandWorked(
-        shardingDb.adminCommand({
-            moveChunk: coll.getFullName(),
-            find: {m: 10},
-            to: shardingTest.shard1.shardName,
-        }),
-    );
+    runShardingSetupCommand({shardCollection: coll.getFullName(), key: {m: 1}});
+    runShardingSetupCommand({split: coll.getFullName(), middle: {m: 5}});
+    runShardingSetupCommand({
+        moveChunk: coll.getFullName(),
+        find: {m: 0},
+        to: shardingTest.shard0.shardName,
+    });
+    runShardingSetupCommand({
+        moveChunk: coll.getFullName(),
+        find: {m: 10},
+        to: shardingTest.shard1.shardName,
+    });
 });
 runTest(shardingDb, [shardingTest.rs0, shardingTest.rs1], true, (coll) => {
-    assert.commandWorked(
-        shardingDb.adminCommand({shardCollection: coll.getFullName(), key: {m: 1}}),
-    );
-    assert.commandWorked(
-        shardingDb.adminCommand({
-            split: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
-            middle: {meta: 5},
-        }),
-    );
-    assert.commandWorked(
-        shardingDb.adminCommand({
-            moveChunk: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
-            find: {meta: 0},
-            to: shardingTest.shard0.shardName,
-        }),
-    );
-    assert.commandWorked(
-        shardingDb.adminCommand({
-            moveChunk: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
-            find: {meta: 10},
-            to: shardingTest.shard1.shardName,
-        }),
-    );
+    runShardingSetupCommand({shardCollection: coll.getFullName(), key: {m: 1}});
+    runShardingSetupCommand({
+        split: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
+        middle: {meta: 5},
+    });
+    runShardingSetupCommand({
+        moveChunk: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
+        find: {meta: 0},
+        to: shardingTest.shard0.shardName,
+    });
+    runShardingSetupCommand({
+        moveChunk: getTimeseriesCollForDDLOps(shardingDb, coll).getFullName(),
+        find: {meta: 10},
+        to: shardingTest.shard1.shardName,
+    });
 });
 shardingTest.stop();

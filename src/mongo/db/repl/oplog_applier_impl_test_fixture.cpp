@@ -20,6 +20,7 @@
 #include "mongo/db/repl/dbcheck/health_log.h"
 #include "mongo/db/repl/dbcheck/health_log_interface.h"
 #include "mongo/db/repl/member_state.h"
+#include "mongo/db/repl/oplog.h"
 #include "mongo/db/repl/oplog_applier.h"
 #include "mongo/db/repl/oplog_entry_test_helpers.h"
 #include "mongo/db/repl/replication_consistency_markers_mock.h"
@@ -59,6 +60,12 @@
 
 namespace mongo {
 namespace repl {
+
+namespace {
+// Log ids of the oplog constraint violation logs (see oplog_constraint_violation_logger.cpp).
+constexpr int kConstraintViolationLogId = 7149000;
+constexpr int kToleratedCappedViolationLogId = 10836100;
+}  // namespace
 
 void OplogApplierImplOpObserver::onInserts(OperationContext* opCtx,
                                            const CollectionPtr& coll,
@@ -177,6 +184,19 @@ void OplogApplierImplOpObserver::onCollMod(OperationContext* opCtx,
     onCollModFn(opCtx, nss, uuid, collModCmd, oldCollOptions, indexInfo);
 }
 
+void OplogApplierImplOpObserver::onTruncateRange(OperationContext* opCtx,
+                                                 const CollectionPtr& coll,
+                                                 const RecordId& minRecordId,
+                                                 const RecordId& maxRecordId,
+                                                 int64_t bytesDeleted,
+                                                 int64_t docsDeleted,
+                                                 repl::OpTime& opTime) {
+    if (!onTruncateRangeFn) {
+        return;
+    }
+    onTruncateRangeFn(opCtx, coll, minRecordId, maxRecordId, bytesDeleted, docsDeleted, opTime);
+}
+
 std::unique_ptr<ReplicationCoordinator> OplogApplierImplTest::makeReplCoord(
     ServiceContext* serviceContext) {
     return std::make_unique<ReplicationCoordinatorMock>(serviceContext);
@@ -187,6 +207,10 @@ void OplogApplierImplTest::setUp() {
 
     serviceContext = getServiceContext();
     _opCtx = cc().makeOperationContext();
+
+    // Constraint violation logging is rate limited process-wide, so reset it to let each test
+    // assert on the violations it causes.
+    resetOplogConstraintViolationLoggerForTest();
 
     ReplicationCoordinator::set(serviceContext, makeReplCoord(serviceContext));
     ASSERT_OK(ReplicationCoordinator::get(_opCtx.get())->setFollowerMode(MemberState::RS_PRIMARY));
@@ -598,6 +622,22 @@ UUID createCollectionWithUuid(OperationContext* opCtx, const NamespaceString& ns
     options.uuid = UUID::gen();
     createCollection(opCtx, nss, options);
     return options.uuid.value();
+}
+
+size_t countToleratedCappedViolationLogs(const unittest::LogCaptureGuard& logs,
+                                         std::string_view msg) {
+    return logs.countBSONContainingSubset(
+        BSON("id" << kToleratedCappedViolationLogId << "attr"
+                  << BSON("msg" << msg << "isCappedCollection" << true)));
+}
+
+void assertLoggedNonToleratedCappedViolation(const unittest::LogCaptureGuard& logs,
+                                             std::string_view msg) {
+    ASSERT_EQ(1,
+              logs.countBSONContainingSubset(
+                  BSON("id" << kConstraintViolationLogId << "attr"
+                            << BSON("msg" << msg << "isCappedCollection" << true))));
+    ASSERT_EQ(0, logs.countBSONContainingSubset(BSON("id" << kToleratedCappedViolationLogId)));
 }
 
 void createCollectionWithPreImages(OperationContext* opCtx, const NamespaceString& nss) {

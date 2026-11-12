@@ -45,6 +45,7 @@
 #include "mongo/db/storage/storage_engine.h"
 #include "mongo/db/storage/write_unit_of_work.h"
 #include "mongo/db/tenant_id.h"
+#include "mongo/db/topology/cluster_role.h"
 #include "mongo/db/validate/validate_state.h"
 #include "mongo/logv2/attribute_storage.h"
 #include "mongo/logv2/log.h"
@@ -652,7 +653,7 @@ StatusWith<OpTime> OplogApplierImpl::_applyOplogBatch(OperationContext* opCtx,
                 if (!_oplogUuid) {
                     _oplogUuid = getOplogUuid(opCtx);
                 }
-                _checkpointValidator.mergeAndValidate(validatorBuffers.value(), *_oplogUuid);
+                _checkpointValidator.mergeAndValidate(opCtx, validatorBuffers.value(), *_oplogUuid);
             }
         }
 
@@ -703,6 +704,7 @@ void OplogApplierImpl::_fillWriterVectors(
     std::vector<std::vector<ApplierOperation>>* writerVectors,
     std::vector<std::vector<OplogEntry>>* derivedOps) noexcept {
     const bool validateCheckpoints = getOptions().mode == OplogApplication::Mode::kSecondary &&
+        !serverGlobalParams.clusterRole.has(ClusterRole::ShardServer) &&
         isContinuousInternodeValidationPerDocumentEnabled(opCtx);
     fillWriterVectors(getOptions(),
                       _disableTransactionUpdateCoalescing,
@@ -716,6 +718,7 @@ void OplogApplierImpl::_fillWriterVectors(
 boost::optional<replicated_fast_count::ValidatorBuffers> OplogApplierImpl::_initValidatorBuffers(
     OperationContext* opCtx, size_t nWorkers) {
     const bool validateCheckpoints = getOptions().mode == OplogApplication::Mode::kSecondary &&
+        !serverGlobalParams.clusterRole.has(ClusterRole::ShardServer) &&
         isContinuousInternodeValidationPerDocumentEnabled(opCtx);
     if (!validateCheckpoints) {
         return boost::none;

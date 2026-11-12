@@ -26,12 +26,14 @@
 #include <array>
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <iosfwd>
 #include <iterator>
 #include <limits>
 #include <list>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -52,6 +54,28 @@ class BSONObjStlIterator;
 class ExtendedCanonicalV200Generator;
 class ExtendedRelaxedV200Generator;
 class LegacyStrictGenerator;
+
+namespace bson_details {
+/**
+ * Asserts that the element described by `buffer`, `fieldNameSize`, and `valueSize` fits within
+ * `buffer`: only the eoo byte is allowed as the final element, and any other element must end
+ * before the final eoo byte.
+ */
+inline void assertElementWithinBuffer(std::span<const char> buffer,
+                                      int fieldNameSize,
+                                      int valueSize) {
+    // Only allow eoo byte at the end of the BSONObj.
+    tassertBSONOverread(!buffer.empty());
+    if (buffer.front() == stdx::to_underlying(BSONType::eoo)) {
+        // Check if there's an eoo byte not at the end.
+        tassertBSONOverread(buffer.size() == 1);
+    } else {
+        // Non eoo elements must end before the eoo byte.
+        const int avail = buffer.size() - (fieldNameSize + 1);
+        tassertBSONOverread(valueSize < avail);
+    }
+}
+}  // namespace bson_details
 
 /**
  * C++ representation of a "BSON" object -- that is, an extended JSON-style
@@ -146,16 +170,22 @@ public:
 
     template <typename Traits>
     BSONObj(const char* bsonData, Traits) : _objdata(bsonData) {
-        // TODO(SERVER-133681): Remove size traits and move the run time size check out.
+        static_assert(Traits::MaxSize > 0 && Traits::MaxSize <= std::numeric_limits<int>::max(),
+                      "BSONObj maximum size must be within possible limits");
+        const auto size = objsize();
         if (!isValid<Traits>())
-            _assertInvalid(Traits::MaxSize);
-        _validateEoo();
+            _throwInvalidSize(size, Traits::MaxSize);
+        _checkEoo(size);
     }
 
     explicit BSONObj(ConstSharedBuffer ownedBuffer)
         : _objdata(ownedBuffer.get() ? ownedBuffer.get() : BSONObj().objdata()),
           _ownedBuffer(std::move(ownedBuffer)) {
-        _validateEoo();
+        if (_ownedBuffer.get()) {
+            const auto size =
+                _checkSpanGetSize({_objdata, _ownedBuffer.capacity()}, LargeSizeTrait::MaxSize);
+            _checkEoo(size);
+        }
     }
 
     /**
@@ -235,11 +265,12 @@ public:
     BSONObj& shareOwnershipWith(ConstSharedBuffer buffer) & {
         invariant(buffer);
         _ownedBuffer = std::move(buffer);
-        _validateEoo();
         return *this;
     }
     BSONObj& shareOwnershipWith(const BSONObj& other) & {
-        shareOwnershipWith(other.sharedBuffer());
+        auto buffer = other.sharedBuffer();
+        invariant(buffer);
+        _ownedBuffer = std::move(buffer);
         return *this;
     }
     BSONObj&& shareOwnershipWith(ConstSharedBuffer buffer) && {
@@ -493,7 +524,7 @@ public:
         static_assert(Traits::MaxSize > 0 && Traits::MaxSize <= std::numeric_limits<int>::max(),
                       "BSONObj maximum size must be within possible limits");
         int x = objsize();
-        return x > 0 && x <= BufferMaxSize;
+        return x >= kMinBSONLength && x <= BufferMaxSize;
     }
 
     /**
@@ -711,43 +742,44 @@ private:
                                  fmt::memory_buffer& buffer,
                                  size_t writeLimit) const;
 
-    void _assertInvalid(int maxSize) const;
+    void _throwInvalidSize(int size, int maxSize) const;
 
     void _validateUnownedSize(int size) const;
 
-    void _validateEoo() const {
+    bool _isEooAt(int index) const {
+        return static_cast<BSONType>(static_cast<signed char>(_objdata[index])) == BSONType::eoo;
+    }
+
+    void _checkEoo(int size) const {
         // Casting mimics type extraction in BSONElement::type().
-        tassert(ErrorCodes::BSONInternalError,
-                "BSONObj does not end with EOO",
-                static_cast<BSONType>(static_cast<signed char>(_objdata[objsize() - 1])) ==
-                    BSONType::eoo);
+        tassert(ErrorCodes::BSONInternalError, "BSONObj does not end with EOO", _isEooAt(size - 1));
     }
 
     const char* _end() const {
         return objdata() + objsize();
     }
 
+    int _checkSpanGetSize(std::span<const char> buffer, int maxSize) const {
+        tassert(ErrorCodes::BSONInternalError,
+                fmt::format("BSONObj buffer size is {}, smaller than the minimum object size {}",
+                            buffer.size(),
+                            kMinBSONLength),
+                buffer.size() >= static_cast<size_t>(kMinBSONLength));
+        const int size = objsize();
+        tassert(ErrorCodes::BSONInternalError,
+                "BSONObj extends past buffer",
+                size >= static_cast<int>(kMinBSONLength) &&
+                    static_cast<size_t>(size) <= buffer.size());
+        // size <= buffer.size() does not cap the object: the span can be larger than
+        // BufferMaxSize. The minimum length was already checked above.
+        if (MONGO_unlikely(size > maxSize)) {
+            _throwInvalidSize(size, maxSize);
+        }
+        return size;
+    }
+
     const char* _objdata;
     ConstSharedBuffer _ownedBuffer;
-};
-
-MONGO_STATIC_ASSERT(std::is_nothrow_move_constructible_v<BSONObj>);
-MONGO_STATIC_ASSERT(std::is_nothrow_move_assignable_v<BSONObj>);
-
-std::ostream& operator<<(std::ostream& s, const BSONObj& o);
-std::ostream& operator<<(std::ostream& s, const BSONElement& e);
-
-StringBuilder& operator<<(StringBuilder& s, const BSONObj& o);
-StringBuilder& operator<<(StringBuilder& s, const BSONElement& e);
-
-inline void swap(BSONObj& l, BSONObj& r) noexcept {
-    l.swap(r);
-}
-
-struct BSONArray : BSONObj {
-    // Don't add anything other than forwarding constructors!!!
-    BSONArray() : BSONObj() {}
-    explicit BSONArray(const BSONObj& obj) : BSONObj(obj) {}
 };
 
 /**
@@ -775,12 +807,7 @@ public:
      */
     explicit BSONObjStlIterator(const BSONObj& obj) {
         _end = obj._end();
-        auto start = obj.objdata() + sizeof(int32_t);
-        auto ptr = start;
-        auto buffer = std::span{obj.objdata() + sizeof(int32_t), _end};
-        while (*ptr)
-            ++ptr;
-        _cur = BSONElement(buffer, ptr - start, BSONElement::TrustedInitTag{});
+        _advanceTo(obj.objdata() + sizeof(int32_t));
     }
 
     /**
@@ -797,15 +824,7 @@ public:
      * pre-increment
      */
     BSONObjStlIterator& operator++() {
-        dassert(*_cur._data);  // Must not be EOO
-        const auto start = _cur._data + _cur.size();
-        auto ptr = _cur._data + _cur.fieldNameSize();  // ptr points to the 0 byte ending the name
-
-        ptr += _cur.valuesize() + 1;  // Skip the value and the 0 byte
-        while (*ptr)
-            ++ptr;
-
-        _cur = BSONElement(std::span{start, _end}, ptr - start, BSONElement::TrustedInitTag{});
+        _advanceTo(_cur._data + _curValueSize + 1 + _cur._fieldNameSize);
         return *this;
     }
 
@@ -835,8 +854,42 @@ public:
 private:
     explicit BSONObjStlIterator(BSONElement elem, const char* end) : _cur(elem), _end(end) {}
 
+    /**
+     * Positions the iterator at the element starting at `start`, updating _cur and _curValueSize.
+     */
+    void _advanceTo(const char* start) {
+        std::span buffer{start, _end};
+        // If the iterator passes end, empty buffer detection in fieldNameSizeFromBuffer
+        // will trigger.
+        auto fieldNameSize = BSONElement::fieldNameSizeFromBuffer(buffer);
+        auto valueSize = BSONElement::valueSizeFromBuffer(buffer, fieldNameSize);
+        bson_details::assertElementWithinBuffer(buffer, fieldNameSize, valueSize);
+        _cur = BSONElement(buffer, fieldNameSize, BSONElement::TrustedInitTag{});
+        _curValueSize = valueSize;
+    }
+
     BSONElement _cur;
+    int _curValueSize = 0;
     const char* _end = nullptr;
+};
+
+MONGO_STATIC_ASSERT(std::is_nothrow_move_constructible_v<BSONObj>);
+MONGO_STATIC_ASSERT(std::is_nothrow_move_assignable_v<BSONObj>);
+
+std::ostream& operator<<(std::ostream& s, const BSONObj& o);
+std::ostream& operator<<(std::ostream& s, const BSONElement& e);
+
+StringBuilder& operator<<(StringBuilder& s, const BSONObj& o);
+StringBuilder& operator<<(StringBuilder& s, const BSONElement& e);
+
+inline void swap(BSONObj& l, BSONObj& r) noexcept {
+    l.swap(r);
+}
+
+struct BSONArray : BSONObj {
+    // Don't add anything other than forwarding constructors!!!
+    BSONArray() = default;
+    explicit BSONArray(const BSONObj& obj) : BSONObj(obj) {}
 };
 
 /**
@@ -856,17 +909,17 @@ public:
      */
     explicit BSONObjIterator(const BSONObj& jso) {
         int sz = jso.objsize();
-        if (MONGO_unlikely(sz == 0)) {
-            _pos = _theend = nullptr;
+        if (MONGO_unlikely(sz < static_cast<int>(BSONObj::kMinBSONLength))) {
+            _pos = _eoo = nullptr;
             return;
         }
         _pos = jso.objdata() + 4;
-        _theend = jso.objdata() + sz - 1;
+        _eoo = jso.objdata() + sz - 1;
     }
 
     BSONObjIterator(const char* start, const char* end) {
         _pos = start + 4;
-        _theend = end - 1;
+        _eoo = end - 1;
     }
 
     /**
@@ -874,7 +927,7 @@ public:
      * current element '_pos' is at.
      */
     void advance(const BSONElement& currentElement) {
-        dassert(BSONElement(std::span{_pos, _theend + 1}).size() == currentElement.size());
+        dassert(BSONElement(std::span{_pos, _eoo + 1}).size() == currentElement.size());
         _pos += currentElement.size();
     }
 
@@ -883,21 +936,26 @@ public:
      */
     bool currentElementBinaryEqual(const BSONElement& otherElement) {
         auto sz = otherElement.size();
-        return sz <= (_theend - _pos) && memcmp(otherElement.rawdata(), _pos, sz) == 0;
+        return sz <= (_eoo - _pos) && memcmp(otherElement.rawdata(), _pos, sz) == 0;
     }
 
     /**
      * @return true if more elements exist to be enumerated.
      */
     bool more() const {
-        return _pos < _theend;
+        return _pos < _eoo;
     }
 
     BSONElement next() {
-        dassert(_pos <= _theend);
-        BSONElement e(std::span{_pos, _theend + 1});
-        _pos += e.size();
-        return e;
+        // Ensure we're creating a valid span.
+        bson_details::tassertBSONOverread(_pos && _pos <= _eoo);
+        auto buffer = std::span{_pos, _eoo + 1};
+        auto fieldNameSize = BSONElement::fieldNameSizeFromBuffer(buffer);
+        auto valueSize = BSONElement::valueSizeFromBuffer(buffer, fieldNameSize);
+
+        bson_details::assertElementWithinBuffer(buffer, fieldNameSize, valueSize);
+        _pos += fieldNameSize + 1 + valueSize;
+        return BSONElement(buffer, fieldNameSize, BSONElement::TrustedInitTag{});
     }
 
     /**
@@ -918,12 +976,18 @@ public:
     }
 
     BSONElement operator*() {
-        dassert(_pos <= _theend);
-        return BSONElement(std::span{_pos, _theend + 1});
+        // Ensure we're creating a valid span.
+        bson_details::tassertBSONOverread(_pos && _pos <= _eoo);
+        std::span buffer{_pos, _eoo + 1};
+        auto fieldNameSize = BSONElement::fieldNameSizeFromBuffer(buffer);
+        auto valueSize = BSONElement::valueSizeFromBuffer(buffer, fieldNameSize);
+
+        bson_details::assertElementWithinBuffer(buffer, fieldNameSize, valueSize);
+        return BSONElement(buffer, fieldNameSize, BSONElement::TrustedInitTag{});
     }
 
     bool operator==(const BSONObjIterator& other) {
-        dassert(_theend == other._theend);
+        dassert(_eoo == other._eoo);
         return _pos == other._pos;
     }
 
@@ -933,7 +997,7 @@ public:
 
 private:
     const char* _pos;
-    const char* _theend;
+    const char* _eoo;
 };
 
 /**
