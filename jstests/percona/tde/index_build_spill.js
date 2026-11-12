@@ -24,7 +24,7 @@
 (function () {
     "use strict";
 
-    run("chmod", "600", TestData.keyFile);
+    run("chmod", "600", TestData.encryptionKeyFile);
 
     const dbPath = MongoRunner.dataPath + "psmdb1997-index-build-spill";
 
@@ -36,7 +36,7 @@
     const conn = MongoRunner.runMongod({
         dbpath: dbPath,
         enableEncryption: "",
-        encryptionKeyFile: TestData.keyFile,
+        encryptionKeyFile: TestData.encryptionKeyFile,
         encryptionCipherMode: TestData.cipherMode,
         setParameter: {maxIndexBuildMemoryUsageMegabytes: maxMemUsageMB},
     });
@@ -64,11 +64,15 @@
     // exercised the encrypted-spill path rather than building entirely
     // in memory.
     const ss = testDB.serverStatus();
-    assert(ss.hasOwnProperty("indexBulkBuilder"), "serverStatus is missing indexBulkBuilder section: " + tojson(ss));
+    assert(
+        ss.hasOwnProperty("indexBulkBuilder"),
+        "serverStatus is missing indexBulkBuilder section: " + tojson(ss),
+    );
     assert.gt(
         ss.indexBulkBuilder.spilledRanges,
         0,
-        "expected at least one spilled range during the index build; got: " + tojson(ss.indexBulkBuilder),
+        "expected at least one spilled range during the index build; got: " +
+            tojson(ss.indexBulkBuilder),
     );
 
     // Verify the index actually works - this also forces a scan that
