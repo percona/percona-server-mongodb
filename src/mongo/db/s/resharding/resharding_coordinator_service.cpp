@@ -38,8 +38,24 @@ void ReshardingCoordinatorService::checkIfConflictsWithOtherInstances(
         initialState,
         IDLParserContext("ReshardingCoordinatorService::checkIfConflictsWithOtherInstances"));
 
+    const bool allowConcurrentResharding = resharding::isEnabledWithPinnedVersion(
+        coordinatorDoc.getForwardableOpMetadata(), resharding::gFeatureFlagConcurrentResharding);
+
+    size_t numActiveInstancesOnOtherNamespaces = 0;
+
     for (const auto& instance : existingInstances) {
         auto typedInstance = checked_cast<const ReshardingCoordinator*>(instance);
+        const bool hasAlreadyCompleted =
+            typedInstance->isRecoveryInQuiesce() || typedInstance->getCompletionFuture().isReady();
+
+        if (allowConcurrentResharding &&
+            typedInstance->getMetadata().getSourceNss() != coordinatorDoc.getSourceNss()) {
+            if (!hasAlreadyCompleted) {
+                ++numActiveInstancesOnOtherNamespaces;
+            }
+            continue;
+        }
+
         // Instances which have already completed do not conflict with other instances, unless
         // their user resharding UUIDs are the same. An instance recovered from a kQuiesced document
         // has also already completed, even though its freshly started chain of work has not
@@ -47,8 +63,6 @@ void ReshardingCoordinatorService::checkIfConflictsWithOtherInstances(
         const bool isUserReshardingUUIDSame =
             typedInstance->getMetadata().getUserReshardingUUID() ==
             coordinatorDoc.getUserReshardingUUID();
-        const bool hasAlreadyCompleted =
-            typedInstance->isRecoveryInQuiesce() || typedInstance->getCompletionFuture().isReady();
         if (!isUserReshardingUUIDSame && hasAlreadyCompleted) {
             LOGV2_DEBUG(7760400,
                         1,
@@ -73,10 +87,18 @@ void ReshardingCoordinatorService::checkIfConflictsWithOtherInstances(
             (typedInstance->getMetadata().getProvenance() ==
              coordinatorDoc.getCommonReshardingMetadata().getProvenance());
 
+        const std::string conflictMsg = allowConcurrentResharding
+            ? str::stream() << "Another resharding operation with different arguments is already "
+                               "active for the same namespace, resharding failed to start for "
+                            << coordinatorDoc.getSourceNss().toStringForErrorMsg()
+                            << ". Concurrent resharding operations are only allowed on distinct "
+                               "namespaces"
+            : str::stream() << "Only one resharding operation is allowed to be active at a "
+                               "time, resharding failed to start for "
+                            << coordinatorDoc.getSourceNss().toStringForErrorMsg();
+
         iassert(ErrorCodes::ConflictingOperationInProgress,
-                str::stream() << "Only one resharding operation is allowed to be active at a "
-                                 "time, aborting resharding op for "
-                              << coordinatorDoc.getSourceNss().toStringForErrorMsg(),
+                conflictMsg,
                 isUserReshardingUUIDSame && isNssSame && isReshardingKeySame && isProvenanceSame);
 
         std::string userReshardingIdMsg;
@@ -94,6 +116,18 @@ void ReshardingCoordinatorService::checkIfConflictsWithOtherInstances(
                                 << userReshardingIdMsg);
     }
 
+    if (allowConcurrentResharding) {
+        // Each resharding coordinator blocks at least 2 threads on delta collectors.
+        const size_t maxConcurrentReshardings = resharding::getMaxConcurrentReshardings();
+        iassert(ErrorCodes::ConflictingOperationInProgress,
+                str::stream() << "Maximum number of concurrent resharding operations ("
+                              << maxConcurrentReshardings
+                              << ") reached, which is derived from the resharding coordinator "
+                                 "service thread pool size, resharding failed to start for "
+                              << coordinatorDoc.getSourceNss().toStringForErrorMsg(),
+                numActiveInstancesOnOtherNamespaces < maxConcurrentReshardings);
+    }
+
     // Refuse to create a new resharding coordinator while an FCV upgrade/downgrade is in progress.
     // Otherwise a resharding operation could start after existing reshardings have been drained as
     // part of the FCV transition and then complete across the FCV change, potentially leaving the
@@ -105,25 +139,6 @@ void ReshardingCoordinatorService::checkIfConflictsWithOtherInstances(
             "Resharding is not supported during FCV changes, please wait for the FCV change to "
             "complete.",
             !isFcvTransitionInProgress(opCtx));
-
-    // Double check that the feature flags are in a consistent state. We don't have to worry about
-    // transitional FCV because of the above assertion.
-    tassert(13237401,
-            "Resharding with authoritative shards requires shard refreshes to be disabled",
-            !resharding::isEnabledWithPinnedVersion(coordinatorDoc.getForwardableOpMetadata(),
-                                                    feature_flags::gAuthoritativeShardsDDL) ||
-                (resharding::isEnabledWithPinnedVersion(
-                     coordinatorDoc.getForwardableOpMetadata(),
-                     resharding::gFeatureFlagReshardingCloneNoRefresh) &&
-                 resharding::isEnabledWithPinnedVersion(
-                     coordinatorDoc.getForwardableOpMetadata(),
-                     resharding::gFeatureFlagReshardingInitNoRefresh) &&
-                 resharding::isEnabledWithPinnedVersion(
-                     coordinatorDoc.getForwardableOpMetadata(),
-                     resharding::gFeatureFlagReshardingNoRefreshApplyingAndBlockingWrites) &&
-                 resharding::isEnabledWithPinnedVersion(
-                     coordinatorDoc.getForwardableOpMetadata(),
-                     resharding::gFeatureFlagReshardingSkipCloningAndApplyingIfApplicable)));
 }
 
 std::shared_ptr<repl::PrimaryOnlyService::Instance> ReshardingCoordinatorService::constructInstance(

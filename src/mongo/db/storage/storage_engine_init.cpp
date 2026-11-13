@@ -176,6 +176,7 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
     }
 
+<<<<<<< HEAD
     // Install this dbpath's key id (if any) and drop stale futureConfigured
     // left over from a previous dbpath in this process (FCBIS / storage
     // location switch). PSMDB-2253.
@@ -189,14 +190,27 @@ StorageEngine::LastShutdownState initializeStorageEngine(
                                   startupTimeElapsedBuilder);
     };
     try {
+||||||| 4c4c52cbe05
+    auto& lockFile = StorageEngineLockFile::get(service);
+    {
+=======
+    // The process lock file only reflects how the dbpath opened at startup was last shut down, so
+    // it does not apply to restarts.
+    const bool forRestart =
+        (initFlags & StorageEngineInitFlags::kForRestart) != StorageEngineInitFlags{};
+    auto& processLockFile = StorageEngineLockFile::get(service);
+    const StorageEngineLockFile* lockFile =
+        !forRestart && processLockFile ? &*processLockFile : nullptr;
+    {
+>>>>>>> f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184
         SectionScopedTimer scopedTimer(service->getFastClockSource(),
                                        TimedSectionId::createStorageEngine,
                                        startupTimeElapsedBuilder);
-        if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
+        if (!forRestart) {
             auto storageEngine =
                 std::unique_ptr<StorageEngine>(factory->create(opCtx,
                                                                storageGlobalParams,
-                                                               lockFile ? &*lockFile : nullptr,
+                                                               lockFile,
                                                                isReplSet,
                                                                shouldRecoverFromOplogAsStandalone,
                                                                inStandaloneMode));
@@ -207,7 +221,7 @@ StorageEngine::LastShutdownState initializeStorageEngine(
             auto storageEngine =
                 std::unique_ptr<StorageEngine>(factory->create(opCtx,
                                                                storageGlobalParams,
-                                                               lockFile ? &*lockFile : nullptr,
+                                                               lockFile,
                                                                isReplSet,
                                                                shouldRecoverFromOplogAsStandalone,
                                                                inStandaloneMode));
@@ -255,14 +269,13 @@ void shutdownGlobalStorageEngineCleanly(ServiceContext* service, bool memLeakAll
     storageEngine->cleanShutdown(service, memLeakAllowed);
 }
 
-StorageEngine::LastShutdownState reinitializeStorageEngine(
-    OperationContext* opCtx,
-    StorageEngineInitFlags initFlags,
-    bool isReplSet,
-    bool shouldRecoverFromOplogAsStandalone,
-    bool shouldSkipOplogSampling,
-    bool inStandaloneMode,
-    std::function<void()> changeConfigurationCallback) {
+void reinitializeStorageEngine(OperationContext* opCtx,
+                               StorageEngineInitFlags initFlags,
+                               bool isReplSet,
+                               bool shouldRecoverFromOplogAsStandalone,
+                               bool shouldSkipOplogSampling,
+                               bool inStandaloneMode,
+                               std::function<void()> changeConfigurationCallback) {
     auto service = opCtx->getServiceContext();
     shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
     // Tell storage engine to free memory since the process is not exiting.
@@ -271,15 +284,13 @@ StorageEngine::LastShutdownState reinitializeStorageEngine(
                                         std::make_unique<RecoveryUnitNoop>(),
                                         WriteUnitOfWork::RecoveryUnitState::kNotInUnitOfWork);
     changeConfigurationCallback();
-    auto lastShutdownState =
-        initializeStorageEngine(opCtx,
-                                initFlags | StorageEngineInitFlags::kForRestart,
-                                isReplSet,
-                                shouldRecoverFromOplogAsStandalone,
-                                inStandaloneMode);
+    initializeStorageEngine(opCtx,
+                            initFlags | StorageEngineInitFlags::kForRestart,
+                            isReplSet,
+                            shouldRecoverFromOplogAsStandalone,
+                            inStandaloneMode);
     StorageControl::startStorageControls(service);
     startOplogCapMaintainerThread(service, isReplSet, shouldSkipOplogSampling);
-    return lastShutdownState;
 }
 
 namespace {
