@@ -1062,7 +1062,6 @@ lock_import.package(
     repo = "pypi",
 )
 
-
 lock_repos = use_extension("@rules_pycross//pycross/extensions:lock_repos.bzl", "lock_repos")
 use_repo(lock_repos, "pypi")
 ###################### END PYTHON DEPS ######################
