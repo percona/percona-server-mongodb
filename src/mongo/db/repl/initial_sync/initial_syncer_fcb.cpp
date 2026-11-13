@@ -1618,30 +1618,27 @@ Status InitialSyncerFCB::_switchStorageLocation(OperationContext* opCtx,
 
     auto previousCatalogState = catalog::closeCatalog(opCtx);
 
-    auto lastShutdownState =
-        reinitializeStorageEngine(opCtx,
-                                  StorageEngineInitFlags{},
-                                  getGlobalReplSettings().isReplSet(),
-                                  repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
-                                  repl::ReplSettings::shouldSkipOplogSampling(),
-                                  getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
-                                  [&newLocation, opCtx] {
-                                      storageGlobalParams.dbpath = newLocation;
-                                      repl::clearLocalOplogPtr(opCtx->getServiceContext());
-                                  });
+    reinitializeStorageEngine(opCtx,
+                              StorageEngineInitFlags{},
+                              getGlobalReplSettings().isReplSet(),
+                              repl::ReplSettings::shouldRecoverFromOplogAsStandalone(),
+                              repl::ReplSettings::shouldSkipOplogSampling(),
+                              getReplSetMemberInStandaloneMode(getGlobalServiceContext()),
+                              [&newLocation, opCtx] {
+                                  storageGlobalParams.dbpath = newLocation;
+                                  repl::clearLocalOplogPtr(opCtx->getServiceContext());
+                              });
     auto storageEngine = opCtx->getServiceContext()->getStorageEngine();
     catalog::initializeCollectionCatalog(opCtx, storageEngine, catalog::InitMode::kStorageChange);
     storageEngine->notifyStorageStartupRecoveryComplete();
-    if (StorageEngine::LastShutdownState::kClean != lastShutdownState) {
-        return {ErrorCodes::InternalError,
-                str::stream() << "Failed to switch storage location to " << newLocation};
-    }
-
 
     if (runRecovery) {
         // We need to run startup recovery to ensure that the storage engine is in a consistent
-        // state.
-        startup_recovery::runStartupRecovery(opCtx, lastShutdownState);
+        // state. Switching the storage location is a restart, so the process lock file no longer
+        // reflects the dbpath we just opened; following upstream SERVER-136961 (which made
+        // reinitializeStorageEngine return void for exactly this reason), treat the switch as a
+        // clean shutdown and let storage-engine recovery handle any actual unclean state.
+        startup_recovery::runStartupRecovery(opCtx, StorageEngine::LastShutdownState::kClean);
     }
 
     catalog::openCatalogAfterStorageChange(opCtx);
