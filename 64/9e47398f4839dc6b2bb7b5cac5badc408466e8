@@ -1,0 +1,221 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "b853e739ceb24c46b4adf2fa5680ff873ce8567f",
+    "merge_commit": "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "b853e739ceb24c46b4adf2fa5680ff873ce8567f",
+    "theirs_commit": "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+    "base_commit": "4c4c52cbe055c7644e545e1e9aebcaf23124e098",
+    "files": [
+      "MODULE.bazel",
+      "src/mongo/db/storage/storage_engine_init.cpp"
+    ],
+    "conflict_types": {
+      "MODULE.bazel": "both modified",
+      "src/mongo/db/storage/storage_engine_init.cpp": "both modified"
+    },
+    "diffs": {
+      "MODULE.bazel": "diff --cc MODULE.bazel\nindex 30e0d7112b3,c6c4ef20cca..00000000000\n--- a/MODULE.bazel\n+++ b/MODULE.bazel\n@@@ -1058,0 -1057,21 +1057,38 @@@ lock_import.package\n++<<<<<<< HEAD\n++||||||| 4c4c52cbe05\n++# //release-container is its own uv project with its own lock. It pins `docker==6.0.1` and\n++# `urllib3==1.26.15`, which conflict with the versions in the root uv.lock, so it gets a separate\n++# hub: depend on it as @release_container_pypi//:<pkg> (see `hub` in //bazel/uv:defs.bzl).\n+ (... 28 more added lines...)\n+     require_static_urls = True,\n+     target_environments = [\"@mongo_pycross_environments//:environments\"],\n+ )\n+ \n++>>>>>>> f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+      "src/mongo/db/storage/storage_engine_init.cpp": "diff --cc src/mongo/db/storage/storage_engine_init.cpp\nindex 57fd4e1450b,33363a2b67f..00000000000\n--- a/src/mongo/db/storage/storage_engine_init.cpp\n+++ b/src/mongo/db/storage/storage_engine_init.cpp\n@@@ -179,13 -134,8 +179,27 @@@ StorageEngine::LastShutdownState initia\n++<<<<<<< HEAD\n +    // Install this dbpath's key id (if any) and drop stale futureConfigured\n +    // left over from a previous dbpath in this process (FCBIS / storage\n +    // location switch). PSMDB-2253.\n +    encryption::WtKeyIds::instance().adoptFromStorageMetadata(metadata ? metadata->keyId()\n +                                                                       : nullptr);\n +\n +    auto& lockFile = StorageEngineLockFile::get(service);\n +    auto createScopedTimer = [service, startupTimeElapsedBuilder]() {\n +        return SectionScopedTimer(service->getFastClockSource(),\n +                                  TimedSectionId::writeNewMetadata,\n +                                  startupTimeElapsedBuilder);\n +    };\n +    try {\n++||||||| 4c4c52cbe05\n++    auto& lockFile = StorageEngineLockFile::get(service);\n++    {\n++=======\n+     // The process lock file only reflects how the dbpath opened at startup was last shut down, so\n+     // it does not apply to restarts.\n+     const bool forRestart =\n+         (initFlags & StorageEngineInitFlags::kForRestart) != StorageEngineInitFlags{};\n+     auto& processLockFile = StorageEngineLockFile::get(service);\n+     const StorageEngineLockFile* lockFile =\n+         !forRestart && processLockFile ? &*processLockFile : nullptr;\n+     {\n++>>>>>>> f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184"
+    },
+    "their_commits": {
+      "MODULE.bazel": [
+        "da8fbb4e5f5413dd7f8fb4f16252149dbd72c5c1"
+      ],
+      "src/mongo/db/storage/storage_engine_init.cpp": [
+        "fd00b62e333e6fbdd2501bdd1cc280d2d302d909"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+    "merged_commits": [
+      "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+      "0658ce8812adb7fe5facb863c0451de55cfd752d",
+      "aa5449fc70f2d23ead43dc8d171c072317cc322f",
+      "e472bf7e3741f948287dbd08d43197451ecb84a0",
+      "9000ba6905d1482c1a67a8699ccb4ab1a0d836f8",
+      "2f968b9f0d2e18a2008d44c800e3044311933cca",
+      "a258fa6906819883c92f8c129bdbf3f968468bc6",
+      "3374a7f2a452a77fe5ac1f41ceabd229a1a4850e",
+      "65478b7e5f7695948fb855e3374dc3371059d89c",
+      "e48151e1cea25b2c6be6e751d2d1f892df173bc5",
+      "b4bfeca704a40a0943054022631abb6473d8c9af",
+      "5462b962b6c72c1b1d080bb80d2ec59004e4b4ea",
+      "dd771954aa018717bf4e69c3f6b488a52c48dd41",
+      "3aa40a962b6d28b2bb985f2170fa4ef7a85d9d71",
+      "84730ce014cae4a95c90650687d78e70f5723386",
+      "e88c45c7a5d1ace2908c14b902f3939869c8174f",
+      "563e7b7070e11d660e03beeedaa3c2110f923afe",
+      "916a6989ae5c64ad26c85eaa70429e08cc271a27",
+      "09dd72b9881fc1816b932892fc65c04018e985c1",
+      "9668bab4a29e35e00fbe090e4f245829d3fff400",
+      "38dfa646c80acfde5ae67a2067e6c0dce8ac7fbb",
+      "0fb29677ec29403bb9ef0734c502afcbab6ebb6e",
+      "7d037f5d8918378aaa5adf395db3860ebf51eef6",
+      "da8fbb4e5f5413dd7f8fb4f16252149dbd72c5c1",
+      "14f5434ee9889f9ff9f9bbceabf0a3384c34d4ad",
+      "321fb84ed80be51e97e43a51aed893e7a0594451",
+      "3e2b279f977e5413602b1934cb7badc235b7f58f",
+      "5a89dcd6af7a96209e7126b6bcc9cb7ee79b5518",
+      "7e49b00a54ea0b0db4e4d7e93d3e9d4d37571718",
+      "298869daadd82f1f15d175c2c48aa333fcee1886",
+      "097d494c591117f78dbb04ca84e04be99c33057a",
+      "122067189df8d8181157e9cd65dda1b79a534e6e",
+      "3722ecb93883eb0c8f38f1ab8a769abe760aa578",
+      "3543d048ab03194d1528b58676d8c8244c214fc5",
+      "968bd15502fecd7aaf6355de26de1ca69beda9b8",
+      "10a40f884b84f23c0619fc3defb6a5cb74e90289",
+      "d0f0e3476dbc96e53e67246c9055dab07bfafb8b",
+      "81cfc5717fd93c6f80a6a67d1f24b666cd1af7b8",
+      "46bc894749077ab631a8755bd7fddbf1e8378787",
+      "fd00b62e333e6fbdd2501bdd1cc280d2d302d909",
+      "9cc8e3cbbcd878a62eee8d46d365e11501f417b0",
+      "c013319fad98e64c78f37cab154d1e5a610a327a",
+      "e9ab72fc02ddfb961d9be2f030683d83ea2c27be",
+      "48bad575d57e96291cd6601c713782737b7f5608",
+      "94ea2b0430bf7ccb78c35cd0b9999f777f27d067",
+      "9a731c4dc2a06fd6d0c70b9229c4681d18b50b09",
+      "32b7bf899fdf67aed2b0f9d16345ce14efc327d3",
+      "c646fea85a91a7fb193dc0a6338255059841ca3b",
+      "f7ed121f000752c7bf9e54933ed0cdd081c019d7",
+      "b0f6e1f55742fc6bceafaaf021d87e2482a995c4"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/commands/BUILD.bazel",
+        "src/mongo/db/mongod_main.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/server_options.h",
+        "src/mongo/db/server_options_server_helpers.cpp",
+        "src/mongo/db/storage/storage_engine_init.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/s/BUILD.bazel"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 42613,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.23538449999999997,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3529,
+        "cacheReadInputTokens": 48059,
+        "cacheCreationInputTokens": 19696,
+        "webSearchRequests": 0,
+        "costUSD": 0.23538449999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 722,
+        "cacheCreationEphemeral5mInputTokens": 19696,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3529,
+            "cache_read": 48059,
+            "cache_creation": 19696
+          },
+          "cost_usd": 0.23538449999999997
+        }
+      }
+    },
+    "text_result": "I've inspected the actual `diff base \u2192 merge commit` diffs for all ten auto-merged files and written the JSON response.\n\nKey findings from the real diffs:\n- **The main functional change** is upstream's removal of the legacy `validateFeaturesAsPrimary` mechanism, which spans three files: the atomic member in `server_options.h`, the startup toggle in `mongod_main.cpp`, and the `internalValidateFeaturesAsPrimary`/`internalValidateFeaturesAsMaster` + replSet validation in `server_options_server_helpers.cpp`.\n- **`storage_engine_init.cpp`** (a conflict file) was refactored so the process lock file is null on restarts, and `reinitializeStorageEngine` now returns `void`.\n- **`wiredtiger_kv_engine.cpp`** adds `leafPageMax` to the WT table config in two spots.\n- The remaining BUILD.bazel/MODULE.bazel changes are dependency and packaging adjustments.\n\nEvery statement in the response is backed by lines I saw in the diff output. The review notes flag the two conflict files (MODULE.bazel, storage_engine_init.cpp) and specifically call out verifying that the Percona PSMDB-2253 encryption key-id handling in storage_engine_init.cpp was preserved alongside the upstream refactor.",
+    "response": {
+      "summary": "Pulls in upstream mongodb-master changes. The most notable functional change removes the legacy `validateFeaturesAsPrimary` mechanism (the `internalValidateFeaturesAsPrimary`/`internalValidateFeaturesAsMaster` server options path): the atomic flag, its startup toggling, and the command-line validation that forbade combining it with a replica set are all deleted. Other changes: the storage engine init is refactored so the process lock file is not applied on restarts and `reinitializeStorageEngine` becomes void; WiredTiger record stores now set a leaf-page-max table config value from the persistence provider; and several BUILD.bazel dependency and MODULE.bazel packaging adjustments (including an end_of_transaction parameter wiring and a cryptography wheel source-build guard).",
+      "auto_merged": {
+        "MODULE.bazel": "Rewrites the `wheel_build_cargo_home` patch comment to describe resolving HOME/caches/temp files at runtime inside the WheelBuild action directory (to satisfy recent platformdirs that rejects a relative HOME), and adds a new `lock_import.package` entry for `cryptography` with `build_target = \"//bazel/rules_pycross:cryptography_source_build_disabled\"` so analysis fails if a platform would compile the Rust extension from source instead of using a wheel.",
+        "src/mongo/db/BUILD.bazel": "Removes three source files from the library srcs: `classic_runtime_planner_for_sbe:multi_planner.cpp`, `:single_solution_passthrough_planner.cpp`, and `:sub_planner.cpp`.",
+        "src/mongo/db/commands/BUILD.bazel": "Adds the dependency `//src/mongo/db:end_of_transaction_parameter` to a mongo_cc_library target.",
+        "src/mongo/db/mongod_main.cpp": "Removes from `_initAndListen` the block that, for a replica set or when `gInternalValidateFeaturesAsPrimary` was false, stored `false` into `serverGlobalParams.validateFeaturesAsPrimary`.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds two dependencies to a mongo_cc_library deps list: `//src/mongo/db:end_of_transaction_parameter` and `//src/mongo/db:server_feature_flags`.",
+        "src/mongo/db/server_options.h": "Removes the `Atomic<bool> validateFeaturesAsPrimary{true}` member (and its comment) from `ServerGlobalParams`.",
+        "src/mongo/db/server_options_server_helpers.cpp": "Removes the validation in `validateServerOptions` that returned BadValue when `internalValidateFeaturesAsPrimary` or its deprecated alias `internalValidateFeaturesAsMaster` was specified together with `replication.replSet`.",
+        "src/mongo/db/storage/storage_engine_init.cpp": "Refactors `initializeStorageEngine` to compute a `forRestart` flag and pass a `lockFile` pointer that is null on restarts (the process lock file only reflects how the startup dbpath was last shut down), replacing the inline `lockFile ? &*lockFile : nullptr` checks at the two `factory->create` calls. Also changes `reinitializeStorageEngine` to return `void` instead of `StorageEngine::LastShutdownState`, dropping the captured and returned `lastShutdownState` from its `initializeStorageEngine` call.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "In `_createRecordStore` and `makeInternalRecordStore`, sets `wtTableConfig.leafPageMax = provider.getWTLeafPageMaxForCollectionsStrValue()` (via `_provider` in the internal case) on the WiredTiger table config.",
+        "src/mongo/s/BUILD.bazel": "Adds the dependency `//src/mongo/s/resharding:resharding_tunables_gen` to a mongo_cc_library deps list."
+      },
+      "review_notes": "Two files had conflicts resolved during the merge: MODULE.bazel and src/mongo/db/storage/storage_engine_init.cpp. For storage_engine_init.cpp, verify the Percona-specific encryption key-id handling (`encryption::WtKeyIds::instance().adoptFromStorageMetadata(...)`, PSMDB-2253) was preserved alongside the upstream refactor of the lock-file handling and the void return of `reinitializeStorageEngine`; confirm callers of `reinitializeStorageEngine` no longer expect a LastShutdownState return. For MODULE.bazel, confirm the conflict markers were fully removed and the new cryptography lock_import.package entry and the updated wheel_build_cargo_home comment coexist with Percona's existing entries. The removal of the validateFeaturesAsPrimary machinery spans server_options.h, mongod_main.cpp, and server_options_server_helpers.cpp; ensure no remaining references to that member or to the internalValidateFeaturesAsPrimary/Master options exist in Percona-specific code."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each auto-merged file using the authoritative diff base and merge commit."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have the full diffs. Now I'll write the JSON response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've inspected the actual `diff base \u2192 merge commit` diffs for all ten auto-merged files and written the JSON response.\n\nKey findings from the real diffs:\n- **The main functional change** is upstream's removal of the legacy `validateFeaturesAsPrimary` mechanism, which spans three files: the atomic member in `server_options.h`, the startup toggle in `mongod_main.cpp`, and the `internalValidateFeaturesAsPrimary`/`internalValidateFeaturesAsMaster` + replSet validation in `server_options_server_helpers.cpp`.\n- **`storage_engine_init.cpp`** (a conflict file) was refactored so the process lock file is null on restarts, and `reinitializeStorageEngine` now returns `void`.\n- **`wiredtiger_kv_engine.cpp`** adds `leafPageMax` to the WT table config in two spots.\n- The remaining BUILD.bazel/MODULE.bazel changes are dependency and packaging adjustments.\n\nEvery statement in the response is backed by lines I saw in the diff output. The review notes flag the two conflict files (MODULE.bazel, storage_engine_init.cpp) and specifically call out verifying that the Percona PSMDB-2253 encryption key-id handling in storage_engine_init.cpp was preserved alongside the upstream refactor."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261113_085102_466994.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.323 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+    "short_sha": "f2f4fb830d2",
+    "strategy": null,
+    "summary": "This is the 50th commit in the window, landing squarely in the ~50-commit target band. It is a self-contained bug fix (SERVER-138236, standby renameCollection dropTarget) and, crucially, it is the last commit before Lynne Wang's stacked two-phase index-build attempt series begins at the very next commit (03b4f93d SERVER-137561 'per-node index build attempt ledger', followed by SERVER-137562/137564/137566/138479/138514). Cutting here keeps that coherent, stacked unit of work intact for the next batch rather than importing it half-applied. The earlier WiredTiger import (38dfa646, ~commit 30) is an even cleaner atomic boundary but would make an unnecessarily small batch, and the next WiredTiger import (94a7db8b) sits at ~commit 85, well past the target. The only flagged conflict commit (fd00b62e) falls earlier in range and is handled by the existing resolve flow when the merge reaches it.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/43395974379"
+  }
+}
