@@ -45,7 +45,7 @@ compile-mongo-tools:
         export GOBINPATH="/usr/local/go/bin"
 	cd $(PSMSRC)/../src/github.com/mongodb/mongo-tools; \
         sed -i '/^\t"github.com\/craiggwilson\/goke\/pkg\/git"$$/d' buildscript/build.go; \
-        sed -i '/^\tversionStr, err := runCmd(ctx, "go", "run", "release\/release.go", "get-version")$$/,/failed to get git commit hash/{/failed to get git commit hash/{N;d};d}' buildscript/build.go; \
+        sed -i '/^\tversionStr, err := runCmd(ctx, "go", "run", ".*", "get-version")$$/,/failed to get git commit hash/{/failed to get git commit hash/{N;d};d}' buildscript/build.go; \
         sed -i "s:versionStr,:\"$(PSMDB_TOOLS_REVISION)\",:" buildscript/build.go; \
         sed -i "s:gitCommit):\"$(PSMDB_TOOLS_COMMIT_HASH)\"):" buildscript/build.go; \
         ./make build;
