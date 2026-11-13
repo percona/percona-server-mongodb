@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 200,
+    "commits_behind": 225,
     "days_behind": 13,
-    "unmerged_oldest_age_days": 13.304618608055556,
-    "files_affected": 998,
-    "total_additions": 48114,
-    "total_deletions": 15426,
+    "unmerged_oldest_age_days": 13.801408229120371,
+    "files_affected": 1176,
+    "total_additions": 54054,
+    "total_deletions": 16709,
     "date_range": {
       "first": "2026-10-30T10:53:24+00:00",
-      "last": "2026-11-05T17:17:00+00:00"
+      "last": "2026-11-06T01:05:02+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,256 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "19be36681c1746dfeed993b188fe40340913b214",
+      "short_sha": "19be36681c1",
+      "date": "2026-11-06T01:05:02+00:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-137428: Implement query shape and query stats key for findAndModify (#65164)"
+    },
+    {
+      "sha": "3bf0d0c0909f794779fb112c9ef5775dbdf76618",
+      "short_sha": "3bf0d0c0909",
+      "date": "2026-11-06T01:04:49+00:00",
+      "author": {
+        "name": "Mariano Shaar",
+        "email": "47160550+shaargtz@users.noreply.github.com"
+      },
+      "summary": "SERVER-137426: Add ParsedFindAndModify foundation (#65140)"
+    },
+    {
+      "sha": "c468434a96155a529cbfd78c1dbf4b0e10fb46b4",
+      "short_sha": "c468434a961",
+      "date": "2026-11-06T00:14:22+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-138311 Change validate options to plain-old-data (#65744)"
+    },
+    {
+      "sha": "a0f499bb25c170ded2016e70e1db7a707ce2a313",
+      "short_sha": "a0f499bb25c",
+      "date": "2026-11-05T23:43:03+00:00",
+      "author": {
+        "name": "Parker Felix",
+        "email": "68665637+parker-felix@users.noreply.github.com"
+      },
+      "summary": "SERVER-138558 Remove persistedSizeCount from Collection (#65976)"
+    },
+    {
+      "sha": "3d34338c559e2254dd34dc4198625fcc0401eed9",
+      "short_sha": "3d34338c559",
+      "date": "2026-11-05T23:00:18+00:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-138484 When QMLS is disabled, still report its serverStatus counters (#65886)"
+    },
+    {
+      "sha": "d6274e8e05acbbd61de7d072b3e38a8b724b6c80",
+      "short_sha": "d6274e8e05a",
+      "date": "2026-10-30T10:57:39+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137537 Run ARM retry backoff on the TaskExecutor (#64900)"
+    },
+    {
+      "sha": "c7ff05ad0a93e3548ec4da37a0935e55f4272af2",
+      "short_sha": "c7ff05ad0a9",
+      "date": "2026-10-30T10:57:07+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137536 Model ARM per-remote async work as an explicit state machine (#64899)"
+    },
+    {
+      "sha": "028cb95fb4debe2f6a685eefb13dd28ae4e77335",
+      "short_sha": "028cb95fb4d",
+      "date": "2026-10-30T10:56:22+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137535 Move ARM txn bookkeeping into helper function (#64898)"
+    },
+    {
+      "sha": "95a516ac81f51a046e17707f709eca306f8068b8",
+      "short_sha": "95a516ac81f",
+      "date": "2026-11-05T22:21:25+00:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-138086 Reset read source after resumed bulk load phase (#66160)"
+    },
+    {
+      "sha": "362f692c7d1737b8b20afe4149deda0ed7e8cd8b",
+      "short_sha": "362f692c7d1",
+      "date": "2026-11-05T21:37:30+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138741 Give SBE blueprint rewrite rules a shared slot summary and a way to queue nodes (#66161)"
+    },
+    {
+      "sha": "b2b94807a4d84159532979b97387cc806f691e0e",
+      "short_sha": "b2b94807a4d",
+      "date": "2026-11-05T21:31:37+00:00",
+      "author": {
+        "name": "erinzhu001",
+        "email": "erin.zhu@mongodb.com"
+      },
+      "summary": "SERVER-128560 Make feature flag checks tolerate a null opCtx (#65957)"
+    },
+    {
+      "sha": "d0ce8e4fd6f6a5d9c8fc5420e4db5e99df768b3a",
+      "short_sha": "d0ce8e4fd6f",
+      "date": "2026-11-05T20:56:18+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-137968 Add execution engine counter to query stats (#65865)"
+    },
+    {
+      "sha": "56d91260ec218ca535b2f1a806389dde3de7de51",
+      "short_sha": "56d91260ec2",
+      "date": "2026-11-05T20:53:38+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-135262 Do not flip multikey if document generates no keys (#65705)"
+    },
+    {
+      "sha": "977d993b46bd2fd2289cb8e921d6819e54a2453b",
+      "short_sha": "977d993b46b",
+      "date": "2026-11-05T20:28:17+00:00",
+      "author": {
+        "name": "Steve McClure",
+        "email": "steve.mcclure@mongodb.com"
+      },
+      "summary": "SERVER-138533 Verify downloaded mongo-task-generator binary against pinned sha256 (#65934)"
+    },
+    {
+      "sha": "eb063475af23552f39fa0616c5d9412002417eea",
+      "short_sha": "eb063475af2",
+      "date": "2026-11-05T20:09:23+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-138759 Split Replication team quotas for RFC and ROAR. (#66180)"
+    },
+    {
+      "sha": "0e451293185d83e7ac3c76896574835dba511d33",
+      "short_sha": "0e451293185",
+      "date": "2026-11-05T20:09:02+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 4ca01f76c19c18b7f7d98fb82aa2fc193b1f7dc5 from branch mongodb-master (#66127)"
+    },
+    {
+      "sha": "bf86ba1f835dd2aded716b6d55174e7dc62129a2",
+      "short_sha": "bf86ba1f835",
+      "date": "2026-11-05T19:54:50+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-138738: Print out slots data in SBE golden tests (#66158)"
+    },
+    {
+      "sha": "117a21cfac557b36b290dfd5feef4636a1eb9085",
+      "short_sha": "117a21cfac5",
+      "date": "2026-11-05T19:17:15+00:00",
+      "author": {
+        "name": "James Bronsted",
+        "email": "32047428+jpbronsted@users.noreply.github.com"
+      },
+      "summary": "SERVER-138631 compare nice to measured baseline in client thread nice unit test (#66091)"
+    },
+    {
+      "sha": "210882238db40399328770a38fafed4654ec592f",
+      "short_sha": "210882238db",
+      "date": "2026-11-05T19:11:02+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-138578 Rename enableContinuousInternodePerCollectionValidation (#65983)"
+    },
+    {
+      "sha": "1f2755d4b69182d6cee06fd9358d3ebc145d3666",
+      "short_sha": "1f2755d4b69",
+      "date": "2026-11-05T18:59:21+00:00",
+      "author": {
+        "name": "Randolph Tan",
+        "email": "randolph@10gen.com"
+      },
+      "summary": "SERVER-128219 Update txn_two_phase_commit_write_concern.js to handle DSC (#66061)"
+    },
+    {
+      "sha": "7648e4fe4cde194aa2822ed72df73cb6abd16136",
+      "short_sha": "7648e4fe4cd",
+      "date": "2026-11-05T18:42:52+00:00",
+      "author": {
+        "name": "seanzimm",
+        "email": "102551488+seanzimm@users.noreply.github.com"
+      },
+      "summary": "SERVER-138408: Fix BlockingWrite behavior in intent registry (#65808)"
+    },
+    {
+      "sha": "baeab9aa9d530e0a3855d45c56c4416368cef33f",
+      "short_sha": "baeab9aa9d5",
+      "date": "2026-11-05T18:36:28+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138572 Tassert streaming group key values are never arrays (#66094)"
+    },
+    {
+      "sha": "559a611678e1f266d1e7354a3f39ed113905bd78",
+      "short_sha": "559a611678e",
+      "date": "2026-11-05T18:07:54+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-138674: Define Windows test execution and debug symbol policy (#66112)"
+    },
+    {
+      "sha": "1bcf504b2fff0b94e29222b0794a9a6306a14dcd",
+      "short_sha": "1bcf504b2ff",
+      "date": "2026-11-05T18:00:57+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-138573 Add disableContinuousInternodeValidationPerCollection server parameter (#65981)"
+    },
+    {
+      "sha": "bf543eb56c870c171567ac8b7dd26de73bbfe1aa",
+      "short_sha": "bf543eb56c8",
+      "date": "2026-11-05T17:42:22+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-136033 Enable PDIB two-failover test with planned stepdown (#66097)"
+    },
     {
       "sha": "74ed4db87a836f6acf66a4821543d110a0039d50",
       "short_sha": "74ed4db87a8",
@@ -2173,7 +2423,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-12 18:11:35",
+  "generated_at": "2026-11-13 06:06:58",
   "branch_name": "master",
   "display_name": "master"
 }
