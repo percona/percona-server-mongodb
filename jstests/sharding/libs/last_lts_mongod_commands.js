@@ -23,6 +23,7 @@ export const commandsRemovedFromMongodSinceLastLTS = [
     "abortShardSplit",
     "captrunc",
     "commitShardSplit",
+    "createBackup", // Removed in 9.0
     "donorAbortMigration",
     "donorForgetMigration",
     "donorStartMigration",
