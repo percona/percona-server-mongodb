@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 177,
-    "days_behind": 11,
-    "unmerged_oldest_age_days": 11.174390434050926,
-    "files_affected": 1014,
-    "total_additions": 46005,
-    "total_deletions": 14744,
+    "commits_behind": 224,
+    "days_behind": 13,
+    "unmerged_oldest_age_days": 13.740666412905094,
+    "files_affected": 1185,
+    "total_additions": 57807,
+    "total_deletions": 19336,
     "date_range": {
       "first": "2026-11-02T03:29:43+00:00",
-      "last": "2026-11-06T01:05:02+00:00"
+      "last": "2026-11-07T05:43:22+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,476 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "525eca950da83a9beba9c4e3cf8f060799e37e98",
+      "short_sha": "525eca950da",
+      "date": "2026-11-07T05:43:22+00:00",
+      "author": {
+        "name": "CALVIN NGUYEN",
+        "email": "calvin.nguyen@mongodb.com"
+      },
+      "summary": "SERVER-137033 Improve external trace handling by ensuring that unsampled traceparent does not consume external token and adding emergency kill switch (#65480)"
+    },
+    {
+      "sha": "16ef049d218c7c164a3abccc2afd9ae174a1bff9",
+      "short_sha": "16ef049d218",
+      "date": "2026-11-07T02:58:06+00:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-119212 Remove exportCollection and importCollection (#65484)"
+    },
+    {
+      "sha": "f3373d492d0254887d718a0eae06917cc05d2f1a",
+      "short_sha": "f3373d492d0",
+      "date": "2026-11-06T23:30:55+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-129280 Convert make* SBE stage builder helpers to use RAII types (#66179)"
+    },
+    {
+      "sha": "c11ba8a141fef01c3d1c7f0aa514bb4614efb9c2",
+      "short_sha": "c11ba8a141f",
+      "date": "2026-11-06T22:54:47+00:00",
+      "author": {
+        "name": "Steve Tarzia",
+        "email": "steve.tarzia@mongodb.com"
+      },
+      "summary": "SERVER-138874 Avoid bogus negative lowMark metric while disabling QMLS (#66284)"
+    },
+    {
+      "sha": "6f2344af17ee65c2ff7350840e91ccd3591b16f8",
+      "short_sha": "6f2344af17e",
+      "date": "2026-11-06T22:50:39+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-137752 Add compact hash agg accumulators with a $sum implementation (#65368)"
+    },
+    {
+      "sha": "c0aaf70f28ab26046a4d315619fb8a4637c09969",
+      "short_sha": "c0aaf70f28a",
+      "date": "2026-11-06T22:50:38+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138036 Add a state table for compact hash agg accumulator states (#65367)"
+    },
+    {
+      "sha": "89804c8b52a84963b03ad5308afde4da9a56028c",
+      "short_sha": "89804c8b52a",
+      "date": "2026-11-06T22:23:33+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-138436 Replace BSON creation at end of SBE plans with ResultMaterializer for group queries (#65979)"
+    },
+    {
+      "sha": "1002eaaaada004ee87dcfa9f416eaba659593ce6",
+      "short_sha": "1002eaaaada",
+      "date": "2026-11-06T22:10:47+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-134788 Create and use new `SerialProcessor` primitive (#65842)"
+    },
+    {
+      "sha": "a8722f6550a8434160d32753e0ad4eebefdce540",
+      "short_sha": "a8722f6550a",
+      "date": "2026-11-06T21:37:32+00:00",
+      "author": {
+        "name": "Parker Felix",
+        "email": "68665637+parker-felix@users.noreply.github.com"
+      },
+      "summary": "SERVER-138785 Assert that insert succeeds in write_without_single_shard_key_single_shard_data_placement_change.js retry loop (#66197)"
+    },
+    {
+      "sha": "9f574222c4d71ced71b747ce40c1f2f54abfc0d9",
+      "short_sha": "9f574222c4d",
+      "date": "2026-11-06T21:36:08+00:00",
+      "author": {
+        "name": "CALVIN NGUYEN",
+        "email": "calvin.nguyen@mongodb.com"
+      },
+      "summary": "SERVER-138875 Fix flaky QueryStatsStoreTest.BasicUsage due to unintentional QueryStatsStore eviction (#66245)"
+    },
+    {
+      "sha": "4f82cf284c6b61bbf75f82e432f3c28c6a3e4f8a",
+      "short_sha": "4f82cf284c6",
+      "date": "2026-11-06T21:31:54+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-138714 Change left loop join to produce output slots (#66167)"
+    },
+    {
+      "sha": "51be363e4f8564173232af01a20c84c15b09adec",
+      "short_sha": "51be363e4f8",
+      "date": "2026-11-06T21:08:38+00:00",
+      "author": {
+        "name": "Chris Kelly",
+        "email": "likai31197@gmail.com"
+      },
+      "summary": "SERVER-138665: Time series created with collation {locale: \"simple\"} segfaults in Collation::toBSON (#66213)"
+    },
+    {
+      "sha": "3f409c3ef8c386c1735510f53c424451c11cd3d7",
+      "short_sha": "3f409c3ef8c",
+      "date": "2026-11-06T20:48:56+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-138596 Lower operationMemoryPoolBlockMaxSizeKB in resumable index build tests (#66171)"
+    },
+    {
+      "sha": "38101c8bdacbca9d402be1a0613fa16c52db65b3",
+      "short_sha": "38101c8bdac",
+      "date": "2026-11-06T20:44:48+00:00",
+      "author": {
+        "name": "Shin Yee Tan",
+        "email": "shinyee.tan@mongodb.com"
+      },
+      "summary": "SERVER-136755 Build each index's merge iterator just before loading it (#65548)"
+    },
+    {
+      "sha": "78999e25c9baa63cbbcfbb67e289be1f2fec3cbf",
+      "short_sha": "78999e25c9b",
+      "date": "2026-11-06T20:40:25+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-138716 Record prepared txn replicated metadata on standby (#66252)"
+    },
+    {
+      "sha": "d6a4a545a2f17373abcec75376b98d723783c4aa",
+      "short_sha": "d6a4a545a2f",
+      "date": "2026-11-06T20:40:23+00:00",
+      "author": {
+        "name": "Stephanie",
+        "email": "53684987+seristof@users.noreply.github.com"
+      },
+      "summary": "SERVER-136298 Validate per collection hash on standby (#65263)"
+    },
+    {
+      "sha": "a9f1b582a8f1e19a10ea87d23d321ce1639e0252",
+      "short_sha": "a9f1b582a8f",
+      "date": "2026-11-06T20:17:20+00:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-138878 Reject negative resumesWithoutProgress values in index build resume metadata (#66273)"
+    },
+    {
+      "sha": "6dfb375ec88b559a34ebd97af711b64ea60a245a",
+      "short_sha": "6dfb375ec88",
+      "date": "2026-11-06T20:03:21+00:00",
+      "author": {
+        "name": "Sam Frank",
+        "email": "sam.frank@mongodb.com"
+      },
+      "summary": "SERVER-138222 Test all subsets for user defined roles authz (#66060)"
+    },
+    {
+      "sha": "6659c06ede9e5a6dcb90e102904f5823f14a0b03",
+      "short_sha": "6659c06ede9",
+      "date": "2026-11-06T19:25:26+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-138852: Pin Buildozer for lint and fix private test headers (#66243)"
+    },
+    {
+      "sha": "f3fb84fff6450766ad4fe3ce2c70b328eb4086cf",
+      "short_sha": "f3fb84fff64",
+      "date": "2026-11-06T18:06:44+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138655 Build StreamingGroupNode in extendWithAggPipeline when eligible (#66084)"
+    },
+    {
+      "sha": "d584eeee1858f19f805d9eca6ea9a5d3c6f2bf22",
+      "short_sha": "d584eeee185",
+      "date": "2026-11-06T18:03:29+00:00",
+      "author": {
+        "name": "Fangyi Chen",
+        "email": "fangyi.chen@mongodb.com"
+      },
+      "summary": "SERVER-138584 Bump mongot and rerank extension version to v2.0.10 (#66184)"
+    },
+    {
+      "sha": "f65dafab014757dc986930dc59d98b90913b4192",
+      "short_sha": "f65dafab014",
+      "date": "2026-11-04T14:10:51+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-138521 Bump pinned jstestfuzz rev for deterministic fuzzer tasks (#65919)"
+    },
+    {
+      "sha": "52c6142715cbc309ba6c00f7352d80593bf34366",
+      "short_sha": "52c6142715c",
+      "date": "2026-11-04T13:46:41+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137542 Target each remote cursor's own namespace in ARM killCursors (#64905)"
+    },
+    {
+      "sha": "606e1864876292f8ddc6b3e1e1a2a79f7314032b",
+      "short_sha": "606e1864876",
+      "date": "2026-11-04T13:45:56+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137541 Move ARM killCursors scheduling onto RemoteCursorData (#64904)"
+    },
+    {
+      "sha": "840324554d2a325f8872d6c4473e23f613df1a59",
+      "short_sha": "840324554d2",
+      "date": "2026-11-04T13:45:21+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137539 Shut down the ARM sub-baton at the start of kill() (#64902)"
+    },
+    {
+      "sha": "a4c6e282a7a6605cfabc40583131738f60aed287",
+      "short_sha": "a4c6e282a7a",
+      "date": "2026-11-04T13:44:38+00:00",
+      "author": {
+        "name": "Charlie Swanson",
+        "email": "charlie.swanson@mongodb.com"
+      },
+      "summary": "SERVER-137538 Schedule ARM retry backoff with scheduleWorkAt (#64901)"
+    },
+    {
+      "sha": "5e53a4341bfcd2747c3c21ae9d7f7e3b2a88b9bb",
+      "short_sha": "5e53a4341bf",
+      "date": "2026-11-06T17:46:18+00:00",
+      "author": {
+        "name": "Yuhong Zhang",
+        "email": "yuhong.zhang@mongodb.com"
+      },
+      "summary": "SERVER-134962 Port advanceCheckpoint() tests to flusher and tailer test files (#65975)"
+    },
+    {
+      "sha": "c5b01758b25b4b9eddc8fb19dbb635bd7dcf58b3",
+      "short_sha": "c5b01758b25",
+      "date": "2026-11-06T17:44:34+00:00",
+      "author": {
+        "name": "Naafiyan Ahmed",
+        "email": "naafiyan.ahmed@mongodb.com"
+      },
+      "summary": "SERVER-136202: Improve assertions for $listLocalSession (#66048)"
+    },
+    {
+      "sha": "afcca76aa28671ad45500f9140e4fda748365d9d",
+      "short_sha": "afcca76aa28",
+      "date": "2026-11-06T17:34:18+00:00",
+      "author": {
+        "name": "Christopher M. Wolff",
+        "email": "chris.wolff@mongodb.com"
+      },
+      "summary": "SERVER-135546 Make exchange memory tracking more robust (#65997)"
+    },
+    {
+      "sha": "3ff906371fe72da6296c2e812b0d864f7a189493",
+      "short_sha": "3ff906371fe",
+      "date": "2026-11-06T16:57:48+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-138667 Exclude idle clients in resharding step-up deadlock test (#66159)"
+    },
+    {
+      "sha": "e047dbcdc80d90ed43e6b05701f08301ef93e20f",
+      "short_sha": "e047dbcdc80",
+      "date": "2026-11-06T16:52:26+00:00",
+      "author": {
+        "name": "adriangzz",
+        "email": "adriangonzalezmontemayor@gmail.com"
+      },
+      "summary": "SERVER-138255 Extend timeout in ocsp_basic_ca_responder.js (#65738)"
+    },
+    {
+      "sha": "ae64037d5cacdcf85746adc8cfdde7bd8b9be01d",
+      "short_sha": "ae64037d5ca",
+      "date": "2026-11-06T16:49:44+00:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-137323 Implement recording logic for show error as events inside the transform stage (#65443)"
+    },
+    {
+      "sha": "f45e7cee3bf4788fa62a0745d0d092721c8fe990",
+      "short_sha": "f45e7cee3bf",
+      "date": "2026-11-06T16:27:34+00:00",
+      "author": {
+        "name": "Daniel Moody",
+        "email": "dmoody256@gmail.com"
+      },
+      "summary": "SERVER-138745: Enable IBM package tests with Podman (#66014)"
+    },
+    {
+      "sha": "33582772f2420fa7fcabef46054ce22fa15bfc01",
+      "short_sha": "33582772f24",
+      "date": "2026-11-06T16:14:18+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138670 Add a dead slot elimination rule for SBE blueprint projects (#66106)"
+    },
+    {
+      "sha": "f03cd192e1f0fb399810e9190e6736035cc268e2",
+      "short_sha": "f03cd192e1f",
+      "date": "2026-11-06T16:14:17+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138791 Keep the $replaceRoot new-root check of SBE from looking dead (#66221)"
+    },
+    {
+      "sha": "10b33190c98de4be0090afadaa52d05777c5c4e7",
+      "short_sha": "10b33190c98",
+      "date": "2026-11-06T15:47:25+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-138473 Change count, delete, update executors to use deferred get executor (#66087)"
+    },
+    {
+      "sha": "0d02871c35a0cd94d2e86eee794cf4c2f78a9b1d",
+      "short_sha": "0d02871c35a",
+      "date": "2026-11-06T15:23:52+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-138773 Add ChangeStreamEndOfTransactionBackfillRequired error type (#66190)"
+    },
+    {
+      "sha": "c0f9b0d38fe4d228c48052a55e4ef6cf4ff4f581",
+      "short_sha": "c0f9b0d38fe",
+      "date": "2026-11-06T15:22:05+00:00",
+      "author": {
+        "name": "nicola cabiddu",
+        "email": "nicolacabiddu@gmail.com"
+      },
+      "summary": "SERVER-138094: Add the showErrorsAsEvents option, feature gate (#65203)"
+    },
+    {
+      "sha": "2daf7d3986508d3781ef52edd5a86cddf162b88f",
+      "short_sha": "2daf7d39865",
+      "date": "2026-11-06T15:09:22+00:00",
+      "author": {
+        "name": "Tural Farhadov",
+        "email": "tural.farhadov@mongodb.com"
+      },
+      "summary": "SERVER-138692: verify macnotary client checksum and signature (#66133)"
+    },
+    {
+      "sha": "5d74c06f06f9d74258012dd367d16f366ca3e286",
+      "short_sha": "5d74c06f06f",
+      "date": "2026-11-06T14:58:20+00:00",
+      "author": {
+        "name": "Jan",
+        "email": "jsteemann@users.noreply.github.com"
+      },
+      "summary": "SERVER-138744 Improve operationResponseMaxMS handling (#66124)"
+    },
+    {
+      "sha": "7b3b68a4268d2249c023a83879f76bb335cc4bc8",
+      "short_sha": "7b3b68a4268",
+      "date": "2026-11-06T14:48:57+00:00",
+      "author": {
+        "name": "joseph obaraye",
+        "email": "joseph.obaraye@mongodb.com"
+      },
+      "summary": "SERVER-138437 Remove backpressure hysteresis mechanisms from POA (#65928)"
+    },
+    {
+      "sha": "2a3c474be6d16a25c171bc9ae4e62c422bfb17c1",
+      "short_sha": "2a3c474be6d",
+      "date": "2026-11-06T12:45:21+00:00",
+      "author": {
+        "name": "Gregory Noma",
+        "email": "gregory.noma@gmail.com"
+      },
+      "summary": "SERVER-138694 Add metric for index build multikey side writes (#66129)"
+    },
+    {
+      "sha": "dbc8cb3a6376d9caf6ad30a94738923d83f676b4",
+      "short_sha": "dbc8cb3a637",
+      "date": "2026-11-06T10:43:14+00:00",
+      "author": {
+        "name": "Yujin Kang Park",
+        "email": "36410031+ykangpark@users.noreply.github.com"
+      },
+      "summary": "SERVER-137192 Add CollectionCatalog support for add and remove of foreing key constraint (#65212)"
+    },
+    {
+      "sha": "82cdcb718a98c4ebd724e74bf2200548f8c9eb4e",
+      "short_sha": "82cdcb718a9",
+      "date": "2026-11-06T09:30:40+00:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-137999 Expose all slots from outer side of NLJ (#65490)"
+    },
+    {
+      "sha": "c54b306ff3a48f07265f3a7aef457e461151797c",
+      "short_sha": "c54b306ff3a",
+      "date": "2026-11-06T09:28:17+00:00",
+      "author": {
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
+      },
+      "summary": "SERVER-44539 Re-enable \"missing RWC\" logging  (#66120)"
+    },
+    {
+      "sha": "b32a581bfd5fd9f34f685d5064095711eab133d9",
+      "short_sha": "b32a581bfd5",
+      "date": "2026-11-06T08:57:06+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-137373 Intersect schema type (#65659)"
+    },
+    {
+      "sha": "dc2673f530fe5abddcfd966ca2b212c4ffe9319b",
+      "short_sha": "dc2673f530f",
+      "date": "2026-11-06T08:54:44+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#66225)"
+    },
     {
       "sha": "19be36681c1746dfeed993b188fe40340913b214",
       "short_sha": "19be36681c1",
@@ -1851,6 +2321,27 @@
     },
     {
       "commit": {
+        "sha": "f2f4fb830d2a5e22b29cede052d3b5ce4f7e7184",
+        "short_sha": "f2f4fb830d2",
+        "date": "2026-11-03T16:13:30+00:00",
+        "author": {
+          "name": "Stephanie",
+          "email": "53684987+seristof@users.noreply.github.com"
+        },
+        "summary": "SERVER-138236 Standby does not record the drop of a renameCollection dropTarget for checkpoint validation (#65608)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-f2f4fb830d2/conflict",
+          "mergai/master-f2f4fb830d2/solution",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "94a7db8bdcf3dc3af5d41873bc6e9b00739590b3",
         "short_sha": "94a7db8bdcf",
         "date": "2026-11-04T02:51:15+00:00",
@@ -1894,10 +2385,33 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "16ef049d218c7c164a3abccc2afd9ae174a1bff9",
+        "short_sha": "16ef049d218",
+        "date": "2026-11-07T02:58:06+00:00",
+        "author": {
+          "name": "Gregory Wlodarek",
+          "email": "gregory.wlodarek@mongodb.com"
+        },
+        "summary": "SERVER-119212 Remove exportCollection and importCollection (#65484)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 75,
+          "num_of_lines": 1558,
+          "lines_added": 56,
+          "lines_deleted": 1502,
+          "num_of_dirs": 28
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-13 07:40:43",
+  "generated_at": "2026-11-15 21:16:03",
   "branch_name": "master",
   "display_name": "master"
 }
