@@ -63,10 +63,10 @@ const std::set<std::string> kSetShellParameterAllowlist = {
     "featureFlagQETextSearchPreview",
     "httpClientEnableLocalhostException",
     "newLineAfterPasswordPromptForTest",
-    "ocspClientHttpTimeoutSecs",
     "ocspEnabled",
     "skipShellCursorFinalize",
     "tlsOCSPSlowResponderWarningSecs",
+    "tlsOCSPVerifyTimeoutSecs",
     "enableDetailedConnectionHealthMetricLogLines",
     "defaultFindReplicaSetHostTimeoutMS",
     "multitenancySupport"};

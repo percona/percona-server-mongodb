@@ -2,18 +2,25 @@
 // SPDX-License-Identifier: SSPL-1.0
 
 #include "mongo/db/namespace_string.h"
+#include "mongo/db/repl/internode_validation_hash_utils.h"
 #include "mongo/db/repl/oplog_applier.h"
 #include "mongo/db/repl/oplog_applier_impl.h"
 #include "mongo/db/repl/oplog_applier_impl_test_fixture.h"
 #include "mongo/db/repl/oplog_entry.h"
 #include "mongo/db/repl/oplog_entry_test_helpers.h"
+#include "mongo/db/repl/repl_server_parameters_gen.h"
+#include "mongo/db/repl/transaction_oplog_application.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_init.h"
 #include "mongo/db/replicated_fast_count/replicated_fast_count_test_helpers.h"
 #include "mongo/db/server_options.h"
+#include "mongo/db/session/logical_session_id_helpers.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/storage/ident.h"
 #include "mongo/db/topology/cluster_role.h"
 #include "mongo/otel/metrics/metrics_test_util.h"
 #include "mongo/unittest/death_test.h"
+#include "mongo/unittest/log_capture.h"
+#include "mongo/unittest/log_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
 #include "mongo/util/scopeguard.h"
@@ -113,9 +120,92 @@ protected:
 
 using SingleWorkerCheckpointValidationDeathTest = SingleWorkerCheckpointValidationTest;
 
+class CheckpointHashValidationTest : public CheckpointValidationTest {
+protected:
+    void setUp() override {
+        CheckpointValidationTest::setUp();
+        createCollection(_opCtx.get(), _nss, {});
+        _uuid = getCollectionUUID(_opCtx.get(), _nss);
+    }
+
+    // Appends a watermark and a checkpoint valid as of that watermark's timestamp.
+    void appendCheckpoint(std::vector<OplogEntry>& oplog,
+                          CollectionSizeCount sizeCount,
+                          boost::optional<int64_t> hash,
+                          boost::optional<UUID> uuid = boost::none) {
+        const Timestamp watermarkTs = nextOpTime().getTimestamp();
+        oplog.push_back(makeWatermarkEntry(watermarkTs));
+        oplog.push_back(makeCheckpointEntry(
+            watermarkTs,
+            {{.uuid = uuid.value_or(_uuid),
+              .metadata = CollectionReplicatedMetadata{.sizeCount = sizeCount, .hash = hash}}}));
+    }
+
+    // Applies `oplog` and returns how many entries carried a hash with no size delta.
+    int countHashWithoutSizeDeltaWarnings(std::vector<OplogEntry> oplog) {
+        // The warning is throttled to debug level 2.
+        unittest::MinimumLoggedSeverityGuard severityGuard{logv2::LogComponent::kReplication,
+                                                           logv2::LogSeverity::Debug(2)};
+        unittest::LogCaptureGuard logs;
+        EXPECT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+        logs.stop();
+        return logs.countBSONContainingSubset(BSON("id" << 13629800));
+    }
+
+    // Returns a copy of `op` with `ui` set to `_uuid` when `hasUuid` is true.
+    // Otherwise, removes the `ui` field.
+    OplogEntry withUuid(const OplogEntry& op, bool hasUuid = true) {
+        BSONObjBuilder builder;
+        for (auto&& elem : op.getEntry().toBSON()) {
+            if (elem.fieldNameStringData() != "ui") {
+                builder.append(elem);
+            }
+        }
+        if (hasUuid) {
+            _uuid.appendToBuilder(&builder, "ui");
+        }
+        return {DurableOplogEntry(builder.obj())};
+    }
+    OplogEntry withoutUuid(const OplogEntry& op) {
+        return withUuid(op, /*hasUuid=*/false);
+    }
+
+    const BSONObj kDoc1 = BSON("_id" << 1 << "x" << 1);
+    const BSONObj kDoc2 = BSON("_id" << 2 << "x" << 2);
+    const BSONObj kSetX3 = BSON("$set" << BSON("x" << 3));
+    const BSONObj kDoc1Updated = BSON("_id" << 1 << "x" << 3);
+    const int64_t kDoc1Hash = computeDocValidationHash(kDoc1);
+    const int64_t kDoc2Hash = computeDocValidationHash(kDoc2);
+    // Also the hash of an image of kDoc1 that a diverged node does not hold.
+    const int64_t kDoc1UpdatedHash = computeDocValidationHash(kDoc1Updated);
+    const int64_t kUpdateHash = computeUpdateValidationHash(kDoc1, kDoc1Updated);
+
+    const NamespaceString _nss =
+        NamespaceString::createNamespaceString_forTest("test.checkpointHash");
+    UUID _uuid = UUID::gen();
+
+private:
+    unittest::ServerParameterGuard _enablePerCollectionValidation{
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true};
+    // Per-document verification only logs mismatches, so checkpoint validation must detect
+    // divergence.
+    unittest::ServerParameterGuard _perDocumentMismatchNotFatal{
+        "continuousInternodeValidationFatalOnMismatch", false};
+};
+
+using CheckpointHashValidationDeathTest = CheckpointHashValidationTest;
+
+// A single worker groups consecutive inserts.
+class SingleWorkerCheckpointHashValidationTest : public CheckpointHashValidationTest {
+protected:
+    boost::optional<size_t> workerCount() const override {
+        return 1;
+    }
+};
+
 TEST_F(CheckpointValidationTest, CheckpointValidationLogsErrorsWhenInternodeValidationDisabled) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", false);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", false);
     const Timestamp watermarkTs = nextOpTime().getTimestamp();
     std::vector<OplogEntry> oplog;
     oplog.push_back(makeWatermarkEntry(watermarkTs));
@@ -132,9 +222,31 @@ TEST_F(CheckpointValidationTest, CheckpointValidationLogsErrorsWhenInternodeVali
     EXPECT_EQ(logs.countBSONContainingSubset(BSON("id" << 13626001)), 1);
 }
 
+TEST_F(CheckpointValidationTest, NoMetricsOrValidationWhenPerCollectionValidationDisabled) {
+    otel::metrics::OtelMetricsCapturer capturer;
+    disableContinuousInternodeValidationPerCollection.store(true);
+    ON_BLOCK_EXIT([] { disableContinuousInternodeValidationPerCollection.store(false); });
+
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeWatermarkEntry(watermarkTs));
+    oplog.push_back(makeCheckpointEntry(
+        watermarkTs,
+        {{.uuid = UUID::gen(),
+          .metadata = CollectionReplicatedMetadata{
+              .sizeCount = CollectionSizeCount{.size = 999, .count = 999}, .hash = boost::none}}}));
+
+    unittest::LogCaptureGuard logs;
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+    logs.stop();
+
+    EXPECT_EQ(logs.countBSONContainingSubset(BSON("id" << 13626001)), 0);
+    expectValidatorMetrics(capturer, {.recorded = 0, .evicted = 0, .skipped = 0, .validated = 0});
+}
+
 TEST_F(CheckpointValidationTest, CheckpointValidatesCrudDeltas) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCrud");
@@ -165,10 +277,731 @@ TEST_F(CheckpointValidationTest, CheckpointValidatesCrudDeltas) {
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
+TEST_F(CheckpointHashValidationTest, CheckpointValidatesCrudHashes) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    oplog.push_back(makeDeleteOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), -kDoc2.objsize(), kDoc2Hash));
+    oplog.push_back(makeUpdateOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, kDoc1, kSetX3, RecordId(1), 0, kUpdateHash));
+    // The insert and delete of kDoc2 cancel, and the update swaps kDoc1's contribution for
+    // kDoc1Updated's.
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1Updated.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest, CheckpointValidatesGroupedInsertHashes) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     kDoc1Hash ^ kDoc2Hash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest, GroupedInsertWithHashOnlyOnFirstEntry) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndSizeMetadata(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2)));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     boost::none);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest, GroupedInsertWithHashOnlyOnLastEntry) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndSizeMetadata(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1)));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     boost::none);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest,
+       GroupedInsertComputesHashesWhenPerDocumentVerificationDisabled) {
+    unittest::ServerParameterGuard disableContinuousInternodeValidation(
+        "disableContinuousInternodeValidation", true);
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1UpdatedHash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     kDoc1Hash ^ kDoc2Hash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointWithoutHashFailsWhenStandbyHasHash,
+             "13626005") {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, boost::none);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOnInsertFoldsAgainstZeroSizeAndCount) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = 0, .count = 0}, kDoc1Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOnUpdateFoldsAgainstZeroSizeAndCount) {
+    // Only the update lacks a size delta, so the insert must not warn.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(withUuid(makeUpdateOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, kDoc1, kSetX3, RecordId(1), kUpdateHash)));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOnDeleteFoldsAgainstZeroSizeAndCount) {
+    // Only the delete lacks a size delta, so the insert must not warn.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(withUuid(makeDeleteOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash)));
+    // The delete removes the document's hash, but its size and count stay counted.
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                     kEmptyCollectionValidationHash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest,
+       HashWithoutSizeDeltaOnGroupedInsertFoldsAgainstZeroSizeAndCount) {
+    // Only the second insert lacks a size delta, so only it warns.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash ^ kDoc2Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+// The primary folds a hash without a size delta only into the collection the entry's UUID names, so
+// without one the standby must not fold it in either.
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOrUuidOnInsertIsSkipped) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(withoutUuid(makeInsertOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash)));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOrUuidOnUpdateIsSkipped) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeUpdateOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, kDoc1, kSetX3, RecordId(1), kUpdateHash));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(CheckpointHashValidationTest, HashWithoutSizeDeltaOrUuidOnDeleteIsSkipped) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(withoutUuid(makeDeleteOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash)));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(SingleWorkerCheckpointHashValidationTest,
+       HashWithoutSizeDeltaOrUuidOnGroupedInsertIsSkipped) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(withoutUuid(makeInsertOplogEntryWithRecordIdAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash)));
+    appendCheckpoint(oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash);
+    EXPECT_EQ(countHashWithoutSizeDeltaWarnings(std::move(oplog)), 1);
+}
+
+TEST_F(CheckpointHashValidationTest, EntryWithoutHashLeavesCollectionWithoutHash) {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndSizeMetadata(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2)));
+    // The entry without a hash leaves the primary unable to account for the collection's hash.
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     boost::none);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+TEST_F(CheckpointHashValidationTest, CheckpointCarriesPrimaryHashForReshardingCollection) {
+    const NamespaceString nss = NamespaceString::createNamespaceString_forTest(
+        "test.system.resharding." + UUID::gen().toString());
+    createCollection(_opCtx.get(), nss, {});
+    const UUID uuid = getCollectionUUID(_opCtx.get(), nss);
+
+    // This node's image differs from the one the primary hashed, but resharding's collections are
+    // not verified, so the standby carries the primary's hash rather than its own.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), nss, uuid, kDoc1, RecordId(1), kDoc1UpdatedHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash, uuid);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+class PreparedTransactionHashValidationTest : public CheckpointValidationTest {
+protected:
+    void setUp() override {
+        CheckpointValidationTest::setUp();
+        createCollectionWithUuid(_opCtx.get(), NamespaceString::kSessionTransactionsTableNamespace);
+        createCollection(_opCtx.get(), _nss, {});
+        _uuid = getCollectionUUID(_opCtx.get(), _nss);
+        _lsid = makeLogicalSessionId(_opCtx.get());
+    }
+
+    // Returns a transaction operation on `nss` carrying a size delta and a document hash.
+    ReplOperation makeTxnOp(const NamespaceString& nss,
+                            UUID uuid,
+                            OpTypeEnum opType,
+                            const BSONObj& object,
+                            boost::optional<BSONObj> object2,
+                            const RecordId& rid,
+                            CollectionReplicatedMetadata delta) {
+        ReplOperation op;
+        op.setOpType(opType);
+        op.setNss(nss);
+        op.setUuid(uuid);
+        op.setObject(object);
+        if (object2) {
+            op.setObject2(*object2);
+        }
+        op.setRecordId(rid);
+        SingleOpSizeMetadata sizeMetadata;
+        sizeMetadata.setSz(delta.sizeCount.size);
+        sizeMetadata.setH(delta.hash);
+        op.setSizeMetadata(OplogEntrySizeMetadata{sizeMetadata});
+        return op;
+    }
+
+    static MultiOpSizeMetadata makeCommitMetadata(UUID uuid, CollectionSizeCount sizeCount) {
+        MultiOpSizeMetadata meta;
+        meta.setUuid(uuid);
+        meta.setSz(sizeCount.size);
+        meta.setCt(sizeCount.count);
+        return meta;
+    }
+
+    // Returns a commitTransaction oplog entry carrying `metadata` in its 'm' field.
+    OplogEntry makePreparedCommitEntry(const OpTime& prepareOpTime,
+                                       const std::vector<MultiOpSizeMetadata>& metadata) {
+        const OplogEntry commit = makeCommandOplogEntryWithSessionInfoAndStmtIds(
+            nextOpTime(),
+            _nss,
+            BSON("commitTransaction" << 1 << "commitTimestamp" << prepareOpTime.getTimestamp()),
+            _lsid,
+            _txnNum,
+            {StmtId(1)},
+            prepareOpTime);
+        BSONArrayBuilder m;
+        for (const auto& meta : metadata) {
+            m.append(meta.toBSON());
+        }
+        BSONObjBuilder builder(commit.getEntry().toBSON());
+        builder.append("m", m.arr());
+        return OplogEntry(builder.obj());
+    }
+
+    OperationSessionInfo sessionInfo() const {
+        OperationSessionInfo sessionInfo;
+        sessionInfo.setSessionId(_lsid);
+        sessionInfo.setTxnNumber(_txnNum);
+        return sessionInfo;
+    }
+
+    const BSONObj kDoc1 = BSON("_id" << 1 << "x" << 1);
+    const BSONObj kDoc2 = BSON("_id" << 2 << "x" << 2);
+    const BSONObj kDoc1Updated = BSON("_id" << 1 << "x" << 3 << "y" << 1);
+    const int64_t kDoc1Hash = computeDocValidationHash(kDoc1);
+    const int64_t kDoc2Hash = computeDocValidationHash(kDoc2);
+    const int64_t kUpdateHash = computeUpdateValidationHash(kDoc1, kDoc1Updated);
+
+    const NamespaceString _nss =
+        NamespaceString::createNamespaceString_forTest("test.preparedTxnHash");
+    UUID _uuid = UUID::gen();
+    LogicalSessionId _lsid;
+    const TxnNumber _txnNum = 1;
+
+private:
+    unittest::ServerParameterGuard _enablePerCollectionValidation{
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true};
+    unittest::ServerParameterGuard _perDocumentMismatchNotFatal{
+        "continuousInternodeValidationFatalOnMismatch", false};
+};
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedInsertSetsHashToNone) {
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kInsert,
+                   kDoc1,
+                   boost::none,
+                   RecordId(1),
+                   {.sizeCount = {.size = kDoc1.objsize(), .count = 1}, .hash = kDoc1Hash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(_uuid, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                   // TODO(SERVER-138784): Expect a real hash here.
+                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedUpdateSetsHashToNone) {
+    std::vector<OplogEntry> baseline;
+    baseline.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    baseline.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    const Timestamp knownHashWatermarkTs = nextOpTime().getTimestamp();
+    baseline.push_back(makeWatermarkEntry(knownHashWatermarkTs));
+    baseline.push_back(makeCheckpointEntry(
+        knownHashWatermarkTs,
+        {{.uuid = _uuid,
+          .metadata = CollectionReplicatedMetadata{
+              .sizeCount =
+                  CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+              .hash = kDoc1Hash ^ kDoc2Hash}}}));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(baseline)));
+
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kUpdate,
+                   kDoc1Updated,
+                   BSON("_id" << 1),
+                   RecordId(1),
+                   {.sizeCount = {.size = kDoc1Updated.objsize() - kDoc1.objsize(), .count = 0},
+                    .hash = kUpdateHash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(
+            _uuid,
+            CollectionSizeCount{.size = kDoc1Updated.objsize() - kDoc1.objsize(), .count = 0})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(watermarkTs,
+                             {{.uuid = _uuid,
+                               .metadata = CollectionReplicatedMetadata{
+                                   .sizeCount = CollectionSizeCount{.size = kDoc1Updated.objsize() +
+                                                                        kDoc2.objsize(),
+                                                                    .count = 2},
+                                   // TODO(SERVER-138784): Expect a real hash here.
+                                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedDeleteSetsHashToNone) {
+    std::vector<OplogEntry> baseline;
+    baseline.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    baseline.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc2Hash));
+    const Timestamp knownHashWatermarkTs = nextOpTime().getTimestamp();
+    baseline.push_back(makeWatermarkEntry(knownHashWatermarkTs));
+    baseline.push_back(makeCheckpointEntry(
+        knownHashWatermarkTs,
+        {{.uuid = _uuid,
+          .metadata = CollectionReplicatedMetadata{
+              .sizeCount =
+                  CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+              .hash = kDoc1Hash ^ kDoc2Hash}}}));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(baseline)));
+
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kDelete,
+                   BSON("_id" << 2),
+                   boost::none,
+                   RecordId(2),
+                   {.sizeCount = {.size = -kDoc2.objsize(), .count = -1}, .hash = kDoc2Hash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(_uuid, CollectionSizeCount{.size = -kDoc2.objsize(), .count = -1})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                   // TODO(SERVER-138784): Expect a real hash here.
+                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedTxnOpDeltasNotCounted) {
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    // We need a normal insert so the checkpoint is non-empty.
+    const OplogEntry normalInsert = makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash);
+    ASSERT_OK(runThroughApplyOplogBatch({normalInsert}));
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        // This op is ignored by the validator entirely.
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kInsert,
+                   kDoc2,
+                   boost::none,
+                   RecordId(2),
+                   {.sizeCount = {.size = kDoc2.objsize(), .count = 1}, .hash = kDoc2Hash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const Timestamp postPrepareWatermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {makeWatermarkEntry(postPrepareWatermarkTs),
+         makeCheckpointEntry(
+             postPrepareWatermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                   .hash = kDoc1Hash}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        // The validator adopts this arbitrary size and count blindly.
+        {makeCommitMetadata(_uuid, CollectionSizeCount{.size = 500, .count = 10})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   // TODO(SERVER-138783): Expect a real size and count here.
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize() + 500, .count = 11},
+                   // TODO(SERVER-138784): Expect a real hash here.
+                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 2, .evicted = 2, .skipped = 0, .validated = 2});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedTxnOpsAndCommitInSameBatch) {
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kInsert,
+                   kDoc1,
+                   boost::none,
+                   RecordId(1),
+                   {.sizeCount = {.size = kDoc1.objsize(), .count = 1}, .hash = kDoc1Hash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(_uuid, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {prepare,
+         commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                   // TODO(SERVER-138784): Expect a real hash here.
+                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, AbortedPreparedTxnChangesNothing) {
+    otel::metrics::OtelMetricsCapturer capturer;
+    const NamespaceString nss2 =
+        NamespaceString::createNamespaceString_forTest("test.preparedTxnAbort2");
+    const UUID uuid2 = createCollectionWithUuid(_opCtx.get(), nss2);
+    const OplogEntry prepare =
+        makeApplyOpsOplogEntry(nextOpTime(),
+                               {makeTxnOp(_nss,
+                                          _uuid,
+                                          OpTypeEnum::kInsert,
+                                          kDoc1,
+                                          boost::none,
+                                          RecordId(3),
+                                          {.sizeCount = {.size = kDoc1.objsize(), .count = 1},
+                                           .hash = computeDocValidationHash(kDoc1)})},
+                               sessionInfo(),
+                               Date_t::now(),
+                               {StmtId(0)},
+                               OpTime(),
+                               /*multiOpType=*/boost::none,
+                               ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const auto readSessionRecord = [this] {
+        BSONObjBuilder bob;
+        bob.append("_id", _lsid.toBSON());
+        const auto id = bob.obj();
+        Lock::GlobalLock lk(_opCtx.get(), MODE_IS);
+        return getStorageInterface()
+            ->findById(_opCtx.get(),
+                       NamespaceString::kSessionTransactionsTableNamespace,
+                       id.firstElement())
+            .getValue();
+    };
+    ASSERT_EQUALS(readSessionRecord().getField("state").str(), "prepared");
+
+    const OplogEntry abort =
+        makeCommandOplogEntryWithSessionInfoAndStmtIds(nextOpTime(),
+                                                       _nss,
+                                                       BSON("abortTransaction" << 1),
+                                                       _lsid,
+                                                       _txnNum,
+                                                       {StmtId(1)},
+                                                       prepare.getOpTime());
+    const OplogEntry doc2Insert = makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), nss2, uuid2, kDoc2, RecordId(1), computeDocValidationHash(kDoc2));
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {abort,
+         doc2Insert,
+         makeWatermarkEntry(watermarkTs),
+         // _uuid is not present in the checkpoint.
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = uuid2,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc2.objsize(), .count = 1},
+                   .hash = computeDocValidationHash(kDoc2)}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+    ASSERT_EQUALS(readSessionRecord().getField("state").str(), "aborted");
+}
+
+TEST_F(PreparedTransactionHashValidationTest, MultiNamespacePreparedTxnChangesEachCollection) {
+    const NamespaceString nss2 =
+        NamespaceString::createNamespaceString_forTest("test.preparedTxnHash2");
+    const UUID uuid2 = createCollectionWithUuid(_opCtx.get(), nss2);
+
+    std::vector<OplogEntry> baseline;
+    baseline.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    const Timestamp baselineWatermarkTs = nextOpTime().getTimestamp();
+    baseline.push_back(makeWatermarkEntry(baselineWatermarkTs));
+    baseline.push_back(makeCheckpointEntry(
+        baselineWatermarkTs,
+        {{.uuid = _uuid,
+          .metadata = CollectionReplicatedMetadata{
+              .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+              .hash = kDoc1Hash}}}));
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(baseline)));
+
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const BSONObj docY = BSON("_id" << 1 << "y" << 1);
+    const BSONObj docYUpdated = BSON("_id" << 1 << "y" << 1 << "z" << 1);
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kDelete,
+                   BSON("_id" << 1),
+                   boost::none,
+                   RecordId(1),
+                   {.sizeCount = {.size = -kDoc1.objsize(), .count = -1}, .hash = kDoc1Hash}),
+         makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kInsert,
+                   kDoc2,
+                   boost::none,
+                   RecordId(2),
+                   {.sizeCount = {.size = kDoc2.objsize(), .count = 1}, .hash = kDoc2Hash}),
+         makeTxnOp(nss2,
+                   uuid2,
+                   OpTypeEnum::kInsert,
+                   docY,
+                   boost::none,
+                   RecordId(1),
+                   {.sizeCount = {.size = docY.objsize(), .count = 1},
+                    .hash = computeDocValidationHash(docY)}),
+         makeTxnOp(nss2,
+                   uuid2,
+                   OpTypeEnum::kUpdate,
+                   docYUpdated,
+                   BSON("_id" << 1),
+                   RecordId(1),
+                   {.sizeCount = {.size = docYUpdated.objsize() - docY.objsize(), .count = 0},
+                    .hash = computeUpdateValidationHash(docY, docYUpdated)})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    ASSERT_OK(runThroughApplyOplogBatch({prepare}));
+
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(
+             _uuid, CollectionSizeCount{.size = kDoc2.objsize() - kDoc1.objsize(), .count = 0}),
+         makeCommitMetadata(uuid2,
+                            CollectionSizeCount{.size = docYUpdated.objsize(), .count = 1})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata =
+                   CollectionReplicatedMetadata{
+                       .sizeCount = CollectionSizeCount{.size = kDoc2.objsize(), .count = 1},
+                       // TODO(SERVER-138784): Expect a real hash here.
+                       .hash = boost::none}},
+              {.uuid = uuid2,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = docYUpdated.objsize(), .count = 1},
+                   // TODO(SERVER-138784): Expect a real hash here.
+                   .hash = boost::none}}})}));
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+TEST_F(PreparedTransactionHashValidationTest, PreparedTxnCommitWithoutApplierPrepare) {
+    otel::metrics::OtelMetricsCapturer capturer;
+
+    const OplogEntry prepare = makeApplyOpsOplogEntry(
+        nextOpTime(),
+        {makeTxnOp(_nss,
+                   _uuid,
+                   OpTypeEnum::kInsert,
+                   kDoc1,
+                   boost::none,
+                   RecordId(1),
+                   {.sizeCount = {.size = kDoc1.objsize(), .count = 1}, .hash = kDoc1Hash})},
+        sessionInfo(),
+        Date_t::now(),
+        {StmtId(0)},
+        OpTime(),
+        /*multiOpType=*/boost::none,
+        ApplyOpsType::kPrepare);
+    // Simulate the recovery path which initializes the prepared state of a transaction without
+    // using an oplog applier worker thread. The validator does not see this entry.
+    ASSERT_OK(
+        applyPrepareTransaction(_opCtx.get(),
+                                ApplierOperation{&prepare,
+                                                 ApplicationInstruction::applyTopLevelPreparedTxnOp,
+                                                 std::vector<OplogEntry>{}},
+                                OplogApplication::Mode::kSecondary));
+
+    // The validator does see this commit entry.
+    const OplogEntry commit = makePreparedCommitEntry(
+        prepare.getOpTime(),
+        {makeCommitMetadata(_uuid, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1})});
+    const Timestamp watermarkTs = nextOpTime().getTimestamp();
+    ASSERT_OK(runThroughApplyOplogBatch(
+        {commit,
+         makeWatermarkEntry(watermarkTs),
+         makeCheckpointEntry(
+             watermarkTs,
+             {{.uuid = _uuid,
+               .metadata = CollectionReplicatedMetadata{
+                   .sizeCount = CollectionSizeCount{.size = kDoc1.objsize(), .count = 1},
+                   .hash = boost::none}}})}));
+    //...and successfuly validates it.
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
+}
+
+
 TEST_F(SingleWorkerCheckpointValidationTest,
        CheckpointValidatesGroupedInsertsWithInterleavedWatermark) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest(
         "test.checkpointGroupedInsertsInterleavedWatermark");
@@ -202,8 +1035,8 @@ TEST_F(SingleWorkerCheckpointValidationTest,
 }
 
 TEST_F(CheckpointValidationTest, TwoWatermarksTwoCheckpointsValidateCumulativeDeltas) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest(
         "test.checkpointTwoWatermarksTwoCheckpoints");
@@ -243,8 +1076,8 @@ TEST_F(CheckpointValidationTest, TwoWatermarksTwoCheckpointsValidateCumulativeDe
 }
 
 TEST_F(CheckpointValidationTest, TwoWatermarksCheckpointForFirstOnly) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointTwoWatermarksOneCheckpoint");
@@ -271,8 +1104,8 @@ TEST_F(CheckpointValidationTest, TwoWatermarksCheckpointForFirstOnly) {
 }
 
 TEST_F(CheckpointValidationTest, TwoWatermarksNoCheckpointsPasses) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointTwoWatermarksNoCheckpoints");
@@ -292,8 +1125,8 @@ TEST_F(CheckpointValidationTest, TwoWatermarksNoCheckpointsPasses) {
 }
 
 TEST_F(CheckpointValidationTest, CheckpointValidatesDroppedCollection) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointDropped");
@@ -305,11 +1138,12 @@ TEST_F(CheckpointValidationTest, CheckpointValidatesDroppedCollection) {
         ASSERT_OK(runThroughApplyOplogBatch(std::move(createOplog)));
         const Timestamp watermarkTs = nextOpTime().getTimestamp();
         createOplog.push_back(makeWatermarkEntry(watermarkTs));
-        createOplog.push_back(makeCheckpointEntry(
-            watermarkTs,
-            {{.uuid = coll.uuid,
-              .metadata = CollectionReplicatedMetadata{
-                  .sizeCount = CollectionSizeCount{.size = 0, .count = 0}, .hash = boost::none}}}));
+        createOplog.push_back(
+            makeCheckpointEntry(watermarkTs,
+                                {{.uuid = coll.uuid,
+                                  .metadata = CollectionReplicatedMetadata{
+                                      .sizeCount = CollectionSizeCount{.size = 0, .count = 0},
+                                      .hash = kEmptyCollectionValidationHash}}}));
         ASSERT_OK(runThroughApplyOplogBatch(std::move(createOplog)));
     }
 
@@ -355,7 +1189,8 @@ protected:
     }
 
     inline static const CollectionReplicatedMetadata kEmpty{
-        .sizeCount = CollectionSizeCount{.size = 0, .count = 0}, .hash = boost::none};
+        .sizeCount = CollectionSizeCount{.size = 0, .count = 0},
+        .hash = kEmptyCollectionValidationHash};
 
     const NsAndUUID _source{
         .nss = NamespaceString::createNamespaceString_forTest("test.checkpointRenameSource"),
@@ -366,7 +1201,7 @@ protected:
 
 private:
     unittest::ServerParameterGuard _enableValidation{
-        "enableContinuousInternodePerCollectionValidation", true};
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true};
 };
 
 TEST_F(CheckpointRenameValidationTest, CheckpointValidatesCollectionDroppedByRenameDropTarget) {
@@ -425,8 +1260,8 @@ using CheckpointValidationDeathTest = CheckpointValidationTest;
 
 TEST_F(CheckpointValidationTest,
        DroppedCollectionRecreatedWithSameUuidDoesNotFailInShardedCluster) {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     serverGlobalParams.clusterRole = {ClusterRole::ShardServer};
     ON_BLOCK_EXIT([] { serverGlobalParams.clusterRole = ClusterRole::None; });
@@ -446,8 +1281,8 @@ TEST_F(CheckpointValidationTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenStandbyMissingEntry,
              "13626001") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
     const Timestamp watermarkTs = nextOpTime().getTimestamp();
     // Oplog contains no replicated metadata deltas, so the standby missed an entry the primary
     // applied.
@@ -464,8 +1299,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenPrimaryMissingEntry,
              "13626006") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCrud");
@@ -500,8 +1335,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsOnCrudSizeMismatch,
              "13626005") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCrud");
@@ -526,8 +1361,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsOnCrudCountMismatch,
              "13626005") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCrud");
@@ -550,11 +1385,23 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationFailsOnCrudHashMismatch,
+             "13626005") {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    // The standby and primary agree on size and count but disagree on the hash of the collection.
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1Hash ^ 1);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
 DEATH_TEST_F(SingleWorkerCheckpointValidationDeathTest,
              CheckpointValidationFailsOnGroupedInsertSizeMismatch,
              "13626005") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss = NamespaceString::createNamespaceString_forTest(
         "test.checkpointGroupedInsertsInterleavedWatermark");
@@ -588,11 +1435,132 @@ DEATH_TEST_F(SingleWorkerCheckpointValidationDeathTest,
     ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
 }
 
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesDivergenceMissedByPerDocumentVerification,
+             "13626005") {
+    // The primary hashed a document other than the one this node applies. Per-document
+    // verification only logs the mismatch, so the checkpoint has to catch it from this node's own
+    // hash.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1UpdatedHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesUpdateDivergenceMissedByPerDocumentVerification,
+             "13626005") {
+    // This node applies the update to x: 2, but the primary hashed a post-image with x: 3.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeUpdateOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, kDoc1, BSON("$set" << BSON("x" << 2)), RecordId(1), 0, kUpdateHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesDeleteDivergenceMissedByPerDocumentVerification,
+             "13626005") {
+    // This node deletes the document it stored, but the primary hashed a different one.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeDeleteOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), -kDoc1.objsize(), kDoc1UpdatedHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = 0, .count = 0}, kDoc1Hash ^ kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesGroupedInsertDivergenceMissedByPerDocumentVerification,
+             "13626005") {
+    // Only the second of the grouped inserts diverges.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2), kDoc1UpdatedHash));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     kDoc1Hash ^ kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidatesHashWhilePerDocumentVerificationIsDisabled,
+             "13626005") {
+    unittest::ServerParameterGuard disableContinuousInternodeValidation(
+        "disableContinuousInternodeValidation", true);
+
+    // Per-document verification is skipped, but the checkpoint still compares this node's hash.
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1UpdatedHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationFailsWhenEntryWithoutHashLeavesStandbyWithoutHash,
+             "13626005") {
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1Hash));
+    oplog.push_back(makeInsertOplogEntryWithRecordIdAndSizeMetadata(
+        nextOpTime(), _nss, _uuid, kDoc2, RecordId(2)));
+    appendCheckpoint(oplog,
+                     CollectionSizeCount{.size = kDoc1.objsize() + kDoc2.objsize(), .count = 2},
+                     kDoc1Hash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesApplyOpsDivergenceMissedByPerDocumentVerification,
+             "13626005") {
+    // An applyOps inner op is applied through the same path as a top-level insert, so this node's
+    // own hash is recorded for it too.
+    const OplogEntry innerInsert = makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        OpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1UpdatedHash);
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeCommandOplogEntry(
+        nextOpTime(),
+        NamespaceString::kAdminCommandNamespace,
+        BSON("applyOps" << BSON_ARRAY(innerInsert.getDurableReplOperation().toBSON())),
+        boost::none,
+        boost::none));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
+DEATH_TEST_F(CheckpointHashValidationDeathTest,
+             CheckpointValidationCatchesDivergenceDuringStartup,
+             "13626005") {
+    // Per-document verification only logs a mismatch during startup, even when fatal.
+    unittest::ServerParameterGuard continuousInternodeValidationFatalOnMismatch(
+        "continuousInternodeValidationFatalOnMismatch", true);
+    ASSERT_OK(ReplicationCoordinator::get(_opCtx.get())->setFollowerMode(MemberState::RS_STARTUP2));
+
+    std::vector<OplogEntry> oplog;
+    oplog.push_back(makeInsertOplogEntryWithRecordIdSizeMetadataAndHash(
+        nextOpTime(), _nss, _uuid, kDoc1, RecordId(1), kDoc1UpdatedHash));
+    appendCheckpoint(
+        oplog, CollectionSizeCount{.size = kDoc1.objsize(), .count = 1}, kDoc1UpdatedHash);
+    ASSERT_OK(runThroughApplyOplogBatch(std::move(oplog)));
+}
+
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenPrimaryWritesCreatedAndDroppedCollection,
              "13626001") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCreatedDroppedWrites");
@@ -619,8 +1587,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenPrimaryDeletesCreatedAndDroppedCollection,
              "13626002") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointCreatedDroppedDeletes");
@@ -644,8 +1612,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenPrimaryWritesDroppedCollection,
              "13626004") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointDroppedWrites");
@@ -659,11 +1627,12 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
         std::vector<OplogEntry> checkpointOplog;
         const Timestamp watermarkTs = nextOpTime().getTimestamp();
         checkpointOplog.push_back(makeWatermarkEntry(watermarkTs));
-        checkpointOplog.push_back(makeCheckpointEntry(
-            watermarkTs,
-            {{.uuid = coll.uuid,
-              .metadata = CollectionReplicatedMetadata{
-                  .sizeCount = CollectionSizeCount{.size = 0, .count = 0}, .hash = boost::none}}}));
+        checkpointOplog.push_back(
+            makeCheckpointEntry(watermarkTs,
+                                {{.uuid = coll.uuid,
+                                  .metadata = CollectionReplicatedMetadata{
+                                      .sizeCount = CollectionSizeCount{.size = 0, .count = 0},
+                                      .hash = kEmptyCollectionValidationHash}}}));
         ASSERT_OK(runThroughApplyOplogBatch(std::move(checkpointOplog)));
     }
 
@@ -686,8 +1655,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 DEATH_TEST_F(CheckpointValidationDeathTest,
              CheckpointValidationFailsWhenPrimaryOmitsDroppedCollection,
              "13626006") {
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointDroppedOmitted");
@@ -712,10 +1681,11 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
             {{.uuid = coll.uuid,
               .metadata = CollectionReplicatedMetadata{.sizeCount = CollectionSizeCount{.size = 0,
                                                                                         .count = 0},
-                                                       .hash = boost::none}},
+                                                       .hash = kEmptyCollectionValidationHash}},
              {.uuid = otherColl.uuid,
               .metadata = CollectionReplicatedMetadata{
-                  .sizeCount = CollectionSizeCount{.size = 0, .count = 0}, .hash = boost::none}}}));
+                  .sizeCount = CollectionSizeCount{.size = 0, .count = 0},
+                  .hash = kEmptyCollectionValidationHash}}}));
         ASSERT_OK(runThroughApplyOplogBatch(std::move(checkpointOplog)));
     }
 
@@ -739,8 +1709,8 @@ DEATH_TEST_F(CheckpointValidationDeathTest,
 
 TEST_F(CheckpointValidationTest, CheckpointValidationAfterStepdownResetAdoptsCheckpoint) {
     otel::metrics::OtelMetricsCapturer capturer;
-    unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation(
-        "enableContinuousInternodePerCollectionValidation", true);
+    unittest::ServerParameterGuard fassertOnPerCollectionContinuousInternodeValidationFailure(
+        "fassertOnPerCollectionContinuousInternodeValidationFailure", true);
 
     const NamespaceString nss =
         NamespaceString::createNamespaceString_forTest("test.checkpointAfterStepdownReset");

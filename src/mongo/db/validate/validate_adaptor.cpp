@@ -457,7 +457,7 @@ auto ValidateAdaptor::validateRecord(OperationContext* opCtx,
 
     const BSONObj recordBson = record.data.toBson();
 
-    if (MONGO_unlikely(_validateState->logDiagnostics())) {
+    if (MONGO_unlikely(_validateState->getOptions().logDiagnostics)) {
         LOGV2(4666601, "[validate]", "recordId"_attr = record.id, "recordData"_attr = recordBson);
     }
 
@@ -583,11 +583,12 @@ void ValidateAdaptor::hashDrillDown(OperationContext* opCtx, ValidateResults& re
     auto traverseRecordStoreCursor = _validateState->getTraverseRecordStoreCursor();
 
     // Convert the vector of hashPrefixes provided to a set for easy lookup.
-    const stdx::unordered_set<std::string> hashPrefixes(_validateState->getHashPrefixes()->begin(),
-                                                        _validateState->getHashPrefixes()->end());
-    auto prefixLength = _validateState->getHashPrefixes().get()[0].size();
+    const auto& validateOptions = _validateState->getOptions();
+    const stdx::unordered_set<std::string> hashPrefixes(validateOptions.hashPrefixes->begin(),
+                                                        validateOptions.hashPrefixes->end());
+    auto prefixLength = validateOptions.hashPrefixes.get()[0].size();
     const size_t N = collection_validation::getNumberOfAdditionalCharactersForHashDrillDown(
-        _validateState->getHashPrefixes()->size(), prefixLength);
+        validateOptions.hashPrefixes->size(), prefixLength);
     uassert(ErrorCodes::BadValue, "Too many hash prefixes provided.", N);
     // Searches through the list of hash prefixes for a prefix of the provided 'hash', which
     // is the hash of the _id field. If a matching prefix has been found, returns
@@ -693,7 +694,7 @@ void ValidateAdaptor::postTraverseRecordStoreImpl(OperationContext* opCtx,
     // TODO(SERVER-119193): Add condition for the fastCountType being valid.
     // Only update the record store stats when repairing. Background validation reads a checkpoint
     // that may not have the most up-to-date changes.
-    if (validateResults.isValid() && _validateState->fixErrors()) {
+    if (validateResults.isValid() && _validateState->getOptions().fixErrors()) {
         coll->getRecordStore()->updateStatsAfterRepair(_numRecords, dataSizeTotal);
     }
 }
@@ -739,8 +740,9 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
     // the results object this gets merged into.
     results.validateResults.setNamespaceString(_validateState->nss());
     results.validateResults.setUUID(_validateState->uuid());
-    results.validateResults.setRepairMode(_validateState->getRepairMode());
-    results.validateResults.setReadTimestamp(_validateState->getReadTimestamp());
+    const auto& validateOptions = _validateState->getOptions();
+    results.validateResults.setRepairMode(validateOptions.repairMode);
+    results.validateResults.setReadTimestamp(validateOptions.readTimestamp);
 
     RecordId prevRecordId;
 
@@ -748,7 +750,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
     results.validateResults.setNumInvalidDocuments(0);
     results.validateResults.setNumNonCompliantDocuments(0);
 
-    const bool computeXxh3Hash = _validateState->isCollHashValidation() &&
+    const bool computeXxh3Hash = validateOptions.isCollHashValidation() &&
         rss::ReplicatedStorageService::get(opCtx)
             .getPersistenceProvider()
             .shouldUseContinuousInternodeValidation();
@@ -756,7 +758,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
     if (opts.beginRecordId.isNull()) {
         // The record store is empty if the first RecordId isn't initialized. Stand in an empty
         // hash, which is the correct collection hash for an empty collection.
-        if (_validateState->isCollHashValidation()) {
+        if (validateOptions.isCollHashValidation()) {
             results.validateResults.setCollectionHash(SHA256Block::computeHash({}));
         }
         if (computeXxh3Hash) {
@@ -785,10 +787,10 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
         // Set when a record that failed validation was folded into the hashes, which then cover
         // that record's raw bytes rather than a document.
         bool hashedCorruptRecord = false;
-        bool revealHashedIds = _validateState->getRevealHashedIds().has_value();
+        bool revealHashedIds = validateOptions.revealHashedIds.has_value();
         stdx::unordered_map<std::string, std::vector<BSONObj>> revealedIds;
         if (revealHashedIds) {
-            for (const auto& hashPrefix : _validateState->getRevealHashedIds().get()) {
+            for (const auto& hashPrefix : validateOptions.revealHashedIds.get()) {
                 revealedIds[hashPrefix] = {};
             }
         }
@@ -841,7 +843,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
             results.validateResults.incrementNumNonCompliantDocuments(compliantDocument ? 0 : 1);
             results.validateResults.incrementNumInvalidDocuments(validDocument ? 0 : 1);
 
-            if (_validateState->isCollHashValidation()) {
+            if (validateOptions.isCollHashValidation()) {
                 const ConstDataRange recordRange(record->data.data(), record->data.size());
                 const SHA256Block block = SHA256Block::computeHashWithCtx(&hashCtx, {recordRange});
                 accumulatedBlock.xorInline(block);
@@ -857,7 +859,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
                     const auto idBlock = SHA256Block::computeHashWithCtx(
                         &hashCtx, {ConstDataRange(idField.value(), idField.valuesize())});
                     const auto idBlockHexStr = idBlock.toHexString();
-                    for (const auto& hashPrefix : _validateState->getRevealHashedIds().get()) {
+                    for (const auto& hashPrefix : validateOptions.revealHashedIds.get()) {
                         if (idBlockHexStr.starts_with(hashPrefix)) {
                             revealedIds[hashPrefix].push_back(idField.wrap());
                         }
@@ -903,7 +905,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
                                   "recordBytes"_attr = dataSize);
                 }
 
-                if (_validateState->fixErrors()) {
+                if (validateOptions.fixErrors()) {
                     WriteUnitOfWork wunit(opCtx);
                     rs->deleteRecord(
                         opCtx, *shard_role_details::getRecoveryUnit(opCtx), record->id);
@@ -1112,7 +1114,7 @@ auto ValidateAdaptor::traverseRecordStoreImpl(OperationContext* opCtx,
             }
         }
 
-        if (_validateState->isCollHashValidation()) {
+        if (validateOptions.isCollHashValidation()) {
             results.validateResults.setCollectionHash(accumulatedBlock);
             if (computeXxh3Hash) {
                 results.validateResults.setXxh3CollectionHash(accumulatedXxh3);
@@ -1142,22 +1144,160 @@ void ValidateAdaptor::validateIndexKeyCount(OperationContext* opCtx,
     _keyBasedIndexConsistency.validateIndexKeyCount(opCtx, index, _numRecords, results);
 }
 
-int64_t ValidateAdaptor::traverseIndex(OperationContext* opCtx,
-                                       const IndexCatalogEntry& index,
-                                       ValidateResults& results) {
+void ValidateAdaptor::validateIndexes(OperationContext* opCtx, ValidateResults& results) {
+    // Validate Indexes, checking for mismatch between index entries and collection records.
+    const auto& validateState = *_validateState;
     // The progress meter will be inactive after traversing the record store to allow the
     // message and the total to be set to different values.
     {
         std::unique_lock<Client> lk(*opCtx->getClient());
         if (!_progress.get(lk) || !_progress.get(lk)->isActive()) {
-            const char* curopMessage = "Validate: scanning index entries";
+            const auto curopMessage =
+                fmt::format("Validate: scanning index entries for {}",
+                            NamespaceStringUtil::serialize(validateState.nss(),
+                                                           SerializationContext::stateDefault()));
             _progress.set(lk,
                           CurOp::get(opCtx)->setProgress(
                               lk, curopMessage, _keyBasedIndexConsistency.getTotalIndexKeys()),
                           opCtx);
         }
     }
+    for (const auto& indexIdent : validateState.getIndexIdents()) {
+        opCtx->checkForInterrupt();
 
+        const auto* indexEntry =
+            validateState.getCollection()->getIndexCatalog()->findIndexByIdent(opCtx, indexIdent);
+        invariant(indexEntry, "getIndexIdents returned an ident that was not found");
+
+        const auto& descriptor = *indexEntry->descriptor();
+        // Make a copy of the index name. The `traverseIndex()` function below will yield
+        // periodically, so it's unsafe to hold a pointer to the index here.
+        const std::string indexName = descriptor.indexName();
+        const IndexType indexType = descriptor.getIndexType();
+
+        LOGV2_PROD_ONLY_OPTIONS(20296,
+                                {logv2::LogComponent::kIndex},
+                                "Validating index consistency",
+                                "indexName"_attr = indexName,
+                                "indexType"_attr = indexType,
+                                logAttrs(validateState.nss()));
+
+        const int64_t numTraversedKeys = traverseIndex(opCtx, *indexEntry, results);
+
+        auto& curIndexResults = results.getIndexValidateResult(indexName);
+        curIndexResults.addKeysTraversed(numTraversedKeys);
+        curIndexResults.setSpec(descriptor.infoObj());
+
+        const bool isMultiKey = indexEntry->isMultikey(opCtx, validateState.getCollection());
+        curIndexResults.setIsMultikey(isMultiKey);
+    }
+}
+
+void ValidateAdaptor::gatherIndexEntryErrors(OperationContext* opCtx, ValidateResults& results) {
+    const auto& validateState = *_validateState;
+    setSecondPhase();
+    // Second-phase results record missing and extra index entries, which have ordering
+    // dependencies that prevent merging slices, so this traversal is always serial.
+    if (!limitMemoryUsageForSecondPhase(results)) {
+        return;
+    }
+
+    LOGV2_OPTIONS(20297,
+                  {logv2::LogComponent::kIndex},
+                  "Starting to traverse through all the document key sets");
+
+    // During the second phase of validation, iterate through each documents key set and only record
+    // the keys that were inconsistent during the first phase of validation.
+    {
+        ValidateResults tempValidateResults;
+        // Second phase doesn't report errors, but needs to know which indexes are structurally
+        // sound enough to validate
+        tempValidateResults.getIndexResultsMap() = results.getIndexResultsMap();
+        traverseRecordStoreSerial(
+            opCtx, tempValidateResults, validateState.getOptions().validationVersion);
+    }
+
+    LOGV2_OPTIONS(20298,
+                  {logv2::LogComponent::kIndex},
+                  "Finished traversing through all the document key sets");
+    LOGV2_OPTIONS(
+        20299, {logv2::LogComponent::kIndex}, "Starting to traverse through all the indexes");
+
+
+    // Indexes with errors from the first phase are skipped below, so only count the keys of the
+    // indexes that will be traversed. The total from the record store scan is not usable here as it
+    // spans every index and the second phase's record store scan counts the keys again.
+    const auto totalKeysToTraverse = [&] {
+        uint64_t totalKeysToTraverse = 0;
+        for (const auto& indexIdent : validateState.getIndexIdents()) {
+            const auto indexEntry =
+                validateState.getCollection()->getIndexCatalog()->findIndexByIdent(opCtx,
+                                                                                   indexIdent);
+            invariant(indexEntry, "getIndexIdents returned an ident that was not found");
+
+            const auto indexName = indexEntry->descriptor()->indexName();
+            if (results.getIndexValidateResult(indexName).continueValidation()) {
+                totalKeysToTraverse += results.getIndexValidateResult(indexName).getKeysTraversed();
+            }
+        }
+        return totalKeysToTraverse;
+    }();
+
+    {
+        std::unique_lock<Client> lk(*opCtx->getClient());
+        if (!_progress.get(lk) || !_progress.get(lk)->isActive()) {
+            const auto curopMessage =
+                fmt::format("Validate: gathering index entry errors for {}",
+                            NamespaceStringUtil::serialize(validateState.nss(),
+                                                           SerializationContext::stateDefault()));
+            _progress.set(
+                lk, CurOp::get(opCtx)->setProgress(lk, curopMessage, totalKeysToTraverse), opCtx);
+        }
+    }
+    // Iterate through all the indexes in the collection and only record the index entry keys that
+    // had inconsistencies during the first phase.
+    for (const auto& indexIdent : validateState.getIndexIdents()) {
+        opCtx->checkForInterrupt();
+
+        const auto indexEntry =
+            validateState.getCollection()->getIndexCatalog()->findIndexByIdent(opCtx, indexIdent);
+        invariant(indexEntry, "getIndexIdents returned an ident that was not found");
+
+        const auto& descriptor = *indexEntry->descriptor();
+        const auto& indexValidateResult = results.getIndexValidateResult(descriptor.indexName());
+        if (!indexValidateResult.continueValidation()) {
+            LOGV2(7697700,
+                  "Skipping validation of index due to existing errors",
+                  "indexName"_attr = descriptor.indexName());
+            continue;
+        }
+
+        LOGV2_OPTIONS(20300,
+                      {logv2::LogComponent::kIndex},
+                      "Traversing through the index entries",
+                      "index"_attr = descriptor.indexName());
+
+        traverseIndex(opCtx, *indexEntry, results);
+    }
+
+    if (results.getNumRemovedExtraIndexEntries() > 0) {
+        results.addWarning(str::stream() << "Removed " << results.getNumRemovedExtraIndexEntries()
+                                         << " extra index entries.");
+    }
+
+    if (validateState.getOptions().fixErrors()) {
+        repairIndexEntries(opCtx, results);
+    }
+
+    LOGV2_OPTIONS(
+        20301, {logv2::LogComponent::kIndex}, "Finished traversing through all the indexes");
+
+    addIndexEntryErrors(opCtx, results);
+}
+
+int64_t ValidateAdaptor::traverseIndex(OperationContext* opCtx,
+                                       const IndexCatalogEntry& index,
+                                       ValidateResults& results) {
     return _keyBasedIndexConsistency.traverseIndex(opCtx, index, _progress, results);
 }
 

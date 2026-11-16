@@ -7,6 +7,11 @@
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/db/matcher/expression.h"
 #include "mongo/db/query/compiler/logical_model/projection/projection_ast_util.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_parser.h"
+#include "mongo/db/query/compiler/logical_model/projection/projection_policies.h"
+#include "mongo/db/query/compiler/logical_model/sort_pattern/sort_pattern.h"
+#include "mongo/db/query/compiler/parsers/matcher/expression_parser.h"
+#include "mongo/db/query/query_request_helper.h"
 #include "mongo/db/query/query_utils.h"
 #include "mongo/db/query/write_ops/delete_request_gen.h"
 #include "mongo/db/query/write_ops/update_request.h"
@@ -77,9 +82,81 @@ BSONObj serializeWriteQuery(const ParsedDelete& parsedDelete, const Serializatio
         parsedDelete.parsedFind.get(), parsedDelete.getRequest()->getQuery(), opts);
 }
 
+BSONObj serializeFindAndModifySort(const ParsedFindCommand* parsedFind,
+                                   const BSONObj& rawSort,
+                                   const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                   const SerializationOptions& opts) {
+    if (parsedFind && parsedFind->sort) {
+        return parsedFind->sort
+            ->serialize(SortPattern::SortKeySerialization::kForPipelineSerialization, opts)
+            .toBson();
+    }
+
+    if (rawSort.isEmpty() || rawSort[query_request_helper::kNaturalSortField]) {
+        return BSONObj{};
+    }
+
+    std::unique_ptr<SortPattern> sortPattern;
+    try {
+        sortPattern = std::make_unique<SortPattern>(rawSort, expCtx);
+    } catch (const DBException&) {
+        // The simple _id fast path does not parse or use the sort. Do not let query-shape
+        // serialization reject a command that the execution path accepts.
+        return BSONObj{};
+    }
+    return sortPattern
+        ->serialize(SortPattern::SortKeySerialization::kForPipelineSerialization, opts)
+        .toBson();
+}
+
 BSONObj serializeProjection(const projection_ast::Projection* projection,
                             const SerializationOptions& opts) {
     return projection ? projection_ast::serialize(*projection->root(), opts) : BSONObj{};
+}
+
+projection_ast::Projection parseFindAndModifyProjection(
+    const ParsedFindCommand* parsedFind,
+    const BSONObj& rawQuery,
+    const BSONObj& rawProjection,
+    const boost::intrusive_ptr<ExpressionContext>& expCtx,
+    const ExtensionsCallback& extensionsCallback) {
+    std::unique_ptr<MatchExpression> parsedFilter;
+    const MatchExpression* filter = parsedFind ? parsedFind->filter.get() : nullptr;
+    if (!filter) {
+        // Parsed writes skip parsing simple _id queries. A returned-document projection can still
+        // require the matcher (for example, positional projection), so parse the original query
+        // locally without canonicalizing or mutating the execution request.
+        auto parsed = MatchExpressionParser::parse(
+            rawQuery, expCtx, extensionsCallback, MatchExpressionParser::kAllowAllSpecialFeatures);
+        parsedFilter = uassertStatusOK(std::move(parsed));
+        filter = parsedFilter.get();
+    }
+
+    return projection_ast::parseAndAnalyze(
+        expCtx, rawProjection, filter, rawQuery, ProjectionPolicies::findProjectionPolicies());
+}
+
+BSONObj serializeFindAndModifyProjection(const ParsedFindCommand* parsedFind,
+                                         const BSONObj& rawQuery,
+                                         const BSONObj& rawProjection,
+                                         const boost::intrusive_ptr<ExpressionContext>& expCtx,
+                                         const ExtensionsCallback& extensionsCallback,
+                                         const SerializationOptions& opts) {
+    // An absent or empty 'fields' contributes nothing to the shape. Return before parsing so that
+    // the simple _id fast path does not parse the matcher solely for an empty projection.
+    if (rawProjection.isEmpty()) {
+        return BSONObj{};
+    }
+
+    auto projection = parseFindAndModifyProjection(
+        parsedFind, rawQuery, rawProjection, expCtx, extensionsCallback);
+
+    // Projection parsing can reference system variables that the parsed query did not (for
+    // example $$USER_ROLES in 'fields' only), so those are not yet initialized. Initialize them so
+    // serialization emits the variable's constant value rather than a reference.
+    expCtx->initializeReferencedSystemVariables();
+
+    return serializeProjection(&projection, opts);
 }
 
 Value serializeUpdate(const ParsedUpdate& parsedUpdate, const SerializationOptions& opts) {

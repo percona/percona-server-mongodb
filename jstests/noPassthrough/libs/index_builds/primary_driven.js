@@ -27,7 +27,8 @@ import {ReplSetTest} from "jstests/libs/replsettest.js";
 import {extractUUIDFromObject} from "jstests/libs/uuid_util.js";
 import {IndexBuildTest} from "jstests/noPassthrough/libs/index_builds/index_build.js";
 import {
-    findOtelFilesWithSuffix,
+    getFlatMetricsList,
+    getLatestRecordsByNode,
     otelFileExportParams,
 } from "jstests/noPassthrough/observability/libs/otel_metrics_file_export_helpers.js";
 
@@ -414,10 +415,9 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
         const name = testName || jsTestName();
         const {metricsDir, otelParams} = otelFileExportParams(name);
 
-        // When graceful unplanned stepdown is not supported, fail over by checkpointing on the
-        // primary, waiting for the secondary to install that checkpoint, then killing the primary.
-        // 2 nodes is sufficient for this case.
-        if (TestData.doesNotSupportGracefulUnplannedStepdown) {
+        // Only collapse to two nodes when neither kind of graceful stepdown is supported.
+        // Planned stepdown scenarios can require distinct secondaries across multiple failovers.
+        if (PrimaryDrivenResumableIndexBuildTest.failoverStopsOldPrimary()) {
             nodes = 2;
         }
 
@@ -434,12 +434,13 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
             oplogSize: 1024,
             nodeOptions: {
                 setParameter: {
+                    // Keep pool blocks well below the ~1 MB per-index sorter budgets, otherwise
+                    // sorters end up spilling once per key. Set before the `nodeParams` spread so
+                    // tests can override it.
+                    operationMemoryPoolBlockMaxSizeKB: 128,
                     ...otelParams,
                     ...nodeParams,
                     openTelemetryExportIntervalMillis: 5000,
-                    // Keep pool blocks well below the ~1 MB per-index sorter budgets, otherwise
-                    // sorters end up spilling once per key.
-                    operationMemoryPoolBlockMaxSizeKB: 128,
                 },
             },
         };
@@ -837,10 +838,10 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
             loadIntervalKeys,
         } = PrimaryDrivenResumableIndexBuildTest._normalizeOptions(options);
 
-        if (TestData.doesNotSupportGracefulUnplannedStepdown) {
+        if (PrimaryDrivenResumableIndexBuildTest.failoverStopsOldPrimary()) {
             jsTest.log.info(
                 "PrimaryDrivenResumableIndexBuildTest: skipping runAcrossTwoFailovers because this " +
-                    "configuration runs with two nodes and kill-based failover",
+                    "configuration supports neither graceful planned nor unplanned stepdown",
             );
             return;
         }
@@ -2044,14 +2045,18 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
     }
 
     /**
-     * Forces a checkpoint on the primary, waits for the secondary to install it, then kills the
-     * primary so the secondary steps up. The build is paused at its phase fail point, so no writes
-     * accumulate after the checkpoint. The old primary is always SIGKILLed. Returns the new primary
-     * (the stepped-up secondary).
+     * Forces a checkpoint on the primary, waits for the target secondary to install it, then kills
+     * the primary so that secondary steps up. Other secondaries are frozen to prevent them from
+     * winning the election. The build is paused at its phase fail point, so no writes accumulate
+     * after the checkpoint. The old primary is always SIGKILLed. Returns the new primary.
      */
-    static _failOverWithCheckpointInstall(rst, {unclean = false} = {}) {
-        const oldPrimary = rst.getPrimary();
-        const secondary = rst.getSecondary();
+    static _failOverWithCheckpointInstall(rst, oldPrimary, secondary, {unclean = false} = {}) {
+        const otherSecondaries = rst.nodes.filter(
+            (node) => node.host !== oldPrimary.host && node.host !== secondary.host,
+        );
+        for (const node of otherSecondaries) {
+            assert.commandWorked(node.adminCommand({replSetFreeze: ReplSetTest.kForeverSecs}));
+        }
 
         // Force a checkpoint on the primary and block until the secondary installs it.
         PrimaryDrivenResumableIndexBuildTest._awaitCheckpointInstalled(oldPrimary, secondary);
@@ -2071,7 +2076,11 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
         );
         rst.waitForMyState(secondary, ReplSetTest.State.PRIMARY);
 
-        // Restart the old primary so it rejoins as a secondary (keeps the set at two live nodes).
+        for (const node of otherSecondaries) {
+            assert.commandWorked(node.adminCommand({replSetFreeze: 0}));
+        }
+
+        // Restart the old primary so it rejoins as a secondary.
         const restartedNode = rst.start(oldPrimary, {}, /*restart=*/ true);
         if (rst._pdibIndexBuildSettings) {
             assert.commandWorked(
@@ -2208,6 +2217,8 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
      * failovers can step any of them up. Returns the new primary.
      */
     static _failOverWithStepDown(rst, oldPrimary, nextPrimaryNode) {
+        rst.awaitReplication();
+
         const otherSecondaries = rst.nodes.filter(
             (node) => node.host !== oldPrimary.host && node.host !== nextPrimaryNode.host,
         );
@@ -2259,9 +2270,12 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
                     nextPrimaryNode,
                 );
             }
-            return PrimaryDrivenResumableIndexBuildTest._failOverWithCheckpointInstall(rst, {
-                unclean: failoverMode === PdibFailoverMode.UNCLEAN_RESTART,
-            });
+            return PrimaryDrivenResumableIndexBuildTest._failOverWithCheckpointInstall(
+                rst,
+                oldPrimary,
+                nextPrimaryNode,
+                {unclean: failoverMode === PdibFailoverMode.UNCLEAN_RESTART},
+            );
         }
 
         if (failoverMode === PdibFailoverMode.NO_RESTART) {
@@ -2549,70 +2563,45 @@ export const PrimaryDrivenResumableIndexBuildTest = class {
      *   {succeeded: {<phase>: <count>, ...}, failed: <count>}
      *
      * Unlike getLatestMetrics() in otel_file_export_helpers.js, this preserves the `phase`
-     * attribute on succeeded so we can verify the per-phase breakdown. The OTel file exporter
-     * writes a fresh snapshot of every counter on each flush, so within a single file we MUST take
-     * only the latest record (the cumulative value from that node). Across files we SUM, because
-     * each file is a separate node's metrics and a step-up resume on node B is not reflected in
-     * node A's counter.
+     * attribute on succeeded so we can verify the per-phase breakdown.
+     * getLatestRecordsByNode() reduces the directory to one cumulative snapshot per node, so a
+     * node whose file rotated (midnight UTC or the chunk size limit) is counted exactly once.
+     * Across nodes we SUM, because a step-up resume on node B is not reflected in node A's
+     * counter.
      *
      * TODO (SERVER-127030): Use getLatestMetrics or equivalent and remove this function.
      *
      * @param {string} metricsDir
      * @returns {{succeeded: Object<string, number>, failed: number}} Per-phase succeeded totals
      *     (keyed by the `phase` attribute) and the cluster-wide failed total, summed across
-     *     per-node files.
+     *     per-node snapshots.
      */
     static _readResumeMetrics(metricsDir) {
         const result = {succeeded: {}, failed: 0};
-        const files = findOtelFilesWithSuffix(metricsDir);
-        for (const file of files) {
-            const content = cat(file.name);
-            if (!content || !content.trim()) continue;
-            // Read the last fully-formed JSON line in the file. The exporter appends one record per
-            // flush; the last record is the most recent cumulative snapshot. (The very last line
-            // can be cut off mid-write, in which case we fall back to the previous one.)
-            const lines = content.trim().split("\n");
-            let record = null;
-            for (let i = lines.length - 1; i >= 0; i--) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                try {
-                    record = JSON.parse(line);
-                    break;
-                } catch (e) {
-                    // Try the previous line.
+        for (const record of getLatestRecordsByNode(metricsDir)) {
+            for (const metric of getFlatMetricsList(record)) {
+                if (
+                    metric.name !== RESUME_SUCCEEDED_METRIC &&
+                    metric.name !== RESUME_FAILED_METRIC
+                ) {
+                    continue;
                 }
-            }
-            for (const resourceMetric of record?.resourceMetrics ?? []) {
-                for (const scopeMetric of resourceMetric?.scopeMetrics ?? []) {
-                    for (const metric of scopeMetric?.metrics ?? []) {
-                        if (
-                            metric.name !== RESUME_SUCCEEDED_METRIC &&
-                            metric.name !== RESUME_FAILED_METRIC
-                        ) {
-                            continue;
-                        }
-                        for (const dp of metric.sum?.dataPoints ?? []) {
-                            const value = Number(dp.asInt ?? dp.asDouble ?? 0);
-                            if (metric.name === RESUME_FAILED_METRIC) {
-                                // Sum across nodes (per-file): each file is a separate node's
-                                // counter, and we want the cluster-wide total.
-                                result.failed += value;
-                                continue;
-                            }
-                            // succeeded counter: split by phase attribute and sum across nodes
-                            // (per-file) for the same phase.
-                            let phase = null;
-                            for (const kv of dp.attributes ?? []) {
-                                if (kv.key === "phase") {
-                                    phase = kv.value?.stringValue;
-                                    break;
-                                }
-                            }
-                            if (phase === null) continue;
-                            result.succeeded[phase] = (result.succeeded[phase] ?? 0) + value;
+                for (const dp of metric.sum?.dataPoints ?? []) {
+                    const value = Number(dp.asInt ?? dp.asDouble ?? 0);
+                    if (metric.name === RESUME_FAILED_METRIC) {
+                        result.failed += value;
+                        continue;
+                    }
+                    // succeeded counter: split by phase attribute and sum across nodes.
+                    let phase = null;
+                    for (const kv of dp.attributes ?? []) {
+                        if (kv.key === "phase") {
+                            phase = kv.value?.stringValue;
+                            break;
                         }
                     }
+                    if (phase === null) continue;
+                    result.succeeded[phase] = (result.succeeded[phase] ?? 0) + value;
                 }
             }
         }

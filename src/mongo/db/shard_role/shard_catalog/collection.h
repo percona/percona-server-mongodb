@@ -728,19 +728,8 @@ public:
     /**
      * Returns the collection's uncompressed data size and number of records as of the last
      * committed change.
-     *
-     * WARNING: This function may be much less performant than `persistedSizeCount()`. Only use
-     * `latestSizeCount()` when precise size/count information is required for correctness.
      */
     virtual CollectionSizeCount latestSizeCount(OperationContext* opCtx) const = 0;
-
-    /**
-     * Returns the last persisted uncompressed collection data size and number of records.
-     *
-     * This function is useful for retrieving the approximate size and count of the collection
-     * quickly, e.g., during FTDC collection.
-     */
-    virtual CollectionSizeCount persistedSizeCount(OperationContext* opCtx) const = 0;
 
     /**
      * Return the size on disk in bytes
@@ -800,6 +789,10 @@ public:
      * Collection instance.
      */
     virtual const CollectionOptions& getCollectionOptions() const = 0;
+
+    const std::vector<ForeignKeyConstraint>& getForeignKeyConstraints() const {
+        return getCollectionOptions().foreignKeyConstraints;
+    }
 
     /**
      * Fills in each index specification with collation information from this collection and returns

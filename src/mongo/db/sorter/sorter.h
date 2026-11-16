@@ -349,15 +349,8 @@ public:
     virtual std::unique_ptr<SortedStorageWriter<Key, Value>> makeWriter(
         const SortOptions& opts, const Settings& settings) = 0;
 
-    /**
-     * Returns the memory cost of holding one spill iterator open, independent of the data spilled.
-     */
     virtual size_t getIteratorSize() = 0;
 
-    /**
-     * Returns the estimated memory each spill iterator uses while merging, which scales with the
-     * size of spilled entries.
-     */
     virtual size_t getBufferSize() = 0;
     /**
      * Reconstructs a sorter when resuming an index build, following persistFromShutdown.
@@ -654,6 +647,12 @@ public:
      * after calling done().
      */
     virtual std::unique_ptr<Iterator> done() = 0;
+
+    /**
+     * If the sorter has spilled, spills any remaining in-memory data. Does nothing if the sorter
+     * has not spilled. No more data can be added after calling this.
+     */
+    virtual void finalizeSpills() = 0;
 
     /**
      * Pauses loading and returns the iterator that can be used to get the current state. Clients of

@@ -841,14 +841,6 @@ public:
         _auditEvent(client, "createView", params.done(), code);
     }
 
-    void logImportCollection(Client* client, const NamespaceString& nsname) const override {
-        if (!_auditLog) {
-            return;
-        }
-
-        _auditEvent(client, "importCollection", BSON("ns" << toString(nsname)));
-    }
-
     void logCreateDatabase(Client* client, const DatabaseName& dbname) const override {
         if (!_auditLog) {
             return;

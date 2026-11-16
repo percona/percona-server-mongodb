@@ -231,8 +231,10 @@ struct Lowerer {
 
     std::unique_ptr<sbe::PlanStage> operator()(SbBlueprintProject node) {
         auto child = lower(node.child);
-        return sbe::makeS<sbe::ProjectStage>(
-            std::move(child), lowerSlotExprPair(node.projects, _varTypes), node.nodeId);
+        return sbe::makeS<sbe::ProjectStage>(std::move(child),
+                                             lowerSlotExprPair(node.projects, _varTypes),
+                                             node.nodeId,
+                                             node.binding);
     }
 
     std::unique_ptr<sbe::PlanStage> operator()(SbBlueprintLimitSkip node) {
@@ -508,6 +510,7 @@ struct Lowerer {
                                               std::move(node.outerProjects),
                                               std::move(node.outerCorrelated),
                                               std::move(node.innerProjects),
+                                              std::move(node.innerProjectOutputs),
                                               le(node.predicate),
                                               node.joinType,
                                               node.nodeId,

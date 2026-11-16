@@ -27,9 +27,9 @@
 #include "mongo/s/multi_statement_transaction_requests_sender.h"
 #include "mongo/s/query/exec/next_high_watermark_determining_strategy.h"
 #include "mongo/util/assert_util.h"
-#include "mongo/util/cancellation.h"
 #include "mongo/util/clock_source.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/overloaded_visitor.h"
 #include "mongo/util/scopeguard.h"
 #include "mongo/util/str.h"
 #include "mongo/util/time_support.h"
@@ -48,19 +48,33 @@
 
 namespace mongo {
 
-// Test-only. When enabled, holds ('parks') a scheduled ARM getMore retry callback at the start of
-// its execution: after the owning 'AsyncResultsMerger' has been re-locked via its weak_ptr but
-// before it inspects '_opCtx' or defers. This deterministically widens the window in which the
-// callback can observe (and re-target its request at) an 'OperationContext' belonging to a *later*
-// getMore than the one that originally scheduled the retry.
-MONGO_FAIL_POINT_DEFINE(stallBeforeReDispatchingArmRetry);
+// Test-only. When enabled, holds a remote in 'InBackoff': each time its backoff timer fires, the
+// callback re-arms the timer instead of completing the backoff, so the remote never returns to
+// 'Idle' and the deferred retry is never dispatched. This lets a test keep a backoff pending while
+// it drives 'kill()'/'closeShardCursors()'/detach against it, or line up a *later* getMore's
+// OperationContext before the retry is finally dispatched. Note that the backoff timer never
+// dispatches the retry itself (see '_onArmRetryTimerFired()'); holding the backoff is what
+// holds the retry.
+//
+// Re-arming goes through '_scheduleBackoffTimer()' under '_mutex', exactly like the initial arming,
+// so 'InBackoff' always carries the handle of the live timer and 'cancelAsyncWork()' stays the only
+// way a backoff is cancelled.
+//
+// This deliberately does *not* use 'FailPoint::pauseWhileSet()'. Sharding task executors are backed
+// by a 'NetworkInterfaceThreadPool', which runs scheduled work inline on the network interface's
+// (single) reactor thread. Blocking there would stall every egress operation on the process, so
+// instead of holding the thread we re-arm the timer and return. Note that this means 'timesEntered'
+// grows once per poll rather than once per stalled backoff; tests should only rely on it becoming
+// non-zero.
+MONGO_FAIL_POINT_DEFINE(stallArmRetryBackoff);
 
-// Test-only and observation-only. Entered at the end of '_scheduleRetryCallback', after the backoff
-// timer (or 'sleepFor') has been armed with a fixed deadline. Tests enable this fail point and call
-// 'waitForTimesEntered()' to deterministically learn that the retry alarm has been registered, so
-// they can advance the mock clock *after* the deadline is fixed. This replaces fixed 'sleepmillis'
-// waits that could not prove the alarm was armed and were vulnerable to a deadline-shift race.
-MONGO_FAIL_POINT_DEFINE(armRetryScheduledForTesting);
+// Test-only and observation-only. Entered at the end of '_scheduleBackoffTimer', after the backoff
+// timer ('scheduleWorkAt') has been armed with a fixed deadline. Tests enable this fail point and
+// call 'waitForTimesEntered()' to deterministically learn that the backoff timer has been
+// registered, so they can advance the mock clock *after* the deadline is fixed. This replaces fixed
+// 'sleepmillis' waits that could not prove the alarm was armed and were vulnerable to a
+// deadline-shift race.
+MONGO_FAIL_POINT_DEFINE(armRetryBackoffScheduledForTesting);
 
 // Test-only. Overrides the batchSize field used for getMore requests that the AsyncResultsMerger
 // sends to shards. The batch size normally comes from the originating command's parameters, which
@@ -71,51 +85,21 @@ MONGO_FAIL_POINT_DEFINE(overrideBatchSizeForShardGetMore);
 
 namespace {
 
-// How often 'StallableRetryCallback' re-checks 'stallBeforeReDispatchingArmRetry'.
-constexpr auto kArmRetryStallPollInterval = Milliseconds(10);
-
-/**
- * Test-only wrapper which delays invoking 'task' for as long as the
- * 'stallBeforeReDispatchingArmRetry' failpoint is enabled.
- *
- * This deliberately does *not* use 'FailPoint::pauseWhileSet()'. Sharding task executors are backed
- * by a 'NetworkInterfaceThreadPool', which runs scheduled work inline on the network interface's
- * (single) reactor thread. Blocking there would stall every egress operation on the process, so
- * instead of holding the thread we repeatedly re-post ourselves to the executor until the failpoint
- * is disabled. Note that this means 'timesEntered' grows once per poll rather than once per stalled
- * callback; tests should only rely on it becoming non-zero.
- */
-template <typename Task>
-struct StallableRetryCallback {
-    void operator()(Status status) const {
-        // 'sleeping' is set on the copy we hand to 'sleepFor()' below. If that sleep did not
-        // complete successfully - e.g. because the executor is shutting down, in which case
-        // 'sleepFor()' completes inline - stop polling. Otherwise we would recurse without bound.
-        const bool sleepFailed = sleeping && !status.isOK();
-
-        if (!sleepFailed && MONGO_unlikely(stallBeforeReDispatchingArmRetry.shouldFail())) {
-            auto reposted = *this;
-            reposted.sleeping = true;
-            executor->sleepFor(kArmRetryStallPollInterval, token).getAsync(std::move(reposted));
-            return;
-        }
-
-        task(std::move(status));
-    }
-
-    std::shared_ptr<executor::TaskExecutor> executor;
-    CancellationToken token;
-    Task task;
-    bool sleeping = false;
-};
-
-template <typename Task>
-StallableRetryCallback<Task> makeStallableRetryCallback(
-    std::shared_ptr<executor::TaskExecutor> executor, CancellationToken token, Task task) {
-    return StallableRetryCallback<Task>{std::move(executor), std::move(token), std::move(task)};
-}
+// How often a remote held in backoff re-arms its timer while 'stallArmRetryBackoff' is enabled.
+constexpr auto kArmRetryBackoffStallPollInterval = Milliseconds(10);
 
 }  // namespace
+
+std::string_view AsyncResultsMerger::stateName(const RemoteState& state) {
+    return std::visit(OverloadedVisitor{[](const Idle&) -> std::string_view { return "Idle"; },
+                                        [](const GetMoreInFlight&) -> std::string_view {
+                                            return "GetMoreInFlight";
+                                        },
+                                        [](const InBackoff&) -> std::string_view {
+                                            return "InBackoff";
+                                        }},
+                      state);
+}
 
 const BSONObj AsyncResultsMerger::kWholeSortKeySortPattern =
     BSON(AsyncResultsMerger::kSortKeyField << 1);
@@ -135,6 +119,11 @@ static constexpr std::array<ErrorCodes::Error, 3> kSafeErrorCodesForRetrying{
  */
 static constexpr std::array<ErrorCodes::Error, 3> kCursorAlreadyDeadCodes = {
     ErrorCodes::QueryPlanKilled, ErrorCodes::CursorKilled, ErrorCodes::CursorNotFound};
+
+bool isAlreadyDead(ErrorCodes::Error code) {
+    return std::find(kCursorAlreadyDeadCodes.begin(), kCursorAlreadyDeadCodes.end(), code) !=
+        kCursorAlreadyDeadCodes.end();
+}
 
 /**
  * Returns an int less than 0 if 'leftSortKey' < 'rightSortKey', 0 if the two are equal, and an int
@@ -479,8 +468,8 @@ void AsyncResultsMerger::closeShardCursors(const stdx::unordered_set<ShardId>& s
                                       // queue when they arrive later.
                                       // - Remove the remote from the '_remotes' vector.
                                       // - Reposition our loop iterator.
-                                      _cancelCallbackForRemote(lk, remote);
-                                      _scheduleKillCursorForRemote(lk, _opCtx, remote);
+                                      remote->cancelAsyncWork(lk, _executor.get());
+                                      remote->scheduleKillCursors(lk, _executor.get(), _opCtx);
                                       _removeRemoteFromPromisedMinSortKeys(lk, remote);
                                       remote->closed = true;
 
@@ -782,10 +771,82 @@ AsyncResultsMerger::RemoteCursorPtr AsyncResultsMerger::_buildRemote(WithLock lk
     return remote;
 }
 
-void AsyncResultsMerger::_cancelCallbackForRemote(WithLock, const RemoteCursorPtr& remote) {
-    if (remote->cbHandle.isValid()) {
-        _executor->cancel(remote->cbHandle);
-    }
+void AsyncResultsMerger::_transitionToGetMoreInFlight(
+    WithLock lk, RemoteCursorData& remote, executor::TaskExecutor::CallbackHandle cbHandle) {
+    tassert(13753604,
+            str::stream() << "Cannot dispatch a getMore for remote " << remote.shardId
+                          << ": expected state Idle, found " << stateName(remote.state),
+            std::holds_alternative<Idle>(remote.state));
+    _setRemoteState(lk, remote, GetMoreInFlight{std::move(cbHandle)});
+}
+
+void AsyncResultsMerger::_completeGetMore(WithLock lk, RemoteCursorData& remote) {
+    tassert(13753605,
+            str::stream() << "Cannot complete a getMore for remote " << remote.shardId
+                          << ": expected state GetMoreInFlight, found " << stateName(remote.state),
+            std::holds_alternative<GetMoreInFlight>(remote.state));
+    _setRemoteState(lk, remote, Idle{});
+}
+
+void AsyncResultsMerger::_enterBackoff(WithLock lk,
+                                       RemoteCursorData& remote,
+                                       executor::TaskExecutor::CallbackHandle timerCallbackHandle) {
+    tassert(13753607,
+            str::stream() << "Cannot enter backoff for remote " << remote.shardId
+                          << ": expected state Idle, found " << stateName(remote.state),
+            std::holds_alternative<Idle>(remote.state));
+    _setRemoteState(lk, remote, InBackoff{std::move(timerCallbackHandle)});
+}
+
+void AsyncResultsMerger::_completeBackoff(WithLock lk, RemoteCursorData& remote) {
+    tassert(13753606,
+            str::stream() << "Cannot complete a backoff for remote " << remote.shardId
+                          << ": expected state InBackoff, found " << stateName(remote.state),
+            std::holds_alternative<InBackoff>(remote.state));
+    _setRemoteState(lk, remote, Idle{});
+}
+
+void AsyncResultsMerger::_rearmBackoff(WithLock,
+                                       RemoteCursorData& remote,
+                                       executor::TaskExecutor::CallbackHandle timerCallbackHandle) {
+    tassert(13753800,
+            str::stream() << "Cannot re-arm a backoff for remote " << remote.shardId
+                          << ": expected state InBackoff, found " << stateName(remote.state),
+            std::holds_alternative<InBackoff>(remote.state));
+
+    // The only transition which replaces in-flight work with in-flight work, and so the only one
+    // which does not go through '_setRemoteState()'. It is safe here because the handle being
+    // replaced belongs to the callback which is running right now - it is that callback which is
+    // re-arming the timer - so nothing is stranded behind the dropped handle.
+    remote.state = InBackoff{std::move(timerCallbackHandle)};
+}
+
+void AsyncResultsMerger::_setRemoteState(WithLock, RemoteCursorData& remote, RemoteState newState) {
+    // A 'GetMoreInFlight' state carries the only handle that can cancel its getMore. Overwriting
+    // one in-flight state with another would drop that handle and strand the old work, so every
+    // path must first return the remote to 'Idle'.
+    tassert(13753602,
+            str::stream() << "Illegal per-remote state transition: would overwrite in-flight work "
+                          << stateName(remote.state) << " with in-flight work "
+                          << stateName(newState) << " for shard " << remote.shardId,
+            !(isInFlight(remote.state) && isInFlight(newState)));
+
+    LOGV2_DEBUG(13753603,
+                4,
+                "AsyncResultsMerger remote state transition",
+                "shardId"_attr = remote.shardId.toString(),
+                "cursorId"_attr = remote.cursorId,
+                "oldState"_attr = stateName(remote.state),
+                "newState"_attr = stateName(newState));
+
+    remote.state = std::move(newState);
+}
+
+void AsyncResultsMerger::_assertIsReadyToDispatch(WithLock) const {
+    // TODO SERVER-134806: replace the '_opCtx != nullptr' proxy with an explicit
+    // opCtx-restoration readiness signal. Having an opCtx is a minimum for scheduling remote work,
+    // but it might not be sufficient - as in SERVER-133148.
+    tassert(13753601, "Cannot schedule a getMore without an OperationContext", _opCtx != nullptr);
 }
 
 void AsyncResultsMerger::_removeRemoteFromPromisedMinSortKeys(WithLock,
@@ -1176,9 +1237,8 @@ BSONObj AsyncResultsMerger::_makeRequest(WithLock lk,
                                          const RemoteCursorData& remote,
                                          const ServerGlobalParams::FCVSnapshot& fcvSnapshot) const {
     tassert(11052306,
-            str::stream() << "Expected to not have outstanding requests for remote "
-                          << remote.shardId,
-            !remote.outstandingRequest);
+            str::stream() << "Expected no in-flight async work for remote " << remote.shardId,
+            !remote.hasInFlightWork());
 
     GetMoreCommandRequest getMoreRequest(remote.cursorId, std::string{remote.cursorNss.coll()});
     getMoreRequest.setBatchSize(_params.getBatchSize());
@@ -1310,7 +1370,7 @@ Status AsyncResultsMerger::_scheduleGetMores(WithLock lk) {
     _assertNotInvalidated(lk);
 
     // Reveal opCtx errors (such as MaxTimeMSExpired) and reflect them in the remote status.
-    invariant(_opCtx, "Cannot schedule a getMore without an OperationContext");
+    _assertIsReadyToDispatch(lk);
     if (auto interruptStatus = _opCtx->checkForInterruptNoAssert(); !interruptStatus.isOK()) {
         for (auto&& remote : _remotes) {
             if (!remote->exhausted()) {
@@ -1329,8 +1389,8 @@ Status AsyncResultsMerger::_scheduleGetMores(WithLock lk) {
             return remote->status;
         }
 
-        if (!remote->hasNext() && !remote->exhausted() && !remote->outstandingRequest) {
-            // If this remote is not exhausted and there is no outstanding request for it, schedule
+        if (!remote->hasNext() && !remote->exhausted() && !remote->hasInFlightWork()) {
+            // If this remote is not exhausted and it has no in-flight async work, schedule
             // work to retrieve the next batch.
             remotes.push_back(remote);
         }
@@ -1369,8 +1429,7 @@ Status AsyncResultsMerger::_sendRequestWithRetries(WithLock lk,
         return callbackStatus.getStatus();
     }
 
-    remote->outstandingRequest = true;
-    remote->cbHandle = callbackStatus.getValue();
+    _transitionToGetMoreInFlight(lk, *remote, callbackStatus.getValue());
     return Status::OK();
 }
 
@@ -1600,32 +1659,124 @@ bool AsyncResultsMerger::_checkHighWaterMarkEligibility(WithLock,
         compareSortKeys(newMinSortKey, *remote.promisedMinSortKey, *_params.getSort()) > 0;
 }
 
-void AsyncResultsMerger::_scheduleRetryCallback(std::function<void(Status)> callback,
-                                                Milliseconds delay) {
-    auto stallableCallback =
-        makeStallableRetryCallback(_executor, _cancellationSource.token(), std::move(callback));
-    if (!_opCtx) {
-        // ARM is detached — scheduling a retry on the dead SubBaton would cause it to
-        // resolve immediately and attempt to re-acquire _mutex on the same thread,
-        // deadlocking. Instead, wait on the executor.
-        _executor->sleepFor(delay, _cancellationSource.token()).getAsync(stallableCallback);
-    } else {
-        // Schedule a retry for the request on the baton. The 'AsyncResultsMerger' instance
-        // is captured here using a weak_ptr, so that the scheduled retry operation does not
-        // block the destruction of the instance. If the retry is scheduled after the
-        // instance was destroyed, we will notice this inside the callback and do nothing.
-        _subBaton
-            ->waitUntil(getGlobalServiceContext()->getPreciseClockSource()->now() + delay,
-                        _cancellationSource.token())
-            .thenRunOn(_executor)
-            .getAsync(stallableCallback);
+StatusWith<executor::TaskExecutor::CallbackHandle> AsyncResultsMerger::_scheduleBackoffTimer(
+    WithLock, const RemoteCursorPtr& remote, Milliseconds timerDelay, Milliseconds backoffDelay) {
+    // The backoff wait always runs on the executor ('scheduleWorkAt'), regardless of whether the
+    // ARM is attached: the callback runs on an executor thread either way, so detach/reattach is
+    // orthogonal to a pending backoff and the timer survives detach at full length. The callback
+    // captures the ARM by weak_ptr, so a pending backoff does not keep the ARM alive.
+    //
+    // 'timerDelay' is the deadline of this particular arming, while 'backoffDelay' is the delay the
+    // retry strategy asked for. The two differ only when a stalled callback re-arms itself: the
+    // re-armed timer is short ('kArmRetryBackoffStallPollInterval') but the backoff it stands in
+    // for is still the full one, which is what a fully elapsed backoff must record.
+    auto swHandle = _executor->scheduleWorkAt(
+        _executor->now() + timerDelay,
+        [weak = weak_from_this(), remote /* intrusive_ptr copy! */, backoffDelay](
+            const executor::TaskExecutor::CallbackArgs& args) {
+            auto self = weak.lock();
+            if (!self) {
+                // Do not continue here if the last shared_ptr pointing to this
+                // 'AsyncResultsMerger' instance has already gone out of scope. In this case
+                // there is no need to schedule further retries.
+                return;
+            }
+
+            std::lock_guard<std::mutex> lk(self->_mutex);
+            self->_onArmRetryTimerFired(lk, remote, backoffDelay, args);
+        });
+    if (!swHandle.isOK()) {
+        return swHandle;
     }
 
-    // The backoff timer (or 'sleepFor') is now armed with a deadline fixed relative to the current
-    // mock-clock reading. Enter the observation-only fail point so tests can synchronize on this
-    // point via 'waitForTimesEntered()' before advancing the mock clock. Behavior is unchanged.
-    if (MONGO_unlikely(armRetryScheduledForTesting.shouldFail())) {
+    // The backoff timer is now armed with a deadline fixed relative to the current mock-clock
+    // reading. Enter the observation-only fail point so tests can synchronize on this point via
+    // 'waitForTimesEntered()' before advancing the mock clock. Behavior is unchanged.
+    if (MONGO_unlikely(armRetryBackoffScheduledForTesting.shouldFail())) {
         // Intentionally empty: only the entry count is observed.
+    }
+    return swHandle;
+}
+
+void AsyncResultsMerger::_onArmRetryTimerFired(WithLock lk,
+                                               const RemoteCursorPtr& remote,
+                                               Milliseconds backoffDelay,
+                                               const executor::TaskExecutor::CallbackArgs& args) {
+    // Test-only: instead of completing the backoff, keep it armed so a test can drive
+    // 'kill()'/'closeShardCursors()'/detach against a pending backoff. Re-arming goes through
+    // '_scheduleBackoffTimer()' like any other arming, so 'InBackoff' always names the live timer
+    // and 'cancelAsyncWork()' remains the only way a backoff is cancelled.
+    //
+    // The liveness check is what makes the re-arm safe. It and 'cancelAsyncWork()' both run under
+    // '_mutex', so a cancellation either lands before this point - and is observed here, so we stop
+    // polling instead of publishing a handle nobody will cancel - or after we release '_mutex', by
+    // which time 'InBackoff' names the timer we just armed and can cancel it.
+    if (args.status.isOK() && MONGO_unlikely(stallArmRetryBackoff.shouldFail()) &&
+        _lifecycleState == kAlive && _status.isOK() && !remote->closed) {
+        if (auto swHandle =
+                _scheduleBackoffTimer(lk, remote, kArmRetryBackoffStallPollInterval, backoffDelay);
+            swHandle.isOK()) {
+            _rearmBackoff(lk, *remote, std::move(swHandle.getValue()));
+            return;
+        }
+        // The executor refused the re-arm (e.g. it is shutting down): fall through and run the
+        // retry with the original, still-OK status.
+    }
+
+    _completeBackoff(lk, *remote);
+    // Unlike the getMore response, a backoff timer is not dropped for a closed remote, but is
+    // dropped once the ARM has recorded a fatal error: there is nothing left to retry.
+    if (_lifecycleState != kAlive || !_status.isOK()) {
+        _onAsyncWorkDropped(lk);
+        return;
+    }
+
+    // Record only a backoff that fully elapsed. A non-OK status means the timer was cancelled
+    // ('closeShardCursors()', 'kill()', or executor shutdown), so it contributes no backoff time.
+    if (args.status.isOK()) {
+        remote->retryStrategy.recordBackoff(backoffDelay);
+    }
+    _signalCurrentEventIfReady(lk);
+}
+
+void AsyncResultsMerger::_keepRecordOfAdditionalTxnParticipants(
+    WithLock,
+    const CbData& cbData,
+    const StatusWith<CursorResponse>& parsedResponse,
+    const RemoteCursorPtr& remote) {
+    if (!parsedResponse.isOK()) {
+        return;
+    }
+    if (const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
+        !gFeatureFlagAllowAdditionalParticipants.isEnabled(fcvSnapshot)) {
+        return;
+    }
+    // Here we buffer the parsed parts of the response pertaining to additional transaction
+    // participants. Additional transaction participants processing cannot occur here
+    // directly since access to the underlying transaction router is not thread-safe.
+    _remoteResponses.push(
+        {.shardId = remote->shardId,
+         .parsedMetadata =
+             TransactionRouter::Router::parseParticipantResponseMetadata(cbData.response.data)});
+    // To avoid data race issues we delay processing until the actual owner thread of the
+    // ARM drains the queue.
+    // Only log when additional participants were actually added.
+    if (const auto& additionalParticipants =
+            _remoteResponses.back().parsedMetadata.txnResponseMetadata.getAdditionalParticipants();
+        additionalParticipants && !additionalParticipants->empty()) {
+        LOGV2_DEBUG(13412904,
+                    2,
+                    "Buffered response for additional transaction participant processing",
+                    "shardId"_attr = remote->shardId);
+    }
+}
+
+void AsyncResultsMerger::_onAsyncWorkDropped(WithLock lk) {
+    // Wake any 'nextEvent()' waiter first; if a kill is in progress and this was the last
+    // outstanding async work, complete the kill.
+    _signalCurrentEventIfReady(lk);
+    if (_lifecycleState == kKillStarted) {
+        _cleanUpKilledBatch(lk);
     }
 }
 
@@ -1634,47 +1785,17 @@ void AsyncResultsMerger::_handleBatchResponse(WithLock lk,
                                               StatusWith<CursorResponse>& parsedResponse,
                                               const RemoteCursorPtr& remote) {
     // Got a response from remote, so indicate we are no longer waiting for one.
-    remote->cbHandle = executor::TaskExecutor::CallbackHandle();
-    remote->outstandingRequest = false;
+    _completeGetMore(lk, *remote);
 
-    if (parsedResponse.isOK()) {
-        if (const auto fcvSnapshot = serverGlobalParams.featureCompatibility.acquireFCVSnapshot();
-            gFeatureFlagAllowAdditionalParticipants.isEnabled(fcvSnapshot)) {
-            // Here we buffer the parsed parts of the response pertaining to additional transaction
-            // participants. Additional transaction participants processing cannot occur here
-            // directly since access to the underlying transaction router is not thread-safe.
-            _remoteResponses.push(
-                {.shardId = remote->shardId,
-                 .parsedMetadata = TransactionRouter::Router::parseParticipantResponseMetadata(
-                     cbData.response.data)});
-            // To avoid data race issues we delay processing until the actual owner thread of the
-            // ARM drains the queue.
-            // Only log when additional participants were actually added.
-            if (const auto& additionalParticipants =
-                    _remoteResponses.back()
-                        .parsedMetadata.txnResponseMetadata.getAdditionalParticipants();
-                additionalParticipants && !additionalParticipants->empty()) {
-                LOGV2_DEBUG(13412904,
-                            2,
-                            "Buffered response for additional transaction participant processing",
-                            "shardId"_attr = remote->shardId);
-            }
-        }
-    }
+    _keepRecordOfAdditionalTxnParticipants(lk, cbData, parsedResponse, remote);
 
-    //  On shutdown, there is no need to process the response.
-    if (_lifecycleState != kAlive) {
-        _signalCurrentEventIfReady(lk);  // First, wake up anyone waiting on '_currentEvent'.
-        if (_lifecycleState == kKillStarted) {
-            _cleanUpKilledBatch(lk);
-        }
-        return;
-    }
-
-    // If the remote for which we received a result has been closed via 'closeShardCursors()'
-    // before, we do not add the batch results.
-    if (remote->closed) {
-        _signalCurrentEventIfReady(lk);
+    // On shutdown, or if the remote has been closed via 'closeShardCursors()', there is no need to
+    // process the response. This deliberately does not consult '_status': a successful getMore
+    // response that arrives after a fatal error was recorded still has to update the remote's
+    // cursor id (so a closed cursor is not sent a redundant killCursors) and the aggregated
+    // metrics.
+    if (_lifecycleState != kAlive || remote->closed) {
+        _onAsyncWorkDropped(lk);
         return;
     }
 
@@ -1712,41 +1833,21 @@ void AsyncResultsMerger::_handleBatchResponse(WithLock lk,
             // that the next call to 'nextEvent()' will schedule a new getMore with a fresh
             // OperationContext.
             const auto delay = retryStrategy.getNextRetryDelay();
-            // Note this is wrapped in a 'StallableRetryCallback' below, which - for tests only -
-            // can hold it back (without holding '_mutex', so detach/reattach on other threads can
-            // proceed) so that a test can line up a *different*, later getMore's OperationContext
-            // to be attached by the time the retry callback defers.
-            auto retryCallback =
-                [weak = weak_from_this(), remote /* intrusive_ptr copy! */, delay](Status s) {
-                    auto self = weak.lock();
-                    if (!self) {
-                        // Do not continue here if the last shared_ptr pointing to this
-                        // 'AsyncResultsMerger' instance has already gone out of scope. In this case
-                        // there is no need to schedule further retries.
-                        return;
-                    }
-
-                    std::lock_guard<std::mutex> lk(self->_mutex);
-
-                    if (self->_lifecycleState != kAlive || !self->_status.isOK()) {
-                        remote->outstandingRequest = false;
-                        remote->cbHandle = executor::TaskExecutor::CallbackHandle();
-                        self->_signalCurrentEventIfReady(
-                            lk);  // First, wake up anyone waiting on '_currentEvent'.
-                        if (self->_lifecycleState == kKillStarted) {
-                            self->_cleanUpKilledBatch(lk);
-                        }
-                        return;
-                    }
-
-                    remote->retryStrategy.recordBackoff(delay);
-                    remote->outstandingRequest = false;
-                    remote->cbHandle = executor::TaskExecutor::CallbackHandle();
-                    self->_signalCurrentEventIfReady(lk);
-                };
-            _scheduleRetryCallback(std::move(retryCallback), delay);
-
-            remote->outstandingRequest = true;
+            // The returned handle cancels the backoff timer; the timer itself never dispatches the
+            // retry (see '_onArmRetryTimerFired()'). The timer is armed here with 'delay' as both
+            // its deadline and the backoff it stands in for; only a stalled callback re-arming
+            // itself makes those two differ.
+            auto swHandle = _scheduleBackoffTimer(lk, remote, delay, delay);
+            if (!swHandle.isOK()) {
+                // Refused synchronously (e.g. the executor is shut down), like a refused
+                // 'scheduleRemoteCommand()': the remote stays 'Idle' and the error is recorded.
+                _cleanUpFailedBatch(lk, swHandle.getStatus(), *remote);
+                _signalCurrentEventIfReady(lk);
+                return;
+            }
+            // Entering 'InBackoff' after scheduling is safe: the callback needs '_mutex', which we
+            // hold, so it cannot observe the remote before the state is set.
+            _enterBackoff(lk, *remote, std::move(swHandle.getValue()));
             return;
         } else {
             _cleanUpFailedBatch(lk, parsedResponse.getStatus(), *remote);
@@ -1902,7 +2003,7 @@ void AsyncResultsMerger::_signalCurrentEventIfReady(WithLock lk) {
 
 bool AsyncResultsMerger::_haveOutstandingBatchRequests(WithLock) {
     return std::any_of(_remotes.begin(), _remotes.end(), [](const auto& remote) {
-        return remote->outstandingRequest;
+        return remote->hasInFlightWork();
     });
 }
 
@@ -1912,63 +2013,8 @@ void AsyncResultsMerger::_scheduleKillCursors(WithLock lk, OperationContext* opC
             _killCompleteInfo);
 
     for (const auto& remote : _remotes) {
-        _scheduleKillCursorForRemote(lk, opCtx, remote);
+        remote->scheduleKillCursors(lk, _executor.get(), opCtx);
     }
-}
-
-void AsyncResultsMerger::_scheduleKillCursorForRemote(WithLock lk,
-                                                      OperationContext* opCtx,
-                                                      const RemoteCursorPtr& remote) {
-    if (!_shouldKillRemote(lk, *remote)) {
-        return;
-    }
-
-    BSONObj cmdObj = KillCursorsCommandRequest(_params.getNss(), {remote->cursorId}).toBSON();
-    executor::RemoteCommandRequest request(remote->getTargetHost(),
-                                           _params.getNss().dbName(),
-                                           cmdObj,
-                                           rpc::makeEmptyMetadata(),
-                                           opCtx,
-                                           /*fireAndForget=*/true);
-
-    // The 'RemoteCommandRequest' takes the remaining time from the 'opCtx' parameter. If the cursor
-    // was killed due to a maxTimeMs timeout, the remaining time will be 0, and the remote request
-    // will not be sent. To avoid this, we remove the timeout for the remote 'killCursor' command.
-    request.timeout = executor::RemoteCommandRequest::kNoTimeout;
-    request.deadline = executor::RemoteCommandRequest::kNoDeadline;
-
-    LOGV2_DEBUG(8456102,
-                2,
-                "scheduling killCursors command",
-                "remoteHost"_attr = remote->getTargetHost(),
-                "shardId"_attr = remote->shardId.toString());
-
-    // Send kill request; discard callback handle, if any, or failure report, if not.
-    _executor
-        ->scheduleRemoteCommand(request,
-                                [host = remote->getTargetHost()](auto const& args) {
-                                    if (args.response.isOK()) {
-                                        LOGV2_DEBUG(8928416,
-                                                    2,
-                                                    "killCursors succeeded",
-                                                    "remoteHost"_attr = host.toString());
-                                    } else {
-                                        LOGV2_DEBUG(8928417,
-                                                    2,
-                                                    "killCursors failed",
-                                                    "remoteHost"_attr = host.toString(),
-                                                    "error"_attr = args.response);
-                                    }
-                                })
-        .getStatus()
-        .ignore();
-}
-
-bool AsyncResultsMerger::_shouldKillRemote(WithLock, const RemoteCursorData& remote) {
-    return remote.cursorId && !remote.exhausted() &&
-        std::find(kCursorAlreadyDeadCodes.begin(),
-                  kCursorAlreadyDeadCodes.end(),
-                  remote.status.code()) == kCursorAlreadyDeadCodes.end();
 }
 
 SharedSemiFuture<void> AsyncResultsMerger::kill(OperationContext* opCtx) {
@@ -1990,8 +2036,6 @@ SharedSemiFuture<void> AsyncResultsMerger::kill(OperationContext* opCtx) {
     // finished running.
     _killCompleteInfo.emplace();
 
-    _cancellationSource.cancel();
-
     // Release memory for document buffers as early as possible.
     // This is ok, because once the AsyncResultsMerger has received a kill command, it does not
     // return any further results.
@@ -2005,6 +2049,10 @@ SharedSemiFuture<void> AsyncResultsMerger::kill(OperationContext* opCtx) {
     // with the original one.
     _drainAndLatchAdditionalTransactionParticipants(opCtx, lk);
 
+    // Shut the sub-baton down unconditionally, so no continuation scheduled from here on can run on
+    // it. A continuation the sub-baton refuses fails over to the executor.
+    _subBaton.shutdown();
+
     if (!_haveOutstandingBatchRequests(lk)) {
         _lifecycleState = kKillComplete;
 
@@ -2015,10 +2063,8 @@ SharedSemiFuture<void> AsyncResultsMerger::kill(OperationContext* opCtx) {
 
     // Cancel all of our callbacks. Once they all complete, the event will be signaled.
     for (const auto& remote : _remotes) {
-        _cancelCallbackForRemote(lk, remote);
+        remote->cancelAsyncWork(lk, _executor.get());
     }
-
-    _subBaton.shutdown();
 
     return _killCompleteInfo->getFuture();
 }
@@ -2080,6 +2126,75 @@ bool AsyncResultsMerger::RemoteCursorData::hasNext() const {
 
 bool AsyncResultsMerger::RemoteCursorData::exhausted() const {
     return cursorId == 0;
+}
+
+void AsyncResultsMerger::RemoteCursorData::scheduleKillCursors(WithLock,
+                                                               executor::TaskExecutor* executor,
+                                                               OperationContext* opCtx) {
+    if (!cursorId || exhausted() || isAlreadyDead(status.code())) {
+        return;
+    }
+
+    BSONObj cmdObj = KillCursorsCommandRequest(cursorNss, {cursorId}).toBSON();
+    executor::RemoteCommandRequest request(getTargetHost(),
+                                           cursorNss.dbName(),
+                                           cmdObj,
+                                           rpc::makeEmptyMetadata(),
+                                           opCtx,
+                                           /*fireAndForget=*/true);
+
+    // The 'RemoteCommandRequest' takes the remaining time from the 'opCtx' parameter. If the cursor
+    // was killed due to a maxTimeMs timeout, the remaining time will be 0, and the remote request
+    // will not be sent. To avoid this, we remove the timeout for the remote 'killCursor' command.
+    request.timeout = executor::RemoteCommandRequest::kNoTimeout;
+    request.deadline = executor::RemoteCommandRequest::kNoDeadline;
+
+    LOGV2_DEBUG(8456102,
+                2,
+                "scheduling killCursors command",
+                "remoteHost"_attr = getTargetHost(),
+                "shardId"_attr = shardId.toString());
+
+    // Send kill request; discard callback handle, if any, or failure report, if not.
+    executor
+        ->scheduleRemoteCommand(request,
+                                [host = getTargetHost()](auto const& args) {
+                                    if (args.response.isOK()) {
+                                        LOGV2_DEBUG(8928416,
+                                                    2,
+                                                    "killCursors succeeded",
+                                                    "remoteHost"_attr = host.toString());
+                                    } else {
+                                        LOGV2_DEBUG(8928417,
+                                                    2,
+                                                    "killCursors failed",
+                                                    "remoteHost"_attr = host.toString(),
+                                                    "error"_attr = args.response);
+                                    }
+                                })
+        .getStatus()
+        .ignore();
+}
+
+void AsyncResultsMerger::RemoteCursorData::cancelAsyncWork(WithLock,
+                                                           executor::TaskExecutor* executor) {
+    std::visit(OverloadedVisitor{
+                   [&](GetMoreInFlight& inFlight) {
+                       if (inFlight.cbHandle.isValid()) {
+                           executor->cancel(inFlight.cbHandle);
+                       }
+                   },
+                   [&](InBackoff& backoff) {
+                       // The timer callback runs early and changes the remote state to 'Idle'.
+                       if (backoff.timerCallbackHandle.isValid()) {
+                           executor->cancel(backoff.timerCallbackHandle);
+                       }
+                   },
+                   [](Idle&) {
+                       // Nothing to cancel.
+                   },
+               },
+               state);
 }
 
 void AsyncResultsMerger::RemoteCursorData::cleanUpFailedBatch(Status status,

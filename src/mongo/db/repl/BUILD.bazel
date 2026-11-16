@@ -939,7 +939,6 @@ mongo_cc_library(
         "//src/mongo/db:change_stream_pre_images_collection_manager",
         "//src/mongo/db:dbdirectclient",
         "//src/mongo/db:dbhelpers",
-        "//src/mongo/db:import_collection_oplog_entry",
         "//src/mongo/db:multitenancy",
         "//src/mongo/db:record_id_helpers",
         "//src/mongo/db:server_base",
@@ -1436,7 +1435,6 @@ mongo_cc_library(
         ":repl_coordinator_interface",
         ":replica_set_aware_service",
         ":roll_back_local_operations",
-        "//src/mongo/db:import_collection_oplog_entry",
         "//src/mongo/db:multitenancy",
         "//src/mongo/db:server_base",
         "//src/mongo/db:service_context",
@@ -2565,6 +2563,16 @@ mongo_cc_unit_test(
         ":replica_set_aware_service",
         "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/db/shard_role/shard_catalog:database_holder",
+    ],
+)
+
+mongo_cc_unit_test(
+    name = "serial_processor_test",
+    srcs = ["serial_processor_test.cpp"],
+    private_hdrs = [":serial_processor.h"],
+    tags = ["mongo_unittest_third_group"],
+    deps = [
+        "//src/mongo:base",
     ],
 )
 

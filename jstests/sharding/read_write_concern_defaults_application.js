@@ -717,8 +717,6 @@ let testCases = {
     hello: {skip: "does not accept read or write concern"},
     hostInfo: {skip: "does not accept read or write concern"},
     httpClientRequest: {skip: "does not accept read or write concern"},
-    exportCollection: {skip: "internal command"},
-    importCollection: {skip: "internal command"},
     insert: {
         setUp: function (conn) {
             assert.commandWorked(conn.getDB(db).runCommand({create: coll, writeConcern: {w: 1}}));
@@ -1004,7 +1002,6 @@ let testCases = {
     validate: {skip: "does not accept read or write concern"},
     validateDBMetadata: {skip: "does not accept read or write concern"},
     voteAbortIndexBuild: {skip: "internal command"},
-    voteCommitImportCollection: {skip: "internal command"},
     voteCommitIndexBuild: {skip: "internal command"},
     waitForFailPoint: {skip: "does not accept read or write concern"},
     getShardingReady: {skip: "internal command"},

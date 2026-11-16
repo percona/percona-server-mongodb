@@ -1045,8 +1045,6 @@ const allCommands = {
     },
     hostInfo: {isAdminCommand: true, command: {hostInfo: 1}},
     httpClientRequest: {skip: isAnInternalCommand},
-    exportCollection: {skip: isAnInternalCommand},
-    importCollection: {skip: isAnInternalCommand},
     insert: {
         setUp: function (conn) {
             assert.commandWorked(conn.getDB(dbName).runCommand({create: collName}));
@@ -1948,7 +1946,6 @@ const allCommands = {
         command: {validateDBMetadata: 1, apiParameters: {version: "1", strict: true}},
     },
     voteAbortIndexBuild: {skip: isAnInternalCommand},
-    voteCommitImportCollection: {skip: isAnInternalCommand},
     voteCommitIndexBuild: {skip: isAnInternalCommand},
     waitForFailPoint: {
         skip: isAnInternalCommand,

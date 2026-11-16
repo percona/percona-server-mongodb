@@ -46,6 +46,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <boost/cstdint.hpp>
@@ -400,12 +401,11 @@ protected:
 
     // Advance any operations scheduled on 'opCtx's baton, because otherwise they would wait
     // forever. In these fixtures the baton is not driven by a transport layer, so work scheduled on
-    // it (including SubBaton timers armed by the ARM's attached retry path) only progresses when
-    // something explicitly calls 'Baton::run'. This schedules a sentinel task and runs the baton
-    // until that sentinel completes, which implicitly waits for all previously scheduled work
-    // (and fires any timers whose deadline the mock clock has passed) to run first. Pair with
-    // 'advanceTime()' / 'getMockClockSource()->advance()' to move the mock clock past a timer
-    // deadline before calling this.
+    // it only progresses when something explicitly calls 'Baton::run'. This schedules a sentinel
+    // task and runs the baton until that sentinel completes, which implicitly waits for all
+    // previously scheduled work (and fires any timers whose deadline the mock clock has passed) to
+    // run first. Pair with 'advanceTime()' / 'getMockClockSource()->advance()' to move the mock
+    // clock past a timer deadline before calling this.
     //
     // WARNING: never call this while another thread may be blocked in a wait on the same opCtx's
     // baton (e.g. a BlockingResultsMerger::next() running on a 'launchAsync' thread, which parks
@@ -459,6 +459,19 @@ protected:
     }
 
     /**
+     * Waits for an ARM kill future while pumping the executor, so cancelled callbacks drain without
+     * relying on executor shutdown to flush them.
+     */
+    template <class FutureType>
+    void waitForKillFuture(FutureType& killFuture) {
+        waitForCondition([&] { return killFuture.isReady(); },
+                         [this] { runReadyCallbacks(); },
+                         "Waiting for ARM kill future",
+                         [] {});
+        killFuture.wait();
+    }
+
+    /**
      * Waits until the ARM has scheduled the killCursors command for an open cursor (proving it
      * has progressed past its cancel step). If the wait's budget is exhausted, a kill thread is
      * already in flight, so 'kill()' cannot be re-entered; instead flush ready callbacks so
@@ -473,6 +486,20 @@ protected:
             [] {},
             "Waiting for killCursors command to be scheduled",
             [this] { runReadyCallbacks(); });
+    }
+
+    /**
+     * Asserts that the remote at 'remoteIdx' is in the 'StateT' alternative of the ARM's private
+     * per-remote 'RemoteState'. 'ResultsMergerTestFixture' is a friend of 'AsyncResultsMerger';
+     * derived TEST_F classes are not, so tests route state probes through here.
+     */
+    template <class StateT>
+    void assertRemoteState(const AsyncResultsMerger& arm, std::size_t remoteIdx) const {
+        std::lock_guard lk(arm._mutex);
+        invariant(remoteIdx < arm._remotes.size());
+        const auto& state = arm._remotes[remoteIdx]->state;
+        ASSERT_TRUE(std::holds_alternative<StateT>(state))
+            << "unexpected state: " << AsyncResultsMerger::stateName(state);
     }
 
     void blackHoleNextRequest() {
@@ -494,6 +521,12 @@ protected:
             ++numCursors;
         }
         ASSERT_EQ(numCursors, 1u);
+    }
+
+    void assertKillCursorsCmdTargetsNamespace(const executor::RemoteCommandRequest& request,
+                                              const NamespaceString& nss) {
+        ASSERT_EQ(request.cmdObj["killCursors"].valueStringData(), nss.coll());
+        ASSERT_EQ(request.dbname, nss.dbName());
     }
 
     RemoteCursor makeRemoteCursor(ShardId shardId, HostAndPort host, CursorResponse response) {

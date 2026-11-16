@@ -31,6 +31,7 @@
 #include "mongo/util/intrusive_counter.h"
 #include "mongo/util/modules.h"
 #include "mongo/util/net/hostandport.h"
+#include "mongo/util/overloaded_visitor.h"
 
 #include <cstddef>
 #include <deque>
@@ -39,6 +40,7 @@
 #include <queue>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <absl/container/btree_set.h>
@@ -78,6 +80,8 @@ class AsyncResultsMerger : public std::enable_shared_from_this<AsyncResultsMerge
     AsyncResultsMerger(const AsyncResultsMerger&) = delete;
     AsyncResultsMerger& operator=(const AsyncResultsMerger&) = delete;
 
+    friend class ResultsMergerTestFixture;
+
 public:
     // When mongos has to do a merge in order to return results to the client in the correct sort
     // order, it requests a sortKey meta-projection using this field name.
@@ -98,6 +102,39 @@ public:
         ShardId shardId;
         TransactionRouter::ParsedParticipantResponseMetadata parsedMetadata;
     };
+
+    // The per-remote lifecycle state, held by 'RemoteCursorData::state'. Models the remote's
+    // outstanding asynchronous work. These are public nested types so tests can name them.
+    struct Idle {};
+
+    struct GetMoreInFlight {
+        executor::TaskExecutor::CallbackHandle cbHandle;
+    };
+
+    struct InBackoff {
+        // Cancelling this runs the timer callback early with 'CallbackCanceled'. Both 'kill()'
+        // and 'closeShardCursors()' cancel it through 'cancelAsyncWork()'. It always names the live
+        // timer: a callback which re-arms itself under 'stallArmRetryBackoff' publishes
+        // its new handle here through '_rearmBackoff()' rather than scheduling behind the ARM's
+        // back.
+        executor::TaskExecutor::CallbackHandle timerCallbackHandle;
+    };
+
+    using RemoteState = std::variant<Idle, GetMoreInFlight, InBackoff>;
+
+    // Returns whether 'state' describes outstanding async work (a getMore or a backoff timer).
+    static bool isInFlight(const RemoteState& state) {
+        return std::visit(OverloadedVisitor{[](const Idle&) { return false; },
+                                            [](const GetMoreInFlight&) { return true; },
+                                            [](const InBackoff&) {
+                                                return true;
+                                            }},
+                          state);
+    }
+
+    // Returns the name of the alternative held in 'state' ("Idle", "GetMoreInFlight", or
+    // "InBackoff"), for logging and test diagnostics.
+    static std::string_view stateName(const RemoteState& state);
 
     /**
      * Factory function to create an 'AsyncResultsMerger' instance. Calling this method is the only
@@ -481,6 +518,57 @@ private:
      * One 'RemoteCursorData' instance is instantiated per remote host. A 'RemoteCursorData'
      * contains the buffer of results that have been retrieved from the host but not yet returned,
      * as well as the cursor id, and any error reported by the remote.
+     *
+     * ### Per-remote lifecycle
+     *
+     * Each 'RemoteCursorData' owns a 'RemoteState' variant that models the remote's outstanding
+     * asynchronous work:
+     *
+     *     +------+  getMore sent   +-----------------+
+     *     | Idle | --------------> | GetMoreInFlight |
+     *     +------+ <-------------- +-----------------+
+     *      |    ^  response received
+     *      |    |
+     *      |    |  timer fired or cancelled  +-----------+
+     *      |    +--------------------------- | InBackoff |
+     *      +-------------------------------> +-----------+
+     *        retryable error response          |       ^
+     *                                          +-------+
+     *                                    re-armed (stalled retry only)
+     *
+     * - 'Idle': no getMore is in flight and no backoff timer is pending. A remote whose cursor is
+     *   exhausted (cursorId == 0) also sits in 'Idle'.
+     * - 'GetMoreInFlight': a getMore is in flight. The state carries the request's callback
+     *   handle, which is used to cancel it.
+     * - 'InBackoff': the last getMore failed with a retryable error and a backoff timer is
+     *   pending. The response handler first returns the remote to 'Idle', then enters 'InBackoff',
+     *   hence the 'Idle' -> 'InBackoff' edge. The state carries the timer's callback handle, which
+     *   is used to cancel it. While the test-only 'stallArmRetryBackoff' fail point is
+     *   enabled the timer re-arms itself rather than firing, hence the 'InBackoff' self-edge.
+     *
+     * Every transition happens under '_mutex' through one of the named transition functions
+     * ('_transitionToGetMoreInFlight()', '_completeGetMore()', '_enterBackoff()',
+     * '_rearmBackoff()', '_completeBackoff()'), which tassert their from-state.
+     *
+     * Two properties are deliberately kept out of the state machine:
+     * - Whether the remote cursor is done: 'cursorId == 0' ('exhausted()') is the only authority.
+     * - Whether documents are buffered: 'docBuffer' is orthogonal to the state, so a remote can be
+     *   'GetMoreInFlight' while a looked-ahead document sits in its buffer (see 'undoNextReady()').
+     *
+     * Retry: the backoff timer never dispatches the retry itself. When it fires it returns the
+     * remote to 'Idle' and signals the current event; the next 'nextEvent()' dispatches the retry
+     * through '_scheduleGetMores()' with whatever OperationContext is attached then. The timer
+     * always runs on the executor, so detach/reattach never cuts a backoff short, and only a
+     * backoff that fully elapses is recorded with the retry strategy.
+     *
+     *
+     * Cancellation: 'RemoteCursorData::cancelAsyncWork()' cancels whatever work the state carries
+     * (the getMore's or the backoff timer's callback handle). 'kill()' calls it for every remote
+     * and 'closeShardCursors()' for each closed remote. Each cancelled continuation returns its
+     * remote to 'Idle'; during a kill, the last one to do so completes the kill.
+     *
+     * 'kill()' always shuts down the sub-baton, so a getMore continuation still queued on it
+     * fails over to the executor and kill completes without the baton being pumped.
      */
     struct RemoteCursorData : public RefCountable {
         /**
@@ -517,6 +605,25 @@ private:
          * Cleans up the RemoteCursor internals after receiving more data failed.
          */
         void cleanUpFailedBatch(Status status, bool allowPartialResults);
+
+        /**
+         * Cancels this remote's outstanding async work, if any: the in-flight getMore or the
+         * pending backoff timer, whichever the remote's state carries, via its callback handle on
+         * 'executor'. No-op for an 'Idle' remote. Does not change 'state': the cancelled callback
+         * returns the remote to 'Idle' when it runs.
+         */
+        void cancelAsyncWork(WithLock, executor::TaskExecutor* executor);
+
+        /**
+         * Schedules a fire-and-forget killCursors on 'executor' for the remote cursor's own
+         * namespace ('cursorNss') iff the remote cursor is still open (non-zero cursor id and not
+         * already known dead). Does not wait for the remote cursor to actually be closed. The
+         * request is sent with no timeout so it is still dispatched when 'opCtx' has exhausted its
+         * maxTimeMS.
+         */
+        void scheduleKillCursors(WithLock,
+                                 executor::TaskExecutor* executor,
+                                 OperationContext* opCtx);
 
         /**
          * Internal id of the RemoteCursorData object. The id is guaranteed to be unique for
@@ -569,11 +676,13 @@ private:
         // The buffer of results that have been retrieved but not yet returned to the caller.
         std::deque<BSONObj> docBuffer;
 
-        // Set to 'true' when at least one request is outstanding.
-        bool outstandingRequest = false;
+        // The remote's outstanding asynchronous work, if any.
+        RemoteState state = Idle{};
 
-        // Is valid if there is currently a pending request to this remote.
-        executor::TaskExecutor::CallbackHandle cbHandle;
+        // Returns whether this remote has a getMore in flight or a backoff timer pending.
+        bool hasInFlightWork() const {
+            return AsyncResultsMerger::isInFlight(state);
+        }
 
         // Set to an error status if there is an error retrieving a response from this remote or if
         // the command result contained an error.
@@ -743,15 +852,6 @@ private:
                               const RemoteCursorPtr& remote);
 
     /**
-     * Schedules a killCursors request for the remote if the remote still has a cursor open.
-     * This is a fire-and-forget attempt to close the remote cursor. We are not blocking until
-     * the remote cursor is actually closed.
-     */
-    void _scheduleKillCursorForRemote(WithLock lk,
-                                      OperationContext* opCtx,
-                                      const RemoteCursorPtr& remote);
-
-    /**
      * Cleans up if the remote cursor was killed while waiting for a response.
      * Must only be called if '_lifecycleState' == 'kKillStarted'. Tasserts otherwise.
      */
@@ -770,10 +870,32 @@ private:
                               const RemoteCursorPtr& remote);
 
     /**
-     * Schedules a retry loop generated callback. Needs to take caution to avoid problems like
-     * deadlocks and referencing a stale opCtx.
+     * Arms a backoff timer for 'remote', to fire after 'timerDelay' ('scheduleWorkAt()'). When it
+     * fires, '_onArmRetryTimerFired()' runs under '_mutex'. Cancelling the returned handle runs it
+     * early with 'CallbackCanceled'. Returns the executor's error if it refuses to schedule the
+     * timer, in which case the callback never runs and nothing is armed.
+     *
+     * 'backoffDelay' is the delay the retry strategy asked for, which is what a fully elapsed
+     * backoff records. It differs from 'timerDelay' only when a stalled callback re-arms itself
+     * with a short poll interval while standing in for the full backoff.
      */
-    void _scheduleRetryCallback(std::function<void(Status)> callback, Milliseconds delay);
+    StatusWith<executor::TaskExecutor::CallbackHandle> _scheduleBackoffTimer(
+        WithLock,
+        const RemoteCursorPtr& remote,
+        Milliseconds timerDelay,
+        Milliseconds backoffDelay);
+
+    /**
+     * The body of a backoff timer callback. Normally returns the remote to 'Idle' and signals the
+     * current event, so that the next 'nextEvent()' dispatches the retry through
+     * '_scheduleGetMores()' with whatever OperationContext is attached then. While the test-only
+     * 'stallArmRetryBackoff' fail point is enabled it re-arms the timer instead, which
+     * is what holds the remote in 'InBackoff' for the duration of the stall.
+     */
+    void _onArmRetryTimerFired(WithLock,
+                               const RemoteCursorPtr& remote,
+                               Milliseconds backoffDelay,
+                               const executor::TaskExecutor::CallbackArgs& args);
 
     /**
      * Adds the batch of results to the RemoteCursorData. Returns false if there was an error
@@ -796,6 +918,8 @@ private:
      * Returns true if this async cursor is waiting to receive another batch from a remote.
      */
     bool _haveOutstandingBatchRequests(WithLock);
+
+    void _assertIsReadyToDispatch(WithLock) const;
 
     /**
      * Called internally when attempting to get a new event for the caller to wait on. Throws if
@@ -829,11 +953,6 @@ private:
      * Schedules a killCursors command to be run on all remote hosts that have open cursors.
      */
     void _scheduleKillCursors(WithLock, OperationContext* opCtx);
-
-    /**
-     * Checks if we need to schedule a killCursor command for this remote
-     */
-    bool _shouldKillRemote(WithLock, const RemoteCursorData& remote);
 
     /**
      * Updates the given remote's metadata (e.g. the cursor id) based on information in
@@ -880,6 +999,23 @@ private:
     bool _shouldProcessAdditionalParticipantsFor(OperationContext* opCtx, WithLock lk) const;
 
     /**
+     * Buffers the parts of a successful getMore response pertaining to additional transaction
+     * participants. They cannot be processed in the async callback because the transaction router
+     * is not thread-safe; the owner thread drains '_remoteResponses' later.
+     */
+    void _keepRecordOfAdditionalTxnParticipants(WithLock,
+                                                const CbData& cbData,
+                                                const StatusWith<CursorResponse>& parsedResponse,
+                                                const RemoteCursorPtr& remote);
+
+    /**
+     * Shared epilogue for an async-work continuation (getMore response or backoff timer) that has
+     * decided not to process its result: wakes any 'nextEvent()' waiter and, if a kill is in
+     * progress, completes it once this was the last outstanding work.
+     */
+    void _onAsyncWorkDropped(WithLock);
+
+    /**
      * Removes a remote from the _promisedMinSortKeys set, if already present in there.
      */
     void _removeRemoteFromPromisedMinSortKeys(WithLock lk, const RemoteCursorPtr& remote);
@@ -891,9 +1027,33 @@ private:
     void _rebuildMergeQueueFromRemainingRemotes(WithLock lk);
 
     /**
-     * Cancels any potential in-flight callback for the remote.
+     * The named transitions of the per-remote 'RemoteState' state machine. Each tasserts its
+     * expected from-state, so a stale continuation cannot silently clobber newer work:
+     *
+     * - '_transitionToGetMoreInFlight()': 'Idle' -> 'GetMoreInFlight', when a getMore is sent.
+     * - '_completeGetMore()': 'GetMoreInFlight' -> 'Idle', when its response is received.
+     * - '_enterBackoff()': 'Idle' -> 'InBackoff', after a retryable getMore error.
+     * - '_rearmBackoff()': 'InBackoff' -> 'InBackoff', when the backoff timer's callback re-arms
+     *   itself instead of completing the backoff (stall fail point only).
+     * - '_completeBackoff()': 'InBackoff' -> 'Idle', in the backoff timer's callback.
      */
-    void _cancelCallbackForRemote(WithLock lk, const RemoteCursorPtr& remote);
+    void _transitionToGetMoreInFlight(WithLock,
+                                      RemoteCursorData& remote,
+                                      executor::TaskExecutor::CallbackHandle cbHandle);
+    void _completeGetMore(WithLock, RemoteCursorData& remote);
+    void _enterBackoff(WithLock,
+                       RemoteCursorData& remote,
+                       executor::TaskExecutor::CallbackHandle timerCallbackHandle);
+    void _rearmBackoff(WithLock,
+                       RemoteCursorData& remote,
+                       executor::TaskExecutor::CallbackHandle timerCallbackHandle);
+    void _completeBackoff(WithLock, RemoteCursorData& remote);
+
+    /**
+     * The single assignment point for a remote's 'state'. Tasserts that in-flight work is never
+     * overwritten by other in-flight work and logs the transition at log level 4.
+     */
+    void _setRemoteState(WithLock, RemoteCursorData& remote, RemoteState newState);
 
     /**
      * Clear internal document buffers in order to release memory as early as possible.
@@ -1069,8 +1229,6 @@ private:
     boost::optional<CompletePromiseFuture> _killCompleteInfo;
 
     Baton::SubBatonHolder _subBaton;
-
-    CancellationSource _cancellationSource;
 };
 
 }  // namespace mongo
