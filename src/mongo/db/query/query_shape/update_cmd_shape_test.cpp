@@ -4,12 +4,10 @@
 #include "mongo/db/query/query_shape/update_cmd_shape.h"
 
 #include "mongo/bson/json.h"
-#include "mongo/db/matcher/extensions_callback_noop.h"
-#include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/query_shape/let_shape_component.h"
 #include "mongo/db/query/query_shape/update_cmd_builder.h"
+#include "mongo/db/query/query_shape/write_cmd_shape_test_util.h"
 #include "mongo/db/query/query_test_service_context.h"
-#include "mongo/db/query/write_ops/update_request.h"
 #include "mongo/unittest/unittest.h"
 
 #include <string_view>
@@ -21,52 +19,22 @@ using namespace std::literals::string_view_literals;
 
 using write_ops::UpdateCommandRequest;
 
-static const NamespaceString kDefaultTestNss =
-    NamespaceString::createNamespaceString_forTest("testDB.testColl");
-
 class UpdateCmdShapeTest : public unittest::Test {
 public:
     void setUp() final {
         _queryTestServiceContext = std::make_unique<QueryTestServiceContext>();
         _operationContext = _queryTestServiceContext->makeOperationContext();
-        _expCtx = make_intrusive<ExpressionContextForTest>();
-    }
-
-    std::vector<UpdateCmdShape> makeShapesFromUpdate(BSONObj updateCmd) {
-        auto updateRequest = UpdateCommandRequest::parseOwned(std::move(updateCmd));
-        return makeShapesFromUpdateRequest(updateRequest);
     }
 
     std::vector<UpdateCmdShape> makeShapesFromUpdate(std::string_view updateCmd) {
-        return makeShapesFromUpdate(fromjson(updateCmd));
-    }
-
-    std::vector<UpdateCmdShape> makeShapesFromUpdateRequest(
-        const write_ops::UpdateCommandRequest& updateRequest) {
-        std::vector<UpdateCmdShape> shapes;
-        for (const auto& op : updateRequest.getUpdates()) {
-            UpdateRequest request(op);
-            request.setNamespaceString(kDefaultTestNss);
-            if (updateRequest.getLet()) {
-                request.setLetParameters(*updateRequest.getLet());
-            }
-
-            _expCtx = makeBlankExpressionContext(
-                _operationContext.get(), updateRequest.getNamespace(), updateRequest.getLet());
-
-            auto parsedUpdate = uassertStatusOK(parsed_update_command::parse(
-                _expCtx, &request, makeExtensionsCallback<ExtensionsCallbackNoop>()));
-            shapes.emplace_back(updateRequest, parsedUpdate, _expCtx);
-        }
-        return shapes;
+        return makeUpdateShapes(_operationContext.get(),
+                                UpdateCommandRequest::parseOwned(fromjson(updateCmd)));
     }
 
     template <typename T>
     requires std::is_same_v<T, std::string_view> || std::is_same_v<T, BSONObj>
     UpdateCmdShape makeOneShapeFromUpdate(T updateCmd) {
-        auto shapes = makeShapesFromUpdate(updateCmd);
-        ASSERT_EQ(shapes.size(), 1);
-        return shapes.front();
+        return makeOneUpdateShape(_operationContext.get(), updateCmd);
     }
 
     void validateShapeSize(const UpdateCmdShape& shape) {
@@ -94,7 +62,6 @@ public:
     std::unique_ptr<QueryTestServiceContext> _queryTestServiceContext;
 
     ServiceContext::UniqueOperationContext _operationContext;
-    boost::intrusive_ptr<ExpressionContext> _expCtx;
 };
 
 TEST_F(UpdateCmdShapeTest, BasicReplacementUpdateShape) {
@@ -2226,7 +2193,7 @@ TEST_F(UpdateCmdShapeTest, StableQueryShapeHashValue) {
     auto verifyHash = [&](std::string_view expectedHash, const UpdateCmdBuilder& updateCmd) {
         BSONObj updateBson = updateCmd.toBSON();
         auto updateRequest = UpdateCommandRequest::parseOwned(std::move(updateBson));
-        auto shapes = makeShapesFromUpdateRequest(updateRequest);
+        auto shapes = makeUpdateShapes(_operationContext.get(), updateRequest);
         ASSERT_EQ(shapes.size(), 1);
         const auto& shape = shapes.front();
 

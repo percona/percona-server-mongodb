@@ -48,6 +48,7 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
+#include <boost/optional/optional.hpp>
 #include <boost/predef/hardware/simd.h>
 // IWYU pragma: no_include "boost/container/detail/std_fwd.hpp"
 // IWYU pragma: no_include "boost/predef/hardware/simd/x86.h"
@@ -1246,6 +1247,10 @@ public:
 
     size_t count(const K& key) const {
         return _values.count(key);
+    }
+
+    void erase(const_iterator pos) {
+        _values.erase(pos);
     }
 
     iterator begin() {
@@ -2726,6 +2731,23 @@ public:
             return _arrayMultiSetIter == _arrayMultiSet->values().end();
         } else {
             return _arrayCurrent == _arrayEnd - 1;
+        }
+    }
+
+    /**
+     * The number of elements in the array, or boost::none if it can only be found by walking the
+     * array (bsonArray).
+     */
+    boost::optional<size_t> trySize() const {
+        switch (_tagArray) {
+            case TypeTags::Array:
+                return _array->size();
+            case TypeTags::ArraySet:
+                return _arraySet->size();
+            case TypeTags::ArrayMultiSet:
+                return _arrayMultiSet->size();
+            default:
+                return boost::none;
         }
     }
 

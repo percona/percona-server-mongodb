@@ -1038,10 +1038,6 @@ ExitCode _initAndListen(ServiceContext* serviceContext) {
             startTTLMonitor(serviceContext);
         }
 
-        if (replSettings.isReplSet() || !gInternalValidateFeaturesAsPrimary) {
-            serverGlobalParams.validateFeaturesAsPrimary.store(false);
-        }
-
         storageEngine->startTimestampMonitor(
             {&catalog_helper::kCollectionCatalogCleanupTimestampListener});
 

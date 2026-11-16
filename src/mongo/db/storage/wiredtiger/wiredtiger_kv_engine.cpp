@@ -2179,6 +2179,7 @@ Status WiredTigerKVEngine::_createRecordStore(const rss::PersistenceProvider& pr
         provider, nss, _isReplSet, _shouldRecoverFromOplogAsStandalone);
     wtTableConfig.serverParameterOptions = _rsOptions;
     wtTableConfig.persistenceProviderSettings = provider.getMainWiredTigerTableSettings();
+    wtTableConfig.leafPageMax = provider.getWTLeafPageMaxForCollectionsStrValue();
 
     if (customBlockCompressor) {
         wtTableConfig.blockCompressor = *customBlockCompressor;
@@ -2532,6 +2533,7 @@ std::unique_ptr<RecordStore> WiredTigerKVEngine::makeInternalRecordStore(Recover
     wtTableConfig.logEnabled = false;
     wtTableConfig.serverParameterOptions = _rsOptions;
     wtTableConfig.persistenceProviderSettings = _provider.getMainWiredTigerTableSettings();
+    wtTableConfig.leafPageMax = _provider.getWTLeafPageMaxForCollectionsStrValue();
 
     std::string config =
         WiredTigerRecordStore::generateCreateString({} /* internal table */, wtTableConfig);

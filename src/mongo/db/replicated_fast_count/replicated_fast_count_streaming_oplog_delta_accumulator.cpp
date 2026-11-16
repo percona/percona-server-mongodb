@@ -117,8 +117,8 @@ enum class CommandKind {
     kMalformed,
     kApplyOps,
     kCommitTransaction,
-    // Other commands processOplogEntry dispatches on (create, drop, truncateRange,
-    // importCollection): Layer 3 only.
+    // Other commands processOplogEntry dispatches on (create, drop, renameCollection,
+    // truncateRange, importCollection): Layer 3 only.
     kInterestingOther,
     // Anything else (createIndexes, dropDatabase, collMod, etc.): produces no delta.
     kUnrelated,
@@ -133,12 +133,12 @@ CommandKind classifyCommand(BSONElement oElem, const BSONObj& raw) {
         return CommandKind::kApplyOps;
     if (first == "commitTransaction"sv)
         return CommandKind::kCommitTransaction;
-    if (first == "create"sv || first == "drop"sv || first == "truncateRange"sv ||
-        first == "importCollection"sv) {
+    if (first == "create"sv || first == "drop"sv || first == "renameCollection"sv ||
+        first == "truncateRange"sv || first == "importCollection"sv) {
         return CommandKind::kInterestingOther;
     }
     // Anything else falls into the "produces no delta" bucket. This covers known no-delta
-    // commands (createIndexes, dropDatabase, renameCollection, collMod, etc.) plus any unknown
+    // commands (createIndexes, dropDatabase, collMod, etc.) plus any unknown
     // command name a future writer may introduce. We deliberately classify the unknown case as
     // no-delta rather than fail loudly: older binaries scanning oplog written by newer ones will
     // not fail the cursor scan. Emit at DEBUG level 3 so the diagnostic is available when
@@ -745,7 +745,8 @@ OplogScanResult StreamingOplogDeltaAccumulator::finish() {
 OplogScanResult aggregateReplicatedMetadataDeltasInOplog(SeekableRecordCursor& oplogCursor,
                                                          const Timestamp& seekAfterTS,
                                                          UUID oplogUuid,
-                                                         bool isCheckpoint) {
+                                                         bool isCheckpoint,
+                                                         boost::optional<Timestamp> scanThroughTS) {
     StreamingOplogDeltaAccumulator acc({
         .isCheckpoint = isCheckpoint,
         .oplogUuid = oplogUuid,
@@ -754,6 +755,9 @@ OplogScanResult aggregateReplicatedMetadataDeltasInOplog(SeekableRecordCursor& o
         massertStatusOK(record_id_helpers::keyForOptime(seekAfterTS, KeyFormat::Long));
     for (auto rec = oplogCursor.seek(seekRid, SeekableRecordCursor::BoundInclusion::kExclude); rec;
          rec = oplogCursor.next()) {
+        if (scanThroughTS && rec->id.getLong() > scanThroughTS->asLL()) {
+            break;
+        }
         acc.consumeRecord(*rec);
     }
     return acc.finish();

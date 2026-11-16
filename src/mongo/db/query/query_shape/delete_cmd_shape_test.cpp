@@ -4,12 +4,9 @@
 #include "mongo/db/query/query_shape/delete_cmd_shape.h"
 
 #include "mongo/bson/json.h"
-#include "mongo/db/matcher/extensions_callback_noop.h"
-#include "mongo/db/pipeline/expression_context_builder.h"
-#include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/query/query_shape/serialization_options.h"
+#include "mongo/db/query/query_shape/write_cmd_shape_test_util.h"
 #include "mongo/db/query/query_test_service_context.h"
-#include "mongo/db/query/write_ops/delete_request_gen.h"
 #include "mongo/unittest/unittest.h"
 
 #include <string_view>
@@ -19,9 +16,6 @@ namespace {
 using namespace std::literals::string_view_literals;
 
 using write_ops::DeleteCommandRequest;
-
-static const NamespaceString kDefaultTestNss =
-    NamespaceString::createNamespaceString_forTest("testDB.testColl");
 
 struct DeleteCmdBuilder {
     std::string database;
@@ -59,48 +53,19 @@ public:
     void setUp() final {
         _queryTestServiceContext = std::make_unique<QueryTestServiceContext>();
         _operationContext = _queryTestServiceContext->makeOperationContext();
-        _expCtx = make_intrusive<ExpressionContextForTest>();
     }
 
     DeleteCmdShape makeOneShapeFromDelete(std::string_view deleteCmd) {
-        auto shapes = makeShapesFromDelete(fromjson(deleteCmd));
-        ASSERT_EQ(shapes.size(), 1U);
-        return shapes.front();
+        return makeOneDeleteShape(_operationContext.get(), deleteCmd);
     }
 
     std::vector<DeleteCmdShape> makeShapesFromDelete(BSONObj deleteCmd) {
-        auto deleteRequest = DeleteCommandRequest::parseOwned(std::move(deleteCmd));
-        return makeShapesFromDeleteRequest(deleteRequest);
-    }
-
-    std::vector<DeleteCmdShape> makeShapesFromDeleteRequest(
-        const DeleteCommandRequest& deleteRequest) {
-        std::vector<DeleteCmdShape> shapes;
-        for (const auto& op : deleteRequest.getDeletes()) {
-            DeleteRequest request;
-            request.setNsString(kDefaultTestNss);
-            request.setQuery(op.getQ());
-            request.setMulti(op.getMulti());
-            if (op.getCollation()) {
-                request.setCollation(op.getCollation()->getOwned());
-            }
-            if (deleteRequest.getLet()) {
-                request.setLet(*deleteRequest.getLet());
-            }
-
-            _expCtx = makeBlankExpressionContext(
-                _operationContext.get(), deleteRequest.getNamespace(), deleteRequest.getLet());
-
-            auto parsedDelete = uassertStatusOK(parsed_delete_command::parse(
-                _expCtx, &request, makeExtensionsCallback<ExtensionsCallbackNoop>()));
-            shapes.emplace_back(deleteRequest, parsedDelete, _expCtx);
-        }
-        return shapes;
+        return makeDeleteShapes(_operationContext.get(),
+                                DeleteCommandRequest::parseOwned(std::move(deleteCmd)));
     }
 
     std::unique_ptr<QueryTestServiceContext> _queryTestServiceContext;
     ServiceContext::UniqueOperationContext _operationContext;
-    boost::intrusive_ptr<ExpressionContext> _expCtx;
 };
 
 TEST_F(DeleteCmdShapeTest, EmptyQueryDeleteShape) {

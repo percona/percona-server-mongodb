@@ -5,6 +5,7 @@
 
 #include "mongo/bson/json.h"
 #include "mongo/db/pipeline/expression_context_for_test.h"
+#include "mongo/db/query/query_shape/write_cmd_shape_test_util.h"
 #include "mongo/db/service_context_test_fixture.h"
 #include "mongo/unittest/unittest.h"
 
@@ -21,8 +22,7 @@ const auto kTestNss = NamespaceString::createNamespaceString_forTest("testdb.tes
 class InsertCmdShapeTest : public ServiceContextTest {
 public:
     InsertCmdShape makeShape(std::string_view insertCmd) {
-        auto icr = InsertCommandRequest::parseOwned(fromjson(insertCmd));
-        return InsertCmdShape(icr);
+        return makeInsertShape(insertCmd);
     }
 
     QueryShapeHash makeShapeHash(std::string_view insertCmd) {
@@ -204,8 +204,8 @@ TEST_F(InsertCmdShapeTest, ShapeComponentsSizeDoesNotVaryWithDocumentSize) {
         "$db": "testdb"
     })"sv));
 
-    InsertCmdShape shape1(icr1);
-    InsertCmdShape shape2(icr2);
+    InsertCmdShape shape1(icr1.getNamespace());
+    InsertCmdShape shape2(icr2.getNamespace());
 
     ASSERT_EQ(static_cast<const InsertCmdShapeComponents&>(shape1.specificComponents()).size(),
               static_cast<const InsertCmdShapeComponents&>(shape2.specificComponents()).size());

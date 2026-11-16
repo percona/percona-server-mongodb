@@ -182,21 +182,28 @@ StorageEngine::LastShutdownState initializeStorageEngine(
     encryption::WtKeyIds::instance().adoptFromStorageMetadata(metadata ? metadata->keyId()
                                                                        : nullptr);
 
-    auto& lockFile = StorageEngineLockFile::get(service);
     auto createScopedTimer = [service, startupTimeElapsedBuilder]() {
         return SectionScopedTimer(service->getFastClockSource(),
                                   TimedSectionId::writeNewMetadata,
                                   startupTimeElapsedBuilder);
     };
+
+    // The process lock file only reflects how the dbpath opened at startup was last shut down, so
+    // it does not apply to restarts.
+    const bool forRestart =
+        (initFlags & StorageEngineInitFlags::kForRestart) != StorageEngineInitFlags{};
+    auto& processLockFile = StorageEngineLockFile::get(service);
+    const StorageEngineLockFile* lockFile =
+        !forRestart && processLockFile ? &*processLockFile : nullptr;
     try {
         SectionScopedTimer scopedTimer(service->getFastClockSource(),
                                        TimedSectionId::createStorageEngine,
                                        startupTimeElapsedBuilder);
-        if ((initFlags & StorageEngineInitFlags::kForRestart) == StorageEngineInitFlags{}) {
+        if (!forRestart) {
             auto storageEngine =
                 std::unique_ptr<StorageEngine>(factory->create(opCtx,
                                                                storageGlobalParams,
-                                                               lockFile ? &*lockFile : nullptr,
+                                                               lockFile,
                                                                isReplSet,
                                                                shouldRecoverFromOplogAsStandalone,
                                                                inStandaloneMode));
@@ -207,7 +214,7 @@ StorageEngine::LastShutdownState initializeStorageEngine(
             auto storageEngine =
                 std::unique_ptr<StorageEngine>(factory->create(opCtx,
                                                                storageGlobalParams,
-                                                               lockFile ? &*lockFile : nullptr,
+                                                               lockFile,
                                                                isReplSet,
                                                                shouldRecoverFromOplogAsStandalone,
                                                                inStandaloneMode));
@@ -256,13 +263,13 @@ void shutdownGlobalStorageEngineCleanly(ServiceContext* service, bool memLeakAll
 }
 
 StorageEngine::LastShutdownState reinitializeStorageEngine(
-    OperationContext* opCtx,
-    StorageEngineInitFlags initFlags,
-    bool isReplSet,
-    bool shouldRecoverFromOplogAsStandalone,
-    bool shouldSkipOplogSampling,
-    bool inStandaloneMode,
-    std::function<void()> changeConfigurationCallback) {
+        OperationContext* opCtx,
+        StorageEngineInitFlags initFlags,
+        bool isReplSet,
+        bool shouldRecoverFromOplogAsStandalone,
+        bool shouldSkipOplogSampling,
+        bool inStandaloneMode,
+        std::function<void()> changeConfigurationCallback) {
     auto service = opCtx->getServiceContext();
     shard_role_details::getRecoveryUnit(opCtx)->abandonSnapshot();
     // Tell storage engine to free memory since the process is not exiting.

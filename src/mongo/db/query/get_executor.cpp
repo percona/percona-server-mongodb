@@ -131,112 +131,6 @@ boost::intrusive_ptr<ExpressionContext> makeExpressionContextForGetExecutor(
 }
 
 namespace {
-/**
- * A class to hold the result of preparation of the query to be executed using SBE engine. This
- * result stores and provides the following information:
- *     - A vector of QuerySolutions. Elements of the vector may be null, in certain circumstances
- *       where the constructed execution tree does not have an associated query solution.
- *     - A vector of PlanStages, representing the roots of the constructed execution trees (in the
- *       case when the query has multiple solutions, we may construct an execution tree for each
- *       solution and pick the best plan after multi-planning). Elements of this vector can never be
- *       null. The size of this vector must always be empty or match the size of 'querySolutions'
- *       vector. It will be empty in circumstances where we only construct query solutions and delay
- *       building execution trees, which is any time we are not using a cached plan.
- *     - A root node of the extension plan. The plan can be combined with a solution to create a
- *       larger plan after the winning solution is found. Can be null, meaning "no extension".
- *     - An optional decisionWorks value, which is populated when a solution was reconstructed from
- *       the PlanCache, and will hold the number of work cycles taken to decide on a winning plan
- *       when the plan was first cached. It used to decided whether cached solution runtime planning
- *       needs to be done or not.
- *     - A 'needSubplanning' flag indicating that the query contains rooted $or predicate and is
- *       eligible for runtime sub-planning.
- */
-class SlotBasedPrepareExecutionResult {
-public:
-    using PlanStageVector =
-        std::vector<std::pair<std::unique_ptr<sbe::PlanStage>, stage_builder::PlanStageData>>;
-
-    void emplace(std::unique_ptr<QuerySolution> solution) {
-        // Only allow solutions to be added, execution trees will be generated later.
-        tassert(7087100,
-                "expected execution trees to be generated after query solutions",
-                _roots.empty());
-        _solutions.push_back(std::move(solution));
-    }
-
-    void emplace(std::pair<std::unique_ptr<sbe::PlanStage>, stage_builder::PlanStageData> root) {
-        _roots.push_back(std::move(root));
-        // Make sure we store an empty QuerySolution instead of a nullptr or nothing.
-        _solutions.push_back(std::make_unique<QuerySolution>());
-    }
-
-    auto extractResultData() {
-        tassert(8617400,
-                "expected '_plannerParams' to be initialized when extracting the result",
-                static_cast<bool>(_plannerParams));
-        return std::make_tuple(std::move(_roots), std::move(_solutions), std::move(_plannerParams));
-    }
-
-    const QuerySolutionVector& solutions() const {
-        return _solutions;
-    }
-
-    const PlanStageVector& roots() const {
-        return _roots;
-    }
-
-    boost::optional<size_t> decisionWorks() const {
-        return _decisionWorks;
-    }
-
-    bool needsSubplanning() const {
-        return _needSubplanning;
-    }
-
-    void setNeedsSubplanning(bool needsSubplanning) {
-        _needSubplanning = needsSubplanning;
-    }
-
-    void setDecisionWorks(boost::optional<size_t> decisionWorks) {
-        _decisionWorks = decisionWorks;
-    }
-
-    bool recoveredPinnedCacheEntry() const {
-        return _recoveredPinnedCacheEntry;
-    }
-
-    void setRecoveredPinnedCacheEntry(bool pinnedEntry) {
-        _recoveredPinnedCacheEntry = pinnedEntry;
-    }
-
-    void setCachedPlanHash(boost::optional<size_t> cachedPlanHash) {
-        _cachedPlanHash = cachedPlanHash;
-    }
-
-    boost::optional<size_t> cachedPlanHash() const {
-        return _cachedPlanHash;
-    }
-
-    PlanCacheInfo& planCacheInfo() {
-        return _cacheInfo;
-    }
-
-    void setQueryPlannerParams(std::unique_ptr<QueryPlannerParams> plannerParams) {
-        _plannerParams = std::move(plannerParams);
-    }
-
-private:
-    QuerySolutionVector _solutions;
-    PlanStageVector _roots;
-    boost::optional<size_t> _decisionWorks;
-    bool _needSubplanning{false};
-    bool _recoveredPinnedCacheEntry{false};
-    PlanCacheInfo _cacheInfo;
-    // If there is a matching cache entry, this is the hash of that plan.
-    boost::optional<size_t> _cachedPlanHash;
-    std::unique_ptr<QueryPlannerParams> _plannerParams;
-};
-
 // Shorter namespace alias to keep names from getting too long.
 namespace crp_classic = classic_runtime_planner;
 
@@ -830,12 +724,42 @@ StatusWith<std::unique_ptr<PlanExecutor, PlanExecutor::Deleter>> getExecutorFind
         // Stop the query planning timer once we have an execution plan.
         CurOp::get(opCtx)->stopQueryPlanningTimer();
     });
+
+    auto expressResult =
+        tryExpress(opCtx, collections, canonicalQuery, plannerOptions, makeQueryPlannerParams);
+    if (expressResult.executor) {
+        return std::move(expressResult.executor);
+    }
+    // If no express executor was returned, we can reuse the planner params created by `tryExpress`
+    // for other planning logic.
+    tassert(11974306, "Expected planner params to be initialized.", expressResult.plannerParams);
+
+    markShedEligibleIfFindCommand(opCtx);
+
+    // Initialize path arrayness in ExpressionContext from the CollectionQueryInfo.
+    // Do not invoke if it has been already initialized.
+    // TODO SERVER-123955 Consider moving it to a different location
+    const auto& collection = collections.getMainCollection();
+    const auto& nss = canonicalQuery->getExpCtx()->getNamespaceString();
+    if (feature_flags::gFeatureFlagPathArrayness.isEnabled() &&
+        !canonicalQuery->getExpCtx()->hasPathArraynessForNss(nss) && collection) {
+        canonicalQuery->getExpCtx()->setPathArraynessForNss(
+            nss, CollectionQueryInfo::get(collection).getPathArrayness());
+    }
+
+    if (feature_flags::gFeatureFlagQueryTypeInference.checkEnabled() &&
+        !canonicalQuery->getExpCtx()->hasSchemaTypeInfoForNss(nss) && collection) {
+        canonicalQuery->getExpCtx()->setSchemaTypeInfoForNss(
+            nss, CollectionQueryInfo::get(collection).getSchemaTypeInfo());
+    }
+
     // TODO SERVER-137028 Simplify this function after legacy executor is fully deleted.
     return exec_deferred_engine_choice::getExecutorFindDeferredEngineChoice(
         opCtx,
         collections,
         std::move(canonicalQuery),
         std::move(yieldPolicy),
+        std::move(expressResult.plannerParams),
         makeQueryPlannerParams,
         plannerOptions,
         pipeline);
