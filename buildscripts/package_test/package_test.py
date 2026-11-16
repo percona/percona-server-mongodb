@@ -25,6 +25,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 from retry.api import retry_call
 
+from buildscripts.package_test.package_test_archive import validate_top_level_directory
 from buildscripts.package_test.package_test_commands import (
     PACKAGE_MANAGER_COMMANDS,
     build_os_setup_commands,
@@ -47,6 +48,7 @@ from buildscripts.package_test.package_test_provenance import (
     is_server_release_project,
     package_test_task_chain,
     release_binary_name_from_path,
+    should_create_release_binary_provenance,
     validate_compact_execution_log_file,
     validate_release_binary_provenance_against_archive,
     validate_release_binary_provenance_identity,
@@ -300,7 +302,7 @@ def should_validate_package_build_provenance() -> bool:
 
     is_patch = os.environ.get("is_patch")
     is_release = os.environ.get("is_release", "false")
-    should_validate = is_patch != "true" or is_release != "false"
+    should_validate = should_create_release_binary_provenance()
     logging.info(
         "Release package provenance validation: %s (is_patch=%s, is_release=%s)",
         should_validate,
@@ -556,16 +558,6 @@ OS_DOCKER_LOOKUP = {
 # These versions are marked "current" but in fact are EOL
 VERSIONS_TO_SKIP: set[str] = set(["3.*", "4.*", "5.*", "6.*"])
 DISABLED_TESTS: set[tuple[str, str]] = set()
-
-VALID_TAR_DIRECTORY_ARCHITECTURES = [
-    "linux-aarch64",
-    "linux-x86_64",
-    "linux-ppc64le",
-    "linux-s390x",
-    "macos-aarch64",
-    "macos-x86_64",
-    "windows-x86_64",
-]
 
 
 @dataclasses.dataclass
@@ -918,16 +910,6 @@ def get_edition_alias(edition_name: str) -> str:
     return edition_name
 
 
-def validate_top_level_directory(tar_name: str):
-    command = f"tar -tf {tar_name} | head -n 1 | awk -F/ '{{print $1}}'"
-    proc = subprocess.run(command, capture_output=True, shell=True, text=True)
-    top_level_directory = proc.stdout.strip()
-    if all(os_arch not in top_level_directory for os_arch in VALID_TAR_DIRECTORY_ARCHITECTURES):
-        raise Exception(
-            f"Found an unexpected os-arch pairing as the top level directory. Top level directory: {top_level_directory}"
-        )
-
-
 def validate_enterprise(sources_text, edition, binfile):
     if edition != "enterprise" and edition != "atlas":
         if "src/mongo/db/modules/enterprise" in sources_text:
@@ -1142,6 +1124,9 @@ tests: list[Test] = []
 urls: list[str] = []
 
 if args.command == "branch":
+    if args.package_kind == "server":
+        validate_top_level_directory(DEFAULT_RELEASE_BINARY_ARCHIVE_PATH, arch)
+
     # If evg-build-id is provided, download the packages locally using the Evergreen API
     # This is required for private artifacts which need authenticated access
     download_dir = Path(__file__).parent / "downloaded_packages"
@@ -1298,7 +1283,6 @@ if args.command == "branch":
                 "Checking the source files used to build the binaries, use --skip-enterprise-check to skip this check."
             )
 
-            validate_top_level_directory("mongo-binaries.tgz")
             os.makedirs("dist-test", exist_ok=True)
 
             tar = tarfile.open("mongo-binaries.tgz", "r:gz")

@@ -18,14 +18,18 @@
 #include "mongo/db/commands/txn_cmds_gen.h"
 #include "mongo/db/commands/txn_two_phase_commit_cmds_gen.h"
 #include "mongo/db/database_name.h"
+#include "mongo/db/database_name_util.h"
 #include "mongo/db/dbdirectclient.h"
+#include "mongo/db/end_of_transaction_parameter.h"
 #include "mongo/db/generic_argument_util.h"
+#include "mongo/db/namespace_string_util.h"
 #include "mongo/db/query/collation/collator_factory_interface.h"
 #include "mongo/db/query/find_command.h"
 #include "mongo/db/query/write_ops/write_ops_gen.h"
 #include "mongo/db/query/write_ops/write_ops_parsers.h"
 #include "mongo/db/repl/change_stream_oplog_notification.h"
 #include "mongo/db/repl/repl_client_info.h"
+#include "mongo/db/s/end_of_transaction_metadata_shard_cache.h"
 #include "mongo/db/s/transaction_coordinator_futures_util.h"
 #include "mongo/db/s/transaction_coordinator_worker_curop_repository.h"
 #include "mongo/db/server_feature_flags_gen.h"
@@ -36,6 +40,7 @@
 #include "mongo/executor/task_executor.h"
 #include "mongo/idl/idl_parser.h"
 #include "mongo/logv2/log.h"
+#include "mongo/logv2/log_severity_suppressor.h"
 #include "mongo/platform/compiler.h"
 #include "mongo/rpc/get_status_from_command_result.h"
 #include "mongo/rpc/reply_interface.h"
@@ -51,7 +56,10 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
 #include <type_traits>
 
 #include <absl/container/flat_hash_set.h>
@@ -78,6 +86,9 @@ MONGO_FAIL_POINT_DEFINE(hangBeforeSendingAbort);
 MONGO_FAIL_POINT_DEFINE(hangBeforeWritingEndOfTransaction);
 MONGO_FAIL_POINT_DEFINE(hangBeforeDeletingCoordinatorDoc);
 MONGO_FAIL_POINT_DEFINE(hangAfterDeletingCoordinatorDoc);
+
+logv2::SeveritySuppressor endOfTransactionMetadataRejectedLogSeveritySuppressor{
+    Seconds(60), logv2::LogSeverity::Info(), logv2::LogSeverity::Debug(1)};
 
 using ResponseStatus = executor::TaskExecutor::ResponseStatus;
 using CoordinatorAction = TransactionCoordinatorWorkerCurOpRepository::CoordinatorAction;
@@ -239,12 +250,127 @@ void PrepareVoteConsensus::registerVote(const PrepareResponse& vote) {
         ++_numCommitVotes;
         _maxPrepareTimestamp = std::max(_maxPrepareTimestamp, *vote.prepareTimestamp);
         _affectedNamespaces.insert(vote.affectedNamespaces.begin(), vote.affectedNamespaces.end());
+        // Only record the per-shard namespaces when the end-of-transaction write path is enabled,
+        // since they are only used to build the accounting metadata. Read-only participants (no
+        // affected namespaces) are excluded from the participant sets.
+        if (isEndOfTransactionWritePathEnabled() && !vote.affectedNamespaces.empty()) {
+            _namespacesByShard[vote.shardId] = vote.affectedNamespaces;
+        }
     } else {
         vote.vote == PrepareVote::kAbort ? ++_numAbortVotes : ++_numNoVotes;
 
         if (!_abortStatus)
             _abortStatus.emplace(*vote.abortReason);
     }
+}
+
+namespace {
+// The end-of-transaction accounting metadata is serialized as a sub-document of the coordinator's
+// commit decision document (config.transactionCoordinators) and of every participant's
+// commitTransaction command, so an unbounded one could produce a document or command that can never
+// be written or sent, leaving the transaction (and its locks) stuck forever. Both enclosing
+// documents are bounded by BSONObjMaxUserSize, so cap the metadata at that size minus a margin for
+// the fields they hold besides the metadata.
+//
+// The margin is derived from the other fields of the two enclosing documents. In the
+// commitTransaction command they are all scalars (commitTransaction, commitTimestamp, count and the
+// session/transaction envelope), well below 1 KB. In the coordinator document the largest sibling
+// field is 'participants' (one shard id, ~20 bytes, per participant), which stays below 100 KB even
+// for a cluster with several thousand shards; 'affectedNamespaces' mirrors the metadata's
+// namespaces but stores each namespace once without the shard lists, so it is smaller per
+// namespace. A 1 MB margin therefore covers every other field with room to spare, matching the
+// padding used for the analyzeShardKey response (kMaxBSONObjSizeMostCommonValues).
+constexpr int kEndOfTransactionMetadataMarginBytes = 1000 * 1024;
+constexpr int kMaxEndOfTransactionMetadataBytes =
+    BSONObjMaxUserSize - kEndOfTransactionMetadataMarginBytes;
+
+// The resulting ~15 MB limit is effectively unreachable in real-world use: the metadata only grows
+// with the number of distinct namespaces a single transaction writes to, and the shards that wrote
+// each one. Saturating it would require a single transaction to write to several hundred thousand
+// distinct collections, which no real workload does. The check is a safety net against a
+// pathological transaction, not a limit users are expected to hit.
+
+// Serializes a map from key to a set of shard ids into a BSON object with sorted shard-id arrays.
+BSONObj shardSetsToBSON(const std::map<std::string, std::set<ShardId>>& shardSets) {
+    BSONObjBuilder builder;
+    for (const auto& [key, shards] : shardSets) {
+        BSONArrayBuilder array(builder.subarrayStart(key));
+        for (const auto& shard : shards) {
+            array << shard.toString();
+        }
+    }
+    return builder.obj();
+}
+}  // namespace
+
+EndOfTransactionScopesInfoBase PrepareVoteConsensus::releaseEndOfTransactionMetadata() {
+    EndOfTransactionScopesInfoBase metadata;
+
+    std::vector<ShardId> clusterParticipants;
+    clusterParticipants.reserve(_namespacesByShard.size());
+    std::map<std::string, std::set<ShardId>> collectionParticipants;
+    std::map<std::string, std::set<ShardId>> databaseParticipants;
+    for (const auto& [shardId, namespaces] : _namespacesByShard) {
+        clusterParticipants.push_back(shardId);
+        for (const auto& nss : namespaces) {
+            collectionParticipants[NamespaceStringUtil::serialize(
+                                       nss, SerializationContext::stateDefault())]
+                .insert(shardId);
+            databaseParticipants[DatabaseNameUtil::serialize(nss.dbName(),
+                                                             SerializationContext::stateDefault())]
+                .insert(shardId);
+        }
+    }
+
+    metadata.setCollectionParticipants(shardSetsToBSON(collectionParticipants));
+    metadata.setDatabaseParticipants(shardSetsToBSON(databaseParticipants));
+    metadata.setClusterParticipants(std::move(clusterParticipants));
+
+    // Serialize the metadata to measure its size.
+    const auto metadataSize = metadata.toBSON().objsize();
+    if (metadataSize > kMaxEndOfTransactionMetadataBytes) {
+        // Drop the metadata rather than persist or send something that cannot fit. Change streams
+        // then simply cannot synthesize an endOfTransaction event for this transaction.
+        LOGV2_WARNING(13790400,
+                      "Dropping oversized end-of-transaction accounting metadata",
+                      "metadataSizeBytes"_attr = metadataSize,
+                      "maxSizeBytes"_attr = kMaxEndOfTransactionMetadataBytes);
+        return EndOfTransactionScopesInfoBase{};
+    }
+    return metadata;
+}
+
+bool isEndOfTransactionMetadataConsistentWithParticipants(
+    const EndOfTransactionScopesInfoBase& metadata, const std::vector<ShardId>& participants) {
+    absl::flat_hash_set<ShardId> participantSet(participants.begin(), participants.end());
+    absl::flat_hash_set<ShardId> clusterParticipantSet;
+    for (const auto& shardId : metadata.getClusterParticipants()) {
+        if (!participantSet.contains(shardId)) {
+            return false;
+        }
+        clusterParticipantSet.insert(shardId);
+    }
+
+    // The collection and database participant maps must be well-formed objects whose arrays contain
+    // only shard ids that are themselves cluster participants.
+    auto isMapConsistent = [&clusterParticipantSet](const BSONObj& map) {
+        for (const auto& [key, value] : map) {
+            if (value.type() != BSONType::array) {
+                return false;
+            }
+            for (const auto& shardElement : value.Obj()) {
+                if (shardElement.type() != BSONType::string ||
+                    !clusterParticipantSet.contains(
+                        ShardId(std::string(shardElement.valueStringData())))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    return isMapConsistent(metadata.getCollectionParticipants()) &&
+        isMapConsistent(metadata.getDatabaseParticipants());
 }
 
 CoordinatorCommitDecision PrepareVoteConsensus::decision() const {
@@ -285,6 +411,7 @@ Future<PrepareVoteConsensus> sendPrepare(ServiceContext* service,
     auto prepareObj = prepareTransaction.toBSON();
 
     std::vector<Future<PrepareResponse>> responses;
+    responses.reserve(participants.size());
 
     // Send prepare to all participants asynchronously and collect their future responses in a
     // vector of responses.
@@ -353,7 +480,8 @@ repl::OpTime persistDecisionBlocking(OperationContext* opCtx,
                                      const TxnNumberAndRetryCounter& txnNumberAndRetryCounter,
                                      std::vector<ShardId> participantList,
                                      const txn::CoordinatorCommitDecision& decision,
-                                     std::vector<NamespaceString> affectedNamespaces) {
+                                     std::vector<NamespaceString> affectedNamespaces,
+                                     const EndOfTransactionScopesInfoBase& endOfTransactionScopes) {
     const bool isCommit = decision.getDecision() == txn::CommitDecision::kCommit;
     LOGV2_DEBUG(22467,
                 3,
@@ -408,6 +536,13 @@ repl::OpTime persistDecisionBlocking(OperationContext* opCtx,
                         serverGlobalParams.featureCompatibility.acquireFCVSnapshot())) {
                     doc.setAffectedNamespaces(std::move(affectedNamespaces));
                 }
+                // The caller decides whether the accounting metadata is part of the decision by
+                // passing a non-empty scopes object. Do not re-read the kill switch here, so the
+                // persisted document always matches what the coordinator sends to the participants.
+                if (decision.getDecision() == CommitDecision::kCommit &&
+                    !endOfTransactionScopes.getClusterParticipants().empty()) {
+                    doc.setEndOfTransactionScopes(endOfTransactionScopes);
+                }
                 return doc.toBSON();
             }()));
 
@@ -454,18 +589,26 @@ Future<repl::OpTime> persistDecision(txn::AsyncWorkScheduler& scheduler,
                                      const TxnNumberAndRetryCounter& txnNumberAndRetryCounter,
                                      const txn::ParticipantsList& participants,
                                      const txn::CoordinatorCommitDecision& decision,
-                                     const std::vector<NamespaceString>& affectedNamespaces) {
+                                     const std::vector<NamespaceString>& affectedNamespaces,
+                                     const EndOfTransactionScopesInfoBase& endOfTransactionScopes) {
     return txn::doWhile(
         scheduler,
         boost::none /* no need for a backoff */,
         [](const StatusWith<repl::OpTime>& s) { return shouldRetryPersistingCoordinatorState(s); },
-        [&scheduler, lsid, txnNumberAndRetryCounter, participants, decision, affectedNamespaces] {
+        [&scheduler,
+         lsid,
+         txnNumberAndRetryCounter,
+         participants,
+         decision,
+         affectedNamespaces,
+         endOfTransactionScopes] {
             return scheduler.scheduleWork(
                 [lsid,
                  txnNumberAndRetryCounter,
                  participants = participants,
                  decision,
-                 affectedNamespaces = affectedNamespaces](OperationContext* opCtx) mutable {
+                 affectedNamespaces,
+                 endOfTransactionScopes](OperationContext* opCtx) mutable {
                     // Do not acquire a storage ticket in order to avoid unnecessary serialization
                     // with other prepared transactions that are holding a storage ticket
                     // themselves; see SERVER-60682.
@@ -478,7 +621,8 @@ Future<repl::OpTime> persistDecision(txn::AsyncWorkScheduler& scheduler,
                                                    txnNumberAndRetryCounter,
                                                    std::move(participants),
                                                    decision,
-                                                   std::move(affectedNamespaces));
+                                                   std::move(affectedNamespaces),
+                                                   endOfTransactionScopes);
                 });
         });
 }
@@ -489,7 +633,8 @@ Future<void> sendCommit(ServiceContext* service,
                         const TxnNumberAndRetryCounter& txnNumberAndRetryCounter,
                         const APIParameters& apiParams,
                         const txn::ParticipantsList& participants,
-                        Timestamp commitTimestamp) {
+                        Timestamp commitTimestamp,
+                        const EndOfTransactionScopesInfoBase& endOfTransactionScopes) {
     CommitTransaction commitTransaction;
     commitTransaction.setDbName(DatabaseName::kAdmin);
     commitTransaction.setCommitTimestamp(commitTimestamp);
@@ -504,6 +649,22 @@ Future<void> sendCommit(ServiceContext* service,
     apiParams.setInfo(commitTransaction);
     auto commitObj = commitTransaction.toBSON();
 
+    // The caller decides whether the accounting metadata is part of the durable decision by passing
+    // a non-empty scopes object. Do not re-read the kill switch here, so the commands sent to the
+    // participants always match the persisted decision.
+    const bool haveEndOfTransactionScopes =
+        !endOfTransactionScopes.getClusterParticipants().empty();
+    auto& metadataShardCache = EndOfTransactionMetadataShardCache::get(service);
+
+    // The metadata is attached only to write participants. Read-only participants (which prepare
+    // and commit an empty transaction) have no transaction changes to order, so their commit
+    // entries are left un-augmented.
+    const auto& writeParticipants = endOfTransactionScopes.getClusterParticipants();
+    absl::flat_hash_set<ShardId> writeParticipantSet;
+    if (haveEndOfTransactionScopes) {
+        writeParticipantSet.insert(writeParticipants.begin(), writeParticipants.end());
+    }
+
     OperationContextFn operationContextFn = [lsid,
                                              txnNumberAndRetryCounter](OperationContext* opCtx) {
         invariant(opCtx);
@@ -517,14 +678,45 @@ Future<void> sendCommit(ServiceContext* service,
     };
 
     std::vector<Future<void>> responses;
+    responses.reserve(participants.size());
+
     for (const auto& participant : participants) {
-        responses.push_back(sendDecisionToShard(service,
-                                                scheduler,
-                                                lsid,
-                                                txnNumberAndRetryCounter,
-                                                participant,
-                                                commitObj,
-                                                operationContextFn));
+        BSONObj commandObj = commitObj;
+        boost::optional<BSONObj> commandObjWithoutEndOfTransactionScopes;
+
+        // Attach the metadata only to write participants. Skip shards that are known to reject it,
+        // so the extra probe round trip is only paid once per shard (per cache TTL) instead of once
+        // per commit.
+        // TODO SERVER-138031: Remove reliance on shard eligibity cache once 10.0 is the latest
+        // reachable version.
+        if (haveEndOfTransactionScopes && writeParticipantSet.contains(participant) &&
+            metadataShardCache.isShardDefinitelyEligible(participant)) {
+            EndOfTransactionScopesInfo scopes;
+            scopes.setBase(endOfTransactionScopes);
+            scopes.setShardId(participant);
+
+            BSONObjBuilder builder;
+            builder.appendElements(commitObj);
+            {
+                // Serialize directly into the sub-object to avoid materializing an intermediate
+                // BSONObj for 'endOfTransactionScopes'.
+                BSONObjBuilder scopesBuilder(
+                    builder.subobjStart(CommitTransaction::kEndOfTransactionScopesFieldName));
+                scopes.serialize(&scopesBuilder);
+            }
+            commandObj = builder.obj();
+            commandObjWithoutEndOfTransactionScopes = commitObj;
+        }
+
+        responses.push_back(
+            sendDecisionToShard(service,
+                                scheduler,
+                                lsid,
+                                txnNumberAndRetryCounter,
+                                participant,
+                                commandObj,
+                                operationContextFn,
+                                std::move(commandObjWithoutEndOfTransactionScopes)));
     }
     return txn::whenAll(responses);
 }
@@ -561,6 +753,8 @@ Future<void> sendAbort(ServiceContext* service,
     };
 
     std::vector<Future<void>> responses;
+    responses.reserve(participants.size());
+
     for (const auto& participant : participants) {
         responses.push_back(sendDecisionToShard(service,
                                                 scheduler,
@@ -853,8 +1047,15 @@ Future<void> sendDecisionToShard(ServiceContext* service,
                                  const TxnNumberAndRetryCounter& txnNumberAndRetryCounter,
                                  const ShardId& shardId,
                                  const BSONObj& commandObj,
-                                 OperationContextFn operationContextFn) {
+                                 OperationContextFn operationContextFn,
+                                 boost::optional<BSONObj> commandObjWithoutEndOfTransactionScopes) {
     const bool isLocalShard = (shardId == txn::getLocalShardId(service));
+
+    // Shared between the loop body (which reads the command to send) and the response handler
+    // (which may replace it) so that the metadata can be stripped across a retry.
+    auto currentCommand = std::make_shared<BSONObj>(commandObj.getOwned());
+    auto commandWithoutMetadata = std::make_shared<boost::optional<BSONObj>>(
+        std::move(commandObjWithoutEndOfTransactionScopes));
 
     return txn::doWhile(
         scheduler,
@@ -870,21 +1071,27 @@ Future<void> sendDecisionToShard(ServiceContext* service,
          shardId,
          isLocalShard,
          operationContextFn,
-         commandObj = commandObj.getOwned()] {
+         service,
+         currentCommand,
+         commandWithoutMetadata] {
             LOGV2_DEBUG(22481,
                         3,
                         "Coordinator going to send command to shard",
                         "sessionId"_attr = lsid,
                         "txnNumberAndRetryCounter"_attr = txnNumberAndRetryCounter,
-                        "command"_attr = commandObj,
+                        "command"_attr = *currentCommand,
                         "localOrRemote"_attr = (isLocalShard ? "local" : "remote"),
                         "shardId"_attr = shardId);
 
             return scheduler
                 .scheduleRemoteCommand(
-                    shardId, kPrimaryReadPreference, commandObj, operationContextFn)
-                .then([lsid, txnNumberAndRetryCounter, shardId, commandObj = commandObj.getOwned()](
-                          ResponseStatus response) {
+                    shardId, kPrimaryReadPreference, *currentCommand, operationContextFn)
+                .then([lsid,
+                       txnNumberAndRetryCounter,
+                       shardId,
+                       service,
+                       currentCommand,
+                       commandWithoutMetadata](ResponseStatus response) {
                     auto status = getStatusFromCommandResult(response.data);
                     auto wcStatus = getWriteConcernStatusFromCommandResult(response.data);
 
@@ -900,8 +1107,30 @@ Future<void> sendDecisionToShard(ServiceContext* service,
                                 "sessionId"_attr = lsid,
                                 "txnNumberAndRetryCounter"_attr = txnNumberAndRetryCounter,
                                 "status"_attr = status,
-                                "command"_attr = commandObj,
+                                "command"_attr = *currentCommand,
                                 "shardId"_attr = shardId);
+
+                    // The shard does not understand the end-of-transaction metadata field. Strip
+                    // it, remember that this shard cannot accept it, and retry without it.
+                    // TODO SERVER-138031: Remove this if condition if 10.0 is the latest reachable
+                    // version.
+                    if (status.code() == ErrorCodes::IDLUnknownField &&
+                        commandWithoutMetadata->has_value()) {
+                        // Expected during a rolling upgrade, so logged at Info and rate-limited so
+                        // that a burst of ineligible shards does not flood the log.
+                        LOGV2_DEBUG(13790402,
+                                    endOfTransactionMetadataRejectedLogSeveritySuppressor().toInt(),
+                                    "Shard rejected the end-of-transaction metadata; retrying "
+                                    "the commit without it and marking the shard ineligible",
+                                    "sessionId"_attr = lsid,
+                                    "txnNumberAndRetryCounter"_attr = txnNumberAndRetryCounter,
+                                    "shardId"_attr = shardId);
+                        *currentCommand = **commandWithoutMetadata;
+                        *commandWithoutMetadata = boost::none;
+                        EndOfTransactionMetadataShardCache::get(service).markShardIneligible(
+                            shardId);
+                        return status;
+                    }
 
                     if (ErrorCodes::isTwoPhaseDecisionAckError(status.code())) {
                         // Interpret these errors as a successful ack.
@@ -913,7 +1142,7 @@ Future<void> sendDecisionToShard(ServiceContext* service,
                             "sessionId"_attr = lsid,
                             "txnNumberAndRetryCounter"_attr = txnNumberAndRetryCounter,
                             "status"_attr = status,
-                            "command"_attr = commandObj,
+                            "command"_attr = *currentCommand,
                             "shardId"_attr = shardId);
                         status = Status::OK();
                     }
@@ -960,6 +1189,10 @@ std::string txnIdToString(const LogicalSessionId& lsid,
         ss << ':' << *retryCounter;
     }
     return ss;
+}
+
+void resetEndOfTransactionMetadataRejectedLogSeveritySuppressor_forTest(ClockSource* cs) {
+    endOfTransactionMetadataRejectedLogSeveritySuppressor.resetWithClockSource_forTest(cs);
 }
 
 }  // namespace txn

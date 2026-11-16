@@ -183,6 +183,28 @@ TEST(QuerySolutionTest, FetchClonePreservesAllFields) {
     ASSERT_TRUE(cloned.filter->equivalent(fetch.filter.get()));
 }
 
+TEST(QuerySolutionTest, BatchedFetchConversionPreservesBaseFieldsAndMovesChild) {
+    const auto nss = NamespaceString::createNamespaceString_forTest("db.main");
+    auto child = std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(BSON("a" << 1)));
+    const auto* originalChild = child.get();
+    auto filter = std::make_unique<EqualityMatchExpression>("a"sv, Value(1));
+    const auto* originalFilter = filter.get();
+    FetchNode fetch{std::move(child), nss};
+    fetch.filter = std::move(filter);
+    fetch.hitScanLimit = true;
+    fetch.physicalProps.distribution = DistributionDesc::roundRobin();
+
+    BatchedFetchNode batchedFetch{std::move(fetch)};
+
+    ASSERT_EQ(batchedFetch.getType(), STAGE_BATCHED_FETCH);
+    ASSERT_EQ(batchedFetch.nss, nss);
+    ASSERT_EQ(batchedFetch.children.size(), 1U);
+    ASSERT_EQ(batchedFetch.children[0].get(), originalChild);
+    ASSERT_EQ(batchedFetch.filter.get(), originalFilter);
+    ASSERT_TRUE(batchedFetch.hitScanLimit);
+    ASSERT_TRUE(batchedFetch.physicalProps.distribution == DistributionDesc::roundRobin());
+}
+
 TEST(QuerySolutionTest, BatchedFetchClonePreservesAllFields) {
     const auto nss = NamespaceString::createNamespaceString_forTest("db.main");
     auto child = std::make_unique<IndexScanNode>(nss, buildSimpleIndexEntry(BSON("a" << 1)));
@@ -1998,6 +2020,27 @@ TEST(QuerySolutionTest, GroupNodeToStringWithNonArrayIdFields) {
 )gold");
     ASSERT_EQ(checked_cast<const GroupNode&>(*node->clone()).nonArrayIdFields,
               node->nonArrayIdFields);
+}
+
+TEST(QuerySolutionTest, GroupNodeCloneKeepsEligibleForStreamingGroup) {
+    QueryTestServiceContext serviceCtx;
+    auto opCtx = serviceCtx.makeOperationContext();
+    const auto expCtx = ExpressionContextBuilder{}
+                            .opCtx(opCtx.get())
+                            .ns(NamespaceString::createNamespaceString_forTest("test.dummy"))
+                            .build();
+    auto groupByExpression =
+        ExpressionFieldPath::parse(expCtx.get(), "$a", expCtx->variablesParseState);
+    auto node = std::make_unique<GroupNode>(std::make_unique<CollectionScanNode>(),
+                                            groupByExpression,
+                                            std::vector<AccumulationStatement>{},
+                                            /*merging=*/false,
+                                            /*willBeMerged=*/false,
+                                            /*shouldProduceBson=*/false,
+                                            OrderedPathSet{"_id"},
+                                            /*eligibleForStreamingGroup=*/true);
+
+    ASSERT_TRUE(checked_cast<const GroupNode&>(*node->clone()).eligibleForStreamingGroup);
 }
 
 TEST(QuerySolutionTest, StreamingGroupNodeWithIndexScan) {

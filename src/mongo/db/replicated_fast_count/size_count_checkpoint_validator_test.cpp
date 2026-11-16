@@ -525,40 +525,6 @@ const Timestamp kT3{Seconds(300), 0};
 const Timestamp kT4{Seconds(350), 0};
 const Timestamp kEnd{Seconds(1000), 0};
 
-struct ValidatorMetricValues {
-    int64_t recorded;
-    int64_t evicted;
-    int64_t skipped;
-    int64_t validated;
-};
-
-ValidatorMetricValues readValidatorMetrics(otel::metrics::OtelMetricsCapturer& capturer) {
-    using otel::metrics::MetricNames;
-    return {
-        .recorded = capturer.readInt64Counter(MetricNames::kReplicatedFastCountWatermarksRecorded),
-        .evicted = capturer.readInt64Counter(MetricNames::kReplicatedFastCountWatermarksEvicted),
-        .skipped = capturer.readInt64Counter(MetricNames::kReplicatedFastCountCheckpointsSkipped),
-        .validated =
-            capturer.readInt64Counter(MetricNames::kReplicatedFastCountCheckpointsValidated),
-    };
-}
-
-/**
- * Asserts all four counters. Does nothing when OTel metrics are unavailable, so tests that do not
- * otherwise need OTel keep exercising the validator in such builds.
- */
-void expectValidatorMetrics(otel::metrics::OtelMetricsCapturer& capturer,
-                            const ValidatorMetricValues& expected) {
-    if (!capturer.canReadMetrics()) {
-        return;
-    }
-    const auto actual = readValidatorMetrics(capturer);
-    EXPECT_EQ(actual.recorded, expected.recorded);
-    EXPECT_EQ(actual.evicted, expected.evicted);
-    EXPECT_EQ(actual.skipped, expected.skipped);
-    EXPECT_EQ(actual.validated, expected.validated);
-}
-
 ValidatorDeltaRecord makeDelta(Timestamp ts, UUID uuid, CollectionSizeCount sizeCount) {
     return {.ts = ts,
             .uuid = uuid,
@@ -569,6 +535,7 @@ CollectionReplicatedMetadata makeSizeCount(CollectionSizeCount sizeCount) {
     return CollectionReplicatedMetadata{.sizeCount = sizeCount};
 }
 
+using test_helpers::expectValidatorMetrics;
 using test_helpers::makeCheckpointEntry;
 
 class SizeCountCheckpointValidatorRecoveryTest : public CatalogTestFixture {
@@ -1132,7 +1099,7 @@ TEST_F(SizeCountCheckpointValidatorTest, CheckpointsValidatedCounterIncrementsWh
     expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
 }
 
-TEST_F(SizeCountCheckpointValidatorTest, CheckpointsValidatedCounterNotIncrementedWhenParamOff) {
+TEST_F(SizeCountCheckpointValidatorTest, CheckpointsValidatedCounterIncrementsWhenParamOff) {
     unittest::ServerParameterGuard enableContinuousInternodePerCollectionValidation{
         "enableContinuousInternodePerCollectionValidation", false};
     otel::metrics::OtelMetricsCapturer capturer;
@@ -1151,7 +1118,7 @@ TEST_F(SizeCountCheckpointValidatorTest, CheckpointsValidatedCounterNotIncrement
                     .delta = ReplicatedMetadataDelta{
                         .metadata = {.sizeCount = CollectionSizeCount{.size = 10, .count = 1}}}}});
     // Eviction does not depend on the parameter, so memory is bounded even with validation off.
-    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 0});
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
 }
 
 TEST_F(SizeCountCheckpointValidatorTest, WatermarksWithoutCheckpointsAreNotEvicted) {
@@ -1162,6 +1129,17 @@ TEST_F(SizeCountCheckpointValidatorTest, WatermarksWithoutCheckpointsAreNotEvict
     // The gap between recorded and evicted watermarks is the number of intervals the validator is
     // retaining in memory.
     expectValidatorMetrics(capturer, {.recorded = 3, .evicted = 0, .skipped = 0, .validated = 0});
+}
+
+TEST_F(SizeCountCheckpointValidatorTest, ResetWithPendingIntervalsIncrementsWatermarksEvicted) {
+    otel::metrics::OtelMetricsCapturer capturer;
+    applyBatch(validator, {makeWatermarkEntry(kT1), makeWatermarkEntry(kT2)}, {});
+    applyBatch(validator, {makeWatermarkEntry(kT3)}, {});
+    expectValidatorMetrics(capturer, {.recorded = 3, .evicted = 0, .skipped = 0, .validated = 0});
+
+    validator.reset();
+
+    expectValidatorMetrics(capturer, {.recorded = 3, .evicted = 3, .skipped = 0, .validated = 0});
 }
 
 TEST_F(SizeCountCheckpointValidatorTest, DeltaAfterNewestWatermarkCarriesIntoNextInterval) {
@@ -1195,7 +1173,7 @@ TEST_F(SizeCountCheckpointValidatorTest, ValidationUsesBaselineAdvancedWhileDisa
                    {makeDelta(kT0, uuid, {.size = 10, .count = 1})});
     }
 
-    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 0});
+    expectValidatorMetrics(capturer, {.recorded = 1, .evicted = 1, .skipped = 0, .validated = 1});
 
     // The expected contents are the baseline advanced while disabled plus the new delta. A baseline
     // that did not advance would not match the primary's (15, 2) and would fassert.
@@ -1204,7 +1182,7 @@ TEST_F(SizeCountCheckpointValidatorTest, ValidationUsesBaselineAdvancedWhileDisa
                 makeCheckpointEntry(kT3, {{uuid, makeSizeCount({.size = 15, .count = 2})}})},
                {makeDelta(kT2, uuid, {.size = 5, .count = 1})});
 
-    expectValidatorMetrics(capturer, {.recorded = 2, .evicted = 2, .skipped = 0, .validated = 1});
+    expectValidatorMetrics(capturer, {.recorded = 2, .evicted = 2, .skipped = 0, .validated = 2});
 }
 
 TEST_F(SizeCountCheckpointValidatorTest, DeltasFromMultipleWorkerBuffersAreMerged) {

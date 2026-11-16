@@ -63,6 +63,8 @@ last-patch:
       ticket: SERVER-132644
     - test_file: jstests/core/query/distinct/distinct_replanning.js
       ticket: SERVER-125858
+    - test_file: jstests/core/query/doc_validation/collmod_upgrade_to_constraint.js
+      ticket: SERVER-137905
     - test_file: jstests/core/query/doc_validation/doc_validation_invalid_validators.js
       ticket: SERVER-131412
     - test_file: jstests/core/query/elemmatch/elemmatch_all_reparseable.js
@@ -124,6 +126,8 @@ last-patch:
     - test_file: jstests/sharding/query/graph_lookup/graph_lookup_spill_on_merging_shard.js
       ticket: SERVER-130431
     - test_file: jstests/sharding/resharding_require_explicit_commit.js
+      ticket: SERVER-138288
+    - test_file: jstests/sharding/resharding_require_explicit_commit_runtime_disable.js
       ticket: SERVER-138288
     - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
       ticket: SERVER-126814
@@ -208,6 +212,8 @@ last-continuous:
       ticket: SERVER-135206
     - test_file: jstests/core/query/collation/expr_in_collation.js
       ticket: SERVER-132644
+    - test_file: jstests/core/query/doc_validation/collmod_upgrade_to_constraint.js
+      ticket: SERVER-137905
     - test_file: jstests/core/query/doc_validation/doc_validation_invalid_validators.js
       ticket: SERVER-131412
     - test_file: jstests/core/query/elemmatch/elemmatch_all_reparseable.js
@@ -248,6 +254,10 @@ last-continuous:
       ticket: SERVER-125964
     - test_file: jstests/replsets/stepdown_fassert_on_explicit_overridden_rstl_timeout.js
       ticket: SERVER-137356
+    - test_file: jstests/replsets/sync_source_switch_on_failover.js
+      ticket: SERVER-95560
+    - test_file: jstests/replsets/sync_source_switch_server_params.js
+      ticket: SERVER-95560
     - test_file: jstests/sharding/chunk_migration_does_not_block_indefinitely_acquiring_strong_locks.js
       ticket: SERVER-136085
     - test_file: jstests/sharding/collection_uuid_find.js
@@ -319,6 +329,8 @@ last-continuous:
     - test_file: jstests/sharding/reshard_collection_validation_size_estimation_timeout.js
       ticket: SERVER-133988
     - test_file: jstests/sharding/resharding_require_explicit_commit.js
+      ticket: SERVER-138288
+    - test_file: jstests/sharding/resharding_require_explicit_commit_runtime_disable.js
       ticket: SERVER-138288
     - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
       ticket: SERVER-126814
@@ -409,6 +421,8 @@ last-lts:
       ticket: SERVER-135206
     - test_file: jstests/core/query/collation/expr_in_collation.js
       ticket: SERVER-132644
+    - test_file: jstests/core/query/doc_validation/collmod_upgrade_to_constraint.js
+      ticket: SERVER-137905
     - test_file: jstests/core/query/doc_validation/doc_validation_invalid_validators.js
       ticket: SERVER-131412
     - test_file: jstests/core/query/elemmatch/elemmatch_all_reparseable.js
@@ -449,6 +463,10 @@ last-lts:
       ticket: SERVER-125964
     - test_file: jstests/replsets/stepdown_fassert_on_explicit_overridden_rstl_timeout.js
       ticket: SERVER-137356
+    - test_file: jstests/replsets/sync_source_switch_on_failover.js
+      ticket: SERVER-95560
+    - test_file: jstests/replsets/sync_source_switch_server_params.js
+      ticket: SERVER-95560
     - test_file: jstests/sharding/chunk_migration_does_not_block_indefinitely_acquiring_strong_locks.js
       ticket: SERVER-136085
     - test_file: jstests/sharding/collection_uuid_find.js
@@ -520,6 +538,8 @@ last-lts:
     - test_file: jstests/sharding/reshard_collection_validation_size_estimation_timeout.js
       ticket: SERVER-133988
     - test_file: jstests/sharding/resharding_require_explicit_commit.js
+      ticket: SERVER-138288
+    - test_file: jstests/sharding/resharding_require_explicit_commit_runtime_disable.js
       ticket: SERVER-138288
     - test_file: jstests/sharding/timeseries/timeseries_bucket_untracked_premature_optimization.js
       ticket: SERVER-126814

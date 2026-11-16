@@ -23,6 +23,7 @@
 #include "mongo/db/pipeline/document_source_internal_unpack_bucket.h"
 #include "mongo/db/pipeline/document_source_lookup.h"
 #include "mongo/db/pipeline/document_source_skip.h"
+#include "mongo/db/pipeline/expression.h"
 #include "mongo/db/pipeline/expression_context.h"
 #include "mongo/db/pipeline/field_path.h"
 #include "mongo/db/pipeline/search/search_helper.h"
@@ -52,6 +53,7 @@
 #include "mongo/db/query/planner_analysis.h"
 #include "mongo/db/query/planner_ixselect.h"
 #include "mongo/db/query/query_execution_knobs_gen.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/query/query_knobs/query_knob_configuration.h"
 #include "mongo/db/query/query_optimization_knobs_gen.h"
 #include "mongo/db/query/query_planner_common.h"
@@ -63,6 +65,7 @@
 #include "mongo/logv2/log_severity_suppressor.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/str.h"
+#include "mongo/util/string_map.h"
 
 #include <cstring>
 #include <deque>
@@ -357,6 +360,9 @@ string optionString(size_t options) {
                 break;
             case QueryPlannerParams::MAX_ESTIMATED_SCAN_BYTES_DRY_RUN:
                 ss << "MAX_ESTIMATED_SCAN_BYTES_DRY_RUN ";
+                break;
+            case QueryPlannerParams::CONSUME_ALL_ORDER_INSENSITIVE:
+                ss << "CONSUME_ALL_ORDER_INSENSITIVE ";
                 break;
             case QueryPlannerParams::DEFAULT:
                 MONGO_UNREACHABLE;
@@ -2073,6 +2079,42 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     return std::move(planRankingResult);
 }
 
+namespace {
+
+bool eligibleForStreamingGroup(const CanonicalQuery& query,
+                               QuerySolutionNode& input,
+                               const DocumentSourceGroup& group) {
+    if (!query.getExpCtx()->getIfrContext()->getSavedFlagValue(
+            feature_flags::gFeatureFlagStreamingGroupEligibilityCounter) ||
+        group.doingMerge() || group.willBeMerged() || query.getCollator()) {
+        return false;
+    }
+    StringSet paths;
+    for (auto&& [field, expr] : group.getIdFields()) {
+        auto* path = dynamic_cast<ExpressionFieldPath*>(expr.get());
+        if (!path || path->isROOT() || path->isVariableReference() ||
+            !group.getNonArrayIdFields().contains(field)) {
+            return false;
+        }
+        paths.insert(path->getFieldPathWithoutCurrentPrefix().fullPath());
+    }
+    if (paths.empty()) {
+        return false;
+    }
+    input.computeProperties();
+    size_t matched = 0;
+    // Not contains(): it skips point-bound fields, which a projection may have overwritten.
+    for (auto&& sortField : input.providedSorts().getBaseSortPattern()) {
+        if (matched == paths.size() || !paths.contains(sortField.fieldNameStringData())) {
+            break;
+        }
+        ++matched;
+    }
+    return matched == paths.size();
+}
+
+}  // namespace
+
 /**
  * If 'query.cqPipeline()' is non-empty, it contains a prefix of the aggregation pipeline that
  * can be pushed down to SBE. For now, we plan this separately here and attach the agg portion
@@ -2101,13 +2143,15 @@ std::unique_ptr<QuerySolution> QueryPlanner::extendWithAggPipeline(
 
         auto groupStage = dynamic_cast<DocumentSourceGroup*>(innerStage);
         if (groupStage) {
-            solnForAgg = std::make_unique<GroupNode>(std::move(solnForAgg),
-                                                     groupStage->getIdExpression(),
-                                                     groupStage->getAccumulationStatements(),
-                                                     groupStage->doingMerge(),
-                                                     groupStage->willBeMerged(),
-                                                     /*shouldProduceBson=*/isLastSource,
-                                                     groupStage->getNonArrayIdFields());
+            solnForAgg = std::make_unique<GroupNode>(
+                std::move(solnForAgg),
+                groupStage->getIdExpression(),
+                groupStage->getAccumulationStatements(),
+                groupStage->doingMerge(),
+                groupStage->willBeMerged(),
+                /*shouldProduceBson=*/isLastSource,
+                groupStage->getNonArrayIdFields(),
+                i == 0 && eligibleForStreamingGroup(query, *solution->root(), *groupStage));
             continue;
         }
 

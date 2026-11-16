@@ -1,0 +1,505 @@
+# run various configure checks. This script is intended to be
+# imported and run in the context of generate_config_header.py
+import json
+import os
+import platform
+import subprocess
+import tempfile
+import threading
+
+logfile_path: str = ""
+loglock = threading.Lock()
+
+
+def log_check(message):
+    global loglock, logfile_path
+    with loglock:
+        with open(logfile_path, "a") as f:
+            f.write(message + "\n")
+
+
+class CompilerSettings:
+    compiler_path: str = ""
+    compiler_type: str = ""
+    target_os: str = ""
+    compiler_args: str = ""
+    env_vars: dict = {}
+
+
+class HeaderDefinition:
+    def __init__(self, key: str, value: str = None) -> None:
+        self.key = key
+        self.value = value
+
+
+def _compiler_command() -> list[str]:
+    """Return the command prefix needed to invoke the configured compiler."""
+    compiler_path = CompilerSettings.compiler_path
+
+    # Only Windows targets need to run these polyglot .cmd wrappers. Bazel's POSIX
+    # launcher can fall back to a shell for these files, but Python's
+    # subprocess does not perform that fallback when it invokes a path
+    # directly. The config-header generator runs under Linux Python on RBE,
+    # so invoke the wrapper through the POSIX shell explicitly in that
+    # environment. Use an absolute path because the cross action's hermetic
+    # PATH contains only staged toolchain directories.
+    if (
+        CompilerSettings.target_os.lower() == "windows"
+        and platform.system() != "Windows"
+        and compiler_path.lower().endswith((".cmd", ".bat"))
+    ):
+        # Preserve launch errors for missing or unreadable wrappers instead of
+        # interpreting the shell's failure as an unsupported compiler feature.
+        with open(compiler_path, "rb"):
+            pass
+        return ["/bin/sh", compiler_path]
+
+    return [compiler_path]
+
+
+def compile_check(source_text: str) -> bool:
+    # The compiler driver and Python's execution OS can differ in cross builds.
+    # Compile only, and keep both the source and object in a temporary directory.
+    with tempfile.TemporaryDirectory(prefix="mongo-config-check-") as temp_dir:
+        if CompilerSettings.compiler_type in {"msvc-cl", "clang-cl"}:
+            source_path = os.path.join(temp_dir, "probe.cpp")
+            with open(source_path, "w", encoding="utf-8") as source:
+                source.write(source_text)
+            command = [
+                *_compiler_command(),
+                "/c",
+                "/TP",
+                source_path,
+                *CompilerSettings.compiler_args.split(),
+                "/Fo" + os.path.join(temp_dir, "probe.obj"),
+            ]
+            input_text = None
+        else:
+            command = [
+                *_compiler_command(),
+                "-c",
+                "-x",
+                "c++",
+                *CompilerSettings.compiler_args.split(),
+                "-",
+                "-o",
+                os.path.join(temp_dir, "probe.o"),
+            ]
+            input_text = source_text
+        log_check(" ".join(command + [source_text]))
+        try:
+            result = subprocess.run(
+                command,
+                **({"input": input_text} if input_text is not None else {}),
+                capture_output=True,
+                text=True,
+                env={**os.environ.copy(), **CompilerSettings.env_vars},
+            )
+        except OSError as exc:
+            log_check(f"failed to run compiler: {exc}")
+            raise
+    if result.returncode != 0:
+        log_check(f"stdout:\n{result.stdout}")
+        log_check(f"stderr:\n{result.stderr}")
+    log_check(f"Exit code:\n{result.returncode}")
+    log_check("--------------------------------------------------\n\n")
+    return result.returncode == 0
+
+
+def func_check(function_name: str, header_path: str) -> bool:
+    source_text = """
+#include <assert.h>
+#include %(header_path)s
+
+int main(void) {
+  return 0 ? %(function_name)s != nullptr : 1;
+}
+""" % {"header_path": header_path, "function_name": function_name}
+    return compile_check(source_text)
+
+
+def glibc_rseq_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_GLIBC_RSEQ] Checking for __rseq_size...")
+
+    if compile_check("""
+    #include <sys/rseq.h>
+    #include <stdlib.h>
+    #include <stdio.h>
+
+    int main() {
+        printf("%d", __rseq_size);
+        return EXIT_SUCCESS;
+    }"""):
+        return [HeaderDefinition("MONGO_CONFIG_GLIBC_RSEQ")]
+    else:
+        return []
+
+
+def memset_s_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_HAVE_MEMSET_S] Checking for memset_s...")
+
+    if compile_check("""
+        #define __STDC_WANT_LIB_EXT1__ 1
+        #include <cstring>
+        int main(int argc, char* argv[]) {
+            void* data = nullptr;
+            return memset_s(data, 0, 0, 0);
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_MEMSET_S")]
+    else:
+        return []
+
+
+def strnlen_present_flag(target_os: str) -> list[HeaderDefinition]:
+    if target_os.lower() == "windows":
+        return []
+
+    log_check("[MONGO_CONFIG_HAVE_STRNLEN] Checking for strnlen...")
+
+    if func_check("strnlen", "<string.h>"):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_STRNLEN")]
+    else:
+        return []
+
+
+def explicit_bzero_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_HAVE_EXPLICIT_BZERO] Checking for explicit_bzero...")
+
+    # Glibc 2.25+, OpenBSD 5.5+ and FreeBSD 11.0+ offer explicit_bzero, a secure way to zero memory
+    if func_check("explicit_bzero", "<string.h>"):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_EXPLICIT_BZERO")]
+    else:
+        return []
+
+
+def pthread_setname_np_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_HAVE_PTHREAD_SETNAME_NP] Checking for pthread_setname_np...")
+
+    if compile_check("""
+        #ifndef _GNU_SOURCE
+        #define _GNU_SOURCE
+        #endif
+        #include <pthread.h>
+
+        int main() {
+            pthread_setname_np(pthread_self(), "test");
+            return 0;
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_PTHREAD_SETNAME_NP")]
+    else:
+        return []
+
+
+def fips_mode_set_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_HAVE_FIPS_MODE_SET] Checking for fips mode set...")
+
+    if compile_check("""
+        #include <openssl/crypto.h>
+        #include <openssl/evp.h>
+        int main(void) { (void)FIPS_mode_set; return 0; }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_FIPS_MODE_SET")]
+    else:
+        return []
+
+
+def asn1_present_flag() -> list[HeaderDefinition]:
+    log_check("[MONGO_CONFIG_HAVE_ASN1_ANY_DEFINITIONS] Checking for asn1...")
+
+    if compile_check("""
+        #include <openssl/asn1.h>
+        int main(void) { (void)d2i_ASN1_SEQUENCE_ANY; return 0; }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_ASN1_ANY_DEFINITIONS")]
+    else:
+        return []
+
+
+def ssl_set_ecdh_auto_present_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_SSL_SET_ECDH_AUTO] Checking if SSL_[CTX_]_set_ecdh_auto is supported..."
+    )
+
+    if compile_check("""
+        #include <openssl/ssl.h>
+
+        int main() {
+            SSL_CTX_set_ecdh_auto(0, 0);
+            SSL_set_ecdh_auto(0, 0);
+            return 0;
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_SSL_SET_ECDH_AUTO")]
+    else:
+        return []
+
+
+def ssl_ec_key_new_present_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_SSL_EC_KEY_NEW] Checking if EC_KEY_new_by_curve_name is supported..."
+    )
+
+    if compile_check("""
+        #include <openssl/ssl.h>
+        #include <openssl/ec.h>
+
+        int main() {
+            SSL_CTX_set_tmp_ecdh(0, 0);
+            EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
+            EC_KEY_free(0);
+            return 0;
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_SSL_EC_KEY_NEW")]
+    else:
+        return []
+
+
+def posix_monotonic_clock_present_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_POSIX_MONOTONIC_CLOCK] Checking if the POSIX monotonic clock is supported..."
+    )
+
+    if compile_check("""
+        #include <unistd.h>
+        #if !(defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)
+        #error POSIX clock_gettime not supported
+        #elif !(defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 0)
+        #error POSIX monotonic clock not supported
+        #endif
+        int main(void) { return 0; }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_POSIX_MONOTONIC_CLOCK")]
+    else:
+        return []
+
+
+def execinfo_backtrace_present_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_EXECINFO_BACKTRACE] Checking if execinfo backtrace is supported..."
+    )
+    if compile_check("""
+        #include <execinfo.h>
+        int main(void) { return backtrace != nullptr && backtrace_symbols != nullptr && backtrace_symbols_fd != nullptr; }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_EXECINFO_BACKTRACE")]
+    else:
+        return []
+
+
+def extended_alignment_flag(target_arch: str) -> list[HeaderDefinition]:
+    def check_extended_alignment(size: int) -> bool:
+        log_check(
+            f"[MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT] Checking for extended alignment {size} for concurrency types..."
+        )
+
+        return compile_check(
+            """
+            #include <atomic>
+            #include <mutex>
+            #include <cstddef>
+
+            static_assert(alignof(std::max_align_t) < {0}, "whatever");
+
+            alignas({0}) std::mutex aligned_mutex;
+            alignas({0}) std::atomic<int> aligned_atomic;
+
+            struct alignas({0}) aligned_struct_mutex {{
+                std::mutex m;
+            }};
+
+            struct alignas({0}) aligned_struct_atomic {{
+                std::atomic<int> m;
+            }};
+
+            struct holds_aligned_mutexes {{
+                alignas({0}) std::mutex m1;
+                alignas({0}) std::mutex m2;
+            }} hm;
+
+            struct holds_aligned_atomics {{
+                alignas({0}) std::atomic<int> a1;
+                alignas({0}) std::atomic<int> a2;
+            }} ha;
+            int main(void) {{ return 0; }}
+            """.format(size)
+        )
+
+    # If we don't have a specialized search sequence for this
+    # architecture, assume 64 byte cache lines, which is pretty
+    # standard. If for some reason the compiler can't offer that, try
+    # 32.
+    default_alignment_search_sequence = [64, 32]
+
+    # The following are the target architectures for which we have
+    # some knowledge that they have larger cache line sizes. In
+    # particular, POWER8 uses 128 byte lines and zSeries uses 256. We
+    # start at the goal state, and work down until we find something
+    # the compiler can actualy do for us.
+    extended_alignment_search_sequence = {
+        "ppc64le": [128, 64, 32],
+        "s390x": [256, 128, 64, 32],
+    }
+
+    for size in extended_alignment_search_sequence.get(
+        target_arch.lower(), default_alignment_search_sequence
+    ):
+        if check_extended_alignment(size):
+            return [HeaderDefinition("MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT", size)]
+    return []
+
+
+def altivec_vbpermq_output_flag(target_arch: str) -> list[HeaderDefinition]:
+    if target_arch.lower() != "ppc64le":
+        return []
+
+    # ppc64le is always little-endian. Both supported modern toolchains (GCC 14
+    # and Clang 19) expose vec_vbpermq's useful 64-bit result in element 1, as
+    # their own _mm_movemask_epi8 implementations do. The former runtime probe
+    # cannot work while cross-compiling and compile_check() never executes its
+    # input, so make the supported ABI explicit.
+    return [HeaderDefinition("MONGO_CONFIG_ALTIVEC_VEC_VBPERMQ_OUTPUT_INDEX", 1)]
+
+
+def usdt_provider_flags(target_os: str) -> list[HeaderDefinition]:
+    if target_os.lower() in {"macos", "darwin"}:
+        return []
+
+    log_check("[MONGO_CONFIG_USDT_PROVIDER] Checking if SDT usdt provider is available...")
+    if compile_check("""
+        #include <sys/sdt.h>
+        int main(void) { return 0; }
+        """):
+        return [
+            HeaderDefinition("MONGO_CONFIG_USDT_ENABLED"),
+            HeaderDefinition("MONGO_CONFIG_USDT_PROVIDER", "SDT"),
+        ]
+    return []
+
+
+def basic_stringbuf_str_rvalue_flag() -> list[HeaderDefinition]:
+    log_check(
+        "[MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE] Checking if basic_stringbuf::str()&& overload exists..."
+    )
+    if compile_check("""
+        #include <sstream>
+        #include <string>
+
+        int main() {
+            std::stringstream ss("a very long string that exceeds the small string optimization buffer length");
+            std::string s = std::move(ss).str();
+            return ss.str().empty() ? 0 : -1;
+        }
+        """):
+        return [HeaderDefinition("MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE")]
+    else:
+        return []
+
+
+def get_config_header_substs():
+    config_header_substs = (
+        (
+            "@mongo_config_altivec_vec_vbpermq_output_index@",
+            "MONGO_CONFIG_ALTIVEC_VEC_VBPERMQ_OUTPUT_INDEX",
+        ),
+        ("@mongo_config_debug_build@", "MONGO_CONFIG_DEBUG_BUILD"),
+        ("@mongo_config_use_tracing_profiler@", "MONGO_CONFIG_USE_TRACING_PROFILER"),
+        ("@mongo_config_have_execinfo_backtrace@", "MONGO_CONFIG_HAVE_EXECINFO_BACKTRACE"),
+        ("@mongo_config_have_explicit_bzero@", "MONGO_CONFIG_HAVE_EXPLICIT_BZERO"),
+        ("@mongo_config_have_fips_mode_set@", "MONGO_CONFIG_HAVE_FIPS_MODE_SET"),
+        ("@mongo_config_have_header_unistd_h@", "MONGO_CONFIG_HAVE_HEADER_UNISTD_H"),
+        ("@mongo_config_have_memset_s@", "MONGO_CONFIG_HAVE_MEMSET_S"),
+        ("@mongo_config_have_posix_monotonic_clock@", "MONGO_CONFIG_HAVE_POSIX_MONOTONIC_CLOCK"),
+        ("@mongo_config_have_pthread_setname_np@", "MONGO_CONFIG_HAVE_PTHREAD_SETNAME_NP"),
+        ("@mongo_config_have_ssl_ec_key_new@", "MONGO_CONFIG_HAVE_SSL_EC_KEY_NEW"),
+        ("@mongo_config_have_ssl_set_ecdh_auto@", "MONGO_CONFIG_HAVE_SSL_SET_ECDH_AUTO"),
+        ("@mongo_config_have_strnlen@", "MONGO_CONFIG_HAVE_STRNLEN"),
+        ("@mongo_config_max_extended_alignment@", "MONGO_CONFIG_MAX_EXTENDED_ALIGNMENT"),
+        ("@mongo_config_ocsp_stapling_enabled@", "MONGO_CONFIG_OCSP_STAPLING_ENABLED"),
+        ("@mongo_config_optimized_build@", "MONGO_CONFIG_OPTIMIZED_BUILD"),
+        ("@mongo_config_have_asn1_any_definitions@", "MONGO_CONFIG_HAVE_ASN1_ANY_DEFINITIONS"),
+        ("@mongo_config_ssl_provider@", "MONGO_CONFIG_SSL_PROVIDER"),
+        ("@mongo_config_ssl@", "MONGO_CONFIG_SSL"),
+        ("@mongo_config_usdt_enabled@", "MONGO_CONFIG_USDT_ENABLED"),
+        ("@mongo_config_usdt_provider@", "MONGO_CONFIG_USDT_PROVIDER"),
+        ("@mongo_config_use_libunwind@", "MONGO_CONFIG_USE_LIBUNWIND"),
+        ("@mongo_config_use_raw_latches@", "MONGO_CONFIG_USE_RAW_LATCHES"),
+        ("@mongo_config_wiredtiger_enabled@", "MONGO_CONFIG_WIREDTIGER_ENABLED"),
+        ("@mongo_config_grpc@", "MONGO_CONFIG_GRPC"),
+        ("@mongo_config_connection_handoff@", "MONGO_CONFIG_CONNECTION_HANDOFF"),
+        ("@mongo_config_glibc_rseq@", "MONGO_CONFIG_GLIBC_RSEQ"),
+        ("@mongo_config_tcmalloc_google@", "MONGO_CONFIG_TCMALLOC_GOOGLE"),
+        ("@mongo_config_tcmalloc_gperf@", "MONGO_CONFIG_TCMALLOC_GPERF"),
+        (
+            "@mongo_config_have_basic_stringbuf_str_rvalue@",
+            "MONGO_CONFIG_HAVE_BASIC_STRINGBUF_STR_RVALUE",
+        ),
+        ("@mongo_config_streams@", "MONGO_CONFIG_STREAMS"),
+        ("@mongo_config_otel@", "MONGO_CONFIG_OTEL"),
+        ("@mongo_config_disagg_storage@", "MONGO_CONFIG_DISAGG_STORAGE"),
+        ("@mongo_config_dev_stacktrace@", "MONGO_CONFIG_DEV_STACKTRACE"),
+        ("@mongo_config_antithesis@", "MONGO_CONFIG_ANTITHESIS"),
+        ("@mongo_config_extensions_signature_verification_secure@", "MONGO_CONFIG_EXT_SIG_SECURE"),
+    )
+    return config_header_substs
+
+
+def generate_config_header(
+    compiler_path, compiler_args, env_vars, logpath, additional_inputs=[], extra_definitions={}
+) -> dict[str, str]:
+    global logfile_path
+    CompilerSettings.compiler_path = compiler_path
+    CompilerSettings.compiler_args = compiler_args
+    CompilerSettings.env_vars = {
+        **json.loads(env_vars),
+    }
+    logfile_path = logpath
+
+    extra_definitions_dict = json.loads(extra_definitions)
+    CompilerSettings.compiler_type = extra_definitions_dict.get("COMPILER_TYPE") or (
+        "msvc-cl" if platform.system() == "Windows" else "gcc"
+    )
+    target_os = extra_definitions_dict.get("TARGET_OS") or platform.system()
+    CompilerSettings.target_os = target_os
+
+    definitions: list[HeaderDefinition] = []
+
+    definitions += glibc_rseq_present_flag()
+    definitions += memset_s_present_flag()
+    definitions += strnlen_present_flag(target_os)
+    definitions += explicit_bzero_present_flag()
+    definitions += pthread_setname_np_present_flag()
+    if (
+        extra_definitions_dict.get("MONGO_CONFIG_SSL_PROVIDER")
+        == "MONGO_CONFIG_SSL_PROVIDER_OPENSSL"
+    ):
+        definitions += fips_mode_set_present_flag()
+        definitions += asn1_present_flag()
+        definitions += ssl_set_ecdh_auto_present_flag()
+        definitions += ssl_ec_key_new_present_flag()
+    definitions += posix_monotonic_clock_present_flag()
+    definitions += execinfo_backtrace_present_flag()
+    target_arch = extra_definitions_dict.get("TARGET_ARCH") or platform.machine()
+    definitions += extended_alignment_flag(target_arch)
+    definitions += altivec_vbpermq_output_flag(target_arch)
+    definitions += usdt_provider_flags(target_os)
+    definitions += basic_stringbuf_str_rvalue_flag()
+    # New checks can be added here
+
+    for key, value in extra_definitions_dict.items():
+        definitions.append(HeaderDefinition(key, value))
+
+    define_map = {
+        definition.key: "1" if definition.value is None else str(definition.value)
+        for definition in definitions
+    }
+    subst_map = {}
+    for subst, define in get_config_header_substs():
+        if define not in define_map:
+            log_check(f"{define} was unchecked and is unused.")
+            subst_map[subst] = f"// #undef {define}"
+        else:
+            subst_map[subst] = f"#define {define} {define_map[define]}"
+    return subst_map

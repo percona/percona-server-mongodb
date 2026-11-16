@@ -45,6 +45,12 @@ load(
     "UNSAFE_VERSION_ID",
 )
 load("//bazel/toolchains/cc/mongo_windows:mongo_windows_cc_toolchain_config.bzl", "MIN_VER_MAP")
+load(
+    "//bazel/toolchains/cc/mongo_windows_cross:windows_rc_helpers.bzl",
+    "windows_cross_rc_include_dirs",
+    "windows_cross_rc_library_dirs",
+    "windows_cross_rc_source",
+)
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("//bazel/config:generate_config_header.bzl", "generate_config_header")
 load("//bazel/auto_header:auto_header.bzl", "binary_srcs_with_all_headers", "build_selects_and_flat_files", "concat_selects", "dedupe_preserve_order", "maybe_all_headers", "maybe_compute_auto_headers", "strings_only")
@@ -1190,6 +1196,7 @@ def idl_generator_impl(ctx):
         executable = action_wrapper if use_macos_local_container else python_interpreter,
         outputs = [gen_source, gen_header],
         inputs = inputs,
+        tools = [ctx.attr._macos_cross_action_wrapper[DefaultInfo].files_to_run] if use_macos_local_container else [],
         arguments = ([python_interpreter] if use_macos_local_container else []) + idlc_arguments,
         mnemonic = "IdlcGenerator",
         env = {"PYTHONPATH": python_path_value},
@@ -1801,9 +1808,16 @@ def _rc_impl(ctx):
 
     include_dirs = ["src", ctx.file.src.dirname]
 
-    # Add $(GENDIR)/src (use backslashes for rc.exe friendliness)
-    gen_src = ctx.var["GENDIR"] + "\\src"
+    # Add $(GENDIR)/src. Forward slashes work with native rc.exe and are
+    # required when llvm-rc runs clang on a Linux RBE worker.
+    gen_src = ctx.var["GENDIR"] + "/src"
     include_dirs.append(gen_src)
+    include_dirs += windows_cross_rc_include_dirs(ctx)
+
+    # llvm-rc does not resolve ICON and manifest paths through its include
+    # directories. Rewrite those paths to the actual Bazel input artifacts for
+    # Linux RBE actions. Native Windows rc.exe retains the original source.
+    rc_source = windows_cross_rc_source(ctx) if ctx.files.rc_tools else ctx.file.src
 
     args = ctx.actions.args()
     args.add("/nologo")
@@ -1812,14 +1826,35 @@ def _rc_impl(ctx):
     for d in defines:
         args.add("/d", d)
     args.add("/fo" + out.path)  # /fo must be joined
-    args.add(ctx.file.src.path)
+    args.add(rc_source.path)
 
+    action_env = {}
+    if ctx.files.rc_tools:
+        action_env = {
+            "PATH": ctx.executable.rc.dirname,
+            "TEMP": "/tmp",
+            "TMP": "/tmp",
+            "TMPDIR": "/tmp",
+        }
+        library_dirs = windows_cross_rc_library_dirs(ctx.files.rc_tools)
+        if library_dirs:
+            # Both llvm-rc and the clang preprocessor inherit this loader path.
+            action_env["LD_LIBRARY_PATH"] = ":".join(library_dirs)
+
+    # llvm-rc invokes clang for preprocessing. Keep that compiler in the action
+    # input tree and expose the directory containing both tools on PATH.
     ctx.actions.run(
         executable = ctx.executable.rc,  # your wrapper
         arguments = [args],
-        inputs = [ctx.file.src] + ctx.files.resources,
+        inputs = [rc_source] + ctx.files.resources + ctx.files.rc_tools + ctx.files.rc_sysroot,
         outputs = [out],
         mnemonic = "WindowsRC",
+        # Cross builds run llvm-rc on a Linux RBE worker. Evergreen's Windows
+        # bazelrc points TMP/TEMP at a Windows drive through --action_env, and
+        # llvm-rc fails with "Unable to create temp file" when that directory
+        # does not exist on the worker, so pin the temporary directory too.
+        env = action_env,
+        use_default_shell_env = bool(ctx.files.rc_tools),
     )
 
     li = cc_common.create_linker_input(
@@ -1842,6 +1877,8 @@ windows_rc_rule = rule(
     attrs = {
         "src": attr.label(mandatory = True, allow_single_file = [".rc"]),
         "resources": attr.label_list(allow_files = True),
+        "rc_tools": attr.label_list(allow_files = True, cfg = "exec"),
+        "rc_sysroot": attr.label_list(allow_files = True, cfg = "exec"),
         "defines": attr.string_list(),
         "rc": attr.label(executable = True, cfg = "exec", allow_files = True),
         "windows_version_minimal": attr.label(),
@@ -1896,6 +1933,18 @@ def windows_rc(name, src, manifest_in = None, icon = None):
         name = name,
         src = src,
         resources = resources,
+        rc_tools = select({
+            "//bazel/platforms:windows_cross": [
+                "@mongo_windows_cross_toolchain_files//:rc_tools",
+            ],
+            "//conditions:default": [],
+        }),
+        rc_sysroot = select({
+            "//bazel/platforms:windows_cross": [
+                "@mongo_windows_cross_toolchain_files//:rc_sysroot_files",
+            ],
+            "//conditions:default": [],
+        }),
         rc = select({
             "//bazel/platforms:windows_cross": "@mongo_windows_cross_toolchain_files//:rc",
             "@platforms//os:windows": "@mongo_windows_toolchain//:rc",
@@ -1924,12 +1973,25 @@ def mongo_rust_library(name, rustc_flags = [], target_compatible_with = [], **kw
 
 def mongo_rust_shared_library(name, rustc_flags = [], target_compatible_with = [], **kwargs):
     compile_data = kwargs.pop("compile_data", []) + LIBVOIDSTAR_INPUTS
+    features = kwargs.pop("features", [])
     rustc_flags = rustc_flags + MONGO_RUSTC_FIRST_PARTY_FLAGS
     with_debug_name = name + WITH_DEBUG_SUFFIX
     rust_shared_library(
         name = with_debug_name,
         compile_data = compile_data,
-        rustc_flags = rustc_flags,
+        # CI links stripped binaries and debug symbols separately. Use the same
+        # explicit build ID in both modes, as the C++ shared-library rule does.
+        rustc_flags = rustc_flags + select({
+            "//bazel/config:simple_build_id_enabled_linux": ["-Clink-arg=-Wl,--build-id=0x" +
+                                                             hex32(hash(name)) +
+                                                             hex32(hash(name)) +
+                                                             hex32(hash(str(UNSAFE_VERSION_ID) + str(UNSAFE_COMPILE_VARIANT) + str(UNSAFE_COMPILE_TASK_TYPE)))],
+            "//conditions:default": [],
+        }),
+        features = features + select({
+            "//bazel/config:simple_build_id_enabled_linux": ["-build_id"],
+            "//conditions:default": [],
+        }),
         target_compatible_with = target_compatible_with,
         **kwargs
     )

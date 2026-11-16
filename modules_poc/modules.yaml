@@ -280,7 +280,9 @@ query.knobs:
     - src/mongo/db/query/query_knobs/
     - src/mongo/db/query/query_execution_knobs*
     - src/mongo/db/query/query_optimization_knobs*
+    - src/mongo/db/query/query_join_optimization_knobs*
     - src/mongo/db/query/query_knob_descriptors_*
+    - src/mongo/db/query/framework_control*
     - src/mongo/db/query/stage_memory_limit_knobs/
 
 catalog_and_routing:
@@ -658,6 +660,14 @@ observability.metrics:
   files:
     - src/mongo/db/metrics_*
     - src/mongo/otel/metrics/
+
+observability.metrics.framework:
+  meta:
+    slack: db-integration-observability
+    jira: DB Integration & Observability
+    fully_marked: true
+  files:
+    - src/mongo/observability/
 
 observability.ftdc:
   meta:

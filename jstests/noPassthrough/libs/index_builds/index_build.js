@@ -654,6 +654,27 @@ export var IndexBuildTest = class {
     }
 
     /**
+     * Returns this node's index build attempt count document for the build, or null.
+     * @param {Mongo} conn
+     * @param {string} buildUUID
+     */
+    static findIndexBuildAttempts(conn, buildUUID) {
+        return conn
+            .getDB("local")
+            .getCollection("system.indexBuilds")
+            .findOne({_id: UUID(buildUUID)});
+    }
+
+    /**
+     * Waits for the node to remove the index build's attempt count.
+     * @param {Mongo} conn
+     * @param {string} buildUUID
+     */
+    static assertIndexBuildAttemptsRemovedSoon(conn, buildUUID) {
+        assert.soon(() => IndexBuildTest.findIndexBuildAttempts(conn, buildUUID) === null);
+    }
+
+    /**
      * Restarts the node in standalone mode to build the index in a rolling fashion.
      *
      * @param {ReplSetTest} rst

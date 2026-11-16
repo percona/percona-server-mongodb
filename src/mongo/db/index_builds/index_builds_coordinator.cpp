@@ -15,10 +15,12 @@
 #include "mongo/db/feature_flag.h"
 #include "mongo/db/global_catalog/shard_key_pattern.h"
 #include "mongo/db/index_builds/commit_quorum_options.h"
+#include "mongo/db/index_builds/index_build_attempts.h"
 #include "mongo/db/index_builds/index_build_entry_gen.h"
 #include "mongo/db/index_builds/index_build_entry_helpers.h"
 #include "mongo/db/index_builds/index_build_interceptor.h"
 #include "mongo/db/index_builds/index_build_knobs_gen.h"
+#include "mongo/db/index_builds/index_build_votes.h"
 #include "mongo/db/index_builds/index_builds_common.h"
 #include "mongo/db/index_builds/index_builds_manager.h"
 #include "mongo/db/index_builds/multi_index_block.h"
@@ -43,6 +45,7 @@
 #include "mongo/db/server_feature_flags_gen.h"
 #include "mongo/db/server_recovery.h"
 #include "mongo/db/service_context.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/lock_manager/lock_manager_defs.h"
 #include "mongo/db/shard_role/shard_catalog/catalog_raii.h"
@@ -168,6 +171,7 @@ public:
                            failedDueToDuplicateKeyError.loadRelaxed());
         indexBuilds.append("failedDueToManualCancellation",
                            failedDueToManualCancellation.loadRelaxed());
+        indexBuilds.append("exceededAttemptLimit", exceededAttemptLimit.loadRelaxed());
         // Computed at read time so a build currently stalled on ticket admission shows its
         // in-progress wait growing in real time, not just once it is granted a ticket.
         indexBuilds.append("timeQueuedForTicketsMicros", ticketQueueTime.totalMicros());
@@ -209,6 +213,9 @@ public:
     // The number of times an index build has failed due to the user dropping the index before
     // it is committed.
     Atomic<int> failedDueToManualCancellation{0};
+
+    // Index builds that exceeded maxIndexBuildAttemptsAfterUncleanShutdown on this node.
+    Atomic<int> exceededAttemptLimit{0};
 
     //
     // Execution ticket metrics.
@@ -383,6 +390,42 @@ void removeIndexBuildEntryAfterCommitOrAbort(OperationContext* opCtx,
     }
 }
 
+/**
+ * Whether the build's attempts are counted in 'local.system.indexBuilds'.
+ */
+bool shouldCountIndexBuildAttempts(const ReplIndexBuildState& replState) {
+    return replState.protocol == IndexBuildProtocol::kTwoPhase && !replState.dbName.isConfigDB();
+}
+
+struct IndexBuildAttemptsLocks {
+    boost::optional<Lock::DBLock> dbLock;
+    boost::optional<Lock::CollectionLock> collLock;
+};
+
+/**
+ * Locks the attempt counts collection. Call before locking 'config.system.indexBuilds', so the
+ * commit or abort locks 'local' then 'config', preserving the existing lock ordering paradigm.
+ * Takes only the locks, since acquiring the collection would pin a catalog snapshot that a
+ * concurrent DDL operation can make stale.
+ */
+void lockIndexBuildAttemptsForCommitOrAbort(OperationContext* opCtx,
+                                            const ReplIndexBuildState& replState,
+                                            IndexBuildAttemptsLocks& locks) {
+    if (shouldCountIndexBuildAttempts(replState)) {
+        locks.dbLock.emplace(opCtx, DatabaseName::kLocal, MODE_IX);
+        locks.collLock.emplace(opCtx, NamespaceString::kLocalIndexBuildsNamespace, MODE_IX);
+    }
+}
+
+/**
+ * Deletes the index build's attempt count in the commit or abort's unit of work.
+ */
+void removeIndexBuildAttemptEntryOnCommitOrAbort(OperationContext* opCtx,
+                                                 const ReplIndexBuildState& replState) {
+    if (shouldCountIndexBuildAttempts(replState)) {
+        index_builds::build_attempts::two_phase::removeEntry(opCtx, replState.buildUUID);
+    }
+}
 
 /**
  * Replicates a commitIndexBuild oplog entry for two-phase builds, which signals downstream
@@ -1862,10 +1905,12 @@ bool IndexBuildsCoordinator::abortIndexBuildByBuildUUID(OperationContext* opCtx,
         const auto lockOptions = makeAutoGetCollectionOptions(
             IndexBuildProtocol::kSinglePhase == replState->protocol, desiredIntent);
         boost::optional<AutoGetCollection> autoGetColl;
+        IndexBuildAttemptsLocks attemptsLocks;
         boost::optional<AutoGetCollection> indexBuildEntryColl;
         boost::optional<rss::consensus::IntentGuard> abortIntentGuard;
         try {
             autoGetColl.emplace(opCtx, dbAndUUID, MODE_X, lockOptions);
+            lockIndexBuildAttemptsForCommitOrAbort(opCtx, *replState, attemptsLocks);
             // Same options used here in order to avoid locking the RSTL after having taken the
             // Global lock.
             indexBuildEntryColl.emplace(
@@ -1999,6 +2044,7 @@ void IndexBuildsCoordinator::_completeAbort(OperationContext* opCtx,
                       str::stream() << "singlePhase: "
                                     << (IndexBuildProtocol::kSinglePhase == replState->protocol));
             auto onCleanUpFn = [&] {
+                removeIndexBuildAttemptEntryOnCommitOrAbort(opCtx, *replState);
                 onAbortIndexBuild(opCtx, coll->ns(), *replState, coll->isTimeseriesCollection());
             };
             _indexBuildsManager.abortIndexBuild(opCtx, coll, replState->buildUUID, onCleanUpFn);
@@ -2030,8 +2076,9 @@ void IndexBuildsCoordinator::_completeAbort(OperationContext* opCtx,
             invariant(IndexBuildProtocol::kTwoPhase == replState->protocol ||
                       IndexBuildProtocol::kPrimaryDriven == replState->protocol);
             replState->onOplogAbort(opCtx, nss);
-            _indexBuildsManager.abortIndexBuild(
-                opCtx, coll, replState->buildUUID, MultiIndexBlock::kNoopOnCleanUpFn);
+            _indexBuildsManager.abortIndexBuild(opCtx, coll, replState->buildUUID, [&] {
+                removeIndexBuildAttemptEntryOnCommitOrAbort(opCtx, *replState);
+            });
             break;
         }
         case IndexBuildAction::kRollbackAbort: {
@@ -3623,6 +3670,8 @@ void IndexBuildsCoordinator::_cleanUpTwoPhaseAfterNonShutdownFailure(
                                                    << replState->dbName.toStringForErrorMsg()));
                     }
 
+                    IndexBuildAttemptsLocks attemptsLocks;
+                    lockIndexBuildAttemptsForCommitOrAbort(abortCtx, *replState, attemptsLocks);
                     AutoGetCollection indexBuildEntryColl(
                         abortCtx, NamespaceString::kIndexBuildEntryNamespace, MODE_IX);
                     _completeSelfAbort(abortCtx, replState, *indexBuildEntryColl);
@@ -3646,6 +3695,58 @@ void IndexBuildsCoordinator::_cleanUpTwoPhaseAfterNonShutdownFailure(
         });
 }
 
+void IndexBuildsCoordinator::_signalPrimaryForAbortIfOverAttemptLimit(
+    OperationContext* opCtx, ReplIndexBuildState& replState) {
+    if (index_builds::build_attempts::two_phase::checkWithinAttemptLimit(opCtx,
+                                                                         replState.buildUUID)) {
+        return;
+    }
+    const auto limit = gMaxIndexBuildAttemptsAfterUncleanShutdown.load();
+    const auto reason =
+        fmt::format("Index build exceeded maxIndexBuildAttemptsAfterUncleanShutdown ({})", limit);
+    LOGV2(13756400,
+          "Index build: exceeded the index build attempt limit, asking the primary to abort",
+          "buildUUID"_attr = replState.buildUUID,
+          "collectionUUID"_attr = replState.collectionUUID,
+          "limit"_attr = limit);
+    // Count before voting, since the primary's abort can kill this operation mid-vote.
+    indexBuildsSSS.exceededAttemptLimit.addAndFetch(1);
+
+    switch (index_builds::votes::runVoteAbortCommand(opCtx, replState, reason)) {
+        case index_builds::votes::AbortVoteResult::kAccepted:
+            // TODO SERVER-138112: The failure path votes to abort again. Skip that second vote.
+            uasserted(ErrorCodes::IndexBuildAborted, reason);
+        case index_builds::votes::AbortVoteResult::kRefused:
+            // The primary also refuses once it has aborted, so wait for its commit or abort.
+            LOGV2(13756404,
+                  "Index build: the primary refused to abort, waiting for its commit or abort",
+                  "buildUUID"_attr = replState.buildUUID,
+                  "collectionUUID"_attr = replState.collectionUUID);
+            replState.getNextActionFuture().wait(opCtx);
+            break;
+        case index_builds::votes::AbortVoteResult::kSignaled:
+            break;
+    }
+    // An abort kills this operation before signaling the build, so past this check the build has
+    // committed.
+    opCtx->checkForInterrupt();
+    const auto nextAction = replState.getNextActionNoWait();
+    tassert(13756402,
+            "Expected a commit signal before scanning past the index build attempt limit",
+            nextAction == IndexBuildAction::kOplogCommit ||
+                nextAction == IndexBuildAction::kCommitQuorumSatisfied);
+
+    // A committed build can't be aborted, so this node must do a best-effort attempt to finish it.
+    LOGV2_WARNING(
+        13756401,
+        "Index build: the primary committed or is committing this build, so scanning "
+        "despite the index build attempt limit. If this node keeps crashing during the build, "
+        "resync it",
+        "buildUUID"_attr = replState.buildUUID,
+        "collectionUUID"_attr = replState.collectionUUID,
+        "limit"_attr = limit);
+}
+
 void IndexBuildsCoordinator::_runIndexBuildInner(
     OperationContext* opCtx,
     std::shared_ptr<ReplIndexBuildState> replState,
@@ -3665,6 +3766,10 @@ void IndexBuildsCoordinator::_runIndexBuildInner(
             [&](const BSONObj& data) {
                 return UUID::parse(data["buildUUID"]) == replState->buildUUID;
             });
+
+        if (shouldCountIndexBuildAttempts(*replState)) {
+            _signalPrimaryForAbortIfOverAttemptLimit(opCtx, *replState);
+        }
 
         // Index builds can safely ignore prepare conflicts and perform writes. On secondaries,
         // prepare operations wait for index builds to complete.
@@ -4175,6 +4280,7 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
         return CommitResult::kLockTimeout;
     }
 
+    IndexBuildAttemptsLocks attemptsLocks;
     boost::optional<AutoGetCollection> indexBuildEntryColl;
 
     auto autoGetCollOptions = auto_get_collection::Options{}.globalLockOptions(
@@ -4182,6 +4288,7 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
                                     ? rss::consensus::IntentRegistry::Intent::Write
                                     : rss::consensus::IntentRegistry::Intent::LocalWrite});
     try {
+        lockIndexBuildAttemptsForCommitOrAbort(opCtx, *replState, attemptsLocks);
         indexBuildEntryColl.emplace(
             opCtx, NamespaceString::kIndexBuildEntryNamespace, MODE_IX, autoGetCollOptions);
     } catch (const ExceptionFor<ErrorCodes::NotWritablePrimary>&) {
@@ -4273,6 +4380,7 @@ IndexBuildsCoordinator::CommitResult IndexBuildsCoordinator::_insertKeysFromSide
             const bool shouldReplicate =
                 replState->protocol == IndexBuildProtocol::kPrimaryDriven &&
                 IndexBuildAction::kOplogCommit != action;
+            removeIndexBuildAttemptEntryOnCommitOrAbort(opCtx, *replState);
             onCommitIndexBuild(opCtx,
                                collection->ns(),
                                replState,

@@ -96,7 +96,6 @@ const kInternalClientTypeStages = new Set([
     "$_internalChangeStreamAddPreImage",
     "$_internalChangeStreamCheckInvalidate",
     "$_internalChangeStreamCheckResumability",
-    "$_internalChangeStreamCheckTopologyChange",
     "$_internalChangeStreamHandleTopologyChange",
     "$_internalChangeStreamInjectControlEvents",
     "$_internalChangeStreamOplogMatch",
@@ -106,6 +105,8 @@ const kInternalClientTypeStages = new Set([
     "$_internalDensify",
     // Find-and-modify oplog image lookup
     "$_internalFindAndModifyImageLookup",
+    "$_internalComputeGeoNearDistance",
+    "$_internalListCollections",
     // Search
     "$_internalDocumentResultsAndMetadata",
     "$_internalHybridSearch",
@@ -142,10 +143,13 @@ const kInternalClientTypeStages = new Set([
  * kInternal.
  */
 const kApiStrictInternalStages = new Set([
+    // Intentionally external behind a dedicated privilege: allCollectionStats
+    // action granted to clusterMonitor; readBackupFile granted to the backup role.
     "$_internalAllCollectionStats",
-    "$_internalComputeGeoNearDistance",
+    // Intentionally kAny: the view-based timeseries rewrite embeds this stage as plain BSON in the
+    // resolved pipeline, which mongod re-parses under the external client's context, so a kInternal
+    // client type would break user-facing $indexStats on view-based timeseries collections.
     "$_internalConvertBucketIndexStats",
-    "$_internalListCollections",
     // Enterprise hot-backup (absent in community builds)
     "$_backupFile",
 ]);
