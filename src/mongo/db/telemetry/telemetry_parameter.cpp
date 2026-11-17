@@ -50,8 +50,7 @@ class TenantId;
 
 void TelemetryParameter::append(OperationContext* opCtx,
                                 BSONObjBuilder* b,
-                                std::string_view name,
-                                const boost::optional<TenantId>& tenantId) {
+                                std::string_view name) {
     b->append(name, _data.load());
 }
 
@@ -65,16 +64,14 @@ Status _set(AtomicWord<bool>* data, bool value) {
 
 }  // namespace
 
-Status TelemetryParameter::set(const BSONElement& newValueElement,
-                               const boost::optional<TenantId>&) {
+Status TelemetryParameter::set(const BSONElement& newValueElement) {
     if (!newValueElement.isBoolean()) {
         return {ErrorCodes::BadValue, str::stream() << name() << " has to be a boolean"};
     }
     return _set(&_data, newValueElement.boolean());
 }
 
-Status TelemetryParameter::setFromString(std::string_view newValueString,
-                                         const boost::optional<TenantId>&) {
+Status TelemetryParameter::setFromString(std::string_view newValueString) {
     if (newValueString == "true"sv || newValueString == "1"sv) {
         return _set(&_data, true);
     }

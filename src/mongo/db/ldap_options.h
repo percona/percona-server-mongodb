@@ -86,8 +86,7 @@ Status validateLDAPAuthzQueryTemplate(const std::string&);
 Status onUpdateLDAPUserToDNCacheParam(const int&);
 Status onUpdateLDAPUserToDNMapping(const std::string&);
 
-Status validateLDAPUserToDNMappingServerParam(const std::string&, const boost::optional<TenantId>&);
-Status validateLDAPAuthzQueryTemplateServerParam(const std::string&,
-                                                 const boost::optional<TenantId>&);
+Status validateLDAPUserToDNMappingServerParam(const std::string&);
+Status validateLDAPAuthzQueryTemplateServerParam(const std::string&);
 
 }  // namespace mongo

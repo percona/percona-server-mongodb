@@ -67,12 +67,11 @@ std::string_view getTelemetryPath() {
 
 void TelemetryPath::append(OperationContext*,
                            BSONObjBuilder* bob,
-                           std::string_view name,
-                           const boost::optional<TenantId>&) {
+                           std::string_view name) {
     bob->append(name, getTelemetryPath());
 }
 
-Status TelemetryPath::setFromString(std::string_view str, const boost::optional<TenantId>&) {
+Status TelemetryPath::setFromString(std::string_view str) {
     telemetryPath = std::string{str};
     return Status::OK();
 }
