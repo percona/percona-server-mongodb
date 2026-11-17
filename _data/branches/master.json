@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 35,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.66323119494213,
-    "files_affected": 389,
-    "total_additions": 8985,
-    "total_deletions": 4211,
+    "commits_behind": 47,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.017006339282407,
+    "files_affected": 437,
+    "total_additions": 10459,
+    "total_deletions": 4424,
     "date_range": {
       "first": "2026-11-07T05:43:22+00:00",
-      "last": "2026-11-09T20:47:47+00:00"
+      "last": "2026-11-10T05:11:00+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,126 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "03b307ca471fbd01e999dfdc32816d594555438d",
+      "short_sha": "03b307ca471",
+      "date": "2026-11-10T05:11:00+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-138037 Add a compact hash agg $push accumulator (#65369)\" (#66445)"
+    },
+    {
+      "sha": "31af16d83e50ecc2f81a84233f2a007c0c6a6a5a",
+      "short_sha": "31af16d83e5",
+      "date": "2026-11-10T03:41:00+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-139039 Antimaterialize lookup-unwind inlj (#66388)"
+    },
+    {
+      "sha": "615728afb53a50b90979587458eab4ce89ef00dd",
+      "short_sha": "615728afb53",
+      "date": "2026-11-10T00:48:37+00:00",
+      "author": {
+        "name": "Benjamin Pearce",
+        "email": "benjamin.pearce@mongodb.com"
+      },
+      "summary": "SERVER-133447 Fix missing check for record ordering across slice bounds (#65806)"
+    },
+    {
+      "sha": "ce8f4bb5c1c7bb87cbf4a76af951b3752460e7bc",
+      "short_sha": "ce8f4bb5c1c",
+      "date": "2026-11-09T23:29:56+00:00",
+      "author": {
+        "name": "Matthew Boros",
+        "email": "mattBoros@users.noreply.github.com"
+      },
+      "summary": "SERVER-138436 Replace BSON creation at end of SBE plans with ResultMaterializer for LU queries (#66203)"
+    },
+    {
+      "sha": "401f0c02aad2e70a5b2a65b601138173d836fbae",
+      "short_sha": "401f0c02aad",
+      "date": "2026-11-09T23:23:28+00:00",
+      "author": {
+        "name": "Matt Kneiser",
+        "email": "matt.kneiser@mongodb.com"
+      },
+      "summary": "SERVER-138910 Generate one failure per test for test_api_version compatibility (#66301)"
+    },
+    {
+      "sha": "4d2d634d7d9b5742225b656e93ef1844c8ea57ae",
+      "short_sha": "4d2d634d7d9",
+      "date": "2026-11-09T22:40:33+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-139031 Name the argument positions of makeObj() and makeBsonObj() calls (#66400)"
+    },
+    {
+      "sha": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+      "short_sha": "c6c8de547bc",
+      "date": "2026-11-09T22:25:29+00:00",
+      "author": {
+        "name": "Brian Welch",
+        "email": "brian.welch@mongodb.com"
+      },
+      "summary": "SERVER-138797 Allow a regex element to end at the end of its buffer (#66264)"
+    },
+    {
+      "sha": "60e2297df0e49c0d919ee96d882d56f501c1c12a",
+      "short_sha": "60e2297df0e",
+      "date": "2026-11-09T22:08:32+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138742 Run SBE blueprint dead slot elimination in the stage builder behind featureFlagSbeBlueprintRewrites (#66162)"
+    },
+    {
+      "sha": "888079ce549ece3ab3ef7b8b08998367420c2cc1",
+      "short_sha": "888079ce549",
+      "date": "2026-11-09T22:08:30+00:00",
+      "author": {
+        "name": "Brad Cater",
+        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+      },
+      "summary": "SERVER-139006 Don't register a write intent for an operation that has been killed (#66365)"
+    },
+    {
+      "sha": "81e200414c7027ddc8fe3d09683d0ff86f5d7f48",
+      "short_sha": "81e200414c7",
+      "date": "2026-11-09T22:07:11+00:00",
+      "author": {
+        "name": "Gregory Wlodarek",
+        "email": "gregory.wlodarek@mongodb.com"
+      },
+      "summary": "SERVER-138938 Teach Coverity about synchronized_value locking (#66316)"
+    },
+    {
+      "sha": "437b31bc614a98fd7ed8bf010a06ffb2b6486d45",
+      "short_sha": "437b31bc614",
+      "date": "2026-11-09T21:43:54+00:00",
+      "author": {
+        "name": "Evan Bergeron",
+        "email": "evanbergeron@users.noreply.github.com"
+      },
+      "summary": "SERVER-138037 Add a compact hash agg $push accumulator (#65369)"
+    },
+    {
+      "sha": "55e299d3903e483ab18e7228ab72ea594f346a9d",
+      "short_sha": "55e299d3903",
+      "date": "2026-11-09T21:32:58+00:00",
+      "author": {
+        "name": "Lynne Wang",
+        "email": "lynne.wang@mongodb.com"
+      },
+      "summary": "SERVER-138112 Skip the second voteAbortIndexBuild after the index build attempt limit's abort is accepted (#66257)"
+    },
     {
       "sha": "e16cc0d636b10d987f66b36a5167fe16e5c98612",
       "short_sha": "e16cc0d636b",
@@ -433,10 +553,31 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+        "short_sha": "c6c8de547bc",
+        "date": "2026-11-09T22:25:29+00:00",
+        "author": {
+          "name": "Brian Welch",
+          "email": "brian.welch@mongodb.com"
+        },
+        "summary": "SERVER-138797 Allow a regex element to end at the end of its buffer (#66264)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-c6c8de547bc/conflict",
+          "mergai/master-c6c8de547bc/solution",
+          "mongodb"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-16 21:38:18",
+  "generated_at": "2026-11-17 06:07:39",
   "branch_name": "master",
   "display_name": "master"
 }
