@@ -30,7 +30,6 @@
 #include "mongo/db/storage/wiredtiger/wiredtiger_session.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_size_storer.h"
 #include "mongo/db/storage/wiredtiger/wiredtiger_snapshot_manager.h"
-#include "mongo/db/tenant_id.h"
 #include "mongo/logv2/log_component.h"
 #include "mongo/otel/metrics/instrumentation/wiredtiger_metric_registry.h"
 #include "mongo/platform/atomic.h"
@@ -86,8 +85,7 @@ class WiredTigerRecoveryUnit;
 std::string extractIdentFromPath(const boost::filesystem::path& dbpath,
                                  const boost::filesystem::path& identAbsolutePath);
 
-Status validateExtraDiagnostics(const std::vector<std::string>& value,
-                                const boost::optional<TenantId>& tenantId);
+Status validateExtraDiagnostics(const std::vector<std::string>& value);
 
 struct WiredTigerFileVersion {
     // MongoDB 4.4+ will not open on datafiles left behind by 4.2.5 and earlier. MongoDB 4.4

@@ -43,8 +43,7 @@ using namespace std::literals::string_view_literals;
 
 void RedactClientLogDataParameter::append(OperationContext* txn,
                                           BSONObjBuilder* b,
-                                          std::string_view name,
-                                          const boost::optional<TenantId>&) {
+                                          std::string_view name) {
     b->append(name, logv2::shouldRedactLogs());
 }
 
@@ -57,16 +56,14 @@ Status _set(bool v) {
 
 }  // namespace
 
-Status RedactClientLogDataParameter::set(const BSONElement& newValueElement,
-                                         const boost::optional<TenantId>&) {
+Status RedactClientLogDataParameter::set(const BSONElement& newValueElement) {
     if (!newValueElement.isBoolean()) {
         return Status(ErrorCodes::BadValue, str::stream() << name() << " has to be a boolean");
     }
     return _set(newValueElement.boolean());
 }
 
-Status RedactClientLogDataParameter::setFromString(std::string_view newValueString,
-                                                   const boost::optional<TenantId>&) {
+Status RedactClientLogDataParameter::setFromString(std::string_view newValueString) {
     if (newValueString == "true"sv || newValueString == "1"sv)
         return _set(true);
     if (newValueString == "false"sv || newValueString == "0"sv)

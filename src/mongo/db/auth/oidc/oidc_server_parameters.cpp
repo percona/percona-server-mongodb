@@ -235,8 +235,7 @@ void paramDeserialize(OidcIdentityProvidersServerParameter& param, const BSONArr
 
 void OidcIdentityProvidersServerParameter::append(OperationContext*,
                                                   BSONObjBuilder* b,
-                                                  std::string_view name,
-                                                  const boost::optional<TenantId>&) {
+                                                  std::string_view name) {
     BSONArrayBuilder configArrayBuilder{b->subarrayStart(name)};
     for (const auto& config : _data) {
         BSONObjBuilder configBuilder{configArrayBuilder.subobjStart()};
@@ -246,8 +245,7 @@ void OidcIdentityProvidersServerParameter::append(OperationContext*,
     configArrayBuilder.doneFast();
 }
 
-Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem,
-                                                 const boost::optional<TenantId>&) try {
+Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem) try {
     IDLParserContext ctx{kParameterName};
     ctx.checkAndAssertType(elem, mongo::BSONType::array);
     paramDeserialize(*this, BSONArray(elem.Obj()));
@@ -256,8 +254,7 @@ Status OidcIdentityProvidersServerParameter::set(const BSONElement& elem,
     return e.toStatus();
 }
 
-Status OidcIdentityProvidersServerParameter::setFromString(std::string_view str,
-                                                           const boost::optional<TenantId>&) try {
+Status OidcIdentityProvidersServerParameter::setFromString(std::string_view str) try {
     uassert(ErrorCodes::TypeMismatch,
             str::stream() << "`" << kParameterName << "` is not an array serialized to a string",
             JParse(str).isArray());

@@ -110,13 +110,11 @@ void invalidateLDAPConnections() {
 
 void LDAPServersParameter::append(OperationContext*,
                                   BSONObjBuilder* b,
-                                  std::string_view name,
-                                  const boost::optional<TenantId>&) {
+                                  std::string_view name) {
     b->append(name, ldapGlobalParams.getServersStr());
 }
 
-Status LDAPServersParameter::setFromString(std::string_view newValueString,
-                                           const boost::optional<TenantId>&) {
+Status LDAPServersParameter::setFromString(std::string_view newValueString) {
     ldapGlobalParams.setServersStr(newValueString);
     invalidateLDAPConnections();
     return Status::OK();
@@ -124,13 +122,11 @@ Status LDAPServersParameter::setFromString(std::string_view newValueString,
 
 void LDAPQueryUserParameter::append(OperationContext*,
                                     BSONObjBuilder* b,
-                                    std::string_view name,
-                                    const boost::optional<TenantId>&) {
+                                    std::string_view name) {
     b->append(name, ldapGlobalParams.ldapQueryUser.get());
 }
 
-Status LDAPQueryUserParameter::setFromString(std::string_view newValueString,
-                                             const boost::optional<TenantId>&) {
+Status LDAPQueryUserParameter::setFromString(std::string_view newValueString) {
     ldapGlobalParams.ldapQueryUser = std::string(newValueString);
     invalidateLDAPConnections();
     return Status::OK();
@@ -139,8 +135,7 @@ Status LDAPQueryUserParameter::setFromString(std::string_view newValueString,
 // We do not implement LDAPQueryPasswordParameter:append here because this parameter has redact=true
 // so this method is implemented by idl generator
 
-Status LDAPQueryPasswordParameter::setFromString(std::string_view newValueString,
-                                                 const boost::optional<TenantId>&) {
+Status LDAPQueryPasswordParameter::setFromString(std::string_view newValueString) {
     ldapGlobalParams.ldapQueryPassword = std::string(newValueString);
     invalidateLDAPConnections();
     return Status::OK();
@@ -245,8 +240,7 @@ Status validateLDAPUserToDNMapping(const std::string& mapping) {
     return Status::OK();
 }
 
-Status validateLDAPUserToDNMappingServerParam(const std::string& mapping,
-                                              [[maybe_unused]] const boost::optional<TenantId>&) {
+Status validateLDAPUserToDNMappingServerParam(const std::string& mapping) {
     return validateLDAPUserToDNMapping(mapping);
 }
 
@@ -292,8 +286,7 @@ Status validateLDAPAuthzQueryTemplate(const std::string& templ) {
     return Status::OK();
 }
 
-Status validateLDAPAuthzQueryTemplateServerParam(const std::string& templ,
-                                                 const boost::optional<TenantId>&) {
+Status validateLDAPAuthzQueryTemplateServerParam(const std::string& templ) {
     return validateLDAPAuthzQueryTemplate(templ);
 }
 

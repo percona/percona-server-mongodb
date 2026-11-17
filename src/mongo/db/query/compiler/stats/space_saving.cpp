@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iomanip>
+#include <iterator>
 #include <limits>
 #include <sstream>
 #include <utility>
@@ -18,49 +19,38 @@ std::string MCVEntry::toString() const {
     return os.str();
 }
 
-SpaceSavingSketch::SpaceSavingSketch(size_t k)
-    : _k(std::max(k, kMinNumCounters)), _table(0, sbe::value::ValueHash(), sbe::value::ValueEq()) {
+SpaceSavingSketch::SpaceSavingSketch(size_t k, const CollatorInterface* collator)
+    : _k(std::max(k, kMinNumCounters)),
+      _collator(collator),
+      _table(0, sbe::value::ValueHash(collator), sbe::value::ValueEq(collator)) {
     _counters.reserve(_k);
     _table.reserve(_k);
     // At most k non-empty buckets can exist at once, one per counter.
     _bucketPool.resize(_k);
-    for (auto& bucket : _bucketPool) {
-        bucket._next = _freeBuckets;
-        _freeBuckets = &bucket;
-    }
+    _freeBuckets.assign(_bucketPool.begin(), _bucketPool.end());
 }
 
-void SpaceSavingSketch::_insertIntoBucketBefore(Element* element, Bucket* before, size_t count) {
+void SpaceSavingSketch::_insertIntoBucketBefore(Element* element,
+                                                BucketList::iterator before,
+                                                size_t count) {
     Bucket* bucket;
-    if (before && before->_count == count) {
-        bucket = before;
+    if (before != _buckets.end() && before->_count == count) {
+        bucket = &*before;
     } else {
-        bucket = _freeBuckets;
-        _freeBuckets = bucket->_next;
+        bucket = &_freeBuckets.front();
         bucket->_count = count;
-        bucket->_head = bucket->_tail = nullptr;
-        bucket->_next = before;
-        bucket->_prev = before ? before->_prev : _maxBucket;
-        (bucket->_prev ? bucket->_prev->_next : _minBucket) = bucket;
-        (before ? before->_prev : _maxBucket) = bucket;
+        _buckets.splice(before, _freeBuckets, _freeBuckets.begin());
     }
     element->_bucket = bucket;
-    element->_prev = nullptr;
-    element->_next = bucket->_head;
-    (bucket->_head ? bucket->_head->_prev : bucket->_tail) = element;
-    bucket->_head = element;
+    bucket->_elements.push_front(*element);
 }
 
 void SpaceSavingSketch::_removeFromBucket(Element* element) {
     Bucket* bucket = element->_bucket;
-    (element->_prev ? element->_prev->_next : bucket->_head) = element->_next;
-    (element->_next ? element->_next->_prev : bucket->_tail) = element->_prev;
+    element->_hook.unlink();
     element->_bucket = nullptr;
-    if (!bucket->_head) {
-        (bucket->_prev ? bucket->_prev->_next : _minBucket) = bucket->_next;
-        (bucket->_next ? bucket->_next->_prev : _maxBucket) = bucket->_prev;
-        bucket->_next = _freeBuckets;
-        _freeBuckets = bucket;
+    if (bucket->_elements.empty()) {
+        _freeBuckets.splice(_freeBuckets.begin(), _buckets, _buckets.iterator_to(*bucket));
     }
 }
 
@@ -72,7 +62,7 @@ void SpaceSavingSketch::increment(const SBEValue& value) {
         Element* element = it->second;
         const size_t nextCount = element->_bucket->_count + 1;
         // Still valid if the element's bucket is released below.
-        Bucket* const next = element->_bucket->_next;
+        const auto next = std::next(_buckets.iterator_to(*element->_bucket));
         _removeFromBucket(element);
         _insertIntoBucketBefore(element, next, nextCount);
         return;
@@ -82,21 +72,26 @@ void SpaceSavingSketch::increment(const SBEValue& value) {
         // There are unused counters left: create a new counter with count 1 and no error.
         _counters.push_back(Element{SBEValue{value}});
         Element* element = &_counters.back();
-        _insertIntoBucketBefore(element, _minBucket, 1);
+        _insertIntoBucketBefore(element, _buckets.begin(), 1);
         _table.insert(element->_value.get(), element);
         return;
     }
 
-    // All k counters are used: evict the tail of the minimum-count bucket and reuse its counter for
+    // All k counters are used: evict the back of the minimum-count bucket and reuse its counter for
     // the newcomer. The estimate is set to the evicted count plus 1 and the error term is set to
     // the evicted count. The newcomer's true count is thereby bounded between 1 and the evicted
     // count + 1.
-    Element* reusedElement = _minBucket->_tail;
-    const size_t evictedCount = _minBucket->_count;
-    Bucket* const next = _minBucket->_next;
+    Bucket& minBucket = _buckets.front();
+    Element* reusedElement = &minBucket._elements.back();
+    const size_t evictedCount = minBucket._count;
+    const auto next = std::next(_buckets.begin());
+    // Copy first: the copy can throw, and nothing may be unlinked or overwritten before it
+    // succeeds. The final '_table.insert' below can't throw because '_table.reserve(_k)' in the
+    // constructor guarantees it never needs to allocate.
+    SBEValue newValue{value};
     _table.erase(_table.find(reusedElement->_value.get()));
     _removeFromBucket(reusedElement);
-    reusedElement->_value = SBEValue{value};
+    reusedElement->_value = std::move(newValue);
     reusedElement->_err = evictedCount;
     _insertIntoBucketBefore(reusedElement, next, evictedCount + 1);
     _table.insert(reusedElement->_value.get(), reusedElement);
@@ -108,18 +103,22 @@ std::vector<MCVEntry> SpaceSavingSketch::getTopK() const {
     for (const auto& counter : _counters) {
         entries.emplace_back(SBEValue{counter._value}, counter._bucket->_count, counter._err);
     }
-    std::sort(entries.begin(), entries.end(), [](const MCVEntry& a, const MCVEntry& b) {
+    const sbe::value::ValueCompare<true> compare(_table.key_eq().getCollator());
+    std::sort(entries.begin(), entries.end(), [compare](const MCVEntry& a, const MCVEntry& b) {
         if (a.estFreq != b.estFreq) {
             return a.estFreq > b.estFreq;
         }
-        return compareValues(
-                   a.value.getTag(), a.value.getValue(), b.value.getTag(), b.value.getValue()) < 0;
+        // Break ties under the sketch's collation so that the order is consistent with the
+        // equivalence the hash table uses.
+        return compare(a.value.get(), b.value.get());
     });
     return entries;
 }
 
-MostCommonValues MostCommonValues::make(const std::vector<SBEValue>& values, size_t k) {
-    SpaceSavingSketch sketch(k);
+MostCommonValues MostCommonValues::make(const std::vector<SBEValue>& values,
+                                        size_t k,
+                                        const CollatorInterface* collator) {
+    SpaceSavingSketch sketch(k, collator);
     for (const auto& value : values) {
         sketch.increment(value);
     }

@@ -6,6 +6,10 @@ load("//bazel/uv:defs.bzl", "dependency")
 package(default_visibility = ["//visibility:public"])
 
 exports_files([
+    "external_auth_gcp_requirements.txt",
+    "external_auth_gcp_setup.sh",
+    "external_auth_gcp_teardown.sh",
+    "external_auth_gcp_venv.sh",
     "package_test_cleanup.sh",
     "prelude.sh",
     "remote_execution_containers_generate.sh",
@@ -567,6 +571,17 @@ sh_binary(
 sh_binary(
     name = "restore_git_history_and_tags",
     srcs = ["restore_git_history_and_tags.sh"],
+)
+
+sh_test(
+    name = "restore_git_history_and_tags_test",
+    srcs = ["restore_git_history_and_tags_test.sh"],
+    data = [
+        "restore_git_history_and_tags.sh",
+        "retry_git.sh",
+    ],
+    tags = ["no-remote"],  # Exercises fetches with the host's Git installation.
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 sh_binary(
