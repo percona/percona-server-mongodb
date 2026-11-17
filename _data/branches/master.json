@@ -5,188 +5,170 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 12,
+    "commits_behind": 10,
     "days_behind": 7,
-    "unmerged_oldest_age_days": 7.4880466605092595,
-    "files_affected": 48,
-    "total_additions": 1474,
-    "total_deletions": 213,
+    "unmerged_oldest_age_days": 7.267687828321759,
+    "files_affected": 62,
+    "total_additions": 5718,
+    "total_deletions": 4081,
     "date_range": {
-      "first": "2026-11-09T21:32:58+00:00",
-      "last": "2026-11-10T05:11:00+00:00"
+      "first": "2026-11-10T05:54:16+00:00",
+      "last": "2026-11-10T11:24:50+00:00"
     }
   },
   "last_merged_commit": {
-    "sha": "e16cc0d636b10d987f66b36a5167fe16e5c98612",
-    "short_sha": "e16cc0d636b",
-    "date": "2026-11-09T20:47:47+00:00",
+    "sha": "03b307ca471fbd01e999dfdc32816d594555438d",
+    "short_sha": "03b307ca471",
+    "date": "2026-11-10T05:11:00+00:00",
     "author": {
-      "name": "Brett Nawrocki",
-      "email": "90278537+brettnawrocki@users.noreply.github.com"
+      "name": "auto-revert-app[bot]",
+      "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-138245 Resolve and persist resharding tunables on coordinator (#66178)"
+    "summary": "Revert \"SERVER-138037 Add a compact hash agg $push accumulator (#65369)\" (#66445)"
   },
   "first_unmerged_commit": {
-    "sha": "55e299d3903e483ab18e7228ab72ea594f346a9d",
-    "short_sha": "55e299d3903",
-    "date": "2026-11-09T21:32:58+00:00",
+    "sha": "ce588db9320129d9a6f7a343f5d186ba2a7ad531",
+    "short_sha": "ce588db9320",
+    "date": "2026-11-10T05:54:16+00:00",
     "author": {
-      "name": "Lynne Wang",
-      "email": "lynne.wang@mongodb.com"
+      "name": "wt-vendoring-bot[bot]",
+      "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
     },
-    "summary": "SERVER-138112 Skip the second voteAbortIndexBuild after the index build attempt limit's abort is accepted (#66257)"
+    "summary": "Import wiredtiger: 3d8538921410e37096cce9b7ec361ec810987d8b from branch mongodb-master (#66349)"
   },
   "gate": {
     "open": true,
-    "reason": "max_age (7.5d >= 2d)"
+    "reason": "max_age (7.3d >= 2d)"
   },
   "unmerged_commits": [
     {
-      "sha": "03b307ca471fbd01e999dfdc32816d594555438d",
-      "short_sha": "03b307ca471",
-      "date": "2026-11-10T05:11:00+00:00",
+      "sha": "0f262a0121a36ca752965bf01d2694160083e0d3",
+      "short_sha": "0f262a0121a",
+      "date": "2026-11-10T11:24:50+00:00",
       "author": {
-        "name": "auto-revert-app[bot]",
-        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        "name": "Anna Maria Nestorov",
+        "email": "annamaria.nestorov@gmail.com"
       },
-      "summary": "Revert \"SERVER-138037 Add a compact hash agg $push accumulator (#65369)\" (#66445)"
+      "summary": "SERVER-138952 Re-enable secondary_reads_waitForShardingInit.js in no_passthrough_disagg_override_sharded (#66357)"
     },
     {
-      "sha": "31af16d83e50ecc2f81a84233f2a007c0c6a6a5a",
-      "short_sha": "31af16d83e5",
-      "date": "2026-11-10T03:41:00+00:00",
+      "sha": "5db812d25c2e97dcd4f3eb951051c10d27d1aaea",
+      "short_sha": "5db812d25c2",
+      "date": "2026-11-10T11:08:04+00:00",
       "author": {
-        "name": "Matthew Boros",
-        "email": "mattBoros@users.noreply.github.com"
+        "name": "Vadim Piven",
+        "email": "vadim@piven.tech"
       },
-      "summary": "SERVER-139039 Antimaterialize lookup-unwind inlj (#66388)"
+      "summary": "SERVER-137945 Collect MCVs alongside NDV in analyze fieldStats mode (#65935)"
     },
     {
-      "sha": "615728afb53a50b90979587458eab4ce89ef00dd",
-      "short_sha": "615728afb53",
-      "date": "2026-11-10T00:48:37+00:00",
+      "sha": "6bd89788984906c3ace3bc56055c30f1f0a3af66",
+      "short_sha": "6bd89788984",
+      "date": "2026-11-10T10:42:24+00:00",
       "author": {
-        "name": "Benjamin Pearce",
-        "email": "benjamin.pearce@mongodb.com"
+        "name": "Max Verbinnen",
+        "email": "64088654+Max-Verbinnen@users.noreply.github.com"
       },
-      "summary": "SERVER-133447 Fix missing check for record ordering across slice bounds (#65806)"
+      "summary": "SERVER-138000 Fall back from JOO if CBR's only candidate plan cannot be estimated (#66231)"
     },
     {
-      "sha": "ce8f4bb5c1c7bb87cbf4a76af951b3752460e7bc",
-      "short_sha": "ce8f4bb5c1c",
-      "date": "2026-11-09T23:29:56+00:00",
+      "sha": "80caa6e2e23e205ce2572d97d5364a8d12980724",
+      "short_sha": "80caa6e2e23",
+      "date": "2026-11-10T10:33:58+00:00",
       "author": {
-        "name": "Matthew Boros",
-        "email": "mattBoros@users.noreply.github.com"
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
       },
-      "summary": "SERVER-138436 Replace BSON creation at end of SBE plans with ResultMaterializer for LU queries (#66203)"
+      "summary": "SERVER-138624 Introduce PersistentStatsConfig types and update logic (#66155)"
     },
     {
-      "sha": "401f0c02aad2e70a5b2a65b601138173d836fbae",
-      "short_sha": "401f0c02aad",
-      "date": "2026-11-09T23:23:28+00:00",
+      "sha": "9594c334b4f831995a9cfd10595ab37d980159d7",
+      "short_sha": "9594c334b4f",
+      "date": "2026-11-10T09:23:10+00:00",
       "author": {
-        "name": "Matt Kneiser",
-        "email": "matt.kneiser@mongodb.com"
+        "name": "Marco Bizzarri",
+        "email": "marco.bizzarri@mongodb.com"
       },
-      "summary": "SERVER-138910 Generate one failure per test for test_api_version compatibility (#66301)"
+      "summary": "SERVER-138987 Disable the creation of minidump on sharding_metadata_indexes_missing_during_step_up.js (#66364)"
     },
     {
-      "sha": "4d2d634d7d9b5742225b656e93ef1844c8ea57ae",
-      "short_sha": "4d2d634d7d9",
-      "date": "2026-11-09T22:40:33+00:00",
+      "sha": "e97d5ffab4412e7268ea5f0ae2a22535cc0af31c",
+      "short_sha": "e97d5ffab44",
+      "date": "2026-11-10T09:13:07+00:00",
       "author": {
-        "name": "Ian Boros",
-        "email": "87138302+borosaurus@users.noreply.github.com"
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
       },
-      "summary": "SERVER-139031 Name the argument positions of makeObj() and makeBsonObj() calls (#66400)"
+      "summary": "SERVER-110427 Update profiling data (#66441)"
     },
     {
-      "sha": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
-      "short_sha": "c6c8de547bc",
-      "date": "2026-11-09T22:25:29+00:00",
+      "sha": "60f25eeffd265c42685189a2b6066c6ba1a9bd00",
+      "short_sha": "60f25eeffd2",
+      "date": "2026-11-10T08:57:15+00:00",
       "author": {
-        "name": "Brian Welch",
-        "email": "brian.welch@mongodb.com"
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
       },
-      "summary": "SERVER-138797 Allow a regex element to end at the end of its buffer (#66264)"
+      "summary": "SERVER-138937 Cover change stream recovery from a rename invalidate on the renamed collection (#66315)"
     },
     {
-      "sha": "60e2297df0e49c0d919ee96d882d56f501c1c12a",
-      "short_sha": "60e2297df0e",
-      "date": "2026-11-09T22:08:32+00:00",
+      "sha": "23c6b532d909f57dbf0eefe7412eee90ef2b2508",
+      "short_sha": "23c6b532d90",
+      "date": "2026-11-10T08:34:36+00:00",
       "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
+        "name": "Niels Lohmann",
+        "email": "niels.lohmann@mongodb.com"
       },
-      "summary": "SERVER-138742 Run SBE blueprint dead slot elimination in the stage builder behind featureFlagSbeBlueprintRewrites (#66162)"
+      "summary": "SERVER-138861: Update timezone data to 2026f (#66259)"
     },
     {
-      "sha": "888079ce549ece3ab3ef7b8b08998367420c2cc1",
-      "short_sha": "888079ce549",
-      "date": "2026-11-09T22:08:30+00:00",
+      "sha": "78100190fbc781f30ca387e7d4fc8669b130c643",
+      "short_sha": "78100190fbc",
+      "date": "2026-11-10T08:10:10+00:00",
       "author": {
-        "name": "Brad Cater",
-        "email": "152920274+brad-cater-mongodb@users.noreply.github.com"
+        "name": "Joan Bruguera Micó (at MongoDB)",
+        "email": "joan.bruguera-mico@mongodb.com"
       },
-      "summary": "SERVER-139006 Don't register a write intent for an operation that has been killed (#66365)"
+      "summary": "SERVER-138950 Compute listDatabases empty from shard responses, not sizeOnDisk (#66368)"
     },
     {
-      "sha": "81e200414c7027ddc8fe3d09683d0ff86f5d7f48",
-      "short_sha": "81e200414c7",
-      "date": "2026-11-09T22:07:11+00:00",
+      "sha": "ce588db9320129d9a6f7a343f5d186ba2a7ad531",
+      "short_sha": "ce588db9320",
+      "date": "2026-11-10T05:54:16+00:00",
       "author": {
-        "name": "Gregory Wlodarek",
-        "email": "gregory.wlodarek@mongodb.com"
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
       },
-      "summary": "SERVER-138938 Teach Coverity about synchronized_value locking (#66316)"
-    },
-    {
-      "sha": "437b31bc614a98fd7ed8bf010a06ffb2b6486d45",
-      "short_sha": "437b31bc614",
-      "date": "2026-11-09T21:43:54+00:00",
-      "author": {
-        "name": "Evan Bergeron",
-        "email": "evanbergeron@users.noreply.github.com"
-      },
-      "summary": "SERVER-138037 Add a compact hash agg $push accumulator (#65369)"
-    },
-    {
-      "sha": "55e299d3903e483ab18e7228ab72ea594f346a9d",
-      "short_sha": "55e299d3903",
-      "date": "2026-11-09T21:32:58+00:00",
-      "author": {
-        "name": "Lynne Wang",
-        "email": "lynne.wang@mongodb.com"
-      },
-      "summary": "SERVER-138112 Skip the second voteAbortIndexBuild after the index build attempt limit's abort is accepted (#66257)"
+      "summary": "Import wiredtiger: 3d8538921410e37096cce9b7ec361ec810987d8b from branch mongodb-master (#66349)"
     }
   ],
   "merge_picks": [
     {
       "commit": {
-        "sha": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
-        "short_sha": "c6c8de547bc",
-        "date": "2026-11-09T22:25:29+00:00",
+        "sha": "23c6b532d909f57dbf0eefe7412eee90ef2b2508",
+        "short_sha": "23c6b532d90",
+        "date": "2026-11-10T08:34:36+00:00",
         "author": {
-          "name": "Brian Welch",
-          "email": "brian.welch@mongodb.com"
+          "name": "Niels Lohmann",
+          "email": "niels.lohmann@mongodb.com"
         },
-        "summary": "SERVER-138797 Allow a regex element to end at the end of its buffer (#66264)"
+        "summary": "SERVER-138861: Update timezone data to 2026f (#66259)"
       },
-      "strategy_name": "branching_point",
+      "strategy_name": "huge_commit",
       "result": {
-        "branches": [
-          "master",
-          "mergai/master-c6c8de547bc/conflict",
-          "mergai/master-c6c8de547bc/solution",
-          "mongodb"
-        ]
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 7,
+          "num_of_lines": 5279,
+          "lines_added": 2672,
+          "lines_deleted": 2607,
+          "num_of_dirs": 4
+        }
       }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-17 09:15:32",
+  "generated_at": "2026-11-17 12:19:37",
   "branch_name": "master",
   "display_name": "master"
 }
