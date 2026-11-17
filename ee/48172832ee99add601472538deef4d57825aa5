@@ -1,0 +1,127 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "5c44c86850ad44aebf06f7e207885f3c14bc012f",
+    "merge_commit": "c6c8de547bc5b89625e48b256bd43f86597ef3bd"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 36732,
+      "num_turns": 6,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.19851725,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 12,
+          "outputTokens": 2834,
+          "cacheReadInputTokens": 95052,
+          "cacheCreationInputTokens": 12813,
+          "webSearchRequests": 0,
+          "costUSD": 0.19851725,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 995,
+          "cacheCreationEphemeral5mInputTokens": 12813,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 12,
+              "output": 2834,
+              "cache_read": 95052,
+              "cache_creation": 12813
+            },
+            "cost_usd": 0.19851725
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `wiredtiger_kv_engine.h`.\n\n**What happened:** The conflict was in the include block:\n- **BASE** had `#include \"mongo/db/tenant_id.h\"`\n- **Upstream (theirs)** removed it\n- **HEAD (ours)** kept `tenant_id.h` and added a Percona-specific `#include \"mongo/logv2/log_component.h\"`\n\n**Resolution:**\n- Dropped `tenant_id.h` \u2014 it was an upstream-authored include that upstream deliberately removed, and no symbol from it is referenced in this header. Per the upstream-API policy, this is adapted rather than resurrected.\n- Kept `mongo/logv2/log_component.h` \u2014 a genuine Percona addition traced via `git log -S` to PSMDB-1148 (Unify Vault and KMIP key operations).\n\nConflict markers are fully removed and the response JSON has been written.",
+      "response": {
+        "summary": "Resolved an include-block conflict in wiredtiger_kv_engine.h. Upstream removed the base-provided #include \"mongo/db/tenant_id.h\"; HEAD had kept it and additionally added the Percona-specific #include \"mongo/logv2/log_component.h\". Followed upstream's removal of tenant_id.h while preserving the Percona log_component.h include.",
+        "resolved": {
+          "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Removed the conflict markers. Dropped #include \"mongo/db/tenant_id.h\" to follow upstream (commit c6c8de547bc), which deliberately removed this base include and whose symbols are not referenced in this header. Kept #include \"mongo/logv2/log_component.h\", a Percona-specific addition from PSMDB-1148 (Unify Vault and KMIP key operations)."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "tenant_id.h was present in BASE (upstream) and removed by upstream; it is not a Percona feature, so per the upstream-API resolution policy it was dropped rather than resurrected. Neither TenantId nor LogComponent is referenced by name in this header, but log_component.h is a genuine Percona addition (git log -S traced it to PSMDB-1148) and was preserved. If a build reveals a transitive dependency on tenant_id.h that upstream dropped, that would be an upstream issue, not a Percona-local one."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Grep"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Bash"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "`log_component.h` is a Percona addition (PSMDB-1148); `tenant_id.h` was removed upstream. Keeping the Percona include and following upstream's removal."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `wiredtiger_kv_engine.h`.\n\n**What happened:** The conflict was in the include block:\n- **BASE** had `#include \"mongo/db/tenant_id.h\"`\n- **Upstream (theirs)** removed it\n- **HEAD (ours)** kept `tenant_id.h` and added a Percona-specific `#include \"mongo/logv2/log_component.h\"`\n\n**Resolution:**\n- Dropped `tenant_id.h` \u2014 it was an upstream-authored include that upstream deliberately removed, and no symbol from it is referenced in this header. Per the upstream-API policy, this is adapted rather than resurrected.\n- Kept `mongo/logv2/log_component.h` \u2014 a genuine Percona addition traced via `git log -S` to PSMDB-1148 (Unify Vault and KMIP key operations).\n\nConflict markers are fully removed and the response JSON has been written."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261117_051110_594056.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.326 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
