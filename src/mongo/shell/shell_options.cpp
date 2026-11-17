@@ -45,7 +45,6 @@
 #include <utility>
 
 #include <boost/move/utility_core.hpp>
-#include <boost/none.hpp>
 
 #define MONGO_LOGV2_DEFAULT_COMPONENT ::mongo::logv2::LogComponent::kDefault
 
@@ -319,7 +318,7 @@ Status storeMongoShellOptions(const moe::Environment& params,
                         str::stream()
                             << "Cannot use --setShellParameter to set '" << name << "' at startup"};
             }
-            auto status = param->setFromString(it.second, boost::none);
+            auto status = param->setFromString(it.second);
             if (!status.isOK()) {
                 return {ErrorCodes::BadValue,
                         str::stream()

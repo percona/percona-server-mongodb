@@ -29,18 +29,19 @@
 #include "mongo/db/profile_settings.h"
 #include "mongo/db/query/allowed_contexts.h"
 #include "mongo/db/query/analyze_command_gen.h"
-#include "mongo/db/query/compiler/ce/ndv/field_stats.h"
-#include "mongo/db/query/compiler/ce/ndv/field_stats_gen.h"
-#include "mongo/db/query/compiler/ce/ndv/ndv_sketch_builder.h"
+#include "mongo/db/query/compiler/ce/field_stats/field_stats.h"
+#include "mongo/db/query/compiler/ce/field_stats/field_stats_gen.h"
+#include "mongo/db/query/compiler/ce/field_stats/ndv_sketch_builder.h"
 #include "mongo/db/query/compiler/ce/sampling/on_the_fly_sample_loader.h"
 #include "mongo/db/query/compiler/ce/sampling/sample_manager.h"
 #include "mongo/db/query/compiler/stats/ce_histogram.h"
+#include "mongo/db/query/compiler/stats/field_values.h"
 #include "mongo/db/query/compiler/stats/max_diff.h"
-#include "mongo/db/query/compiler/stats/scalar_field_values.h"
 #include "mongo/db/query/compiler/stats/scalar_histogram.h"
 #include "mongo/db/query/compiler/stats/stats_catalog.h"
 #include "mongo/db/query/compiler/stats/stats_for_histograms_gen.h"
 #include "mongo/db/query/internal_plans.h"
+#include "mongo/db/query/multiple_collection_accessor.h"
 #include "mongo/db/query/plan_executor.h"
 #include "mongo/db/query/plan_yield_policy.h"
 #include "mongo/db/query/query_feature_flags_gen.h"
@@ -80,7 +81,7 @@
 namespace mongo {
 namespace {
 
-MONGO_FAIL_POINT_DEFINE(hangBeforePersistingNdvStats);
+MONGO_FAIL_POINT_DEFINE(hangBeforePersistingFieldStats);
 
 // Total docs persisted across all analyze runs.
 auto& analyzeDocsPersisted = *MetricBuilder<Counter64>{"query.analyze.sample.docsPersisted"};
@@ -139,7 +140,7 @@ void recordPersistedSampleMetrics(const ce::PersistedSampleSummary& summary) {
 }
 
 /**
- * Validates a user-provided key path. Shared by the histograms and ndv modes.
+ * Validates a user-provided key path. Shared by the histograms and fieldStats modes.
  */
 void validateKeyPath(std::string_view key) {
     const FieldRef keyFieldRef(key);
@@ -160,12 +161,12 @@ void validateKeyPath(std::string_view key) {
 }
 
 /**
- * Normalizes and validates the ndv-mode 'key' argument: the string form becomes a one-path
+ * Normalizes and validates the fieldStats-mode 'key' argument: the string form becomes a one-path
  * vector, the array form carries up to kNdvMaxFields distinct paths for one composite NDV
  * statistic. Returns the paths canonically sorted, the order the statistic is keyed and
  * persisted in (NDV is insensitive to field order).
  */
-std::vector<std::string> normalizeNdvKeyPaths(
+std::vector<std::string> normalizeFieldStatsKeyPaths(
     const std::variant<std::string, std::vector<std::string>>& key) {
     std::vector<std::string> paths =
         visit(OverloadedVisitor{
@@ -175,7 +176,7 @@ std::vector<std::string> normalizeNdvKeyPaths(
                   }},
               key);
     uassert(13176201,
-            str::stream() << "ndv mode supports between 1 and " << ce::kNdvMaxFields
+            str::stream() << "fieldStats mode supports between 1 and " << ce::kNdvMaxFields
                           << " key paths",
             !paths.empty() && paths.size() <= ce::kNdvMaxFields);
     for (const auto& path : paths) {
@@ -183,14 +184,14 @@ std::vector<std::string> normalizeNdvKeyPaths(
     }
     std::sort(paths.begin(), paths.end());
     uassert(13176202,
-            "ndv mode key paths must be distinct",
+            "fieldStats mode key paths must be distinct",
             std::adjacent_find(paths.begin(), paths.end()) == paths.end());
     // Overlapping paths describe redundant NDV components. After sorting, a path can only
     // precede its extensions.
     for (size_t i = 0; i + 1 < paths.size(); ++i) {
         for (size_t j = i + 1; j < paths.size(); ++j) {
             uassert(13176203,
-                    str::stream() << "ndv mode key paths may not overlap: '" << paths[i]
+                    str::stream() << "fieldStats mode key paths may not overlap: '" << paths[i]
                                   << "' is a prefix of '" << paths[j] << "'",
                     !FieldRef(paths[i]).isPrefixOf(FieldRef(paths[j])));
         }
@@ -200,7 +201,7 @@ std::vector<std::string> normalizeNdvKeyPaths(
 
 /**
  * Acquires 'nss' for reading and performs the collection validation shared by the sample and
- * ndv modes: the collection must exist ('notFoundCode' preserves each mode's error code) and
+ * fieldStats modes: the collection must exist ('notFoundCode' preserves each mode's error code) and
  * must not be timeseries. Views never reach this point; the acquisition rejects them.
  */
 CollectionAcquisition acquireAndValidateCollection(OperationContext* opCtx,
@@ -224,39 +225,43 @@ CollectionAcquisition acquireAndValidateCollection(OperationContext* opCtx,
     return coll;
 }
 
-void runNdvMode(OperationContext* opCtx,
-                const NamespaceString& nss,
-                const std::variant<std::string, std::vector<std::string>>& key) {
+void runFieldStatsMode(OperationContext* opCtx,
+                       const NamespaceString& nss,
+                       const std::variant<std::string, std::vector<std::string>>& key) {
     uassert(ErrorCodes::CommandNotSupported,
-            "The analyze command with ndv mode requires featureFlagPersistentStats to be enabled",
+            "The analyze command with fieldStats mode requires featureFlagPersistentStats to be "
+            "enabled",
             feature_flags::gFeatureFlagPersistentStats.isEnabled(
                 VersionContext::getDecoration(opCtx),
                 serverGlobalParams.featureCompatibility.acquireFCVSnapshot()));
 
     // The knob gates the whole persistent-NDV feature: while it is off, statistics are neither
     // collected nor consumed.
-    uassert(ErrorCodes::CommandNotSupported,
-            "The analyze command with ndv mode requires internalQueryEnablePersistentNDVStats to "
-            "be enabled",
-            QueryKnobConfiguration(query_settings::QuerySettings{}).getEnablePersistentNDVStats());
+    uassert(
+        ErrorCodes::CommandNotSupported,
+        "The analyze command with fieldStats mode requires internalQueryEnablePersistentNDVStats "
+        "to be enabled",
+        QueryKnobConfiguration(query_settings::QuerySettings{}).getEnablePersistentNDVStats());
 
     // Validated only after the feature gates above: without them the command must fail with
     // CommandNotSupported, not with key validation errors for a disabled feature.
-    const std::vector<std::string> keyPaths = normalizeNdvKeyPaths(key);
+    const std::vector<std::string> keyPaths = normalizeFieldStatsKeyPaths(key);
     const std::vector<FieldPath> paths(keyPaths.begin(), keyPaths.end());
 
     ce::FieldStatsDoc document;
     {
         // Release the source acquisition and executor before writing statistics.
         auto coll = acquireAndValidateCollection(opCtx, nss, 13175802);
+        const auto& collectionPtr = coll.getCollectionPtr();
         uassert(13175804,
                 str::stream() << nss.toStringForErrorMsg()
                               << " is not a normal or clustered collection",
-                nss.isNormalCollection() || coll.getCollectionPtr()->isClustered());
-        // system.stats.field_stats is shard-local and invisible through mongos.
+                (nss.isNormalCollection() || collectionPtr->isClustered()) && !nss.isOplog() &&
+                    !collectionPtr->isTimeseriesCollection());
+        // system.stats.fieldStats is shard-local and invisible through mongos.
         // TODO SERVER-133119: Support NDV statistics for sharded collections.
         uassert(13175803,
-                "ndv mode is not supported on sharded collections",
+                "fieldStats mode is not supported on sharded collections",
                 !coll.getShardingDescription().isSharded());
 
         const auto collUuid = coll.uuid();
@@ -264,8 +269,9 @@ void runNdvMode(OperationContext* opCtx,
 
         // TODO SERVER-132681: Consider using a covered IXSCAN instead of the collection scan.
         // Full scans can exceed five minutes, so periodically release the source snapshot.
-        auto exec =
-            InternalPlanner::collectionScan(opCtx, coll, PlanYieldPolicy::YieldPolicy::YIELD_AUTO);
+        MultipleCollectionAccessor collections(std::move(coll));
+        auto exec = InternalPlanner::collectionScanSbe(
+            opCtx, collections, PlanYieldPolicy::YieldPolicy::YIELD_AUTO);
         BSONObj doc;
         if (exec->getNext(&doc, nullptr) == PlanExecutor::IS_EOF) {
             // Keep previous statistics after an empty scan; the read path guards against staleness.
@@ -275,12 +281,13 @@ void runNdvMode(OperationContext* opCtx,
         ce::NdvSketchBuilder builder(paths.size());
         do {
             opCtx->checkForInterrupt();
-            const auto values = stats::extractScalarFieldValues(
-                {sbe::value::TypeTags::bsonObject,
-                 sbe::value::bitcastFrom<const char*>(doc.objdata())},
-                paths);
-            builder.accumulateTuple(values);
-            // TODO: integrate MCV here
+            const auto [tuples, hasNonScalar] = stats::extractFieldValues(doc, paths);
+            if (!hasNonScalar) {
+                for (const auto& tuple : tuples) {
+                    builder.accumulateTuple(tuple);
+                }
+                // TODO: integrate MCV here
+            }
         } while (exec->getNext(&doc, nullptr) == PlanExecutor::ADVANCED);
 
         document.set_id(ce::makeFieldStatsId(collUuid, keyPaths));
@@ -291,7 +298,7 @@ void runNdvMode(OperationContext* opCtx,
         document.setNdv(ce::NdvStats(builder.getSketches()));
     }
 
-    hangBeforePersistingNdvStats.pauseWhileSet(opCtx);
+    hangBeforePersistingFieldStats.pauseWhileSet(opCtx);
 
     // Reacquire with the scanned UUID to reject a dropped or recreated source collection.
     acquireCollectionMaybeLockFree(
@@ -535,11 +542,11 @@ public:
             // implementation per mode instead of dispatching here.
             const auto mode = cmd.getMode();
             const auto& key = cmd.getKey();
-            // Only ndv mode gives the array form of 'key' a meaning.
+            // Only fieldStats mode gives the array form of 'key' a meaning.
             uassert(13176200,
-                    "an array of key paths is only supported with mode: \"ndv\"",
+                    "an array of key paths is only supported with mode: \"fieldStats\"",
                     !key || std::holds_alternative<std::string>(*key) ||
-                        mode == AnalyzeModeEnum::kNdv);
+                        mode == AnalyzeModeEnum::kFieldStats);
 
             switch (mode) {
                 case AnalyzeModeEnum::kSample:
@@ -549,15 +556,15 @@ public:
                                   cmd.getSamplingMethod(),
                                   cmd.getNumChunks());
                     break;
-                case AnalyzeModeEnum::kNdv:
-                    uassert(13175800, "ndv mode requires a key to be specified", key);
+                case AnalyzeModeEnum::kFieldStats:
+                    uassert(13175800, "fieldStats mode requires a key to be specified", key);
                     uassert(13175801,
                             "sampleRate, sampleSize, numberBuckets, samplingMethod and numChunks "
-                            "are not supported with ndv mode",
+                            "are not supported with fieldStats mode",
                             !cmd.getSampleRate() && !cmd.getSampleSize() &&
                                 !cmd.getNumberBuckets() && !cmd.getSamplingMethod() &&
                                 !cmd.getNumChunks());
-                    runNdvMode(opCtx, nss, *key);
+                    runFieldStatsMode(opCtx, nss, *key);
                     break;
                 case AnalyzeModeEnum::kHistograms:
                     runHistogramsMode(
