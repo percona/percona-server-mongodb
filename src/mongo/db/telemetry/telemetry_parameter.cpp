@@ -48,9 +48,7 @@ using namespace std::literals::string_view_literals;
 class OperationContext;
 class TenantId;
 
-void TelemetryParameter::append(OperationContext* opCtx,
-                                BSONObjBuilder* b,
-                                std::string_view name) {
+void TelemetryParameter::append(OperationContext* opCtx, BSONObjBuilder* b, std::string_view name) {
     b->append(name, _data.load());
 }
 

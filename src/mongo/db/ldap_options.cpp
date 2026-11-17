@@ -108,9 +108,7 @@ void invalidateLDAPConnections() {
 }
 }  // namespace
 
-void LDAPServersParameter::append(OperationContext*,
-                                  BSONObjBuilder* b,
-                                  std::string_view name) {
+void LDAPServersParameter::append(OperationContext*, BSONObjBuilder* b, std::string_view name) {
     b->append(name, ldapGlobalParams.getServersStr());
 }
 
@@ -120,9 +118,7 @@ Status LDAPServersParameter::setFromString(std::string_view newValueString) {
     return Status::OK();
 }
 
-void LDAPQueryUserParameter::append(OperationContext*,
-                                    BSONObjBuilder* b,
-                                    std::string_view name) {
+void LDAPQueryUserParameter::append(OperationContext*, BSONObjBuilder* b, std::string_view name) {
     b->append(name, ldapGlobalParams.ldapQueryUser.get());
 }
 

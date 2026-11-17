@@ -65,9 +65,7 @@ std::string_view getTelemetryPath() {
         : kTelemetryPath;
 }
 
-void TelemetryPath::append(OperationContext*,
-                           BSONObjBuilder* bob,
-                           std::string_view name) {
+void TelemetryPath::append(OperationContext*, BSONObjBuilder* bob, std::string_view name) {
     bob->append(name, getTelemetryPath());
 }
 

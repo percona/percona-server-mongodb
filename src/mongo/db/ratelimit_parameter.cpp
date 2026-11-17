@@ -38,9 +38,7 @@ namespace mongo {
 
 // Allow rateLimit access via setParameter/getParameter
 
-void RateLimitParameter::append(OperationContext* txn,
-                                BSONObjBuilder* b,
-                                std::string_view name) {
+void RateLimitParameter::append(OperationContext* txn, BSONObjBuilder* b, std::string_view name) {
     b->append(name, serverGlobalParams.rateLimit.load());
 }
 
