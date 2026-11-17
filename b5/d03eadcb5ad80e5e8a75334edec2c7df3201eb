@@ -1,0 +1,37 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "5c44c86850ad44aebf06f7e207885f3c14bc012f",
+    "merge_commit": "c6c8de547bc5b89625e48b256bd43f86597ef3bd"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "type": "ci_fix",
+      "request": {
+        "workflow": "format",
+        "run_id": "44026651133",
+        "pr_number": 2304,
+        "attempt_number": 1,
+        "context_summary": "format failed: 4 files need changes",
+        "timestamp": "2026-11-17T06:18:21.796816+00:00"
+      },
+      "author": {
+        "name": "format auto-fix",
+        "type": "command"
+      },
+      "response": {
+        "summary": "format auto-fix: 4 files changed",
+        "resolved": {
+          "src/mongo/db/ldap_options.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/ratelimit_parameter.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/telemetry/telemetry_parameter.cpp": "changed by 'format' auto-fix",
+          "src/mongo/db/telemetry/telemetry_path.cpp": "changed by 'format' auto-fix"
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": ""
+      }
+    }
+  ]
+}
