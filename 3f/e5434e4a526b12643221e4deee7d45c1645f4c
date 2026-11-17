@@ -1,0 +1,126 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "ecaf9ccd97072950796ee95af991c216489380ee",
+    "merge_commit": "03b307ca471fbd01e999dfdc32816d594555438d"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "03b307ca471fbd01e999dfdc32816d594555438d",
+    "merged_commits": [
+      "03b307ca471fbd01e999dfdc32816d594555438d",
+      "31af16d83e50ecc2f81a84233f2a007c0c6a6a5a",
+      "615728afb53a50b90979587458eab4ce89ef00dd",
+      "ce8f4bb5c1c7bb87cbf4a76af951b3752460e7bc",
+      "401f0c02aad2e70a5b2a65b601138173d836fbae",
+      "4d2d634d7d9b5742225b656e93ef1844c8ea57ae",
+      "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+      "60e2297df0e49c0d919ee96d882d56f501c1c12a",
+      "888079ce549ece3ab3ef7b8b08998367420c2cc1",
+      "81e200414c7027ddc8fe3d09683d0ff86f5d7f48",
+      "437b31bc614a98fd7ed8bf010a06ffb2b6486d45",
+      "55e299d3903e483ab18e7228ab72ea594f346a9d"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": []
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 25695,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.12239774999999999,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 1690,
+        "cacheReadInputTokens": 36923,
+        "cacheCreationInputTokens": 9865,
+        "webSearchRequests": 0,
+        "costUSD": 0.12239774999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 178,
+        "cacheCreationEphemeral5mInputTokens": 9865,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 1690,
+            "cache_read": 36923,
+            "cache_creation": 9865
+          },
+          "cost_usd": 0.12239774999999999
+        }
+      }
+    },
+    "text_result": "Done. I wrote the JSON response to the specified path.\n\nThis merge is a **clean auto-merge** (ort strategy) \u2014 the note lists no files under `auto_merged.files` and no `important_files_modified`, meaning there were no textual conflicts to resolve. The response therefore has an empty `auto_merged` object.\n\nThe `summary` describes the 11 upstream MongoDB commits the merge pulls in (verified against the `diff base \u2192 merge commit` range):\n- SBE query-engine work (SERVER-138436, 139039, 139031, 138742) plus SERVER-138037's $push accumulator that is added then reverted within the range\n- A validate slice-bounds ordering fix (SERVER-133447), regex BSONElement buffer-end fix (SERVER-138797), replication write-intent and index-build vote changes, IDL compat test changes, and a Coverity model update\n\nThe `review_notes` flag that none of the Percona-specific conflict-hint files (MODULE.bazel.lock, sbom.json, BUILD.bazel integration-test attributes) appear in the diff, and that SERVER-138037 is a net no-op since it's introduced and reverted in the same range.",
+    "response": {
+      "summary": "Auto-merge of 11 upstream MongoDB commits into the Percona fork's master branch. The changeset is dominated by SBE query-engine work: SERVER-138436 replaces end-of-plan BSON creation with a ResultMaterializer for lookup-unwind queries, SERVER-139039 antimaterializes the lookup-unwind indexed-nested-loop join, and SERVER-139031 names the argument positions of makeObj()/makeBsonObj() calls; SERVER-138037 (a compact hash-agg $push accumulator) was added by 437b31bc and then reverted by the merge-tip commit 03b307ca. SERVER-138742 runs SBE blueprint dead-slot elimination in the stage builder behind featureFlagSbeBlueprintRewrites. Other areas: SERVER-133447 fixes a missing record-ordering check across validate slice bounds (adds a parallel-slicing property-based test), SERVER-138797 allows a regex BSONElement to end at the end of its buffer, SERVER-139006/SERVER-138112 adjust replication write-intent registration and index-build vote-abort handling, SERVER-138910 generates one failure per test for test_api_version IDL compatibility checks, and SERVER-138938 teaches Coverity about synchronized_value locking.",
+      "auto_merged": {},
+      "review_notes": "The note lists no files under merge_context.auto_merged.files and no important_files_modified, so there were no textual conflicts for this merge to resolve \u2014 it is a clean auto-merge (ort strategy). The diff base->merge-commit range touches ~48 files (+1474/-213), all upstream MongoDB changes; none are Percona-specific files flagged in the conflict hints (no MODULE.bazel.lock, sbom.json, or BUILD.bazel integration-test changes appear). Note that SERVER-138037's $push accumulator is introduced and then reverted within the same range, so it should be a net no-op for that feature. Nothing here required Percona customization to be preserved."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The `auto_merged.files` list is empty, so there are no per-file conflict resolutions to describe. I'll summarize the upstream commits pulled in by this merge."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Done. I wrote the JSON response to the specified path.\n\nThis merge is a **clean auto-merge** (ort strategy) \u2014 the note lists no files under `auto_merged.files` and no `important_files_modified`, meaning there were no textual conflicts to resolve. The response therefore has an empty `auto_merged` object.\n\nThe `summary` describes the 11 upstream MongoDB commits the merge pulls in (verified against the `diff base \u2192 merge commit` range):\n- SBE query-engine work (SERVER-138436, 139039, 139031, 138742) plus SERVER-138037's $push accumulator that is added then reverted within the range\n- A validate slice-bounds ordering fix (SERVER-133447), regex BSONElement buffer-end fix (SERVER-138797), replication write-intent and index-build vote changes, IDL compat test changes, and a Coverity model update\n\nThe `review_notes` flag that none of the Percona-specific conflict-hint files (MODULE.bazel.lock, sbom.json, BUILD.bazel integration-test attributes) appear in the diff, and that SERVER-138037 is a net no-op since it's introduced and reverted in the same range."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261117_092902_150839.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.326 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "03b307ca471fbd01e999dfdc32816d594555438d",
+    "short_sha": "03b307ca471",
+    "strategy": "most_recent",
+    "summary": "The newest candidate is an auto-revert of SERVER-138037 (437b31bc), which is itself the 2nd commit in the window. The rule 'keep a revert with what it reverts' applies directly: both the original and its revert are in range, so including the whole window lets them cancel out instead of importing the $push accumulator feature now and removing it next batch. The entire window is only 12 commits (below the ~50 target, but that is all that is available) with modest divergence, and ending on the revert yields the cleanest boundary since the feature it undoes is fully contained in this batch. The intervening commits (138112, 138938, 139006, 138742, 138797, 139031, 138910, 138436, 133447, 139039) are independent, self-contained changes with no visible stacked dependencies carrying past the revert.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44055533308"
+  }
+}
