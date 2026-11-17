@@ -1,0 +1,214 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "5c44c86850ad44aebf06f7e207885f3c14bc012f",
+    "merge_commit": "c6c8de547bc5b89625e48b256bd43f86597ef3bd"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "5c44c86850ad44aebf06f7e207885f3c14bc012f",
+    "theirs_commit": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+    "base_commit": "16ef049d218c7c164a3abccc2afd9ae174a1bff9",
+    "files": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h"
+    ],
+    "conflict_types": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "both modified"
+    },
+    "diffs": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "diff --cc src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\nindex 0b865f2bd11,87cdfc6980c..00000000000\n--- a/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n+++ b/src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h\n@@@ -33,2 -32,0 +33,7 @@@\n++<<<<<<< HEAD\n +#include \"mongo/db/tenant_id.h\"\n +#include \"mongo/logv2/log_component.h\"\n++||||||| 16ef049d218\n++#include \"mongo/db/tenant_id.h\"\n++=======\n++>>>>>>> c6c8de547bc5b89625e48b256bd43f86597ef3bd"
+    },
+    "their_commits": {
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": [
+        "4126c0d9bd8dde59568891b2c1c887570ce93bc4"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+    "merged_commits": [
+      "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+      "60e2297df0e49c0d919ee96d882d56f501c1c12a",
+      "888079ce549ece3ab3ef7b8b08998367420c2cc1",
+      "81e200414c7027ddc8fe3d09683d0ff86f5d7f48",
+      "437b31bc614a98fd7ed8bf010a06ffb2b6486d45",
+      "55e299d3903e483ab18e7228ab72ea594f346a9d",
+      "e16cc0d636b10d987f66b36a5167fe16e5c98612",
+      "612599a4f3517124f9f19c6e58fcd237ff40a1c4",
+      "0e3986bb575c1bb876df747590550edc7fd8c755",
+      "651908b183a29f4c4778ed2b1265393c971a2d46",
+      "3acbbf9bcaf1bc61bcf95718b293152c7f014562",
+      "51f372aaae8c77d7d672388dd0945da20a9b23d9",
+      "f84c07196edb69215d73a5cf60491e0b3ae8e401",
+      "d44d4d8401d8e8af9fe4e4f8eabc15f496db7302",
+      "2274355dce486dad26ff127ca0b464ec43671904",
+      "497dfc5220782d96a4ff71e2a861e7e8078dc5ff",
+      "de0cdc5f755e27e4646014cb486e699adf02206e",
+      "22b16f01ab67756f8a4e136015e959fa4dbeaa09",
+      "4e0fe971877ce259fce199a6ffa243ad8ee20484",
+      "8a39680514e6d8ade95726ed8af72ce468f2dd5f",
+      "d9b13cccc81e46b0568f8361d055bbbc35c7e06b",
+      "358ef086688df80ce1cb9aae35824f11d09d4a77",
+      "665acd034995b6bc1e6e00287eff396c0cbb62cd",
+      "c3780942a143ed044d96efcf57d4e0e8d5348741",
+      "7bd04181aacbefbd6fa39fa50a77996cf9530f1e",
+      "dc194679167157628d740493c6a6779ff584b9ae",
+      "54d0ae78264d20ddb017c0377fafd7efbd75411b",
+      "0f1edc7266bd3e5dd6584f497044cdfc2bec2389",
+      "1481fbf253716bc8f9538032a26b9698ae3a684c",
+      "4db715f50ea0b675a09078708f398cfb011f4a89",
+      "61cb4ca00921004ae0bbc1dc4174c4b9ab96d3e3",
+      "4126c0d9bd8dde59568891b2c1c887570ce93bc4",
+      "8f9a61e219ccd3ba7a6ddc8397c8731626b88fe9",
+      "85278b90b75d996edc8ec81aef6fe8b59f7fce61",
+      "17d98b638a895909296d08f5d0e8b12ba71ce1d2",
+      "872f36026cf93a2cc5987d996eeac5880b935d0f",
+      "7db67b7a76040b26d6358e92a5988325b01b92d5",
+      "d6a915467c87943bb674ee7833846abc410e69bb",
+      "4e3f19fa28d237190ceeb20c3b2ed3dd298a479d",
+      "52c632c7987813127bef742117734c7c528ee380",
+      "525eca950da83a9beba9c4e3cf8f060799e37e98"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/idl/idl/binder.py",
+        "buildscripts/idl/idl/generator.py",
+        "src/mongo/base/error_codes.yml",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/authorization_manager_global.cpp",
+        "src/mongo/db/initialize_server_global_state.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/server_options_helpers.cpp",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/s/write_ops/write_op.cpp",
+        "src/mongo/shell/shell_options.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 46553,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.26541825,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3944,
+        "cacheReadInputTokens": 49739,
+        "cacheCreationInputTokens": 22707,
+        "webSearchRequests": 0,
+        "costUSD": 0.26541825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 277,
+        "cacheCreationEphemeral5mInputTokens": 22707,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3944,
+            "cache_read": 49739,
+            "cache_creation": 22707
+          },
+          "cost_usd": 0.26541825
+        }
+      }
+    },
+    "text_result": "I've inspected the actual `diff base \u2192 merge commit` diff for all 15 auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Main theme:** Removal of the tenant-aware plumbing from server parameters \u2014 the trailing `const boost::optional<TenantId>&` argument is dropped from `ServerParameter` methods (`append`, `set`, `setFromString`, `validate`, `reset`, `getClusterParameterTime`, `getValue`), and cluster parameters are no longer wrapped in a `TenantIdMap`. The IDL binder/generator and every caller were updated accordingly, and the now-unused `mongo/db/tenant_id.h` / `boost/optional` includes were removed.\n- **The one conflict** (`wiredtiger_kv_engine.h`) was in the include block: upstream removed `#include \"mongo/db/tenant_id.h\"`, while the fork had added `#include \"mongo/logv2/log_component.h\"`. The resolution keeps the fork's include and accepts upstream's removal.\n- Other changes are additive: two new error codes (`ChangeStreamResumedTokenFilteredOut`, `ChangeStreamErrorEventBypass`) and assorted BUILD.bazel adjustments (new test targets, moved/renamed source paths, added deps).\n\nEvery file description is backed by lines I read in the diff. The response is written to `response_20261117_051021_768756.json`.",
+    "response": {
+      "summary": "Upstream merge whose dominant theme is dropping the tenant-aware plumbing from server parameters: the trailing `const boost::optional<TenantId>&` argument is removed from `ServerParameter` methods (`append`, `set`, `setFromString`, `validate`, `reset`, `getClusterParameterTime`, `getValue`) and cluster parameters are no longer stored in a `TenantIdMap`. The IDL binder/generator and every affected caller are updated to the new signatures, and the now-unneeded `mongo/db/tenant_id.h` / `boost/optional` includes are dropped. The merge also adds two new error codes (ChangeStreamResumedTokenFilteredOut, ChangeStreamErrorEventBypass) and makes assorted BUILD.bazel adjustments (new test targets, renamed/moved source paths).",
+      "auto_merged": {
+        "bazel/wrapper_hook/BUILD.bazel": "Adds a new `py_test` target `bazelrc_test` (srcs/main `hermetic_container/bazelrc_test.py`, depending on `:wrapper_hook`).",
+        "buildscripts/idl/idl/binder.py": "In `_bind_server_parameter_with_storage`, removes the special-casing that wrapped a cluster parameter's `cpp_vartype` in `TenantIdMap<...>` when `set_at == [\"cluster\"]`; now `ast_param.cpp_vartype` is always set to `param.cpp_vartype`.",
+        "buildscripts/idl/idl/generator.py": "Drops the `const boost::optional<TenantId>&` parameter from the generated specialized server-parameter method declarations and definitions: `append`, `set`, `setFromString`, `validate`, `reset`, and `getClusterParameterTime` now have no tenant argument.",
+        "src/mongo/base/error_codes.yml": "Adds two new error codes: `ChangeStreamResumedTokenFilteredOut` (code 539) and `ChangeStreamErrorEventBypass` (code 540, categories [InternalOnly]), both documented as change-stream resume-gap/bypass internals.",
+        "src/mongo/db/BUILD.bazel": "Several build-graph edits: removes `single_solution_passthrough_planner.cpp` and `sub_planner.cpp` from the sources; moves `field_stats_loader` source and dep from `compiler/ce/ndv` to `compiler/ce/field_stats`; adds `join_plan_cache_util.cpp`; adds `:read_write_concern_defaults` and `:wire_version` deps to the op_msg fuzzer fixture and `:read_write_concern_defaults` to a unit test; renames the `db_integration_test` integration target to `nesting_depth_integration_test` and drops the `exhaust_cursor_currentop_integration_test.cpp` source from it.",
+        "src/mongo/db/auth/authorization_manager_global.cpp": "Removes the `#include \"mongo/db/tenant_id.h\"` and drops the trailing `const boost::optional<TenantId>&` argument from `AuthzVersionParameter::append` and `AuthzVersionParameter::setFromString`.",
+        "src/mongo/db/initialize_server_global_state.cpp": "Removes the `#include \"mongo/db/tenant_id.h\"` and drops the trailing `const boost::optional<TenantId>&` argument from `HonorSystemUMaskServerParameter` and `ProcessUMaskServerParameter`'s `setFromString` and `append` methods.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds `change_stream_helpers_test.cpp` to the change-stream unit-test srcs and `:change_stream_helpers` to its deps.",
+        "src/mongo/db/query/BUILD.bazel": "Adds a new `mongo_cc_unit_test` target `internal_plans_test` (srcs `internal_plans_test.cpp`, mongo_unittest_second_group) with its deps.",
+        "src/mongo/db/server_options_helpers.cpp": "Removes the `boost/none.hpp` and `boost/optional/optional.hpp` includes; in `applySetParameterOptions`, updates the `sp->append(...)` and `sp->setFromString(...)` calls to drop the `boost::none` tenant argument.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds a new `mongo_cc_unit_test` target `wiredtiger_recovery_unit_large_txn_test` (size `enormous`, mongo_unittest_third_group / server-storage-engine-integration tags, marked incompatible with sanitizer builds) with its sources and deps.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.h": "Removes the `#include \"mongo/db/tenant_id.h\"` and drops the `const boost::optional<TenantId>&` parameter from `validateSpillWiredTigerCompressor`.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Upstream removes the `#include \"mongo/db/tenant_id.h\"` and drops the `const boost::optional<TenantId>& tenantId` parameter from the free function `validateExtraDiagnostics`. The textual conflict was over the include block near line 33: the merge resolution keeps the fork-specific `#include \"mongo/logv2/log_component.h\"` while accepting upstream's removal of `mongo/db/tenant_id.h`.",
+        "src/mongo/s/write_ops/write_op.cpp": "In `WriteOp::targetWrites`, updates the `onlyTargetDataOwningShardsForMultiWrites` cluster-parameter access from `clusterParam->getValue(boost::none)` to `clusterParam->getValue()`.",
+        "src/mongo/shell/shell_options.cpp": "Removes the `boost/none.hpp` include and updates the `param->setFromString(it.second, boost::none)` call in `storeMongoShellOptions` to drop the `boost::none` tenant argument."
+      },
+      "review_notes": "Single conflicting file: src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h (both-modified in the include block). Upstream removed `#include \"mongo/db/tenant_id.h\"`; the fork had also added `#include \"mongo/logv2/log_component.h\"`. The resolution should keep the fork's `log_component.h` include and accept upstream's removal of `tenant_id.h` \u2014 verify no conflict markers (<<<<<<<, |||||||, =======, >>>>>>>) remain. The broad, mechanical change across the merge is the removal of the `const boost::optional<TenantId>&` parameter from ServerParameter methods (append/set/setFromString/validate/reset/getClusterParameterTime/getValue) and of the TenantIdMap wrapping for cluster parameters; confirm any Percona-specific server parameters follow the new tenant-less signatures so they still compile."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the real diffs for each auto-merged file using the authoritative diff base."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "The diffs are clear. The dominant upstream theme is the removal of the `const boost::optional<TenantId>&` tenant parameter from `ServerParameter` methods, plus various BUILD.bazel and error-code additions. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've inspected the actual `diff base \u2192 merge commit` diff for all 15 auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Main theme:** Removal of the tenant-aware plumbing from server parameters \u2014 the trailing `const boost::optional<TenantId>&` argument is dropped from `ServerParameter` methods (`append`, `set`, `setFromString`, `validate`, `reset`, `getClusterParameterTime`, `getValue`), and cluster parameters are no longer wrapped in a `TenantIdMap`. The IDL binder/generator and every caller were updated accordingly, and the now-unused `mongo/db/tenant_id.h` / `boost/optional` includes were removed.\n- **The one conflict** (`wiredtiger_kv_engine.h`) was in the include block: upstream removed `#include \"mongo/db/tenant_id.h\"`, while the fork had added `#include \"mongo/logv2/log_component.h\"`. The resolution keeps the fork's include and accepts upstream's removal.\n- Other changes are additive: two new error codes (`ChangeStreamResumedTokenFilteredOut`, `ChangeStreamErrorEventBypass`) and assorted BUILD.bazel adjustments (new test targets, moved/renamed source paths, added deps).\n\nEvery file description is backed by lines I read in the diff. The response is written to `response_20261117_051021_768756.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261117_051021_768638.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.326 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "c6c8de547bc5b89625e48b256bd43f86597ef3bd",
+    "short_sha": "c6c8de547bc",
+    "strategy": null,
+    "summary": "This picks 41 of the 46 candidates, squarely in the ~30-65 target band, and ends on a small, self-contained bug fix (SERVER-138797, 3 files) rather than a mid-stream commit. The TenantId-removal conflict commit (4126c0d9) that opened the gate is well inside the batch, so the resolve flow handles it in this merge. Importantly, it stops short of the freshest, still-unsettled commits at the window's edge, which include a Matthew Boros SBE materialization cluster (ce8f4bb5 ResultMaterializer for LU, 31af16d8 antimaterialize lookup-unwind) that pairs with earlier materialization work and is best left to settle upstream and be taken together in the next batch. The next few newest commits (SERVER-139031 arg naming, SERVER-138910 test-failure generation, SERVER-133447) are left for the next batch as well, avoiding an end on the very newest candidate.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44021843281"
+  }
+}
