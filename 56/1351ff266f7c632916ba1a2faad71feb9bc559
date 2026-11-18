@@ -1,0 +1,185 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "3fe5434e4a526b12643221e4deee7d45c1645f4c",
+    "merge_commit": "7b79eb22a38621c918c50fb8adbd46c76094a9f5"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "7b79eb22a38621c918c50fb8adbd46c76094a9f5",
+    "merged_commits": [
+      "7b79eb22a38621c918c50fb8adbd46c76094a9f5",
+      "1ae923aff4566deee322cfde40e5ce6ea75d49be",
+      "1b3bbcadb6a2540c3b309838bc0f6995aedfd662",
+      "9de645d8fba62771bd9228171816c7e523187e26",
+      "ebc7a8b6e0a0a7254f3d778bfabdb18ea7b9c3f5",
+      "61a79379673d5bcd56d0667e7d7e7f12d2a1caae",
+      "540873b7b4731e33e89ce99a1c682f4ae483c8f1",
+      "51adf617a501f75d0bdfbfa6be467c61ac36a165",
+      "aef941b2dfa64f3af18780b31559897ac1732f2c",
+      "3eba3785f3630e3f56d22a8414eed3622f998b8a",
+      "a2538d299e50f8411919c3dd92b2b4caeb54cb8b",
+      "9600c7b94284a086ac9710621332ae6c1012db9d",
+      "15648a2d4f7ec8180559fe504ea5d90a780bbeda",
+      "fd71e01815508530f27ea431743511864fe28c9e",
+      "569f8ca28036420ef60f6fa5023e767ab5f4eb09",
+      "b1f795f3a2aa72e8b4bdb5ba4a0dabd0305d5fab",
+      "95f2fcc8ef62fc1925299e25b3a8bb5fdb0ddd03",
+      "419e6fbe001cbb7a07d72452672dd9959e5cfcd9",
+      "18a52a1b7338749350afdf09562afdc7e9b2bea6",
+      "3548f353cda8b1c2fc702052b0f63ab724694654",
+      "de75366cd3c6d0c6d4309b49dbdebdff149ab9e5",
+      "d4e9933193853ddeb8ade00543611987a79bf94c",
+      "aeafd12f2a7b51a6af780f1344b083599d88fec1",
+      "bbaf33dbc96daa717459197ef6ae5e18505e6aea",
+      "ee9f23d529285b03ad100dfea448ccaf55399572",
+      "fe745a6df8b463eed507310de24d761e96e2b999",
+      "f1707ec41c9a994ef7253545e311fe26db3ff1aa",
+      "dcca2721508e724ddbfb38e5959ab6539490538e",
+      "696876ea046ec24ad3440e66c6d226dc2e6c4dc2",
+      "04ef30a707b088f7c64c676361166cd231b37118",
+      "7d821cece8fd8bb027ac154f99723969ef22df30",
+      "d479675ec10774f5239b227d78a49e866240eec3",
+      "f2d2a159ed5961317997dd36a4ecd59c57f38385",
+      "7502bf28a94dc9c7c814eb6e7daf69cc1ec929d0",
+      "0f262a0121a36ca752965bf01d2694160083e0d3",
+      "5db812d25c2e97dcd4f3eb951051c10d27d1aaea",
+      "6bd89788984906c3ace3bc56055c30f1f0a3af66",
+      "80caa6e2e23e205ce2572d97d5364a8d12980724",
+      "9594c334b4f831995a9cfd10595ab37d980159d7",
+      "e97d5ffab4412e7268ea5f0ae2a22535cc0af31c",
+      "60f25eeffd265c42685189a2b6066c6ba1a9bd00",
+      "23c6b532d909f57dbf0eefe7412eee90ef2b2508",
+      "78100190fbc781f30ca387e7d4fc8669b130c643",
+      "ce588db9320129d9a6f7a343f5d186ba2a7ad531"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "MODULE.bazel.lock",
+        "buildscripts/idl/idl/generator.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/client/BUILD.bazel",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 43772,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.255364,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 3284,
+        "cacheReadInputTokens": 50968,
+        "cacheCreationInputTokens": 23640,
+        "webSearchRequests": 0,
+        "costUSD": 0.255364,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 210,
+        "cacheCreationEphemeral5mInputTokens": 23640,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 3284,
+            "cache_read": 50968,
+            "cache_creation": 23640
+          },
+          "cost_usd": 0.255364
+        }
+      }
+    },
+    "text_result": "I've written the merge description to the response file. \n\nSummary of what this merge pulls in (verified against the `03b307ca \u2192 7b79eb22` diff for each file):\n\n- **Replicated RecordIds group membership marker** (the main functional change): a new reserved namespace `local.replset.recordIdsGroupId` (`namespace_string_reserved.h`), WiredTiger table logging disabled for it so it reverts with rollback-to-stable (`wiredtiger_util.cpp`), plus a new unit test (`wiredtiger_util_test.cpp`) and its BUILD deps.\n- **New `$_internalChangeStreamConvertErrors` change-stream stage**: build wiring in `pipeline/BUILD.bazel` and a new auth testcase in `commands_lib.js`.\n- **Build/dependency bumps** in `MODULE.bazel`: rules_nodejs 6.7.5\u21926.7.7, zlib 1.3.1\u21921.4, Node.js toolchain 16.18.1\u219222.23.4, and an added rules_rust patch.\n- Smaller items: IDL generator determinism fix (`generator.py`), SASL linkopts cleanup (`client/BUILD.bazel`), repl BUILD dep additions, and a mechanical WiredTiger stat-constant renumbering with one new eviction stat (`wiredtiger.h.in`).\n\nAll files merged cleanly with no conflict markers, and no Percona customizations appear in the incoming diffs.",
+    "response": {
+      "summary": "Upstream merge pulling in a range of MongoDB changes. The most significant feature touched is the Replicated RecordIds group membership marker: a new reserved local namespace ('local.replset.recordIdsGroupId') is added and WiredTiger table logging is disabled for it so it is reverted by rollback-to-stable together with the data. Other changes include a new $_internalChangeStreamConvertErrors change-stream aggregation stage (build wiring and auth test), build-dependency bumps (rules_nodejs 6.7.5->6.7.7, zlib 1.3.1->1.4, Node.js toolchain moved to 22.23.4, an added rules_rust reproducible-cflags patch), an IDL generator determinism fix, a SASL linkopts cleanup, repl BUILD dependency additions, and a large mechanical renumbering of WiredTiger statistics constants with one new eviction stat added.",
+      "auto_merged": {
+        "MODULE.bazel": "Bumps rules_nodejs from 6.7.5 to 6.7.7 and zlib from 1.3.1 to 1.4 (both bazel_dep and single_version_override). Replaces the pinned 'nodejs16' (16.18.1) node toolchain with an unnamed toolchain at node_version 22.23.4, updating use_repo to export 'nodejs_linux_amd64'/'nodejs_linux_arm64' instead of the 'nodejs16_*' repos. Adds '//bazel/rules_rust:cargo_build_script_reproducible_cflags.patch' to the rules_rust single_version_override patches list.",
+        "buildscripts/idl/idl/generator.py": "In _get_bson_type_check, replaces 'list(set(ast_type.bson_serialization_type))' with 'list(dict.fromkeys(...))' to deduplicate bson types while preserving declaration order, making the generated code deterministic.",
+        "jstests/auth/lib/commands_lib.js": "Simplifies the 'analyze_sample' test command to {analyze: 'x', mode: 'sample'} (dropping samplingMethod/sampleSize). Adds a new auth testcase 'aggregate_$_internalChangeStreamConvertErrors' for the $_internalChangeStreamConvertErrors aggregation stage, requiring __system role with find and cluster internal privileges and expecting failure.",
+        "src/mongo/client/BUILD.bazel": "Refactors the SASL library linkopts: moves the '-lsasl2' flag out of the unconditional list into the select()'s '//conditions:default' branch, leaving the Windows branch (secur32.lib, sasl2.lib) unchanged.",
+        "src/mongo/db/namespace_string_reserved.h": "Adds a new reserved namespace entry kDefaultRecordIdsGroupIdNamespace mapping to local 'replset.recordIdsGroupId', used as the local Replicated RecordIds group membership marker.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Wires up the new change-stream convert-errors stage: adds document_source_change_stream_convert_errors.cpp and the exec/agg change_stream_convert_errors_stage.cpp sources to the change_stream_pipeline library, and adds change_stream_convert_errors_stage_test.cpp plus the change_stream_pipeline dep to db_pipeline_test. Also adds service_context_test_fixture and transport_layer_mock deps to an earlier unit test target.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds dependencies to three repl libraries: replication_consistency_markers_idl to two targets, and read_concern_args plus //src/mongo/db/shard_role/lock_manager to another.",
+        "src/mongo/db/storage/wiredtiger/BUILD.bazel": "Adds //src/mongo/db/validate:validate_options and //src/mongo/db/validate:validate_results dependencies to the wiredtiger unit test target.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::useTableLogging, adds a check returning false (no table logging) when the namespace is kDefaultRecordIdsGroupIdNamespace, so the per-node group membership marker is reverted by rollback-to-stable together with the data, including when recovering from the oplog as standalone.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Adds includes (namespace_string.h, attached_persistence_provider.h) and a new TEST WiredTigerUtilTableLoggingTest.RecordIdsGroupIdDoesNotUseTableLogging verifying useTableLogging returns false for the RecordIds group-id namespace in replset and recover-from-oplog-as-standalone modes, true for plain standalone, and sanity-checking minvalid and other local/non-local namespaces.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Adds a new statistics constant WT_STAT_CONN_EVICTION_SERVER_WALK_ONE_PAGE_TARGET_UNPRODUCTIVE (1183) and mechanically increments the numeric values of the subsequent WT_STAT_CONN_* eviction/cache statistics #defines to accommodate it."
+      },
+      "review_notes": "All listed files merged cleanly (ort strategy) with no conflict markers. No Percona-specific customizations appear in the diff base -> merge commit diff for these files. The wiredtiger.h.in change is almost entirely a mechanical renumbering of stat constants following the insertion of one new constant; verify no PSMDB-added stat IDs collide. The RecordIds group membership marker (namespace_string_reserved.h + wiredtiger_util.cpp + tests) is the main functional change and is self-contained."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have the full picture. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've written the merge description to the response file. \n\nSummary of what this merge pulls in (verified against the `03b307ca \u2192 7b79eb22` diff for each file):\n\n- **Replicated RecordIds group membership marker** (the main functional change): a new reserved namespace `local.replset.recordIdsGroupId` (`namespace_string_reserved.h`), WiredTiger table logging disabled for it so it reverts with rollback-to-stable (`wiredtiger_util.cpp`), plus a new unit test (`wiredtiger_util_test.cpp`) and its BUILD deps.\n- **New `$_internalChangeStreamConvertErrors` change-stream stage**: build wiring in `pipeline/BUILD.bazel` and a new auth testcase in `commands_lib.js`.\n- **Build/dependency bumps** in `MODULE.bazel`: rules_nodejs 6.7.5\u21926.7.7, zlib 1.3.1\u21921.4, Node.js toolchain 16.18.1\u219222.23.4, and an added rules_rust patch.\n- Smaller items: IDL generator determinism fix (`generator.py`), SASL linkopts cleanup (`client/BUILD.bazel`), repl BUILD dep additions, and a mechanical WiredTiger stat-constant renumbering with one new eviction stat (`wiredtiger.h.in`).\n\nAll files merged cleanly with no conflict markers, and no Percona customizations appear in the incoming diffs."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261118_051105_576091.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.327 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "7b79eb22a38621c918c50fb8adbd46c76094a9f5",
+    "short_sha": "7b79eb22a38",
+    "strategy": null,
+    "summary": "This WiredTiger vendored import (#66464) sits at position 44 of the 52-commit window, squarely within the ~30-65 target band and very near the ~50 ideal. Large third-party WT imports are ideal merge boundaries: they touch a well-isolated set of files, rarely depend on the commits that follow, and are easy to validate post-merge. Cutting here also leaves the freshest ~8 candidates (the WASM/Wizer init, IntentRegistry annotations, view validation, WT otel migration, and macOS/record-store tweaks) for the next batch, honoring the 'stop short of unsettled commits' rule rather than ending on the very newest commit. No revert pairs are split by this boundary - the SERVER-138037 $push accumulator re-add (#66469) is included whole, and no matching revert lies within the remaining range.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44242111525"
+  }
+}
