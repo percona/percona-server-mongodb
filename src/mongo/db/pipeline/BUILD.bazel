@@ -722,7 +722,9 @@ mongo_cc_unit_test(
         ":pipeline",
         ":stage_params",
         "//src/mongo:base",
+        "//src/mongo/db:service_context_test_fixture",
         "//src/mongo/db/commands/query_cmd:update_metrics",
+        "//src/mongo/transport:transport_layer_mock",
         "//src/mongo/unittest",
     ],
 )
@@ -1124,6 +1126,7 @@ mongo_cc_library(
         "document_source_change_stream_add_pre_image.cpp",
         "document_source_change_stream_check_invalidate.cpp",
         "document_source_change_stream_check_resumability.cpp",
+        "document_source_change_stream_convert_errors.cpp",
         "document_source_change_stream_end_of_transaction.cpp",
         "document_source_change_stream_ensure_resume_token_present.cpp",
         "document_source_change_stream_handle_topology_change.cpp",
@@ -1138,6 +1141,7 @@ mongo_cc_library(
         "//src/mongo/db/exec/agg:change_stream_add_pre_image_stage.cpp",
         "//src/mongo/db/exec/agg:change_stream_check_invalidate_stage.cpp",
         "//src/mongo/db/exec/agg:change_stream_check_resumability_stage.cpp",
+        "//src/mongo/db/exec/agg:change_stream_convert_errors_stage.cpp",
         "//src/mongo/db/exec/agg:change_stream_end_of_transaction_stage.cpp",
         "//src/mongo/db/exec/agg:change_stream_ensure_resume_token_present_stage.cpp",
         "//src/mongo/db/exec/agg:change_stream_handle_topology_change_stage.cpp",
@@ -1655,6 +1659,7 @@ mongo_cc_unit_test(
     name = "db_pipeline_test",
     srcs = [
         "aggregation_request_test.cpp",
+        "change_stream_convert_errors_stage_test.cpp",
         "data_to_shards_allocation_query_service_test.cpp",
         "dependencies_test.cpp",
         "dispatch_shard_pipeline_test.cpp",
@@ -1696,6 +1701,7 @@ mongo_cc_unit_test(
     deps = [
         ":aggregation_context_fixture",
         ":aggregation_request_helper",
+        ":change_stream_pipeline",
         ":docs_needed_bounds_visitor",
         ":document_source_internal_apply_oplog_update",
         ":document_source_mock",

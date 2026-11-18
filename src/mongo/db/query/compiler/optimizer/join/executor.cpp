@@ -117,6 +117,14 @@ EnumerationStrategy getEnumerationStrategy(const QueryKnobConfiguration& qkc) {
             .enableHJOrderPruning = qkc.getEnableJoinEnumerationHJOrderPruning()};
 }
 
+JoinExplainMode getExplainMode(const ExpressionContext& expCtx, const QueryKnobConfiguration& qkc) {
+    if (!expCtx.getExplain()) {
+        return JoinExplainMode::kNone;
+    }
+    return qkc.getEnableDetailedJoinExplain() ? JoinExplainMode::kDetailed
+                                              : JoinExplainMode::kDefault;
+}
+
 /**
  * These return the reason the collection is ineligible for join optimization, or boost::none if it
  * is eligible.
@@ -636,7 +644,8 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
     // is in use and the lookup missed.
     boost::optional<JoinPlanCacheMiss> cacheMiss;
     if (canUseJoinPlanCache(qkc, hintedStrat.has_value(), expCtx->getExplain().has_value())) {
-        auto lookup = lookupInJoinPlanCache(opCtx, graphOnlyMca, model, eligibleIdxs);
+        auto lookup = lookupInJoinPlanCache(
+            opCtx, graphOnlyMca, model, eligibleIdxs, expCtx->getQuerySettings());
         if (auto* hit = std::get_if<JoinPlanCacheHit>(&lookup)) {
             auto exec = buildExecutorFromCachedPlan(
                 opCtx, *hit->entry, mca, graphOnlyMca, model, eligibleIdxs, yieldPolicy, metrics);
@@ -678,17 +687,19 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
                               .catStats = createCatalogStats(opCtx, graphOnlyMca),
                               .uniqueFieldInfo = std::move(uniqueFieldInfo),
                               .samplingEstimators = &samplingEstimators,
-                              .explain = expCtx->getExplain().has_value()};
+                              .explainMode = getExplainMode(*expCtx, qkc)};
 
-    // Count the distinct join-graph namespaces whose storage-engine approximate leaf page count is
-    // unavailable, forcing cost estimation onto the size-based fallback. 'collStats' covers every
-    // collection in 'mca', a superset of the join-graph namespaces; collections referenced only by
-    // the unoptimized suffix are never costed, so they are not counted.
-    const auto& graphNamespaces = model.getDistinctNamespaces();
-    peMetrics.numApproxLeafPagesUnavailable = static_cast<int>(
-        std::count_if(graphNamespaces.begin(), graphNamespaces.end(), [&](const auto& nss) {
-            return !ctx.catStats.collStats.at(nss).hasApproxNumLeafPages();
-        }));
+    // Collect the distinct join-graph namespaces whose storage-engine approximate leaf page count
+    // is unavailable, forcing cost estimation onto the size-based fallback. 'collStats' covers
+    // every collection in 'mca', a superset of the join-graph namespaces; collections referenced
+    // only by the unoptimized suffix are never costed, so they are not counted.
+    std::vector<NamespaceString> collectionsWithoutPageCount;
+    for (const auto& nss : model.getDistinctNamespaces()) {
+        if (!ctx.catStats.collStats.at(nss).hasApproxNumLeafPages()) {
+            collectionsWithoutPageCount.push_back(nss);
+        }
+    }
+    peMetrics.numApproxLeafPagesUnavailable = static_cast<int>(collectionsWithoutPageCount.size());
 
     JoinCardinalityEstimator cardEstimator(
         JoinCardinalityEstimator::make(ctx, samplingEstimators, peMetrics));
@@ -781,7 +792,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     // Prepare rejected plans if any.
     std::vector<JoinOptPlan> rejectedPlans;
-    if (ctx.explain) {
+    if (ctx.isExplain()) {
         rejectedPlans.reserve(reordered.rejectedSolns.size());
         for (auto&& rs : reordered.rejectedSolns) {
             auto soln = std::move(rs.first);
@@ -805,7 +816,7 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
 
     // Collect per-namespace sampling metadata for explain output.
     boost::optional<PlanExplainerData> maybeExplainData;
-    if (ctx.explain) {
+    if (ctx.isExplain()) {
         PlanExplainerData explainData;
         for (const auto& [nss, estimator] : samplingEstimators) {
             const std::string serializedNss =
@@ -817,10 +828,16 @@ StatusWith<JoinReorderedExecutorResult> getJoinReorderedExecutor(
         }
         // Compute the join plan cache key hash for explain regardless of whether the join plan
         // cache is enabled.
-        explainData.joinPlanCacheKeyHash = canonical_query_encoder::computeHash(
-            cacheMiss
-                ? cacheMiss->key
-                : makeJoinPlanCacheKey(model.getGraph(), model.getResolvedPaths(), graphOnlyMca));
+        const JoinPlanCacheKey joinPlanCacheKey = cacheMiss
+            ? cacheMiss->key
+            : makeJoinPlanCacheKey(model.getGraph(),
+                                   model.getResolvedPaths(),
+                                   graphOnlyMca,
+                                   expCtx->getQuerySettings());
+        explainData.joinPlanCacheKeyHash = joinPlanCacheKey.hash();
+        // Sort for a deterministic explain output.
+        std::ranges::sort(collectionsWithoutPageCount);
+        explainData.joinCollectionsWithoutPageCount = std::move(collectionsWithoutPageCount);
         // The join-reordering estimates cover the winning and the rejected plans, and are only
         // serialized by explain. The rejected plans were lowered above, so the map can be moved.
         explainData.estimates = std::move(reordered.estimates);

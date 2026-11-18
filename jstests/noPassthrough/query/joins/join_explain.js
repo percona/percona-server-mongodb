@@ -138,25 +138,19 @@ function validateJoinCostComponents(
     }
 }
 
-// Runs the pipeline, and asserts that the join optimizer was used and that estimate information is
-// present in the explain output.
-function runTest(pipeline, expectRejected) {
-    // Ensure stable on-disk sizes.
-    assert.commandWorked(db.adminCommand({fsync: 1}));
-    const explain = coll1.explain().aggregate(pipeline);
+function explainWithDetailedJoinExplain(coll, pipeline) {
+    return coll
+        .explain()
+        .aggregate(pipeline, {querySettings: {queryKnobs: {enableDetailedJoinExplain: true}}});
+}
 
-    const queryPlanner = getQueryPlanner(explain);
-    const usedJoinOptimization = queryPlanner.winningPlan.hasOwnProperty("usedJoinOptimization")
-        ? queryPlanner.winningPlan.usedJoinOptimization
-        : false;
-    assert(usedJoinOptimization, "Join optimizer was not used as expected", {explain});
-
-    const joinMetrics = queryPlanner.joinOptimizationMetrics;
-    assert(joinMetrics, "joinOptimizationMetrics missing from queryPlanner", {queryPlanner});
+function assertJoinOptimizerMetrics(queryPlanner) {
+    const joinMetrics = queryPlanner.joinOptimizer.metrics;
+    assert(joinMetrics, "metrics missing from queryPlanner.joinOptimizer", {queryPlanner});
 
     // The outer phase timers are always populated when join optimization ran.
     for (const field of ["joinModelingTimeMicros", "sbeLoweringTimeMicros"]) {
-        assert(joinMetrics.hasOwnProperty(field), field + " missing from joinOptimizationMetrics", {
+        assert(joinMetrics.hasOwnProperty(field), field + " missing from joinOptimizer.metrics", {
             field,
             joinMetrics,
         });
@@ -170,14 +164,45 @@ function runTest(pipeline, expectRejected) {
         "cbrPlanningTimeMicros",
         "planEnumerationTimeMicros",
         "ceTimeMicros",
-        "wtLeafPagesAvailable",
     ]) {
-        assert(joinMetrics.hasOwnProperty(field), field + " missing from joinOptimizationMetrics", {
+        assert(joinMetrics.hasOwnProperty(field), field + " missing from joinOptimizer.metrics", {
             field,
             joinMetrics,
         });
     }
-    assert.eq("boolean", typeof joinMetrics.wtLeafPagesAvailable, joinMetrics);
+}
+
+// Runs the pipeline, and asserts that the join optimizer was used and that estimate information is
+// present in the explain output.
+function runTest(pipeline, expectRejected) {
+    // Ensure stable on-disk sizes.
+    assert.commandWorked(db.adminCommand({fsync: 1}));
+    const explain = coll1.explain().aggregate(pipeline);
+
+    const queryPlanner = getQueryPlanner(explain);
+    const usedJoinOptimization = queryPlanner.winningPlan.hasOwnProperty("usedJoinOptimization")
+        ? queryPlanner.winningPlan.usedJoinOptimization
+        : false;
+    assert(usedJoinOptimization, "Join optimizer was not used as expected", {explain});
+
+    const joinOptimizer = queryPlanner.joinOptimizer;
+    assert(joinOptimizer, "joinOptimizer missing from queryPlanner", {queryPlanner});
+    for (const field of ["metrics", "collectionsWithoutPageCount"]) {
+        assert(
+            !joinOptimizer.hasOwnProperty(field),
+            field + " should be absent when internalEnableDetailedJoinExplain is off",
+            {joinOptimizer},
+        );
+    }
+    const detailedQueryPlanner = getQueryPlanner(explainWithDetailedJoinExplain(coll1, pipeline));
+    assertJoinOptimizerMetrics(detailedQueryPlanner);
+    // All three collections are small enough that their b-trees never split, so the storage engine
+    // reports no approximate leaf page count for any of them.
+    assert.eq(
+        [coll1, coll2, coll3].map((coll) => coll.getFullName()).sort(),
+        detailedQueryPlanner.joinOptimizer.collectionsWithoutPageCount,
+        detailedQueryPlanner.joinOptimizer,
+    );
 
     jsTest.log.info("Explain output", {explain});
     const winningPlan = getWinningPlanFromExplain(explain);
@@ -279,12 +304,9 @@ assert.commandWorked(coll2.createIndex({b: 1}));
 assert.commandWorked(coll3.createIndex({c: 1}));
 runTest(pipeline, true /* expectRejected */);
 
-// Test joinCostComponents explain output (internalQueryExplainJoinCostComponents knob).
+// Test joinCostComponents explain output (enableDetailedJoinExplain query knob).
 {
     // Verify that when the knob is OFF, joinCostComponents is absent (default behaviour).
-    assert.commandWorked(
-        conn.adminCommand({setParameter: 1, internalQueryExplainJoinCostComponents: false}),
-    );
     {
         const explain = coll1.explain().aggregate(pipeline);
         const joinStages = getAllPlanStages(getWinningPlanFromExplain(explain)).filter(
@@ -320,17 +342,17 @@ runTest(pipeline, true /* expectRejected */);
 
     // Verify that when the knob is ON, joinCostComponents and ndvEstimates are present on every
     // join opt stage. Enable the use of unique indexes for NDV estimation.
+    const detailedExplain = {querySettings: {queryKnobs: {enableDetailedJoinExplain: true}}};
     assert.commandWorked(
         conn.adminCommand({
             setParameter: 1,
-            internalQueryExplainJoinCostComponents: true,
             internalEnableJoinOptimizationUseIndexUniqueness: true,
             internalQueryEnablePersistentNDVStats: true,
         }),
     );
     {
         // Basic case. Every RHS filter in 'pipeline' matches all 100 documents, so each INLJ stage must report exactly the RHS collection size for 'cardinalityRHSBeforeJoinPred'.
-        const explain = coll1.explain().aggregate(pipeline);
+        const explain = coll1.explain().aggregate(pipeline, detailedExplain);
         validateJoinCostComponents(
             explain,
             100 /* expectedCardinalityRHSBeforeJoinPred */,
@@ -345,7 +367,7 @@ runTest(pipeline, true /* expectRejected */);
     const inljPipeline = [{$_internalJoinHint: inljHint}].concat(pipeline);
     {
         // Repeat with all INLJ nodes.
-        const explain = coll1.explain().aggregate(inljPipeline);
+        const explain = coll1.explain().aggregate(inljPipeline, detailedExplain);
         validateJoinCostComponents(
             explain,
             100 /* expectedCardinalityRHSBeforeJoinPred */,
@@ -368,7 +390,7 @@ runTest(pipeline, true /* expectRejected */);
                 },
                 {$unwind: "$coll2"},
             ]);
-            const explain = coll1.explain().aggregate(selectivePipeline);
+            const explain = coll1.explain().aggregate(selectivePipeline, detailedExplain);
             // Now we have a filter, so 'cardinalityRHSBeforeJoinPred' reports how many docs match the filter (50).
             validateJoinCostComponents(
                 explain,
@@ -386,7 +408,7 @@ runTest(pipeline, true /* expectRejected */);
         assert.commandWorked(
             db.runCommand({analyze: coll1.getName(), mode: "fieldStats", key: "c"}),
         );
-        const explain = coll1.explain().aggregate(inljPipeline);
+        const explain = coll1.explain().aggregate(inljPipeline, detailedExplain);
         validateJoinCostComponents(
             explain,
             100 /* expectedCardinalityRHSBeforeJoinPred */,
@@ -398,17 +420,36 @@ runTest(pipeline, true /* expectRejected */);
         // Now validate the unique index source case. If available, it is prioritized over HLL.
         assert.commandWorked(coll1.createIndex({b: 1}, {unique: true}));
         assert.commandWorked(coll1.createIndex({c: 1}, {unique: true}));
-        const explain = coll1.explain().aggregate(inljPipeline);
+        const explain = coll1.explain().aggregate(inljPipeline, detailedExplain);
         validateJoinCostComponents(
             explain,
             100 /* expectedCardinalityRHSBeforeJoinPred */,
             "Metadata" /* expectedNdvSource */,
         );
     }
+}
 
-    // Reset the knob to its default.
+// Test that 'collectionsWithoutPageCount' omits collections with an approximate leaf page count.
+{
+    // Insert enough data that the collection's b-tree splits into multiple leaf pages, then
+    // checkpoint so the storage engine can report its leaf page count.
+    const bigColl = db[jsTestName() + "_big"];
+    const pad = "x".repeat(10 * 1024);
     assert.commandWorked(
-        conn.adminCommand({setParameter: 1, internalQueryExplainJoinCostComponents: false}),
+        bigColl.insertMany(Array.from({length: 1000}, (_, i) => ({_id: i, a: i, pad: pad}))),
+    );
+    // Add index for multikeyness info for path arrayness.
+    assert.commandWorked(bigColl.createIndex({dummy: 1, a: 1}));
+    assert.commandWorked(db.adminCommand({fsync: 1}));
+
+    const explain = explainWithDetailedJoinExplain(coll1, [
+        {$lookup: {from: bigColl.getName(), localField: "a", foreignField: "a", as: "big"}},
+        {$unwind: "$big"},
+    ]);
+    assert.eq(
+        [coll1.getFullName()],
+        getQueryPlanner(explain).joinOptimizer.collectionsWithoutPageCount,
+        {explain},
     );
 }
 
