@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import itertools
 import json
 import os
 import pathlib
@@ -13,6 +14,11 @@ import unittest
 from unittest import mock
 
 from bazel.toolchains.cc.mongo_linux import linux_container_action_wrapper as wrapper
+
+
+def _clock(*values: float):
+    """`time.monotonic` side effect that keeps returning the last value."""
+    return itertools.chain(values, itertools.repeat(values[-1]))
 
 
 class LinuxContainerActionWrapperTest(unittest.TestCase):
@@ -1071,18 +1077,18 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         self.assertEqual([["docker", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
 
     def test_start_container_keeps_created_container_after_deadline(self) -> None:
-        # A container still `created` at the deadline may belong to a slow concurrent
-        # start; `docker rm` would succeed on it, so fail this action instead.
+        # Our start was accepted but the container is still `created` at the deadline: it
+        # may belong to a slow concurrent start, and `docker rm` would succeed on it.
         with (
             mock.patch.object(wrapper, "_container_running", return_value=False),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
             mock.patch.object(wrapper, "_container_status", return_value="created"),
             mock.patch.object(
-                wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
+                wrapper, "_run", return_value=subprocess.CompletedProcess([], 0)
             ) as run,
             mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
             mock.patch.object(wrapper.time, "sleep"),
-            mock.patch.object(wrapper.time, "monotonic", side_effect=[0.0, 1.0, 1000.0]),
+            mock.patch.object(wrapper.time, "monotonic", side_effect=_clock(0.0, 1.0, 1000.0)),
         ):
             with self.assertRaisesRegex(SystemExit, "1"):
                 wrapper._start_container(
@@ -1093,6 +1099,116 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 )
 
         self.assertEqual([["docker", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
+
+    def test_start_container_recreates_created_container_that_fails_to_start(self) -> None:
+        # A create whose start failed leaves the container `created` for good. Our own
+        # start fails too, so replace it instead of failing every later action.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            responses = [
+                subprocess.CompletedProcess([], 1, stderr="OCI runtime create failed\n"),
+                subprocess.CompletedProcess([], 0),
+                subprocess.CompletedProcess([], 0, stderr=""),
+            ]
+            with (
+                mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_container_exists", return_value=True),
+                mock.patch.object(wrapper, "_container_status", return_value="created"),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", side_effect=responses) as run,
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO) as stderr,
+                mock.patch.object(wrapper.time, "sleep"),
+                mock.patch.object(wrapper.time, "monotonic", side_effect=_clock(0.0, 1.0, 1000.0)),
+            ):
+                wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        self.assertEqual(["docker", "rm", "boundary"], run.call_args_list[1].args[0])
+        self.assertEqual("run", run.call_args_list[2].args[0][1])
+        self.assertIn("OCI runtime create failed", stderr.getvalue())
+
+    def test_start_container_waits_for_podman_configured_container(self) -> None:
+        with (
+            mock.patch.object(wrapper, "_container_running", return_value=False),
+            mock.patch.object(wrapper, "_container_exists", return_value=True),
+            mock.patch.object(
+                wrapper, "_container_status", side_effect=["configured", "initialized", "running"]
+            ),
+            mock.patch.object(
+                wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
+            ) as run,
+            mock.patch.object(wrapper.time, "sleep"),
+        ):
+            wrapper._start_container(
+                ["podman"],
+                {"image": "image@sha256:digest"},
+                "boundary",
+                pathlib.Path("/output-base"),
+            )
+
+        self.assertEqual([["podman", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
+
+    def test_start_container_does_not_remove_container_when_inspect_fails(self) -> None:
+        # An unknown state must not lead to `rm`, which deletes a not-yet-started
+        # container. Creating it instead is safe: a conflict is handled by waiting.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            responses = [
+                subprocess.CompletedProcess([], 1),
+                subprocess.CompletedProcess([], 0, stderr=""),
+            ]
+            with (
+                mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_container_exists", return_value=True),
+                mock.patch.object(wrapper, "_container_status", return_value=None),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", side_effect=responses) as run,
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        sleep.assert_not_called()
+        self.assertEqual(["start", "run"], [c.args[0][1] for c in run.call_args_list])
+
+    def test_start_container_ignores_unrelated_already_in_use_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            failed_run = subprocess.CompletedProcess(
+                [],
+                125,
+                stderr="docker: Error response from daemon: network mynet is already in use.\n",
+            )
+            with (
+                mock.patch.object(wrapper, "_container_running", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", return_value=False),
+                mock.patch.object(wrapper, "_container_status", return_value=None),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", return_value=failed_run),
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                with self.assertRaisesRegex(SystemExit, "125"):
+                    wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        sleep.assert_not_called()
+
+    def test_container_status_reports_running_for_any_running_state(self) -> None:
+        for stdout, expected in [
+            ("running true\n", "running"),
+            ("paused true\n", "running"),
+            ("initialized false\n", "initialized"),
+            ("exited false\n", "exited"),
+        ]:
+            with mock.patch.object(
+                wrapper, "_run", return_value=subprocess.CompletedProcess([], 0, stdout=stdout)
+            ):
+                self.assertEqual(expected, wrapper._container_status(["docker"], "boundary"))
+        with mock.patch.object(
+            wrapper, "_run", return_value=subprocess.CompletedProcess([], 1, stdout="")
+        ):
+            self.assertIsNone(wrapper._container_status(["docker"], "boundary"))
 
     def test_start_container_fails_when_conflicting_container_never_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1106,7 +1222,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 mock.patch.object(wrapper, "_run", return_value=self._NAME_CONFLICT),
                 mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
                 mock.patch.object(wrapper.time, "sleep"),
-                mock.patch.object(wrapper.time, "monotonic", side_effect=[0.0, 1.0, 1000.0]),
+                mock.patch.object(wrapper.time, "monotonic", side_effect=_clock(0.0, 1.0, 1000.0)),
             ):
                 with self.assertRaisesRegex(SystemExit, "125"):
                     wrapper._start_container(["docker"], config, "boundary", root / "output-base")

@@ -463,14 +463,29 @@ def _container_running(docker: Sequence[str], name: str) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
+# States a container passes through while a `docker run -d`/`podman run -d` is still
+# starting it. Podman goes through `configured` and `initialized`; Docker only `created`.
+_STARTING_STATES = frozenset({"configured", "created", "initialized"})
+
+
 def _container_status(docker: Sequence[str], name: str) -> str | None:
+    """Return the container's state, `running` for any State.Running one, or None.
+
+    `paused` and `restarting` containers also report State.Running=true and are usable,
+    as `_container_running` has always treated them.
+    """
     result = _run(
-        [*docker, "inspect", "-f", "{{.State.Status}}", name],
+        [*docker, "inspect", "-f", "{{.State.Status}} {{.State.Running}}", name],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
         text=True,
     )
-    return (result.stdout or "").strip() if result.returncode == 0 else None
+    if result.returncode:
+        return None
+    fields = (result.stdout or "").split()
+    if len(fields) == 2 and fields[1] == "true":
+        return "running"
+    return fields[0] if fields else ""
 
 
 def _wait_for_start(
@@ -478,12 +493,12 @@ def _wait_for_start(
 ) -> str | None:
     """Poll while another action may still be starting the container; return its last status.
 
-    A concurrent `docker run -d` leaves the container `created` between its create and
-    start phases. Before that, the runtime has already reserved the name but may not
-    report the container yet, so a caller that just lost a name conflict passes
-    `missing_is_transient`. Any other state (exited, dead, or missing without a
-    conflict) means nobody is starting it, so return at once instead of waiting out
-    the deadline. One inspection per poll, so a `created` -> `running` transition
+    A concurrent `docker run -d` leaves the container in one of `_STARTING_STATES`
+    between its create and start phases. Before that, the runtime has already reserved
+    the name but may not report the container yet, so a caller that just lost a name
+    conflict passes `missing_is_transient`. Any other state (exited, dead, or missing
+    without a conflict) means nobody is starting it, so return at once instead of
+    waiting out the deadline. One inspection per poll, so a transition to `running`
     between two inspections cannot be misread as a failure.
     """
     deadline = time.monotonic() + _CONTAINER_START_WAIT_SECONDS
@@ -491,7 +506,7 @@ def _wait_for_start(
         status = _container_status(docker, name)
         if status == "running":
             return status
-        starting = status == "created" or (status is None and missing_is_transient)
+        starting = status in _STARTING_STATES or (status is None and missing_is_transient)
         if not starting or time.monotonic() >= deadline:
             return status
         time.sleep(1.0)
@@ -692,39 +707,53 @@ def _start_container(
         # The deterministic name identifies this exact workspace/output-base/image
         # configuration, so a stopped container is reusable. Starting it is also safe
         # when another action races us: runtimes serialize the transition by name.
-        _run(
+        started = _run(
             [*docker, "start", name],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         # Another action may be between create and start of its own `docker run -d`.
-        # Wait for it rather than removing its `created` container out from under it.
+        # Wait for it rather than removing its not-yet-started container from under it.
         status = _wait_for_start(docker, name)
         if status == "running":
             return
-        if status == "created":
-            # `docker rm` succeeds on a `created` container, so removing it here could
-            # break an action that is still starting it. Fail this action instead.
+        if status in _STARTING_STATES:
+            if started.returncode == 0:
+                # Our start was accepted, yet the container never ran. `rm` would succeed
+                # on it and could break a slow concurrent start, so fail this action.
+                print(
+                    f"ERROR: container {name} is still {status} after "
+                    f"{_CONTAINER_START_WAIT_SECONDS:.0f}s; not removing it",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+            # Our own start failed, so a create left the container behind without a
+            # working start; nobody else can start it either. Replace it.
+            detail = (started.stderr or "").strip()
             print(
-                f"ERROR: container {name} is still being created after "
-                f"{_CONTAINER_START_WAIT_SECONDS:.0f}s; not removing it",
+                f"WARNING: container {name} failed to start"
+                f"{f': {detail}' if detail else ''}; recreating it",
                 file=sys.stderr,
             )
-            raise SystemExit(1)
 
-        # Remove an unrecoverable stopped container without -f. If another action
-        # started it after our check, the removal fails and we adopt the running
-        # container instead of disrupting that action.
-        result = _run(
-            [*docker, "rm", name],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        if result.returncode:
-            if _container_running(docker, name):
-                return
-            if _container_exists(docker, name):
-                raise SystemExit(result.returncode)
+        # With an unknown state (inspect failed), skip removal: `rm` without -f still
+        # deletes a not-yet-started container. Creating it below either succeeds or hits
+        # a name conflict, and the conflict path waits for the existing container.
+        if status is not None:
+            # Remove an unrecoverable stopped container without -f. If another action
+            # started it after our check, the removal fails and we adopt the running
+            # container instead of disrupting that action.
+            result = _run(
+                [*docker, "rm", name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if result.returncode:
+                if _container_running(docker, name):
+                    return
+                if _container_exists(docker, name):
+                    raise SystemExit(result.returncode)
 
     repo_root = pathlib.Path(config["repo_root"])
     config_path = config_path or output_base / _CONFIG_FILENAME
@@ -826,7 +855,8 @@ def _start_container(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        name_conflict = "is already in use" in (result.stderr or "")
+        run_stderr = result.stderr or ""
+        name_conflict = "is already in use" in run_stderr and name in run_stderr
         if _wait_for_start(docker, name, missing_is_transient=name_conflict) == "running":
             return
         raise SystemExit(result.returncode)
