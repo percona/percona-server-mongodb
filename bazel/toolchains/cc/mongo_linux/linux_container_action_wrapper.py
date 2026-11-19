@@ -20,6 +20,7 @@ process inside the container instead of orphaning it.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -32,9 +33,10 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))
+from bazel.toolchains.cc.container_action import exclusive_file_lock
 from bazel.toolchains.cc.container_action import safe_name as _safe_name
 
 
@@ -57,6 +59,7 @@ def _check(args: Sequence[str]) -> None:
 _WORKSPACE_LABEL = "com.mongodb.linux-container-actions.workspace"
 _CONFIG_FILENAME = "mongo_linux_container_actions.json"
 _ACTION_TEMP_DIRNAME = "mongo-action-tmp"
+_START_LOCK_FILENAME = "container-start.lock"
 _CONTAINER_ACTION_TEMP_ROOT = pathlib.PurePosixPath("/mongo-tmp")
 _ACTION_CONTAINER_ENV = "MONGO_LINUX_ACTION_CONTAINER"
 _SHARED_INSTALL_ENV = "MONGO_BAZEL_SHARED_INSTALL_DIR"
@@ -640,6 +643,15 @@ def _configured_path(config: dict, key: str) -> pathlib.Path:
     return path
 
 
+@contextlib.contextmanager
+def _start_lock(output_base: pathlib.Path) -> Iterator[None]:
+    # The action-temp tree is writable from every action, unlike the source repository
+    # and the wrapper hook's state directory, which are read-only below linux-sandbox.
+    lock_path = _action_temp_root(output_base) / _START_LOCK_FILENAME
+    with exclusive_file_lock(lock_path, required=True):
+        yield
+
+
 def _start_container(
     docker: Sequence[str],
     config: dict,
@@ -650,6 +662,24 @@ def _start_container(
     if _container_running(docker, name):
         return
 
+    # Concurrent actions must not inspect, start, remove and create the deterministic
+    # container at the same time. `docker run -d` creates the container before starting
+    # it, so without the lock another action could hit a name conflict, or `docker rm` a
+    # container that is still `created`. Under the lock, no other action can be starting
+    # a container that exists but is not running, so starting or removing it is safe.
+    with _start_lock(output_base):
+        _start_container_locked(docker, config, name, output_base, config_path)
+
+
+def _start_container_locked(
+    docker: Sequence[str],
+    config: dict,
+    name: str,
+    output_base: pathlib.Path,
+    config_path: pathlib.Path | None,
+) -> None:
+    # If another action started the container while we waited for the lock, the
+    # `docker start` below is a no-op and we adopt the running container.
     if _container_exists(docker, name):
         # The deterministic name identifies this exact workspace/output-base/image
         # configuration, so a stopped container is reusable. Starting it is also safe
@@ -785,10 +815,7 @@ def _ensure_container(config: dict, config_path: pathlib.Path) -> str:
     docker = shlex.split(config.get("docker_command") or "docker")
     output_base = config_path.parent
     name = _container_name(config, output_base)
-    # The action may run below Bazel's linux-sandbox, where the source repository
-    # (including the wrapper hook's state directory) is intentionally read-only.
-    # The deterministic container name is the cross-process lock: concurrent runtime
-    # creates are resolved by _start_container's inspect/adopt path.
+    # Concurrent creates are serialized by _start_container's lock.
     _start_container(docker, config, name, output_base, config_path)
     return name
 

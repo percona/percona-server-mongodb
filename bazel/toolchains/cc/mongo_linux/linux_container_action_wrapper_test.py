@@ -7,6 +7,7 @@ import shlex
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -598,6 +599,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
     def test_start_container_restarts_existing_container(self) -> None:
         with (
+            tempfile.TemporaryDirectory() as temp_dir,
             mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
             mock.patch.object(
@@ -610,7 +612,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 ["docker"],
                 {"image": "image@sha256:digest"},
                 "boundary",
-                pathlib.Path("/output-base"),
+                pathlib.Path(temp_dir) / "output-base",
             )
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args.args[0])
@@ -991,6 +993,73 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 wrapper._start_container(["docker"], config, "boundary", output_base)
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args_list[1].args[0])
+
+    def test_concurrent_starts_create_the_container_once(self) -> None:
+        # Fake runtime with Docker's create-then-start gap: while `run` creates the
+        # container, its name is reserved but `inspect` does not report it yet. Without
+        # serialization the second action hits a name conflict there and exits 125.
+        state = {"status": None}
+        runs = []
+        both_checked = threading.Barrier(2)
+        fast_path_calls = []
+
+        def running(_docker, _name):
+            if len(fast_path_calls) < 2:
+                fast_path_calls.append(None)
+                both_checked.wait(timeout=5)
+            return state["status"] == "running"
+
+        def exists(_docker, _name):
+            return state["status"] in {"created", "running"}
+
+        def run(command, **_kwargs):
+            if command[1] == "run":
+                if state["status"] is not None:
+                    return subprocess.CompletedProcess(command, 125)
+                runs.append(command)
+                state["status"] = "reserved"
+                time.sleep(0.2)
+                state["status"] = "created"
+                time.sleep(0.05)
+                state["status"] = "running"
+            return subprocess.CompletedProcess(command, 0)
+
+        errors = []
+
+        def start(output_base: pathlib.Path, config: dict) -> None:
+            try:
+                wrapper._start_container(["docker"], config, "boundary", output_base)
+            except BaseException as exc:  # noqa: BLE001 - surface SystemExit from the thread
+                errors.append(exc)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            (root / "repo").mkdir()
+            output_base = root / "output-base"
+            output_base.mkdir()
+            config = {
+                "repo_root": str(root / "repo"),
+                "home": str(root / "home"),
+                "image": "image@sha256:digest",
+                "sandbox_base": str(root / "action-sandbox"),
+                "shared_install_dir": str(root / "shared-install"),
+            }
+            with (
+                mock.patch.object(wrapper, "_container_running", side_effect=running),
+                mock.patch.object(wrapper, "_container_exists", side_effect=exists),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", side_effect=run),
+            ):
+                threads = [
+                    threading.Thread(target=start, args=(output_base, config)) for _ in range(2)
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=10)
+
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(runs))
 
     def test_stale_container_replacement_keeps_current_container(self) -> None:
         responses = [
