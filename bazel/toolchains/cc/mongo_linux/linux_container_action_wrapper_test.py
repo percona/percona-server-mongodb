@@ -1014,6 +1014,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                     wrapper, "_container_running", side_effect=[False, False, False, False, True]
                 ),
                 mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_container_status", return_value="created"),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
                 mock.patch.object(
                     wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
@@ -1028,6 +1029,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         with (
             mock.patch.object(wrapper, "_container_running", side_effect=[False, False, True]),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
+            mock.patch.object(wrapper, "_container_status", return_value="created"),
             mock.patch.object(
                 wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
             ) as run,
@@ -1048,7 +1050,8 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             config = self._race_config(root)
             with (
                 mock.patch.object(wrapper, "_container_running", return_value=False),
-                mock.patch.object(wrapper, "_container_exists", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_container_status", return_value="created"),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
                 mock.patch.object(
                     wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
@@ -1058,6 +1061,44 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(SystemExit, "125"):
                     wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+    def test_start_container_fails_promptly_when_run_leaves_no_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            with (
+                mock.patch.object(wrapper, "_container_running", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", return_value=False),
+                mock.patch.object(wrapper, "_container_status", return_value=None),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(
+                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
+                ),
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                with self.assertRaisesRegex(SystemExit, "125"):
+                    wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        sleep.assert_not_called()
+
+    def test_start_container_removes_unstartable_container_without_waiting(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            with (
+                mock.patch.object(wrapper, "_container_running", side_effect=[False, False, True]),
+                mock.patch.object(wrapper, "_container_exists", return_value=True),
+                mock.patch.object(wrapper, "_container_status", return_value="exited"),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(
+                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 0)
+                ) as run,
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        sleep.assert_not_called()
+        self.assertEqual(["docker", "rm", "boundary"], run.call_args_list[1].args[0])
 
     def test_stale_container_replacement_keeps_current_container(self) -> None:
         responses = [

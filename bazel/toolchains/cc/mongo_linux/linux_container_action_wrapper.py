@@ -463,11 +463,26 @@ def _container_running(docker: Sequence[str], name: str) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
+def _container_status(docker: Sequence[str], name: str) -> str | None:
+    result = _run(
+        [*docker, "inspect", "-f", "{{.State.Status}}", name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    return (result.stdout or "").strip() if result.returncode == 0 else None
+
+
 def _wait_until_running(docker: Sequence[str], name: str) -> bool:
-    """Poll until the container runs; concurrent `docker run -d` leaves it `created` briefly."""
+    """Poll until the container runs while another action may still be starting it.
+
+    A concurrent `docker run -d` leaves the container `created` between its create and
+    start phases. Any other state (missing, exited, dead) means nobody is starting it,
+    so give up at once instead of waiting out the deadline.
+    """
     deadline = time.monotonic() + _CONTAINER_START_WAIT_SECONDS
     while not _container_running(docker, name):
-        if time.monotonic() >= deadline:
+        if _container_status(docker, name) != "created" or time.monotonic() >= deadline:
             return False
         time.sleep(1.0)
     return True
