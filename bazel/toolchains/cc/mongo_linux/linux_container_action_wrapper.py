@@ -473,19 +473,28 @@ def _container_status(docker: Sequence[str], name: str) -> str | None:
     return (result.stdout or "").strip() if result.returncode == 0 else None
 
 
-def _wait_until_running(docker: Sequence[str], name: str) -> bool:
-    """Poll until the container runs while another action may still be starting it.
+def _wait_for_start(
+    docker: Sequence[str], name: str, *, missing_is_transient: bool = False
+) -> str | None:
+    """Poll while another action may still be starting the container; return its last status.
 
     A concurrent `docker run -d` leaves the container `created` between its create and
-    start phases. Any other state (missing, exited, dead) means nobody is starting it,
-    so give up at once instead of waiting out the deadline.
+    start phases. Before that, the runtime has already reserved the name but may not
+    report the container yet, so a caller that just lost a name conflict passes
+    `missing_is_transient`. Any other state (exited, dead, or missing without a
+    conflict) means nobody is starting it, so return at once instead of waiting out
+    the deadline. One inspection per poll, so a `created` -> `running` transition
+    between two inspections cannot be misread as a failure.
     """
     deadline = time.monotonic() + _CONTAINER_START_WAIT_SECONDS
-    while not _container_running(docker, name):
-        if _container_status(docker, name) != "created" or time.monotonic() >= deadline:
-            return False
+    while True:
+        status = _container_status(docker, name)
+        if status == "running":
+            return status
+        starting = status == "created" or (status is None and missing_is_transient)
+        if not starting or time.monotonic() >= deadline:
+            return status
         time.sleep(1.0)
-    return True
 
 
 def _container_exists(docker: Sequence[str], name: str) -> bool:
@@ -690,8 +699,18 @@ def _start_container(
         )
         # Another action may be between create and start of its own `docker run -d`.
         # Wait for it rather than removing its `created` container out from under it.
-        if _wait_until_running(docker, name):
+        status = _wait_for_start(docker, name)
+        if status == "running":
             return
+        if status == "created":
+            # `docker rm` succeeds on a `created` container, so removing it here could
+            # break an action that is still starting it. Fail this action instead.
+            print(
+                f"ERROR: container {name} is still being created after "
+                f"{_CONTAINER_START_WAIT_SECONDS:.0f}s; not removing it",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 
         # Remove an unrecoverable stopped container without -f. If another action
         # started it after our check, the removal fails and we adopt the running
@@ -769,12 +788,16 @@ def _start_container(
             "trap 'exit 0' TERM INT; while true; do sleep 3600; done",
         ]
     )
+    # Capture stderr to recognize a name conflict below; Docker's output is echoed so
+    # pull progress and errors stay visible as before.
     result = _run(
         command,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE if _is_podman_command(docker) else None,
+        stderr=subprocess.PIPE,
         text=True,
     )
+    if result.stderr and not _is_podman_command(docker):
+        sys.stderr.write(result.stderr)
     if result.returncode and _is_podman_command(docker) and _podman_failure_needs_recovery(result):
         _recover_task_scoped_podman(
             docker,
@@ -803,7 +826,8 @@ def _start_container(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-        if _wait_until_running(docker, name):
+        name_conflict = "is already in use" in (result.stderr or "")
+        if _wait_for_start(docker, name, missing_is_transient=name_conflict) == "running":
             return
         raise SystemExit(result.returncode)
     if not _container_running(docker, name):

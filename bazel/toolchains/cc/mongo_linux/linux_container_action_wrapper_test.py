@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import pathlib
@@ -598,8 +599,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
     def test_start_container_restarts_existing_container(self) -> None:
         with (
-            mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
+            mock.patch.object(wrapper, "_container_running", return_value=False),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
+            mock.patch.object(wrapper, "_container_status", return_value="running"),
             mock.patch.object(
                 wrapper,
                 "_run",
@@ -975,16 +977,13 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 subprocess.CompletedProcess([], 0),
             ]
             with (
-                mock.patch.object(
-                    wrapper,
-                    "_container_running",
-                    side_effect=[False, False, True],
-                ),
+                mock.patch.object(wrapper, "_container_running", return_value=False),
                 mock.patch.object(
                     wrapper,
                     "_container_exists",
                     side_effect=[False, True],
                 ),
+                mock.patch.object(wrapper, "_container_status", return_value="running"),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
                 mock.patch.object(wrapper, "_run", side_effect=responses) as run,
             ):
@@ -1003,33 +1002,60 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             "shared_install_dir": str(root / "shared-install"),
         }
 
+    _NAME_CONFLICT = subprocess.CompletedProcess(
+        [],
+        125,
+        stderr='docker: Error response from daemon: Conflict. The container name "/boundary" '
+        'is already in use by container "f20b6119".\n',
+    )
+
     def test_start_container_waits_for_concurrent_creator_after_name_conflict(self) -> None:
-        # A concurrent action won `docker run --name`; its container stays `created`
-        # for a few polls before it runs. Losing the race must not fail the action.
+        # A concurrent action won `docker run --name`. Its container is not visible to
+        # inspect yet, then stays `created` for a poll before it runs. Losing the race
+        # must not fail the action.
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)
             config = self._race_config(root)
             with (
+                mock.patch.object(wrapper, "_container_running", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", return_value=False),
                 mock.patch.object(
-                    wrapper, "_container_running", side_effect=[False, False, False, False, True]
+                    wrapper, "_container_status", side_effect=[None, None, "created", "running"]
                 ),
-                mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
-                mock.patch.object(wrapper, "_container_status", return_value="created"),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
-                mock.patch.object(
-                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
-                ),
+                mock.patch.object(wrapper, "_run", return_value=self._NAME_CONFLICT),
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO) as stderr,
                 mock.patch.object(wrapper.time, "sleep") as sleep,
             ):
                 wrapper._start_container(["docker"], config, "boundary", root / "output-base")
 
-        self.assertEqual(2, sleep.call_count)
+        self.assertEqual(3, sleep.call_count)
+        self.assertIn("is already in use", stderr.getvalue())
+
+    def test_start_container_accepts_container_that_started_between_checks(self) -> None:
+        # The running check right after the conflict can still see `created`; the wait's
+        # own inspection then sees `running`. That is success, not a failure.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            with (
+                mock.patch.object(wrapper, "_container_running", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_container_status", return_value="running"),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", return_value=self._NAME_CONFLICT),
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        sleep.assert_not_called()
 
     def test_start_container_does_not_remove_container_another_action_is_starting(self) -> None:
         with (
-            mock.patch.object(wrapper, "_container_running", side_effect=[False, False, True]),
+            mock.patch.object(wrapper, "_container_running", return_value=False),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
-            mock.patch.object(wrapper, "_container_status", return_value="created"),
+            mock.patch.object(wrapper, "_container_status", side_effect=["created", "running"]),
             mock.patch.object(
                 wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
             ) as run,
@@ -1044,18 +1070,41 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
         self.assertEqual([["docker", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
 
+    def test_start_container_keeps_created_container_after_deadline(self) -> None:
+        # A container still `created` at the deadline may belong to a slow concurrent
+        # start; `docker rm` would succeed on it, so fail this action instead.
+        with (
+            mock.patch.object(wrapper, "_container_running", return_value=False),
+            mock.patch.object(wrapper, "_container_exists", return_value=True),
+            mock.patch.object(wrapper, "_container_status", return_value="created"),
+            mock.patch.object(
+                wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
+            ) as run,
+            mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
+            mock.patch.object(wrapper.time, "sleep"),
+            mock.patch.object(wrapper.time, "monotonic", side_effect=[0.0, 1.0, 1000.0]),
+        ):
+            with self.assertRaisesRegex(SystemExit, "1"):
+                wrapper._start_container(
+                    ["docker"],
+                    {"image": "image@sha256:digest"},
+                    "boundary",
+                    pathlib.Path("/output-base"),
+                )
+
+        self.assertEqual([["docker", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
+
     def test_start_container_fails_when_conflicting_container_never_runs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)
             config = self._race_config(root)
             with (
                 mock.patch.object(wrapper, "_container_running", return_value=False),
-                mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
-                mock.patch.object(wrapper, "_container_status", return_value="created"),
+                mock.patch.object(wrapper, "_container_exists", return_value=False),
+                mock.patch.object(wrapper, "_container_status", return_value=None),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
-                mock.patch.object(
-                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
-                ),
+                mock.patch.object(wrapper, "_run", return_value=self._NAME_CONFLICT),
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO),
                 mock.patch.object(wrapper.time, "sleep"),
                 mock.patch.object(wrapper.time, "monotonic", side_effect=[0.0, 1.0, 1000.0]),
             ):
@@ -1066,27 +1115,30 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)
             config = self._race_config(root)
+            failed_run = subprocess.CompletedProcess(
+                [], 125, stderr="docker: Error response from daemon: invalid mount config.\n"
+            )
             with (
                 mock.patch.object(wrapper, "_container_running", return_value=False),
                 mock.patch.object(wrapper, "_container_exists", return_value=False),
                 mock.patch.object(wrapper, "_container_status", return_value=None),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
-                mock.patch.object(
-                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
-                ),
+                mock.patch.object(wrapper, "_run", return_value=failed_run),
+                mock.patch.object(wrapper.sys, "stderr", new_callable=io.StringIO) as stderr,
                 mock.patch.object(wrapper.time, "sleep") as sleep,
             ):
                 with self.assertRaisesRegex(SystemExit, "125"):
                     wrapper._start_container(["docker"], config, "boundary", root / "output-base")
 
         sleep.assert_not_called()
+        self.assertIn("invalid mount config", stderr.getvalue())
 
     def test_start_container_removes_unstartable_container_without_waiting(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)
             config = self._race_config(root)
             with (
-                mock.patch.object(wrapper, "_container_running", side_effect=[False, False, True]),
+                mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
                 mock.patch.object(wrapper, "_container_exists", return_value=True),
                 mock.patch.object(wrapper, "_container_status", return_value="exited"),
                 mock.patch.object(wrapper, "_remove_stale_containers"),
