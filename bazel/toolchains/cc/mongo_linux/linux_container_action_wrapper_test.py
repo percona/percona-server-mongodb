@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import pathlib
@@ -13,6 +14,22 @@ import unittest
 from unittest import mock
 
 from bazel.toolchains.cc.mongo_linux import linux_container_action_wrapper as wrapper
+
+_START_LOCK_HELD = []
+
+
+@contextlib.contextmanager
+def _held_start_lock(_output_base: pathlib.Path):
+    """Stand-in for `_start_lock` that records whether it is held."""
+    _START_LOCK_HELD.append(True)
+    try:
+        yield
+    finally:
+        _START_LOCK_HELD.pop()
+
+
+def _assert_start_lock_held(*_args) -> None:
+    assert _START_LOCK_HELD, "container removed without holding the start lock"
 
 
 class LinuxContainerActionWrapperTest(unittest.TestCase):
@@ -743,8 +760,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_ensure_container") as ensure,
+            mock.patch.object(wrapper, "_start_container_locked") as ensure,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(
                 wrapper, "_container_mounts_current", return_value=True
@@ -762,15 +780,18 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container_locked") as ensure,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(wrapper, "_container_mounts_current", return_value=True) as mounts,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        ensure.assert_called_once_with(config, config_path)
+        ensure.assert_called_once_with(
+            ["docker"], config, "boundary", config_path.parent, config_path
+        )
         preflight.assert_called_once_with(["docker"], "boundary")
         mounts.assert_called_once_with(["docker"], "boundary", config_path.parent, config)
 
@@ -779,19 +800,25 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container_locked") as ensure,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(
                 wrapper, "_container_mounts_current", side_effect=[False, True]
             ) as mounts,
-            mock.patch.object(wrapper, "_remove_container") as remove,
+            mock.patch.object(
+                wrapper, "_remove_container", side_effect=_assert_start_lock_held
+            ) as remove,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
+        self.assertFalse(_START_LOCK_HELD)
         remove.assert_called_once_with(["docker"], "boundary")
-        ensure.assert_called_once_with(config, config_path)
+        ensure.assert_called_once_with(
+            ["docker"], config, "boundary", config_path.parent, config_path
+        )
         self.assertEqual(2, mounts.call_count)
 
     def test_preflight_fails_closed_when_recreated_container_mounts_are_broken(self) -> None:
@@ -799,8 +826,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container_locked") as ensure,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(wrapper, "_container_mounts_current", return_value=False),
             mock.patch.object(wrapper, "_remove_container") as remove,
@@ -1051,13 +1079,15 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 mock.patch.object(wrapper, "_run", side_effect=run),
             ):
                 threads = [
-                    threading.Thread(target=start, args=(output_base, config)) for _ in range(2)
+                    threading.Thread(target=start, args=(output_base, config), daemon=True)
+                    for _ in range(2)
                 ]
                 for thread in threads:
                     thread.start()
                 for thread in threads:
                     thread.join(timeout=10)
 
+        self.assertFalse([thread for thread in threads if thread.is_alive()])
         self.assertEqual([], errors)
         self.assertEqual(1, len(runs))
 

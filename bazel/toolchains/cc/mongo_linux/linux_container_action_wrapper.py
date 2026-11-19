@@ -682,8 +682,7 @@ def _start_container_locked(
     # `docker start` below is a no-op and we adopt the running container.
     if _container_exists(docker, name):
         # The deterministic name identifies this exact workspace/output-base/image
-        # configuration, so a stopped container is reusable. Starting it is also safe
-        # when another action races us: runtimes serialize the transition by name.
+        # configuration, so a stopped container is reusable.
         _run(
             [*docker, "start", name],
             stdout=subprocess.DEVNULL,
@@ -692,9 +691,9 @@ def _start_container_locked(
         if _container_running(docker, name):
             return
 
-        # Remove an unrecoverable stopped container without -f. If another action
-        # started it after our check, the removal fails and we adopt the running
-        # container instead of disrupting that action.
+        # Remove an unrecoverable stopped container without -f. Actions cannot start it
+        # concurrently because they hold the start lock, but something outside the
+        # wrapper might; then the removal fails and we adopt the running container.
         result = _run(
             [*docker, "rm", name],
             stdout=subprocess.DEVNULL,
@@ -976,6 +975,17 @@ def _ensure_preflight_container(config: dict, config_path: pathlib.Path) -> str:
     docker = shlex.split(config.get("docker_command") or "docker")
     output_base = config_path.parent
     name = _container_name(config, output_base)
+    # Removing and recreating the container must not interleave with an action that is
+    # starting or adopting it, so hold the start lock throughout. The preflight runs
+    # once per Bazel command, before its actions, so this does not slow builds down.
+    with _start_lock(output_base):
+        return _ensure_preflight_container_locked(docker, config, config_path, name)
+
+
+def _ensure_preflight_container_locked(
+    docker: Sequence[str], config: dict, config_path: pathlib.Path, name: str
+) -> str:
+    output_base = config_path.parent
     if _container_running(docker, name):
         if _container_mounts_current(docker, name, output_base, config):
             return name
@@ -989,7 +999,9 @@ def _ensure_preflight_container(config: dict, config_path: pathlib.Path) -> str:
     # mount in inspect output without actually installing it. Validate real reads and
     # writes after starting, then recreate once automatically before failing closed.
     for attempt in range(2):
-        name = _ensure_container(config, config_path)
+        # Not `_ensure_container`: it takes the start lock, which this process already
+        # holds through a separate open file, so `flock` would deadlock.
+        _start_container_locked(docker, config, name, output_base, config_path)
         try:
             _preflight_container(docker, name)
         except SystemExit:
