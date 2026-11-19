@@ -59,7 +59,7 @@ def _check(args: Sequence[str]) -> None:
 _WORKSPACE_LABEL = "com.mongodb.linux-container-actions.workspace"
 _CONFIG_FILENAME = "mongo_linux_container_actions.json"
 _ACTION_TEMP_DIRNAME = "mongo-action-tmp"
-_START_LOCK_FILENAME = "container-start.lock"
+_START_LOCK_FILENAME = "mongo-linux-container-start.lock"
 _CONTAINER_ACTION_TEMP_ROOT = pathlib.PurePosixPath("/mongo-tmp")
 _ACTION_CONTAINER_ENV = "MONGO_LINUX_ACTION_CONTAINER"
 _SHARED_INSTALL_ENV = "MONGO_BAZEL_SHARED_INSTALL_DIR"
@@ -643,12 +643,16 @@ def _configured_path(config: dict, key: str) -> pathlib.Path:
     return path
 
 
+def _start_lock_path(output_base: pathlib.Path) -> pathlib.Path:
+    # The output base is bind-mounted read-only into the action container, so contained
+    # actions cannot remove or replace the lock file to defeat it or redirect it through
+    # a symlink. Do not move it into a writable mount such as the action-temp tree.
+    return output_base / _START_LOCK_FILENAME
+
+
 @contextlib.contextmanager
 def _start_lock(output_base: pathlib.Path) -> Iterator[None]:
-    # The action-temp tree is writable from every action, unlike the source repository
-    # and the wrapper hook's state directory, which are read-only below linux-sandbox.
-    lock_path = _action_temp_root(output_base) / _START_LOCK_FILENAME
-    with exclusive_file_lock(lock_path, required=True):
+    with exclusive_file_lock(_start_lock_path(output_base), required=True):
         yield
 
 

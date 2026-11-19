@@ -1007,6 +1007,27 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args_list[1].args[0])
 
+    def test_start_lock_is_not_writable_from_the_action_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            (root / "repo").mkdir()
+            output_base = root / "output-base"
+            output_base.mkdir()
+            config = {
+                "repo_root": str(root / "repo"),
+                "home": str(root / "home"),
+                "image": "image@sha256:digest",
+                "sandbox_base": str(root / "action-sandbox"),
+                "shared_install_dir": str(root / "shared-install"),
+            }
+            lock_path = wrapper._start_lock_path(output_base)
+            specs = wrapper._mount_specs(config, output_base)
+
+        writable = [source for source, _target, read_only in specs if not read_only]
+        self.assertTrue(writable)
+        for source in writable:
+            self.assertFalse(lock_path.is_relative_to(source), source)
+
     def test_concurrent_starts_create_the_container_once(self) -> None:
         # Fake runtime with Docker's create-then-start gap: while `run` creates the
         # container, its name is reserved but `inspect` does not report it yet. Without
