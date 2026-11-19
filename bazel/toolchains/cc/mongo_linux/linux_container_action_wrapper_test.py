@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import pathlib
@@ -14,22 +13,6 @@ import unittest
 from unittest import mock
 
 from bazel.toolchains.cc.mongo_linux import linux_container_action_wrapper as wrapper
-
-_START_LOCK_HELD = []
-
-
-@contextlib.contextmanager
-def _held_start_lock(_output_base: pathlib.Path):
-    """Stand-in for `_start_lock` that records whether it is held."""
-    _START_LOCK_HELD.append(True)
-    try:
-        yield
-    finally:
-        _START_LOCK_HELD.pop()
-
-
-def _assert_start_lock_held(*_args) -> None:
-    assert _START_LOCK_HELD, "container removed without holding the start lock"
 
 
 class LinuxContainerActionWrapperTest(unittest.TestCase):
@@ -616,7 +599,6 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
     def test_start_container_restarts_existing_container(self) -> None:
         with (
-            tempfile.TemporaryDirectory() as temp_dir,
             mock.patch.object(wrapper, "_container_running", side_effect=[False, True]),
             mock.patch.object(wrapper, "_container_exists", return_value=True),
             mock.patch.object(
@@ -629,7 +611,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 ["docker"],
                 {"image": "image@sha256:digest"},
                 "boundary",
-                pathlib.Path(temp_dir) / "output-base",
+                pathlib.Path("/output-base"),
             )
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args.args[0])
@@ -760,9 +742,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
-            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_start_container_locked") as ensure,
+            mock.patch.object(wrapper, "_start_container") as ensure,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(
                 wrapper, "_container_mounts_current", return_value=True
@@ -780,9 +762,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
-            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_start_container_locked") as ensure,
+            mock.patch.object(wrapper, "_start_container") as ensure,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(wrapper, "_container_mounts_current", return_value=True) as mounts,
         ):
@@ -800,21 +782,24 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
-            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
+            mock.patch.object(wrapper, "_start_lock") as lock,
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_start_container_locked") as ensure,
+            mock.patch.object(wrapper, "_start_container") as ensure,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(
                 wrapper, "_container_mounts_current", side_effect=[False, True]
             ) as mounts,
             mock.patch.object(
-                wrapper, "_remove_container", side_effect=_assert_start_lock_held
+                wrapper,
+                "_remove_container",
+                side_effect=lambda *_: self.assertTrue(
+                    lock.return_value.__enter__.called and not lock.return_value.__exit__.called
+                ),
             ) as remove,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        self.assertFalse(_START_LOCK_HELD)
         remove.assert_called_once_with(["docker"], "boundary")
         ensure.assert_called_once_with(
             ["docker"], config, "boundary", config_path.parent, config_path
@@ -826,9 +811,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
-            mock.patch.object(wrapper, "_start_lock", side_effect=_held_start_lock),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_start_container_locked") as ensure,
+            mock.patch.object(wrapper, "_start_container") as ensure,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(wrapper, "_container_mounts_current", return_value=False),
             mock.patch.object(wrapper, "_remove_container") as remove,
@@ -1038,7 +1023,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             return state["status"] == "running"
 
         def exists(_docker, _name):
-            return state["status"] in {"created", "running"}
+            return state["status"] == "running"
 
         def run(command, **_kwargs):
             if command[1] == "run":
@@ -1046,8 +1031,6 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                     return subprocess.CompletedProcess(command, 125)
                 runs.append(command)
                 state["status"] = "reserved"
-                time.sleep(0.2)
-                state["status"] = "created"
                 time.sleep(0.05)
                 state["status"] = "running"
             return subprocess.CompletedProcess(command, 0)
@@ -1056,7 +1039,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
         def start(output_base: pathlib.Path, config: dict) -> None:
             try:
-                wrapper._start_container(["docker"], config, "boundary", output_base)
+                wrapper._ensure_container(config, output_base / wrapper._CONFIG_FILENAME)
             except BaseException as exc:  # noqa: BLE001 - surface SystemExit from the thread
                 errors.append(exc)
 
