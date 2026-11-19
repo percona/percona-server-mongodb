@@ -31,6 +31,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from collections.abc import Mapping, Sequence
 
@@ -59,6 +60,9 @@ _CONFIG_FILENAME = "mongo_linux_container_actions.json"
 _ACTION_TEMP_DIRNAME = "mongo-action-tmp"
 _CONTAINER_ACTION_TEMP_ROOT = pathlib.PurePosixPath("/mongo-tmp")
 _ACTION_CONTAINER_ENV = "MONGO_LINUX_ACTION_CONTAINER"
+# How long to wait for a container that a concurrent action is still creating or
+# starting under the same deterministic name to reach the running state.
+_CONTAINER_START_WAIT_SECONDS = 30.0
 _SHARED_INSTALL_ENV = "MONGO_BAZEL_SHARED_INSTALL_DIR"
 _PODMAN_RUNTIME_DIR_PREFIX = "mongo-linux-podman-runtime-"
 _PODMAN_STORAGE_DIR_PREFIX = "mongo-linux-podman-storage-"
@@ -459,6 +463,16 @@ def _container_running(docker: Sequence[str], name: str) -> bool:
     return result.returncode == 0 and result.stdout.strip() == "true"
 
 
+def _wait_until_running(docker: Sequence[str], name: str) -> bool:
+    """Poll until the container runs; concurrent `docker run -d` leaves it `created` briefly."""
+    deadline = time.monotonic() + _CONTAINER_START_WAIT_SECONDS
+    while not _container_running(docker, name):
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(1.0)
+    return True
+
+
 def _container_exists(docker: Sequence[str], name: str) -> bool:
     result = _run(
         [*docker, "inspect", name],
@@ -659,7 +673,9 @@ def _start_container(
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        if _container_running(docker, name):
+        # Another action may be between create and start of its own `docker run -d`.
+        # Wait for it rather than removing its `created` container out from under it.
+        if _wait_until_running(docker, name):
             return
 
         # Remove an unrecoverable stopped container without -f. If another action
@@ -762,6 +778,8 @@ def _start_container(
         # A cancelled `docker run -d`/`podman run -d` can create and start the
         # deterministic container before its client reports success. Reuse that exact
         # container instead of failing every subsequent action with a name conflict.
+        # The same name conflict also occurs when a concurrent action won the create
+        # race and its container is still `created`, not yet running.
         if _container_running(docker, name):
             return
         if _container_exists(docker, name):
@@ -770,8 +788,8 @@ def _start_container(
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            if _container_running(docker, name):
-                return
+        if _wait_until_running(docker, name):
+            return
         raise SystemExit(result.returncode)
     if not _container_running(docker, name):
         print(

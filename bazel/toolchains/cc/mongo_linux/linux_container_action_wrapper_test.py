@@ -992,6 +992,73 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args_list[1].args[0])
 
+    def _race_config(self, root: pathlib.Path) -> dict:
+        (root / "repo").mkdir()
+        (root / "output-base").mkdir()
+        return {
+            "repo_root": str(root / "repo"),
+            "home": str(root / "home"),
+            "image": "image@sha256:digest",
+            "sandbox_base": str(root / "action-sandbox"),
+            "shared_install_dir": str(root / "shared-install"),
+        }
+
+    def test_start_container_waits_for_concurrent_creator_after_name_conflict(self) -> None:
+        # A concurrent action won `docker run --name`; its container stays `created`
+        # for a few polls before it runs. Losing the race must not fail the action.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            with (
+                mock.patch.object(
+                    wrapper, "_container_running", side_effect=[False, False, False, False, True]
+                ),
+                mock.patch.object(wrapper, "_container_exists", side_effect=[False, True]),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(
+                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
+                ),
+                mock.patch.object(wrapper.time, "sleep") as sleep,
+            ):
+                wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
+        self.assertEqual(2, sleep.call_count)
+
+    def test_start_container_does_not_remove_container_another_action_is_starting(self) -> None:
+        with (
+            mock.patch.object(wrapper, "_container_running", side_effect=[False, False, True]),
+            mock.patch.object(wrapper, "_container_exists", return_value=True),
+            mock.patch.object(
+                wrapper, "_run", return_value=subprocess.CompletedProcess([], 1)
+            ) as run,
+            mock.patch.object(wrapper.time, "sleep"),
+        ):
+            wrapper._start_container(
+                ["docker"],
+                {"image": "image@sha256:digest"},
+                "boundary",
+                pathlib.Path("/output-base"),
+            )
+
+        self.assertEqual([["docker", "start", "boundary"]], [c.args[0] for c in run.call_args_list])
+
+    def test_start_container_fails_when_conflicting_container_never_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = self._race_config(root)
+            with (
+                mock.patch.object(wrapper, "_container_running", return_value=False),
+                mock.patch.object(wrapper, "_container_exists", return_value=False),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(
+                    wrapper, "_run", return_value=subprocess.CompletedProcess([], 125)
+                ),
+                mock.patch.object(wrapper.time, "sleep"),
+                mock.patch.object(wrapper.time, "monotonic", side_effect=[0.0, 1.0, 1000.0]),
+            ):
+                with self.assertRaisesRegex(SystemExit, "125"):
+                    wrapper._start_container(["docker"], config, "boundary", root / "output-base")
+
     def test_stale_container_replacement_keeps_current_container(self) -> None:
         responses = [
             subprocess.CompletedProcess([], 0, stdout="old\ncurrent\n"),
