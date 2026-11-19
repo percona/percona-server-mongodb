@@ -162,8 +162,6 @@ get_sources(){
     git clone https://github.com/mongodb/mongo-tools.git
     cd mongo-tools
     git checkout $MONGO_TOOLS_TAG
-    sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' set_goenv.sh
-    sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' set_goenv.sh
     echo "export PSMDB_TOOLS_COMMIT_HASH=\"$(git rev-parse HEAD)\"" > set_tools_revision.sh
     echo "export PSMDB_TOOLS_REVISION=\"${PSM_VER}-${PSM_RELEASE}\"" >> set_tools_revision.sh
     chmod +x set_tools_revision.sh
@@ -174,8 +172,8 @@ get_sources(){
 
     sed -i '/GetLinuxDistroAndVersion()/ s/os, version, err = GetLinuxDistroAndVersion()/os, version, err = "rhel", "9.3", nil/' release/platform/platform.go || exit 1
 
-    go mod edit -dropreplace golang.org/x/crypto@v0.45.0 -dropreplace golang.org/x/net@v0.47.0 || exit 1
-    go get golang.org/x/crypto@v0.52.0 golang.org/x/net@v0.55.0 || exit 1
+    # same overrides as percona-mongodb-tools-packaging; never lower than what the tag pins, go get downgrades silently
+    go get golang.org/x/net@v0.62.0 golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 || exit 1
     go mod tidy || exit 1
     go mod vendor || exit 1
 
@@ -237,7 +235,7 @@ install_golang() {
         return 1
     fi
 
-    GO_VERSION="1.25.11"
+    GO_VERSION="1.27.4"
     GO_TAR="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
     GO_SHA="${GO_TAR}.sha256"
     GO_URL="https://downloads.percona.com/downloads/packaging/go/${GO_TAR}"
@@ -469,6 +467,10 @@ install_deps() {
       pip install --upgrade pip
 
     else
+      # bullseye is EOL: deb.debian.org still has the security index but the pool is gone (404)
+      if grep -q '^VERSION_CODENAME=bullseye$' /etc/os-release; then
+        sed -i 's|http://deb.debian.org/debian-security|http://archive.debian.org/debian-security|' /etc/apt/sources.list
+      fi
       apt-get -y update
       DEBIAN_FRONTEND=noninteractive apt-get -y install curl lsb-release wget apt-transport-https software-properties-common gnupg2
       export DEBIAN=$(lsb_release -sc)
@@ -866,10 +868,6 @@ build_deb(){
     if [ x"${DEBIAN}" = "xbullseye" -o x"${DEBIAN}" = "xxenial" -o x"${DEBIAN}" = "xjammy" -o x"${DEBIAN}" = "xnoble" ]; then
         sed -i 's:dh-systemd,::' debian/control
     fi
-    sed -i 's|VersionStr="$(go run release/release.go get-version)"|VersionStr="$PSMDB_TOOLS_REVISION"|' mongo-tools/set_goenv.sh
-    sed -i 's|GitCommit="$(git rev-parse HEAD)"|GitCommit="$PSMDB_TOOLS_COMMIT_HASH"|' mongo-tools/set_goenv.sh
-    sed -i 's|go build|go build -a -x|' mongo-tools/build.sh
-    sed -i 's|exit $ec||' mongo-tools/build.sh
     . ./mongo-tools/set_tools_revision.sh
     dch -m -D "${DEBIAN}" --force-distribution -v "${VERSION}-${RELEASE}.${DEBIAN}" 'Update distribution'
     export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
@@ -1089,8 +1087,9 @@ build_tarball(){
     cp -r ${WORKDIR}/${TOOLSDIR} ./
     cd mongo-tools
     . ./set_tools_revision.sh
-    sed -i '14d' buildscript/build.go
-    sed -i '246,254d' buildscript/build.go
+    # match by content, line numbers move between tool tags
+    sed -i '/^\t"github.com\/craiggwilson\/goke\/pkg\/git"$/d' buildscript/build.go
+    sed -i '/^\tversionStr, err := runCmd(ctx, "go", "run", "release\/release.go", "get-version")$/,/failed to get git commit hash/{/failed to get git commit hash/{N;d};d}' buildscript/build.go
     sed -i "s:versionStr,:\"$PSMDB_TOOLS_REVISION\",:" buildscript/build.go
     sed -i "s:gitCommit):\"$PSMDB_TOOLS_COMMIT_HASH\"):" buildscript/build.go
     ./make build
