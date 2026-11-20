@@ -744,7 +744,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
             mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_start_container") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(
                 wrapper, "_container_mounts_current", return_value=True
@@ -753,7 +753,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        ensure.assert_not_called()
+        start.assert_not_called()
         preflight.assert_not_called()
         mounts_current.assert_called_once_with(["docker"], "boundary", config_path.parent, config)
 
@@ -764,14 +764,14 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
             mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_start_container") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(wrapper, "_container_mounts_current", return_value=True) as mounts,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        ensure.assert_called_once_with(
+        start.assert_called_once_with(
             ["docker"], config, "boundary", config_path.parent, config_path
         )
         preflight.assert_called_once_with(["docker"], "boundary")
@@ -784,7 +784,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
             mock.patch.object(wrapper, "_start_lock") as lock,
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_start_container") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(
                 wrapper, "_container_mounts_current", side_effect=[False, True]
@@ -801,7 +801,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
         self.assertEqual("boundary", name)
         remove.assert_called_once_with(["docker"], "boundary")
-        ensure.assert_called_once_with(
+        start.assert_called_once_with(
             ["docker"], config, "boundary", config_path.parent, config_path
         )
         self.assertEqual(2, mounts.call_count)
@@ -813,7 +813,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
             mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_start_container") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(wrapper, "_container_mounts_current", return_value=False),
             mock.patch.object(wrapper, "_remove_container") as remove,
@@ -821,7 +821,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "1"):
                 wrapper._ensure_preflight_container(config, config_path)
 
-        self.assertEqual(2, ensure.call_count)
+        self.assertEqual(2, start.call_count)
         remove.assert_called_once_with(["docker"], "boundary")
 
     def test_start_container_mounts_repo_output_base_and_read_only_config(self) -> None:
@@ -1009,18 +1009,10 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
 
     def test_start_lock_is_not_writable_from_the_action_container(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = pathlib.Path(temp_dir)
-            (root / "repo").mkdir()
-            output_base = root / "output-base"
-            output_base.mkdir()
-            config = {
-                "repo_root": str(root / "repo"),
-                "home": str(root / "home"),
-                "image": "image@sha256:digest",
-                "sandbox_base": str(root / "action-sandbox"),
-                "shared_install_dir": str(root / "shared-install"),
-            }
-            lock_path = wrapper._start_lock_path(output_base)
+            config, output_base = self._mount_config(pathlib.Path(temp_dir))
+            with mock.patch.object(wrapper, "exclusive_file_lock") as lock:
+                wrapper._start_lock(output_base)
+            lock_path = lock.call_args.args[0]
             specs = wrapper._mount_specs(config, output_base)
 
         writable = [source for source, _target, read_only in specs if not read_only]
@@ -1065,17 +1057,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 errors.append(exc)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = pathlib.Path(temp_dir)
-            (root / "repo").mkdir()
-            output_base = root / "output-base"
-            output_base.mkdir()
-            config = {
-                "repo_root": str(root / "repo"),
-                "home": str(root / "home"),
-                "image": "image@sha256:digest",
-                "sandbox_base": str(root / "action-sandbox"),
-                "shared_install_dir": str(root / "shared-install"),
-            }
+            config, output_base = self._mount_config(pathlib.Path(temp_dir))
             with (
                 mock.patch.object(wrapper, "_container_running", side_effect=running),
                 mock.patch.object(wrapper, "_container_exists", side_effect=exists),

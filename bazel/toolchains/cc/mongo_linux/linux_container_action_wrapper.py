@@ -20,7 +20,6 @@ process inside the container instead of orphaning it.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import os
@@ -33,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))
 from bazel.toolchains.cc.container_action import exclusive_file_lock
@@ -643,17 +642,11 @@ def _configured_path(config: dict, key: str) -> pathlib.Path:
     return path
 
 
-def _start_lock_path(output_base: pathlib.Path) -> pathlib.Path:
+def _start_lock(output_base: pathlib.Path):
     # The output base is bind-mounted read-only into the action container, so contained
     # actions cannot remove or replace the lock file to defeat it or redirect it through
     # a symlink. Do not move it into a writable mount such as the action-temp tree.
-    return output_base / _START_LOCK_FILENAME
-
-
-@contextlib.contextmanager
-def _start_lock(output_base: pathlib.Path) -> Iterator[None]:
-    with exclusive_file_lock(_start_lock_path(output_base), required=True):
-        yield
+    return exclusive_file_lock(output_base / _START_LOCK_FILENAME, required=True)
 
 
 def _start_container(
@@ -803,12 +796,8 @@ def _ensure_container(config: dict, config_path: pathlib.Path) -> str:
     name = _container_name(config, output_base)
     if _container_running(docker, name):
         return name
-    # Concurrent actions must not inspect, start, remove and create the deterministic
-    # container at the same time. `docker run -d` creates the container before starting
-    # it, so without the lock another action could hit a name conflict, or `docker rm` a
-    # container that is still `created`. Under the lock, no other action can be starting
-    # a container that exists but is not running, so starting or removing it is safe.
-    # `_start_container` checks again whether the container runs once the lock is held.
+    # Serialize inspect/start/rm/run across actions: `docker run -d` creates before it
+    # starts, so unlocked actions hit name conflicts or `rm` a still-`created` container.
     with _start_lock(output_base):
         _start_container(docker, config, name, output_base, config_path)
     return name
