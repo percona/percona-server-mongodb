@@ -1,0 +1,225 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "561351ff266f7c632916ba1a2faad71feb9bc559",
+    "merge_commit": "489701c94181342ca2716d35e56cb7a4261f2d4b"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "489701c94181342ca2716d35e56cb7a4261f2d4b",
+    "merged_commits": [
+      "489701c94181342ca2716d35e56cb7a4261f2d4b",
+      "eed10bf21ec88532ebba5570dbadccef24ea0a5e",
+      "b8e82e9e6e1247ebbc343bac4dd7a2dc038e56ca",
+      "7e3c30f9922e8a352932766b65f858e9e880d247",
+      "2b8b21dc0fee73be05f2d1b3b86e35e4a4b073f8",
+      "7a3fc01fe451cb0027be825451ddecda07ccfbe2",
+      "650196a74dbf6f9dafb5f6ec699c0e282fe52595",
+      "fa7578ac29045967ac305f0c640cf196112cfb49",
+      "8672303564358e3034706379015d0064ca06edfd",
+      "c322e06ee77b1fc5c9ab209d68f08ca2f4f68a27",
+      "aa433461a69c9a46f1ac6b1069538cc32d4914be",
+      "ad48b838fffcf1538107b60209eeee6f1dc25589",
+      "2f8d82a7b1ee9499105a876aee72ab36315215da",
+      "c28ad7f3dcbcdae0cce8041255cc97a45bcb2f71",
+      "8a096707704d8fa86c3377cb5c6f3eaa4fbf2184",
+      "e04f90ffb88be283871d7887f0942413fc3ef7c2",
+      "1e4e5a6304ecd9f42a40a8e3c8da8d515a22a9cf",
+      "26e097f0dbf8e5b2190f3394d6e3271da3723552",
+      "12831bbdb81b0d03276bea95017d9d507db08ed0",
+      "94161ee0107795b4108b3be738c8c2cf30ebd7b0",
+      "821cdee3b4a6dcd215464b1f7fa56b334d2f5693",
+      "13793a8ade8294ff81f02fed5491f4740b3a65da",
+      "f873fecafd3bb05dd84ea48325415d9481672443",
+      "50723caaeea25ab6b55de0b852e8fdb219d03ee8",
+      "c613a152f25abb5f3b6d3dd595da3e8f4fb76465",
+      "d1e452025b37b44fcee0d88e5805a2f3ec20db5f",
+      "e6fbd99fd8475866b2e7a2095d5dc85df095a253",
+      "3a5d41b0dd663d1eddce74faf1d7d7ee0b332ae2",
+      "3f80dc3156ce90b44e63ede0cd688542a236f0e7",
+      "d2b678f10ebb1b1e0ca55f738fc1b509428156e0",
+      "67044c2330e4e6271d0671683b83b485ee7467b3",
+      "7b37f88ce37ea72b40b665f3cb0c021ab7e35057",
+      "abcd5e5ebd8b44392a82416a22a5d2457f3771f7",
+      "74a85d6f58e7cc9a94afa04947d180ba5b5396fb",
+      "74c7c3ebf7602d96e69308c1ac122843538d6c31",
+      "0b7f9a7601bbb2c858a653aed4bd5f5e172b4bf7",
+      "46725bd34f691abfcf88bd5de50e225a561f7525",
+      "5a6ebf19a735ae1cc008386d7be76ea2e1893943",
+      "1dde4f2428b9a2460d597c487c26699186a1718e",
+      "81be073e3bb2355f24467764d6484b4b71c52a96",
+      "6fdb6021d13e80743ec7f42294782fec62739491",
+      "7cdf845bd7be9949cef55575ae2e7093b340f760",
+      "42828919b384c2393b51967d20bad188fd196fd5",
+      "e92b4c0c0492f32a2671a9b4d1a4072b5da895da",
+      "c9983eab54f669ba25c2acfcc45e65930281af7e",
+      "6e7f04566ed1aa8e6f66c65e6b3184eec909ae8f",
+      "bbbac0464335dc7153944828586ac867364a9a57",
+      "11f92ad3ba993458f4bb4581759081002fa1e43f",
+      "5163bc48e8700b76a2f5095f1a888036796fd645",
+      "2d7cfe8488acc278cc20de68e97ac7e542380101",
+      "23009e0ac68f91278848842f60a49b9e14c1719e",
+      "628f677e1d4fc043ad9e64e7cfe9ce570e4c10c7",
+      "9355793f7293f7a8c9cd08f783e9bdf53d31d2a7",
+      "2da0dba9a1013ce0beaeac0ba84ff2d3cfefcccd",
+      "2e22794cfc8fe213dcec38e99bf65ba806df6b48",
+      "c01fbb814455a48b6d5f18a070da9c341ad3e4d1",
+      "3f0a044ee293e2903df5b3654f6f5ebf1f058e79"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py",
+        "buildscripts/idl/idl/generator.py",
+        "jstests/auth/lib/commands_lib.js",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/extension/host/BUILD.bazel",
+        "src/mongo/db/extension/test_examples/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/startup_recovery.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp",
+        "src/mongo/s/BUILD.bazel",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 50140,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.341517,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 3818,
+        "cacheReadInputTokens": 78404,
+        "cacheCreationInputTokens": 33092,
+        "webSearchRequests": 0,
+        "costUSD": 0.341517,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 184,
+        "cacheCreationEphemeral5mInputTokens": 33092,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 3818,
+            "cache_read": 78404,
+            "cache_creation": 33092
+          },
+          "cost_usd": 0.341517
+        }
+      }
+    },
+    "text_result": "I've analyzed the `diff base \u2192 merge commit` diff for each of the 13 auto-merged files and written the JSON description.\n\nSummary of what this merge pulls in from upstream mongodb-master:\n\n- **WiredTiger import** (`wiredtiger.h.in`): new eviction stat `WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY` plus renumbering of subsequent `WT_STAT_CONN_*` constants.\n- **OTel wiring**: new `benchmark_tracing` deps in `db/`, `s/` BUILD files, a new `crud_tracing_bm` benchmark, and `wiredtiger_util.cpp` now records `recordEngineNotReadyError()`/`recordCollectError()` on the OTel metric registry.\n- **Offline-validation refactor** (`startup_recovery.cpp`): the in-file offline validation code moves out to the new `offline_validate` component, with matching BUILD dep swap.\n- **Build/IDL additions**: wasmtime/wizer crate specs in `MODULE.bazel`, extension stub-command libraries, IDL enum-values declaration generation.\n- **Tests**: new change-stream `showSystemEvents` auth cases in `commands_lib.js`.\n- **CI helper**: `evergreen_git.py` wraps `Repo()` in a context manager.\n\nEvery file auto-merged cleanly with no Percona conflicts, so none of the Conflict Hints applied. The response was written to the specified response file.",
+    "response": {
+      "summary": "Merge of upstream mongodb-master into the PSMDB master branch. The incoming changes bring a new WiredTiger import (adding a new eviction statistic and renumbering the WT_STAT connection stat constants), OTel-related benchmark and metric wiring, a refactor that moves offline collection validation out of startup_recovery.cpp into a dedicated offline_validate component, new Bazel build targets (wasmtime/wizer crate specs, extension stub-command libraries, tracing benchmarks), IDL generator support for enum value declarations, change-stream showSystemEvents auth test cases, and a small refactor of the CI diff-revision helper. All listed files auto-merged cleanly with no Percona conflicts.",
+      "auto_merged": {
+        "MODULE.bazel": "Adds crate.spec entries for the new //bazel/wasm_rules/wizer_driver target: wasmtime-wizer (=44.0.1, features component-model and wasmtime), wasmtime-wasi (=44.0.1), and tokio (=1.51.0, feature rt). No existing specs changed.",
+        "buildscripts/bazel_rules_mongo/utils/evergreen_git.py": "Refactors get_diff_revision() to construct the Repo() inside a `with Repo() as repo:` context manager (ensuring the repo is closed) instead of a bare `repo = Repo()`. The diff-commit selection logic (remote branch ref, github PR merge-base, patch revision, waterfall HEAD^1) is unchanged, only re-indented under the context manager.",
+        "buildscripts/idl/idl/generator.py": "In the C++ header writer, emits an empty line followed by a call to enum_type_info.gen_values_declaration(self._writer, mod_tag) after the extra-data declaration, generating an enum values declaration. Also adds \"array\" to the list of system includes in the generated header.",
+        "jstests/auth/lib/commands_lib.js": "Adds two authorization test entries for change streams with showSystemEvents: aggregate_changeStream_whole_db_showSystemEvents (whole-db $changeStream with showSystemEvents:true) and aggregate_changeStream_whole_cluster_showSystemEvents (allChangesForCluster with showSystemEvents:true). Both assert the required roles/privileges (changeStream + find) and are marked expectFail because replication is not enabled. No existing test cases were changed.",
+        "src/mongo/db/BUILD.bazel": "Adds a load of OTEL_TARGET_COMPATIBLE_WITH from //src/mongo/otel:otel_rules.bzl. Adds dep server_read_concern_write_concern_metrics and extension_stub_commands to existing libraries; swaps the validate dep from collection_validation to offline_validation and removes the util:processinfo dep on one library. Adds otel/traces:benchmark_tracing deps to benchmarks, adds a crud_bm_fixture.h private header to crud_bm, and adds a new crud_tracing_bm benchmark target (gated by OTEL_TARGET_COMPATIBLE_WITH) measuring OTel tracing cost on top of crud_bm.",
+        "src/mongo/db/extension/host/BUILD.bazel": "Adds a new mongo_cc_library target extension_stub_commands (srcs stub_commands.cpp, dep //src/mongo:base) and adds it as a dependency of the extension_loader library.",
+        "src/mongo/db/extension/test_examples/BUILD.bazel": "Adds a new signed_mongo_cc_extension_shared_library target binary_flag_stub_extension (srcs binary_flag_stub.cpp) used to test stub parsers gated on the featureFlagExtensionStubParsersBinary binary-compatible feature flag, and registers binary_flag_stub_extension_signed_lib in the extensions_with_config list.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds the authorization_session_test_fixture dependency to one unit test target and adds change_stream_pipeline_helpers_test.cpp to the srcs of another unit test target.",
+        "src/mongo/db/query/BUILD.bazel": "Adds the //src/mongo/db/query/query_stats/plan_shape_counters dependency to a query unit test target.",
+        "src/mongo/db/startup_recovery.cpp": "Removes the in-file offline collection validation implementation (the OfflineValidateResults struct, validateAndLogOperation(), offlineValidateCollection(), offlineValidateParallel() and related helpers) and the includes supporting them (status_with.h, commands.h, curop.h, mongod_options_storage_gen.h, profile_settings.h, server_feature_flags_gen.h, collection_validation.h, validate_results.h, transport_layer_manager.h, processinfo.h, producer_consumer_queue.h, synchronized_value.h, <functional>). It now includes mongo/db/validate/offline_validate.h, delegating offline validation to the extracted component.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.cpp": "In WiredTigerUtil::collectConnectionStatistics, caches engine.getOTelMetricRegistry() once into a local `registry`. When the stats-collection permit cannot be acquired it now calls registry->recordEngineNotReadyError() (if registry is non-null) before returning false, and on a failed statistics collection it calls registry->recordCollectError() (if non-null) before appending the error fields. The registry is also passed through to the existing stats-import call via the cached local.",
+        "src/mongo/s/BUILD.bazel": "Adds the //src/mongo/otel/traces:benchmark_tracing dependency to a mongo_cc_benchmark target.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger import: adds a new connection statistic WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY (1175, 'eviction server skips tree that we do not want to evict before releasing the handle list lock') and renumbers all subsequent WT_STAT_CONN_* constants by one to accommodate it."
+      },
+      "review_notes": "All files auto-merged with the ort strategy and contained no conflict markers or Percona-specific code in the incoming diff, so no Conflict Hints applied. The wiredtiger.h.in change is a generated header renumbering from a WiredTiger import (82c12253b034) and should be consistent with the rest of the WiredTiger import; verify the generated WT stat sources were imported together. The startup_recovery.cpp change is a pure extraction/move to //src/mongo/db/validate:offline_validation (matching the BUILD.bazel dep swap) rather than a behavior change. No Percona enhancements were touched by this merge."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the diff for each auto-merged file to describe the merge accurately."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me read the full output file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Read"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files. Let me write the response JSON."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the `diff base \u2192 merge commit` diff for each of the 13 auto-merged files and written the JSON description.\n\nSummary of what this merge pulls in from upstream mongodb-master:\n\n- **WiredTiger import** (`wiredtiger.h.in`): new eviction stat `WT_STAT_CONN_EVICTION_SERVER_SKIP_UNWANTED_TREE_EARLY` plus renumbering of subsequent `WT_STAT_CONN_*` constants.\n- **OTel wiring**: new `benchmark_tracing` deps in `db/`, `s/` BUILD files, a new `crud_tracing_bm` benchmark, and `wiredtiger_util.cpp` now records `recordEngineNotReadyError()`/`recordCollectError()` on the OTel metric registry.\n- **Offline-validation refactor** (`startup_recovery.cpp`): the in-file offline validation code moves out to the new `offline_validate` component, with matching BUILD dep swap.\n- **Build/IDL additions**: wasmtime/wizer crate specs in `MODULE.bazel`, extension stub-command libraries, IDL enum-values declaration generation.\n- **Tests**: new change-stream `showSystemEvents` auth cases in `commands_lib.js`.\n- **CI helper**: `evergreen_git.py` wraps `Repo()` in a context manager.\n\nEvery file auto-merged cleanly with no Percona conflicts, so none of the Conflict Hints applied. The response was written to the specified response file."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261120_002003_805196.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.329 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "489701c94181342ca2716d35e56cb7a4261f2d4b",
+    "short_sha": "489701c9418",
+    "strategy": null,
+    "summary": "This is a vendored WiredTiger third-party import (wt-vendoring-bot) touching a well-isolated set of files, which is an ideal self-contained merge boundary that rarely depends on the commits right after it. It lands at ~57 commits into the window, comfortably within the 30-65 band near the ~50 target. It also keeps revert pairs clean: the SERVER-134248 commit (9355793f) and its revert (5163bc48) both fall before this cut and cancel out within the batch, while the SERVER-138035 commit (dec3d084) and its revert (b12146e8) both fall after the cut and stay together for the next batch. The boundary sits well back from the freshest, still-unsettled candidates.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44644500818"
+  }
+}
