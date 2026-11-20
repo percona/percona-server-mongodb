@@ -7,6 +7,7 @@ import shlex
 import signal
 import subprocess
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -756,8 +757,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_ensure_container") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(
                 wrapper, "_container_mounts_current", return_value=True
@@ -766,7 +768,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        ensure.assert_not_called()
+        start.assert_not_called()
         preflight.assert_not_called()
         mounts_current.assert_called_once_with(["docker"], "boundary", config_path.parent, config)
 
@@ -775,15 +777,18 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container") as preflight,
             mock.patch.object(wrapper, "_container_mounts_current", return_value=True) as mounts,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
-        ensure.assert_called_once_with(config, config_path)
+        start.assert_called_once_with(
+            ["docker"], config, "boundary", config_path.parent, config_path
+        )
         preflight.assert_called_once_with(["docker"], "boundary")
         mounts.assert_called_once_with(["docker"], "boundary", config_path.parent, config)
 
@@ -792,19 +797,28 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock") as lock,
             mock.patch.object(wrapper, "_container_running", return_value=True),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(
                 wrapper, "_container_mounts_current", side_effect=[False, True]
             ) as mounts,
-            mock.patch.object(wrapper, "_remove_container") as remove,
+            mock.patch.object(
+                wrapper,
+                "_remove_container",
+                side_effect=lambda *_: self.assertTrue(
+                    lock.return_value.__enter__.called and not lock.return_value.__exit__.called
+                ),
+            ) as remove,
         ):
             name = wrapper._ensure_preflight_container(config, config_path)
 
         self.assertEqual("boundary", name)
         remove.assert_called_once_with(["docker"], "boundary")
-        ensure.assert_called_once_with(config, config_path)
+        start.assert_called_once_with(
+            ["docker"], config, "boundary", config_path.parent, config_path
+        )
         self.assertEqual(2, mounts.call_count)
 
     def test_preflight_fails_closed_when_recreated_container_mounts_are_broken(self) -> None:
@@ -812,8 +826,9 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
         config_path = pathlib.Path("/output-base") / wrapper._CONFIG_FILENAME
         with (
             mock.patch.object(wrapper, "_container_name", return_value="boundary"),
+            mock.patch.object(wrapper, "_start_lock"),
             mock.patch.object(wrapper, "_container_running", return_value=False),
-            mock.patch.object(wrapper, "_ensure_container", return_value="boundary") as ensure,
+            mock.patch.object(wrapper, "_start_container") as start,
             mock.patch.object(wrapper, "_preflight_container"),
             mock.patch.object(wrapper, "_container_mounts_current", return_value=False),
             mock.patch.object(wrapper, "_remove_container") as remove,
@@ -821,7 +836,7 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "1"):
                 wrapper._ensure_preflight_container(config, config_path)
 
-        self.assertEqual(2, ensure.call_count)
+        self.assertEqual(2, start.call_count)
         remove.assert_called_once_with(["docker"], "boundary")
 
     def test_start_container_mounts_repo_output_base_and_read_only_config(self) -> None:
@@ -1006,6 +1021,76 @@ class LinuxContainerActionWrapperTest(unittest.TestCase):
                 wrapper._start_container(["docker"], config, "boundary", output_base)
 
         self.assertEqual(["docker", "start", "boundary"], run.call_args_list[1].args[0])
+
+    def test_start_lock_is_not_writable_from_the_action_container(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config, output_base = self._mount_config(pathlib.Path(temp_dir))
+            with mock.patch.object(wrapper, "exclusive_file_lock") as lock:
+                wrapper._start_lock(output_base)
+            lock_path = lock.call_args.args[0]
+            specs = wrapper._mount_specs(config, output_base)
+
+        writable = [source for source, _target, read_only in specs if not read_only]
+        self.assertTrue(writable)
+        for source in writable:
+            self.assertFalse(lock_path.is_relative_to(source), source)
+
+    def test_concurrent_starts_create_the_container_once(self) -> None:
+        # Fake runtime with Docker's create-then-start gap: while `run` creates the
+        # container, its name is reserved but `inspect` does not report it yet. Without
+        # serialization the second action hits a name conflict there and exits 125.
+        state = {"status": None}
+        runs = []
+        both_checked = threading.Barrier(2)
+        fast_path_calls = []
+
+        def running(_docker, _name):
+            if len(fast_path_calls) < 2:
+                fast_path_calls.append(None)
+                both_checked.wait(timeout=5)
+            return state["status"] == "running"
+
+        def exists(_docker, _name):
+            return state["status"] == "running"
+
+        def run(command, **_kwargs):
+            if command[1] == "run":
+                if state["status"] is not None:
+                    return subprocess.CompletedProcess(command, 125)
+                runs.append(command)
+                state["status"] = "reserved"
+                time.sleep(0.05)
+                state["status"] = "running"
+            return subprocess.CompletedProcess(command, 0)
+
+        errors = []
+
+        def start(output_base: pathlib.Path, config: dict) -> None:
+            try:
+                wrapper._ensure_container(config, output_base / wrapper._CONFIG_FILENAME)
+            except BaseException as exc:  # noqa: BLE001 - surface SystemExit from the thread
+                errors.append(exc)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config, output_base = self._mount_config(pathlib.Path(temp_dir))
+            with (
+                mock.patch.object(wrapper, "_container_running", side_effect=running),
+                mock.patch.object(wrapper, "_container_exists", side_effect=exists),
+                mock.patch.object(wrapper, "_remove_stale_containers"),
+                mock.patch.object(wrapper, "_run", side_effect=run),
+            ):
+                threads = [
+                    threading.Thread(target=start, args=(output_base, config), daemon=True)
+                    for _ in range(2)
+                ]
+                for thread in threads:
+                    thread.start()
+                for thread in threads:
+                    thread.join(timeout=10)
+
+        self.assertFalse([thread for thread in threads if thread.is_alive()])
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(runs))
 
     def test_stale_container_replacement_keeps_current_container(self) -> None:
         responses = [
