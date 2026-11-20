@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 87,
-    "days_behind": 8,
-    "unmerged_oldest_age_days": 8.92153963935185,
-    "files_affected": 463,
-    "total_additions": 33824,
-    "total_deletions": 4444,
+    "commits_behind": 100,
+    "days_behind": 9,
+    "unmerged_oldest_age_days": 9.32537693587963,
+    "files_affected": 515,
+    "total_additions": 36667,
+    "total_deletions": 4829,
     "date_range": {
       "first": "2026-11-10T22:20:12+00:00",
-      "last": "2026-11-12T20:12:21+00:00"
+      "last": "2026-11-13T03:35:37+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,136 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "4cc030ef0257384e6a94fccae59b98b74dd16a94",
+      "short_sha": "4cc030ef025",
+      "date": "2026-11-13T03:35:37+00:00",
+      "author": {
+        "name": "Alana Huang",
+        "email": "alana.huang@mongodb.com"
+      },
+      "summary": "SERVER-139305 Fix GetStatisticsValueInvalidKey value shift (#66806)"
+    },
+    {
+      "sha": "bbd1b16167825df2ddf617a0b7b859e9766b52a8",
+      "short_sha": "bbd1b161678",
+      "date": "2026-11-13T03:33:57+00:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-134702 Add connection pool metrics for connections created shortly after cancelation (#66433)"
+    },
+    {
+      "sha": "645f794581697410fe4b95e83287fbd0b30014a0",
+      "short_sha": "645f7945816",
+      "date": "2026-11-13T02:01:26+00:00",
+      "author": {
+        "name": "Krishen Chovhan",
+        "email": "88472684+krischov@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: b73d7c9a05ed8963dfcddc67b9000325836ba614 from branch mongodb-master (#66799)"
+    },
+    {
+      "sha": "b4e8c2e5428632f5ab3e002986c4e7319aa0ab31",
+      "short_sha": "b4e8c2e5428",
+      "date": "2026-11-13T00:40:10+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-139202: Name the empty SBE TypeSignature kNoType (#66677)"
+    },
+    {
+      "sha": "819e8837aa9c235561880fe7831c00918ea37d62",
+      "short_sha": "819e8837aa9",
+      "date": "2026-11-13T00:15:03+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-137710 Handle repair oplog entry in SizeCountCheckpointValidator (#66688)"
+    },
+    {
+      "sha": "2d901950471aeedd467cef58d581d584265b681c",
+      "short_sha": "2d901950471",
+      "date": "2026-11-13T00:15:02+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-139208 Refactor CheckpointHashValidationTest::appendCheckpoint() (#66687)"
+    },
+    {
+      "sha": "10b03acb138be03a811ff57b7d63a18179b157f3",
+      "short_sha": "10b03acb138",
+      "date": "2026-11-13T00:15:01+00:00",
+      "author": {
+        "name": "Cedric Sirianni",
+        "email": "cedric.sirianni@mongodb.com"
+      },
+      "summary": "SERVER-139190 Refactor isRepairReplicatedMetadataO2() (#66686)"
+    },
+    {
+      "sha": "5ec432549e1dc46830630894b021fc8afc1faa35",
+      "short_sha": "5ec432549e1",
+      "date": "2026-11-13T00:09:17+00:00",
+      "author": {
+        "name": "Ruchitha Rajaghatta",
+        "email": "77162985+ruchitharajaghatta@users.noreply.github.com"
+      },
+      "summary": "SERVER-136642 Investigate read on new primary after w: majority write (#66679)"
+    },
+    {
+      "sha": "50a22ef35ccf4bef48c08b0e8ad417ddfeceb441",
+      "short_sha": "50a22ef35cc",
+      "date": "2026-11-12T21:55:01+00:00",
+      "author": {
+        "name": "Erwin Pe",
+        "email": "erwin.pe@mongodb.com"
+      },
+      "summary": "SERVER-130498 Exempt create_encrypted_collection test from last patch testing (#66738)"
+    },
+    {
+      "sha": "7bce74e805d88c372feab62a7e205b58bea01e0f",
+      "short_sha": "7bce74e805d",
+      "date": "2026-11-12T21:20:57+00:00",
+      "author": {
+        "name": "Parker Felix",
+        "email": "68665637+parker-felix@users.noreply.github.com"
+      },
+      "summary": "SERVER-139282 Mark QuerySolutionNode move constructors noexcept (#66774)"
+    },
+    {
+      "sha": "dca70a0a30537a749feff820daa3497cfddafc1a",
+      "short_sha": "dca70a0a305",
+      "date": "2026-11-12T21:01:33+00:00",
+      "author": {
+        "name": "Tyler Rau",
+        "email": "tyler.rau@mongodb.com"
+      },
+      "summary": "SERVER-139223 Del BSONElementValue from a header (#66701)"
+    },
+    {
+      "sha": "d5e8e8af1c3d31376ff9215122b61e723f5acfee",
+      "short_sha": "d5e8e8af1c3",
+      "date": "2026-11-12T20:41:01+00:00",
+      "author": {
+        "name": "natalie-hill",
+        "email": "natalie.hill@mongodb.com"
+      },
+      "summary": "SERVER-139096 Consider JOO sample size in analyze regardless of global enablement status (#66655)"
+    },
+    {
+      "sha": "fec4e10e7616b50d54c3d77a0d97431cf944de03",
+      "short_sha": "fec4e10e761",
+      "date": "2026-11-12T20:17:57+00:00",
+      "author": {
+        "name": "Anna Veselova",
+        "email": "47113149+aveselova@users.noreply.github.com"
+      },
+      "summary": "SERVER-138656: Build StreamingAggStage from StreamingGroupNode (#66370)"
+    },
     {
       "sha": "6198aba4e742acc34457587de70ee4d2b8b7d9f9",
       "short_sha": "6198aba4e74",
@@ -956,6 +1086,26 @@
     },
     {
       "commit": {
+        "sha": "489701c94181342ca2716d35e56cb7a4261f2d4b",
+        "short_sha": "489701c9418",
+        "date": "2026-11-11T23:01:52+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: 491b2433123de175e0d3e506d508c9a1717007dd from branch mongodb-master (#66617)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-489701c9418/main",
+          "mongodb"
+        ]
+      }
+    },
+    {
+      "commit": {
         "sha": "c4dac326cfa3023b9e31f896c7b305e978756038",
         "short_sha": "c4dac326cfa",
         "date": "2026-11-12T11:19:37+00:00",
@@ -976,10 +1126,33 @@
           "num_of_dirs": 11
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "645f794581697410fe4b95e83287fbd0b30014a0",
+        "short_sha": "645f7945816",
+        "date": "2026-11-13T02:01:26+00:00",
+        "author": {
+          "name": "Krishen Chovhan",
+          "email": "88472684+krischov@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: b73d7c9a05ed8963dfcddc67b9000325836ba614 from branch mongodb-master (#66799)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 20,
+          "num_of_lines": 1057,
+          "lines_added": 974,
+          "lines_deleted": 83,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-19 20:26:26",
+  "generated_at": "2026-11-20 06:07:42",
   "branch_name": "master",
   "display_name": "master"
 }
