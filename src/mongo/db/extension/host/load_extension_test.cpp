@@ -8,6 +8,7 @@
 #include "mongo/db/extension/host/load_extension_test_util.h"
 #include "mongo/db/extension/host/load_stub_parsers.h"
 #include "mongo/db/extension/host/signature_validator.h"
+#include "mongo/db/extension/host/stub_commands.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/document_source_limit.h"
 #include "mongo/db/pipeline/document_source_match.h"
@@ -16,6 +17,7 @@
 #include "mongo/db/pipeline/expression_context_for_test.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
 #include "mongo/db/pipeline/pipeline_factory.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
@@ -48,6 +50,8 @@ protected:
     static inline const std::string kMatchTopNStageName = "$matchTopN";
     static inline const std::string kMatchTopNLibExtensionPath = "libmatch_topN_mongo_extension.so";
 
+    static inline const std::string kStubCommandName = "stubCommand";
+
     void setUp() override {
 #ifndef MONGO_CONFIG_EXT_SIG_SECURE
         _previousExtensionsSignaturePublicKeyPath =
@@ -72,6 +76,7 @@ protected:
         ExtensionLoader::unload_forTest("test_options");
         LiteParsedDocumentSource::unregisterParser_forTest("$checkNum");
         ExtensionLoader::unload_forTest("parse_options");
+        unregisterStubCommand_forTest(kStubCommandName);
     }
 
     ExtensionConfig makeTestFooConfig() {
@@ -600,6 +605,30 @@ TEST_F(LoadExtensionsTest, BinaryCompatibleFlagGatesExtensionStage) {
     ASSERT_EQUALS(parsedPipeline->getSources().size(), 1U);
     ASSERT_TRUE(dynamic_cast<DocumentSourceExtensionForQueryShape*>(
                     parsedPipeline->getSources().front().get()) != nullptr);
+}
+
+TEST_F(LoadExtensionsTest, FindStubParserFeatureFlagFindsBinaryCompatibleFlag) {
+    ASSERT_EQ(findStubParserFeatureFlag(kTestFooStageName, "featureFlagExtensionStubParsersBinary"),
+              &feature_flags::gFeatureFlagExtensionStubParsersBinary);
+}
+
+TEST_F(LoadExtensionsTest, LoadStubCommand) {
+    const auto errorMsg = "Error message for stubCommand";
+    registerStubCommand(kStubCommandName, errorMsg);
+
+    auto error = getStubCommandError(kStubCommandName);
+    ASSERT_TRUE(error);
+    ASSERT_EQ(error->code(), 13730200);
+    ASSERT_EQ(error->reason(), errorMsg);
+}
+
+TEST_F(LoadExtensionsTest, FirstStubCommandRegistrationTakesPrecedence) {
+    registerStubCommand(kStubCommandName, "first");
+    registerStubCommand(kStubCommandName, "second");
+
+    auto error = getStubCommandError(kStubCommandName);
+    ASSERT_TRUE(error);
+    ASSERT_EQ(error->reason(), "first");
 }
 
 /*

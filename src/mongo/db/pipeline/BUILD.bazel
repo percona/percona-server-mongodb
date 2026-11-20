@@ -1410,6 +1410,7 @@ mongo_cc_unit_test(
         "//src/mongo/db:change_stream_pre_image_util",
         "//src/mongo/db:change_stream_pre_images_collection_manager",
         "//src/mongo/db:service_context_d_test_fixture",
+        "//src/mongo/db/auth:authorization_session_test_fixture",
         "//src/mongo/db/commands/server_status:server_status_metric",
         "//src/mongo/db/exec/document_value",
         "//src/mongo/db/exec/document_value:document_value_test_util",
@@ -1660,6 +1661,7 @@ mongo_cc_unit_test(
     srcs = [
         "aggregation_request_test.cpp",
         "change_stream_convert_errors_stage_test.cpp",
+        "change_stream_pipeline_helpers_test.cpp",
         "data_to_shards_allocation_query_service_test.cpp",
         "dependencies_test.cpp",
         "dispatch_shard_pipeline_test.cpp",

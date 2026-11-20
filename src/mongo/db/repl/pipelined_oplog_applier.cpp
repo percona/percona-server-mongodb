@@ -22,6 +22,7 @@
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
 #include "mongo/util/scopeguard.h"
+#include "mongo/util/time_support.h"
 
 #include <algorithm>
 #include <memory>
@@ -35,6 +36,34 @@ namespace {
 
 MONGO_FAIL_POINT_DEFINE(hangBeforePipelinedApplierPublish);
 MONGO_FAIL_POINT_DEFINE(hangBeforePipelinedApplierDrain);
+MONGO_FAIL_POINT_DEFINE(pausePipelinedApplierWorkerBeforeNextBatch);
+
+/**
+ * Blocks the calling worker while the 'pausePipelinedApplierWorkerBeforeNextBatch' fail point is
+ * enabled. Called after the worker has signaled completion of its slice, it keeps the worker from
+ * starting the next batch's slice, mirroring how 'pauseBatchApplicationBeforeCompletion' freezes
+ * the whole classic applier. Fatals if the owning applier begins shutting down while blocked
+ * ('applier' may be null in callers that cannot shut down, e.g. unit tests).
+ */
+void pauseWorkerBeforeNextBatch(const OplogApplier* applier, size_t workerIdx) {
+    if (MONGO_unlikely(pausePipelinedApplierWorkerBeforeNextBatch.shouldFail())) {
+        // Do not include "fail point enabled" in this message: tests that wait on
+        // pauseBatchApplicationBeforeCompletion's log output grep for that text plus the fail
+        // point name, and it must only match at the batch boundary in the advancer.
+        LOGV2(13735800,
+              "Holding pipelined oplog applier worker at "
+              "pausePipelinedApplierWorkerBeforeNextBatch",
+              "workerIdx"_attr = workerIdx);
+        while (MONGO_unlikely(pausePipelinedApplierWorkerBeforeNextBatch.shouldFail())) {
+            if (applier && applier->inShutdown()) {
+                LOGV2_FATAL_NOTRACE(13735801,
+                                    "Turn off pausePipelinedApplierWorkerBeforeNextBatch before "
+                                    "attempting clean shutdown");
+            }
+            sleepmillis(100);
+        }
+    }
+}
 
 /**
  * Configures 'opCtx' for oplog application: no constraint enforcement, prepare conflicts ignored.
@@ -59,6 +88,13 @@ bool batchMustBeAppliedSerialized(OplogApplication::Mode mode,
     invariant(!ops.empty());
     const BatchStats batchStats;
     return std::any_of(ops.begin(), ops.end(), [&](const OplogEntry& entry) {
+        if (mode == OplogApplication::Mode::kSecondary &&
+            (entry.shouldPrepare() || entry.isPreparedCommitOrAbort())) {
+            // A prepared-transaction boundary batch must apply without other batches in flight,
+            // and its session update must be published before later batches dispatch.
+            // TODO SERVER-138432: Pipeline eligible split prepared transaction batches.
+            return true;
+        }
         // Entries above lastApplied may belong to batches still in flight, so they may be applied
         // concurrently with this batch; entries below it have already been published.
         const auto action = getBatchActionForEntry(mode, lastApplied, entry, batchStats);
@@ -78,7 +114,7 @@ PipelinedOplogApplier::PipelinedOplogApplier(executor::TaskExecutor* executor,
       _storageInterface(storageInterface),
       _workerPool(numWorkers,
                   [this](size_t workerIdx, const PipelinedApplierWorkerPool::WorkItem& item) {
-                      consumeWorkItem(workerIdx, getOptions(), item, _batchTracker);
+                      consumeWorkItem(workerIdx, getOptions(), item, _batchTracker, this);
                   }),
       _advancer(_batchTracker, [this](const auto& batch) { _publishBatch(batch); }) {
     _disableTransactionUpdateCoalescing =
@@ -204,6 +240,8 @@ StatusWith<OpTime> PipelinedOplogApplier::_applyOplogBatch(OperationContext* opC
 void PipelinedOplogApplier::_dispatchBatch(OperationContext* opCtx, std::vector<OplogEntry> ops) {
     invariant(!ops.empty());
 
+    pauseBatchApplicationAfterWritingOplogEntriesAndBeforeApplication(opCtx);
+
     // A batch containing any entry that must apply alone — e.g. DDL, the new-primary noop, or a
     // truncate — is applied serialized. This is done through a "drain, dispatch, drain" sequence:
     // drain everything in flight, dispatch the batch, then drain and wait for it to be applied
@@ -220,9 +258,26 @@ void PipelinedOplogApplier::_dispatchBatch(OperationContext* opCtx, std::vector<
         if (!_drainWorkers()) {
             return;
         }
+        // Prepared commit and abort oplog entries resolve the split sessions their prepare entry
+        // created. The splits are returned to the pool once every worker of the resolving batch has
+        // finished, mirroring the classic applier's end-of-batch release, so a drained pipeline
+        // implies all resolved splits are released.
+        auto* splitSessManager = _replCoord->getSplitPrepareSessionManager();
+        std::vector<std::pair<LogicalSessionId, TxnNumber>> splitReleases;
+        if (getOptions().mode == OplogApplication::Mode::kSecondary) {
+            for (const auto& op : ops) {
+                if (op.isPreparedCommitOrAbort() &&
+                    splitSessManager->isSessionSplit(*op.getSessionId(), *op.getTxnNumber())) {
+                    splitReleases.emplace_back(*op.getSessionId(), *op.getTxnNumber());
+                }
+            }
+        }
         _dispatchBatchToWorkers(opCtx, std::move(ops));
         if (!_drainWorkers()) {
             return;
+        }
+        for (auto& [lsid, txnNumber] : splitReleases) {
+            splitSessManager->releaseSplitSessions(lsid, txnNumber);
         }
     } else {
         _dispatchBatchToWorkers(opCtx, std::move(ops));
@@ -314,6 +369,14 @@ bool PipelinedOplogApplier::_waitForAdvancerIdle() {
 void PipelinedOplogApplier::_publishBatch(
     const PipelinedApplierBatchTracker::InflightBatch& batch) {
     hangBeforePipelinedApplierPublish.pauseWhileSet();
+    // The advancer reaches a batch only after all of its workers have applied their slices, so
+    // pausing here holds the batch fully applied but unpublished, with lastApplied frozen: the
+    // classic applier's fail point position. This is where the log line tests wait on is emitted.
+    // The worker fail point is passed so the helper can require, via invariant, that tests
+    // pausing here have also paused the workers.
+    pauseBatchApplicationBeforeCompletionAndLastAppliedAdvancement(
+        this, &pausePipelinedApplierWorkerBeforeNextBatch);
+
     invariant(batch.multikeyMetadata);
     invariant(!batch.ops.empty());
 
@@ -383,7 +446,8 @@ Status applyWorkItem(OperationContext* opCtx,
 void consumeWorkItem(size_t workerIdx,
                      const OplogApplier::Options& options,
                      const PipelinedApplierWorkerPool::WorkItem& item,
-                     PipelinedApplierBatchTracker& batchTracker) {
+                     PipelinedApplierBatchTracker& batchTracker,
+                     const OplogApplier* applier) {
     invariant(!item.ops.empty());
     invariant(item.batchRemainingWorkers);
     invariant(item.multikeyPathInfo);
@@ -397,6 +461,12 @@ void consumeWorkItem(size_t workerIdx,
     }
     if (MONGO_likely(status.isOK())) {
         batchTracker.onWorkerCompletion(item.batchRemainingWorkers);
+        // Pause after signaling completion, so the batch still completes and the advancer reaches
+        // it, but this worker cannot start the next batch's slice. This is the pipelined
+        // counterpart of the classic applier's full stop under
+        // pauseBatchApplicationBeforeCompletion; tests enable both fail points together via the
+        // jstests helper configurePauseBatchApplicationBeforeCompletion().
+        pauseWorkerBeforeNextBatch(applier, workerIdx);
         return;
     }
     // A global-shutdown interrupt abandons the item unapplied; lastApplied stays below this

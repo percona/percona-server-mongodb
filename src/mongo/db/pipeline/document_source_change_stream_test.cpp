@@ -6,6 +6,13 @@
 #include "mongo/bson/bsonobj.h"
 #include "mongo/bson/bsonobjbuilder.h"
 #include "mongo/bson/json.h"
+#include "mongo/db/auth/action_set.h"
+#include "mongo/db/auth/action_type.h"
+#include "mongo/db/auth/authorization_session.h"
+#include "mongo/db/auth/authorization_session_for_test.h"
+#include "mongo/db/auth/authz_session_external_state_mock.h"
+#include "mongo/db/auth/privilege.h"
+#include "mongo/db/auth/resource_pattern.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/database_name.h"
 //#include "mongo/db/end_of_transaction_cluster_parameter_gen.h"
@@ -62,6 +69,7 @@
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/pcre.h"
 #include "mongo/util/str.h"
 #include "mongo/util/uuid.h"
 
@@ -92,6 +100,7 @@ using D = Document;
 using V = Value;
 
 using DSChangeStream = DocumentSourceChangeStream;
+using exec::agg::GetNextResult;
 
 // Deterministic values used for testing
 const UUID testConstUuid = UUID::parse("6948DF80-14BD-4E04-8842-7668D9C001F5").getValue();
@@ -114,6 +123,120 @@ void assertCommitTimestamp(bool showCommitTimestamp, const Document& doc) {
     } else {
         ASSERT_TRUE(doc[DSChangeStream::kCommitTimestampField].missing());
     }
+}
+
+// The field carrying the commit-time accounting metadata of a coordinated (multi-shard)
+// transaction.
+constexpr std::string_view kEndOfTransactionScopesField = "endOfTransactionScopes"sv;
+
+// Builds a prepared applyOps oplog entry holding a single insert into 'writtenNss'.
+repl::OplogEntry makePreparedApplyOpsEntry(const NamespaceString& writtenNss, repl::OpTime opTime) {
+    Document preparedApplyOps{
+        {"applyOps",
+         Value{std::vector<Document>{
+             Document{{"op", "i"sv},
+                      {"ns", writtenNss.ns_forTest()},
+                      {"ui", testUuid()},
+                      {"o", Value{Document{{"_id", 123}, {"x", "hallo"sv}}}}}}}},
+        {"prepare", true},
+    };
+    return makeOplogEntry(OpTypeEnum::kCommand,
+                          nss.getCommandNS(),
+                          preparedApplyOps.toBson(),
+                          testUuid(),
+                          boost::none,
+                          boost::none,
+                          opTime);
+}
+
+// Builds the commit oplog entry of a coordinated (multi-shard) transaction. The commit entry
+// carries the commit-time accounting metadata ('endOfTransactionScopes') and links back to the
+// prepared applyOps entry that holds the transaction's operations.
+repl::OplogEntry makeCoordinatedCommitEntry(const BSONObj& endOfTransactionScopes,
+                                            repl::OpTime prevWriteOpTime) {
+    OperationSessionInfo sessionInfo;
+    sessionInfo.setTxnNumber(1);
+    sessionInfo.setSessionId(makeLogicalSessionIdForTest());
+    repl::DurableOplogEntry commitEntry(
+        kDefaultOpTime,                   // optime
+        OpTypeEnum::kCommand,             // opType
+        nss.getCommandNS(),               // namespace
+        boost::none,                      // uuid
+        boost::none,                      // fromMigrate
+        boost::none,                      // checkExistenceForDiffInsert
+        boost::none,                      // versionContext
+        repl::OplogEntry::kOplogVersion,  // version
+        BSON("commitTransaction" << 1 << "commitTimestamp" << kDefaultCommitTs
+                                 << "endOfTransactionScopes" << endOfTransactionScopes),  // o
+        boost::none,                                                                      // o2
+        sessionInfo,      // sessionInfo
+        boost::none,      // upsert
+        Date_t(),         // wall clock time
+        {},               // statement ids
+        prevWriteOpTime,  // optime of previous write within same transaction
+        boost::none,      // pre-image optime
+        boost::none,      // post-image optime
+        boost::none,      // ShardId of resharding recipient
+        boost::none,      // _id
+        boost::none);     // needsRetryImage
+    return repl::OplogEntry(std::move(commitEntry));
+}
+
+// Builds the commit oplog entry of a prepared replica-set / single-shard transaction. The commit
+// entry carries the 'allowEndOfTransaction' marker on 'o2' but no 'endOfTransactionScopes'
+// metadata, so the transaction is not coordinated. It links back to the prepared applyOps entry
+// that holds the transaction's operations.
+repl::OplogEntry makePreparedReplicaSetCommitEntry(repl::OpTime prevWriteOpTime) {
+    OperationSessionInfo sessionInfo;
+    sessionInfo.setTxnNumber(1);
+    sessionInfo.setSessionId(makeLogicalSessionIdForTest());
+    repl::DurableOplogEntry commitEntry(
+        kDefaultOpTime,                   // optime
+        OpTypeEnum::kCommand,             // opType
+        nss.getCommandNS(),               // namespace
+        boost::none,                      // uuid
+        boost::none,                      // fromMigrate
+        boost::none,                      // checkExistenceForDiffInsert
+        boost::none,                      // versionContext
+        repl::OplogEntry::kOplogVersion,  // version
+        BSON("commitTransaction" << 1 << "commitTimestamp" << kDefaultCommitTs),  // o
+        BSON("allowEndOfTransaction" << true),                                    // o2
+        sessionInfo,                                                              // sessionInfo
+        boost::none,                                                              // upsert
+        Date_t(),                                                                 // wall clock time
+        {},                                                                       // statement ids
+        prevWriteOpTime,  // optime of previous write within same transaction
+        boost::none,      // pre-image optime
+        boost::none,      // post-image optime
+        boost::none,      // ShardId of resharding recipient
+        boost::none,      // _id
+        boost::none);     // needsRetryImage
+    return repl::OplogEntry(std::move(commitEntry));
+}
+
+// Runs 'commitEntry' (whose transaction's prepared entries are 'transactionEntries') through the
+// shard part of the change stream pipeline and returns every result produced by the transform stage
+// (the stage after the unwind stage), including change stream control documents. The transform
+// stage passes control documents through unchanged and converts the unwound raw operations into
+// change events.
+std::vector<GetNextResult> runShardPipeline(ChangeStreamStageTest* test,
+                                            const repl::OplogEntry& commitEntry,
+                                            const std::vector<repl::OplogEntry>& transactionEntries,
+                                            const BSONObj& spec) {
+    auto execPipeline = test->makeExecPipeline(commitEntry, spec);
+    test->getExpCtx()->setMongoProcessInterface(
+        std::make_unique<ChangeStreamMockMongoInterface>(transactionEntries));
+
+    auto* transform = execPipeline->getStages()[3].get();
+    tassert(13875103,
+            "expected the shard pipeline's stage after the unwind stage to be the transform stage",
+            dynamic_cast<exec::agg::ChangeStreamTransformStage*>(transform) != nullptr);
+    std::vector<GetNextResult> results;
+    for (auto next = transform->getNext(); next.isAdvanced() || next.isAdvancedControlDocument();
+         next = transform->getNext()) {
+        results.push_back(std::move(next));
+    }
+    return results;
 }
 
 TEST_F(ChangeStreamStageTest, ShouldRejectNonObjectArg) {
@@ -169,6 +292,143 @@ TEST_F(ChangeStreamStageTest, ShouldRejectUnrecognizedFullDocumentOption) {
                                                       expCtx),
                        AssertionException,
                        ErrorCodes::BadValue);
+}
+
+// Resource patterns $changeStream requires on 'nss'. 'boost::none' omits 'showSystemEvents'.
+std::set<std::string> changeStreamRequiredResources(const NamespaceString& nss,
+                                                    boost::optional<bool> showSystemEvents) {
+    BSONObjBuilder specBuilder;
+    if (showSystemEvents) {
+        specBuilder.append("showSystemEvents", *showSystemEvents);
+    }
+    auto spec = BSON(DSChangeStream::kStageName << specBuilder.obj());
+    auto liteParsed =
+        DSChangeStream::LiteParsed::parse(nss, spec.firstElement(), LiteParserOptions{});
+
+    std::set<std::string> resources;
+    for (const auto& privilege :
+         liteParsed->requiredPrivileges(false /*isMongos*/, false /*bypass*/)) {
+        // Every privilege must require both actions, or it could be satisfied without read access.
+        ASSERT_TRUE(privilege.includesAction(ActionType::find)) << privilege.getResourcePattern();
+        ASSERT_TRUE(privilege.includesAction(ActionType::changeStream))
+            << privilege.getResourcePattern();
+        resources.insert(privilege.getResourcePattern().toString());
+    }
+    return resources;
+}
+
+TEST_F(ChangeStreamStageTest, ShowSystemEventsDoesNotChangeRequiredPrivileges) {
+    // 'showSystemEvents' must not require privileges beyond those of the stream's scope. Events on
+    // system.js are filtered out instead when the user cannot read system.js.
+    const auto collNss = NamespaceString::createNamespaceString_forTest("testdb", "userColl");
+    const auto dbNss = NamespaceString::makeCollectionlessAggregateNSS(
+        DatabaseName::createDatabaseName_forTest(boost::none, "testdb"));
+    const auto clusterNss = NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin);
+
+    for (const auto& showSystemEvents :
+         {boost::optional<bool>{}, boost::optional<bool>{false}, boost::optional<bool>{true}}) {
+        ASSERT_EQ(changeStreamRequiredResources(collNss, showSystemEvents),
+                  std::set<std::string>{"<testdb.userColl>"});
+        ASSERT_EQ(changeStreamRequiredResources(dbNss, showSystemEvents),
+                  std::set<std::string>{"<database testdb>"});
+        ASSERT_EQ(changeStreamRequiredResources(clusterNss, showSystemEvents),
+                  std::set<std::string>{"<all normal resources>"});
+    }
+}
+
+const ActionSet kChangeStreamReadActions{ActionType::changeStream, ActionType::find};
+
+// Replaces the authorization session of 'client' with an enforcing one holding 'privileges'.
+void setClientPrivileges(Client* client, PrivilegeVector privileges) {
+    // A session must be logged out before it is destroyed.
+    if (AuthorizationSession::exists(client)) {
+        AuthorizationSession::get(client)->logoutAllDatabases("Replaced by test");
+    }
+    auto session = std::make_unique<AuthorizationSessionForTest>(
+        std::make_unique<AuthzSessionExternalStateMock>(client), client);
+    session->assumePrivilegesForDB(std::move(privileges), DatabaseName::kAdmin);
+    AuthorizationSession::set(client, std::move(session));
+}
+
+/**
+ * Tests the namespace regex of 'showSystemEvents' streams: system.js is only matched when the user
+ * can read it, while the other system namespaces exposed by the flag are always matched.
+ */
+class ChangeStreamShowSystemEventsAuthTest : public ChangeStreamStageTest {
+protected:
+    const DatabaseName testDb = DatabaseName::createDatabaseName_forTest(boost::none, "testdb");
+    const NamespaceString dbStreamNss = NamespaceString::makeCollectionlessAggregateNSS(testDb);
+    const NamespaceString clusterStreamNss =
+        NamespaceString::makeCollectionlessAggregateNSS(DatabaseName::kAdmin);
+
+    // Returns whether a 'showSystemEvents' stream on 'streamNss' matches events on 'eventNs'.
+    bool streamMatches(const NamespaceString& streamNss, std::string_view eventNs) {
+        auto expCtx = getExpCtx();
+        expCtx->setNamespaceString(streamNss);
+        DocumentSourceChangeStreamSpec spec;
+        spec.setShowSystemEvents(true);
+        expCtx->setChangeStreamSpec(spec);
+        return static_cast<bool>(
+            pcre::Regex(DSChangeStream::getNsRegexForChangeStream(expCtx)).matchView(eventNs));
+    }
+
+    // Grants 'scopePrivilege' plus 'extra', then returns whether system.js is matched. Also checks
+    // that the other system namespaces exposed by 'showSystemEvents' are always matched.
+    bool systemJsVisible(const NamespaceString& streamNss,
+                         const Privilege& scopePrivilege,
+                         PrivilegeVector extra = {}) {
+        extra.push_back(scopePrivilege);
+        setClientPrivileges(getExpCtx()->getOperationContext()->getClient(), std::move(extra));
+        for (auto ns : {"testdb.userColl",
+                        "testdb.system.buckets.coll",
+                        "testdb.system.resharding.coll",
+                        "testdb.system.views"}) {
+            ASSERT_TRUE(streamMatches(streamNss, ns)) << ns;
+        }
+        return streamMatches(streamNss, "testdb.system.js");
+    }
+
+    Privilege systemJsPrivilege(std::string_view ns, ActionSet actions = kChangeStreamReadActions) {
+        return Privilege(
+            ResourcePattern::forExactNamespace(NamespaceString::createNamespaceString_forTest(ns)),
+            actions);
+    }
+};
+
+TEST_F(ChangeStreamShowSystemEventsAuthTest, SystemJsVisibleWhenAuthorizationIsNotEnforced) {
+    ASSERT_TRUE(streamMatches(dbStreamNss, "testdb.system.js"));
+    ASSERT_TRUE(streamMatches(clusterStreamNss, "testdb.system.js"));
+}
+
+TEST_F(ChangeStreamShowSystemEventsAuthTest, DbStream) {
+    const Privilege dbPrivilege(ResourcePattern::forDatabaseName(testDb), kChangeStreamReadActions);
+
+    ASSERT_FALSE(systemJsVisible(dbStreamNss, dbPrivilege));
+    // Both actions are required on system.js, as for the stream itself.
+    ASSERT_FALSE(
+        systemJsVisible(dbStreamNss,
+                        dbPrivilege,
+                        {systemJsPrivilege("testdb.system.js", ActionSet{ActionType::find})}));
+    // A grant on another database's system.js does not count.
+    ASSERT_FALSE(
+        systemJsVisible(dbStreamNss, dbPrivilege, {systemJsPrivilege("otherdb.system.js")}));
+    ASSERT_TRUE(systemJsVisible(dbStreamNss, dbPrivilege, {systemJsPrivilege("testdb.system.js")}));
+}
+
+TEST_F(ChangeStreamShowSystemEventsAuthTest, ClusterStream) {
+    const Privilege anyNormalPrivilege(ResourcePattern::forAnyNormalResource(boost::none),
+                                       kChangeStreamReadActions);
+
+    ASSERT_FALSE(systemJsVisible(clusterStreamNss, anyNormalPrivilege));
+    // A grant on a single database's system.js does not cover every database.
+    ASSERT_FALSE(systemJsVisible(
+        clusterStreamNss, anyNormalPrivilege, {systemJsPrivilege("testdb.system.js")}));
+    ASSERT_TRUE(systemJsVisible(
+        clusterStreamNss,
+        anyNormalPrivilege,
+        {Privilege(ResourcePattern::forCollectionName(
+                       boost::none, NamespaceString::kSystemDotJavascriptCollectionName),
+                   kChangeStreamReadActions)}));
 }
 
 TEST_F(ChangeStreamStageTest, ShouldRejectMatchCollectionUUIDForUpdateLookupWithoutUpdateLookup) {
@@ -1636,6 +1896,58 @@ TEST_F(ChangeStreamStageTest, BuildTransactionFilterForV2ChangeStream) {
         unittest::ServerParameterGuard eotParam("allowEndOfTransaction", true);
         checkFilter(expectedWithoutEndOfTransaction);
     }
+}
+
+// A user $match on 'clusterTime' is rewritten into a predicate on the oplog 'ts' and pushed into
+// the transaction filter. The commit entries of a coordinated (multi-shard) transaction are
+// written by different shards at different timestamps, and the synthesized endOfTransaction event
+// carries the timestamp of the participant whose commit entry completes the transaction. An
+// accounting-bearing commit entry must therefore not be dropped by the clusterTime predicate, or
+// the router could not complete the transaction; the predicate is applied to the synthesized event
+// on the router instead. The transaction identity predicates still apply, because every
+// participant shares the transaction's lsid and txnNumber.
+TEST_F(ChangeStreamStageTest, BuildTransactionFilterPreservesAccountingCommitsFromClusterTime) {
+    const Timestamp tA(100, 1);
+    const Timestamp tB(200, 1);
+    ASSERT_LT(tA, tB);
+
+    const TxnNumber txnNumber = 7;
+
+    const auto makeCommitEntry = [&](Timestamp ts, bool accounting, TxnNumber entryTxnNumber) {
+        BSONObjBuilder object;
+        object.append("commitTransaction", 1);
+        if (accounting) {
+            object.append("endOfTransactionScopes", BSON("shardId" << "shardA"));
+        }
+        BSONObjBuilder entry;
+        entry.append("op", "c");
+        entry.append("ns", "unittests.$cmd");
+        entry.append("ts", ts);
+        entry.append("o", object.obj());
+        entry.append("txnNumber", entryTxnNumber);
+        return entry.obj();
+    };
+
+    const BSONObj userMatchBson =
+        fromjson("{clusterTime: {$gte: Timestamp(200, 1)}, txnNumber: NumberLong(7)}");
+    auto userMatch = MatchExpressionParser::parseAndNormalize(userMatchBson, getExpCtx());
+
+    std::vector<BSONObj> backingBsonObjs;
+    auto filter =
+        change_stream_filter::buildTransactionFilter(getExpCtx(), userMatch.get(), backingBsonObjs);
+
+    // The accounting-bearing commit entry at tA is preserved even though its timestamp fails the
+    // clusterTime predicate.
+    ASSERT_TRUE(exec::matcher::matchesBSON(filter.get(), makeCommitEntry(tA, true, txnNumber)));
+    // The accounting-bearing commit entry at tB matches as well.
+    ASSERT_TRUE(exec::matcher::matchesBSON(filter.get(), makeCommitEntry(tB, true, txnNumber)));
+    // A non-accounting commit entry at tA is still dropped by the clusterTime predicate.
+    ASSERT_FALSE(exec::matcher::matchesBSON(filter.get(), makeCommitEntry(tA, false, txnNumber)));
+    // A non-accounting commit entry at tB matches.
+    ASSERT_TRUE(exec::matcher::matchesBSON(filter.get(), makeCommitEntry(tB, false, txnNumber)));
+    // The transaction identity predicate still applies to accounting-bearing commit entries.
+    ASSERT_FALSE(
+        exec::matcher::matchesBSON(filter.get(), makeCommitEntry(tA, true, txnNumber + 1)));
 }
 
 // Test different values for 'ignoreRemovedShards' when creating a change stream.
@@ -3235,7 +3547,9 @@ TEST_F(ChangeStreamStageTest, TransformApplyOpsEndOfTransactionNewSynthesisPathR
 TEST_F(ChangeStreamStageTest, TransformApplyOpsEndOfTransactionRequiredPathFailsOnMissingMarker) {
     // A 'required' stream must fail when it reads a transaction that affects its watched namespace
     // but carries no 'allowEndOfTransaction' marker, i.e. a transaction that committed while the
-    // kill switch was off.
+    // kill switch was off. 'required' is enforced only on replica-set and router (mongos) streams;
+    // a shard-local stream treats 'required' as 'whenAvailable' and never fails, which is covered
+    // separately.
     unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
     unittest::ServerParameterGuard eotParam("allowEndOfTransaction", true);
 
@@ -3408,6 +3722,485 @@ TEST_F(ChangeStreamStageTest, CommitCommandEndOfTransactionMarkerOnObject2EmitsE
               DSChangeStream::kInsertOpType);
     ASSERT_EQ(results[1][DSChangeStream::kOperationTypeField].getString(),
               DSChangeStream::kEndOfTransactionOpType);
+}
+
+TEST_F(ChangeStreamStageTest, PreparedReplicaSetCommitEmitsCommitTimestamp) {
+    // A prepared replica-set / single-shard transaction resolves to 'kEmitUserVisible', but its
+    // commit entry still carries the transaction's commit timestamp, so the synthesized
+    // endOfTransaction event must carry it when the stream was opened with 'showCommitTimestamp'.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard eotParam("allowEndOfTransaction", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(false);
+
+    const auto spec = BSON(DSChangeStream::kStageName
+                           << BSON("showEndOfTransaction" << "whenAvailable"
+                                                          << "showCommitTimestamp" << true));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    auto commitEntry = makePreparedReplicaSetCommitEntry(applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    // The transaction's insert is followed by the synthesized endOfTransaction event, which
+    // carries the transaction's commit timestamp.
+    ASSERT_EQ(results.size(), 2u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+    ASSERT_TRUE(results[1].isAdvanced());
+    const Document& endOfTransaction = results[1].getDocument();
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kEndOfTransactionOpType);
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kCommitTimestampField].getTimestamp(),
+              kDefaultCommitTs);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitEmitsAccountingControlEvent) {
+    // A coordinated (multi-shard) transaction's commit entry carries the 'endOfTransactionScopes'
+    // accounting metadata. When the stream opted in via 'showEndOfTransaction' and is router-bound,
+    // the unwind stage emits an accounting control event (carrying the public 'endOfTransaction'
+    // operation type) that the router's synthesis stage consumes.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    // The transaction's insert passes through as a regular change event, followed by the
+    // accounting control event.
+    ASSERT_EQ(results.size(), 2u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+
+    ASSERT_TRUE(results[1].isAdvancedControlDocument());
+    const Document& controlEvent = results[1].getDocument();
+    ASSERT_TRUE(controlEvent.metadata().isChangeStreamControlEvent());
+    ASSERT_EQ(controlEvent.metadata().getChangeStreamControlEventType(),
+              DocumentMetadataFields::ChangeStreamControlEventType::kAccounting);
+    ASSERT_EQ(controlEvent[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kEndOfTransactionOpType);
+    ASSERT_EQ(controlEvent[DSChangeStream::kClusterTimeField].getTimestamp(), kDefaultTs);
+    ASSERT_EQ(controlEvent[DSChangeStream::kCommitTimestampField].getTimestamp(), kDefaultCommitTs);
+    ASSERT_BSONOBJ_EQ(controlEvent[kEndOfTransactionScopesField].getDocument().toBson(), scopes);
+
+    // The control event's resume token uses the reserved sentinel index, so it sorts after every
+    // operation of the transaction and is the token the router will assign to the emitted event.
+    const auto token =
+        ResumeToken::parse(controlEvent[DSChangeStream::kIdField].getDocument()).getData();
+    ASSERT_EQ(token.txnOpIndex, kEndOfTransactionTxnOpIndex);
+    ASSERT_EQ(token.clusterTime, kDefaultTs);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitRequiredStreamEmitsAccountingControlEvent) {
+    // A 'required' stream must not fail on a coordinated transaction: its event is produced from
+    // the accounting metadata by the router, so the shard emits the accounting control event
+    // instead of treating the transaction as ineligible.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "required"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    ASSERT_EQ(results.size(), 2u);
+    ASSERT_TRUE(results[1].isAdvancedControlDocument());
+    ASSERT_EQ(results[1].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kEndOfTransactionOpType);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitWithoutOptInEmitsNoAccountingControlEvent) {
+    // Without a 'showEndOfTransaction' opt-in, a coordinated transaction's commit entry does not
+    // produce an accounting control event.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results = runShardPipeline(
+        this, commitEntry, {preparedTransaction}, change_stream_test_helper::kDefaultSpec);
+
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitForUnwatchedScopeEmitsNoAccountingControlEvent) {
+    // The accounting metadata does not reference the watched collection, so no accounting control
+    // event is emitted (the transaction is irrelevant to this stream).
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON("someotherdb.collname" << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+}
+
+TEST_F(ChangeStreamStageTest,
+       CoordinatedCommitFromNonParticipantShardEmitsNoAccountingControlEvent) {
+    // The accounting metadata references the watched collection, but only 'shardA' wrote it. This
+    // record comes from 'shardB', which wrote only other collections, so it carries no information
+    // for the router and is not emitted.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardB"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA") << "otherdb.othercoll"
+                                                << BSON_ARRAY("shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitForPassthroughEmitsUserVisibleEvent) {
+    // A passthrough / direct-to-mongod stream runs entirely on the shard and has no router to
+    // synthesize the event from an accounting control event, so the unwind stage emits the
+    // user-visible endOfTransaction event directly. The transaction is cross-shard, so the event
+    // carries the transaction's commit timestamp.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(false);
+
+    const auto spec = BSON(DSChangeStream::kStageName
+                           << BSON("showEndOfTransaction" << "whenAvailable"
+                                                          << "showCommitTimestamp" << true));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    // The transaction's insert passes through as a regular change event, followed by the
+    // user-visible endOfTransaction event.
+    ASSERT_EQ(results.size(), 2u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+
+    ASSERT_TRUE(results[1].isAdvanced());
+    const Document& endOfTransaction = results[1].getDocument();
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kEndOfTransactionOpType);
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kClusterTimeField].getTimestamp(), kDefaultTs);
+    // The stream was opened with 'showCommitTimestamp', so the cross-shard transaction's commit
+    // timestamp is user-visible.
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kCommitTimestampField].getTimestamp(),
+              kDefaultCommitTs);
+    // The event uses the reserved sentinel index, so its token sorts after every operation.
+    ASSERT_EQ(ResumeToken::parse(endOfTransaction[DSChangeStream::kIdField].getDocument())
+                  .getData()
+                  .txnOpIndex,
+              kEndOfTransactionTxnOpIndex);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitForPassthroughHonorsShowCommitTimestamp) {
+    // As above, but without 'showCommitTimestamp': the user-visible endOfTransaction event of a
+    // cross-shard transaction must omit the 'commitTimestamp' field, mirroring regular change
+    // events.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(false);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    ASSERT_EQ(results.size(), 2u);
+    ASSERT_TRUE(results[1].isAdvanced());
+    const Document& endOfTransaction = results[1].getDocument();
+    ASSERT_EQ(endOfTransaction[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kEndOfTransactionOpType);
+    ASSERT(endOfTransaction[DSChangeStream::kCommitTimestampField].missing());
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitForPassthroughForUnwatchedScopeEmitsNoEvent) {
+    // A shard-local stream applies the same namespace-based predicate as the unprepared path, so a
+    // coordinated transaction that does not touch the watched namespace yields no event.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(false);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    // The transaction's only operation is on a namespace other than the watched one.
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(
+        NamespaceString::createNamespaceString_forTest("someotherdb.collname"), applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    // Neither the insert nor the endOfTransaction event is emitted.
+    ASSERT_EQ(results.size(), 0u);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitPassthroughKillSwitchOffEmitsNoEvent) {
+    // With the 'allowEndOfTransaction' kill switch off, the resolved behavior is 'kNone', so no
+    // endOfTransaction event may be produced at all. This matters for a passthrough / shard-local
+    // stream: the namespace predicate that normally decides whether a coordinated transaction
+    // touches the watched scope is not applied when no event can be synthesized, so emitting anyway
+    // would leak an unrelated transaction's session id, transaction number, commit timestamp and
+    // affected namespaces into the stream.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard eotParam("allowEndOfTransaction", false);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(false);
+    getExpCtx()->setForPerShardCursor(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    // The transaction only touches a collection other than the watched one.
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(
+        NamespaceString::createNamespaceString_forTest("someotherdb.collname"), applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON("someotherdb.collname" << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    // Neither the insert nor the endOfTransaction event is emitted.
+    ASSERT_EQ(results.size(), 0u);
+}
+
+TEST_F(ChangeStreamStageTest, CoordinatedCommitRouterKillSwitchOffEmitsNoControlEvent) {
+    // As above for a router-bound stream: with the kill switch off, the shard must not emit an
+    // accounting control event, so the router never synthesizes a user-visible endOfTransaction
+    // event.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard eotParam("allowEndOfTransaction", false);
+    unittest::ServerParameterGuard v2Flag("featureFlagChangeStreamReaderV2", true);
+    unittest::ServerParameterGuard preciseShardTargeting(
+        "featureFlagChangeStreamPreciseShardTargeting", true);
+    ScopedChangeStreamReaderBuilderMock readerBuilder(
+        std::make_unique<ChangeStreamReaderBuilderMock>());
+    ScopedDataToShardsAllocationQueryServiceMock queryServiceMock;
+
+    getExpCtx()->setFromRouter(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "whenAvailable"));
+
+    repl::OpTime applyOpsOpTime(Timestamp(99, 1), 1);
+    auto preparedTransaction = makePreparedApplyOpsEntry(nss, applyOpsOpTime);
+    const BSONObj scopes =
+        BSON("shardId" << "shardA"
+                       << "collectionParticipants"
+                       << BSON(nss.ns_forTest() << BSON_ARRAY("shardA" << "shardB")));
+    auto commitEntry = makeCoordinatedCommitEntry(scopes, applyOpsOpTime);
+
+    std::vector<GetNextResult> results =
+        runShardPipeline(this, commitEntry, {preparedTransaction}, spec);
+
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_TRUE(results[0].isAdvanced());
+    ASSERT_EQ(results[0].getDocument()[DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+}
+
+TEST_F(ChangeStreamStageTest, ShardLocalRequiredStreamTreatsRequiredAsWhenAvailable) {
+    // A shard-local stream (passthrough / direct-to-mongod) cannot count the other participants
+    // of a multi-shard transaction, so it treats 'required' as 'whenAvailable': it must not fail
+    // on an ineligible transaction that affects its watched namespace.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard eotParam("allowEndOfTransaction", true);
+    getExpCtx()->setFromRouter(false);
+    getExpCtx()->setForPerShardCursor(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "required"));
+
+    Document applyOpsDoc{
+        {"applyOps",
+         Value{std::vector<Document>{
+             Document{{"op", "i"sv},
+                      {"ns", nss.ns_forTest()},
+                      {"ui", testUuid()},
+                      {"o", Value{Document{{"_id", 123}, {"x", "hallo"sv}}}}}}}},
+    };
+    LogicalSessionFromClient lsid = testLsid();
+    std::vector<Document> results = getApplyOpsResults(applyOpsDoc, lsid, spec);
+
+    // The stream does not fail; it emits only the transaction's insert.
+    ASSERT_EQ(results.size(), 1u);
+    ASSERT_EQ(results[0][DSChangeStream::kOperationTypeField].getString(),
+              DSChangeStream::kInsertOpType);
+}
+
+TEST_F(ChangeStreamStageTest, RouterForwardedRequiredStreamFailsOnIneligibleTransaction) {
+    // A '$_passthroughToShard' cursor forwarded by a router is not shard-local: it has a
+    // router-side merge that consumes the accounting control events, so 'required' is enforced and
+    // the stream must fail on an ineligible transaction that affects its watched namespace.
+    unittest::ServerParameterGuard eotFlag("featureFlagEndOfTransactionChangeEventSynthesis", true);
+    unittest::ServerParameterGuard eotParam("allowEndOfTransaction", true);
+    getExpCtx()->setFromRouter(true);
+    getExpCtx()->setForPerShardCursor(true);
+
+    const auto spec =
+        BSON(DSChangeStream::kStageName << BSON("showEndOfTransaction" << "required"));
+
+    Document applyOpsDoc{
+        {"applyOps",
+         Value{std::vector<Document>{
+             Document{{"op", "i"sv},
+                      {"ns", nss.ns_forTest()},
+                      {"ui", testUuid()},
+                      {"o", Value{Document{{"_id", 123}, {"x", "hallo"sv}}}}}}}},
+    };
+    LogicalSessionFromClient lsid = testLsid();
+    ASSERT_THROWS_CODE(getApplyOpsResults(applyOpsDoc, lsid, spec),
+                       DBException,
+                       ErrorCodes::ChangeStreamFatalError);
 }
 
 TEST_F(ChangeStreamStageTest, TransformApplyOpsWithEntriesOnDifferentNs) {
@@ -6063,6 +6856,46 @@ TEST_F(ChangeStreamStageDBTest, MatchFiltersAllSystemDotCollections) {
     nss = NamespaceString::createNamespaceString_forTest("unittests.system.keys");
     insert = makeOplogEntry(OpTypeEnum::kInsert, nss, BSON("_id" << 1));
     checkTransformation(insert, boost::none);
+}
+
+TEST_F(ChangeStreamStageDBTest, ShowSystemEventsReturnsSystemJsOnlyWithSystemJsPrivilege) {
+    const auto spec = fromjson("{$changeStream: {showSystemEvents: true}}");
+    const auto systemJsNss = NamespaceString::createNamespaceString_forTest(
+        nss.dbName(), NamespaceString::kSystemDotJavascriptCollectionName);
+    auto insert = makeOplogEntry(OpTypeEnum::kInsert,
+                                 systemJsNss,
+                                 BSON("_id" << 1),
+                                 testUuid(),
+                                 boost::none,
+                                 BSON("_id" << 1));
+    Document expectedInsert{
+        {DSChangeStream::kIdField,
+         makeResumeToken(kDefaultTs, testUuid(), BSON("_id" << 1), DSChangeStream::kInsertOpType)},
+        {DSChangeStream::kOperationTypeField, DSChangeStream::kInsertOpType},
+        {DSChangeStream::kClusterTimeField, kDefaultTs},
+        {DSChangeStream::kWallTimeField, Date_t()},
+        {DSChangeStream::kFullDocumentField, D{{"_id", 1}}},
+        {DSChangeStream::kNamespaceField,
+         D{{"db", systemJsNss.db_forTest()}, {"coll", systemJsNss.coll()}}},
+        {DSChangeStream::kDocumentKeyField, D{{"_id", 1}}},
+    };
+
+    // Without authorization enforcement the system.js event is returned.
+    checkTransformation(insert, expectedInsert, spec);
+
+    // A user who can read the database, but not its system.js collection, does not see the event.
+    auto* client = getExpCtx()->getOperationContext()->getClient();
+    const Privilege dbPrivilege(ResourcePattern::forDatabaseName(nss.dbName()),
+                                kChangeStreamReadActions);
+    setClientPrivileges(client, {dbPrivilege});
+    checkTransformation(insert, boost::none, spec);
+
+    // Granting read access to system.js makes the event visible again.
+    setClientPrivileges(
+        client,
+        {dbPrivilege,
+         Privilege(ResourcePattern::forExactNamespace(systemJsNss), kChangeStreamReadActions)});
+    checkTransformation(insert, expectedInsert, spec);
 }
 
 TEST_F(ChangeStreamStageDBTest, TransformsEntriesForLegalClientCollectionsWithSystem) {

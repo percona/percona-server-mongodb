@@ -8,7 +8,10 @@
 #include "mongo/db/commands/test_commands_enabled.h"
 #include "mongo/db/extension/host/extension_host_utils.h"
 #include "mongo/db/extension/host/load_extension.h"
+#include "mongo/db/extension/host/stub_commands.h"
+#include "mongo/db/feature_flag_server_parameter.h"
 #include "mongo/db/pipeline/lite_parsed_document_source.h"
+#include "mongo/db/query/query_feature_flags_gen.h"
 #include "mongo/db/server_options.h"
 #include "mongo/logv2/log.h"
 
@@ -38,6 +41,9 @@ std::filesystem::path getExtensionStubParserDirectory() {
  *      {"stageName": "$foo", "message": "$foo is not available because..."},
  *      {"stageName": "$bar", "message": "$bar is not available because...", "featureFlag":
  * "<nameOfExistingFeatureFlag>"},
+ *   ],
+ *   "stubCommands": [
+ *      {"commandName": "foo", "message": "foo is not available because..."},
  *   ]
  * }
  */
@@ -45,7 +51,96 @@ static constexpr std::string_view kExtensionStubParserField = "stubParsers"sv;
 static constexpr std::string_view kExtensionStubParserStageNameField = "stageName"sv;
 static constexpr std::string_view kExtensionStubParserMessageField = "message"sv;
 static constexpr std::string_view kExtensionStubParserFeatureFlagField = "featureFlag"sv;
+static constexpr std::string_view kExtensionStubCommandField = "stubCommands"sv;
+static constexpr std::string_view kExtensionStubCommandNameField = "commandName"sv;
+
+void registerStubCommands(const BSONObj& obj, const std::filesystem::path& filePath) {
+    if (!feature_flags::gFeatureFlagExtensionCommands.isEnabled()) {
+        return;
+    }
+
+    const auto& stubCommandArrayElem = obj[kExtensionStubCommandField];
+    if (stubCommandArrayElem.eoo()) {
+        return;
+    }
+
+    if (stubCommandArrayElem.type() != BSONType::array) {
+        LOGV2_WARNING_OPTIONS(13730201,
+                              {logv2::LogTag::kStartupWarnings},
+                              "Expected 'stubCommands' field to be an array",
+                              "filePath"_attr = filePath.string());
+        return;
+    }
+
+    for (const auto& elem : stubCommandArrayElem.Array()) {
+        if (elem.type() != BSONType::object) {
+            LOGV2_WARNING_OPTIONS(13730202,
+                                  {logv2::LogTag::kStartupWarnings},
+                                  "Expected stub command entry to be an object",
+                                  "stubEntry"_attr = elem.toString());
+            continue;
+        }
+
+        const auto& stubObj = elem.Obj();
+        const auto& commandNameElem = stubObj[kExtensionStubCommandNameField];
+        const auto& messageElem = stubObj[kExtensionStubParserMessageField];
+
+        if (commandNameElem.type() != BSONType::string || messageElem.type() != BSONType::string) {
+            LOGV2_WARNING_OPTIONS(13730203,
+                                  {logv2::LogTag::kStartupWarnings},
+                                  "Stub commands expect 'commandName' and 'message' fields to be "
+                                  "strings",
+                                  "stubEntry"_attr = stubObj.toString());
+            continue;
+        }
+
+        auto commandName = commandNameElem.String();
+        auto message = messageElem.String();
+
+        if (commandName.empty()) {
+            LOGV2_WARNING_OPTIONS(13730206,
+                                  {logv2::LogTag::kStartupWarnings},
+                                  "Stub command name cannot be empty",
+                                  "stubEntry"_attr = stubObj.toString());
+            continue;
+        }
+
+        if (message.empty()) {
+            LOGV2_WARNING_OPTIONS(13730204,
+                                  {logv2::LogTag::kStartupWarnings},
+                                  "Stub command error message cannot be empty",
+                                  "stubEntry"_attr = stubObj.toString());
+            continue;
+        }
+
+        registerStubCommand(std::move(commandName), std::move(message));
+    }
+}
 }  // namespace
+
+FeatureFlag* findStubParserFeatureFlag(std::string_view stageName, std::string_view flagName) {
+    auto* flag = FeatureFlagServerParameter::findFeatureFlag(flagName);
+    if (!flag) {
+        LOGV2_WARNING_OPTIONS(11395402,
+                              {logv2::LogTag::kStartupWarnings},
+                              "Stub parser references unknown feature flag",
+                              "stageName"_attr = stageName,
+                              "featureFlagName"_attr = flagName);
+        return nullptr;
+    }
+
+    if (!dynamic_cast<IncrementalRolloutFeatureFlag*>(flag) &&
+        !dynamic_cast<BinaryCompatibleFeatureFlag*>(flag)) {
+        LOGV2_WARNING_OPTIONS(13841300,
+                              {logv2::LogTag::kStartupWarnings},
+                              "Stub parser feature flag must be an incremental rollout or "
+                              "binary-compatible feature flag",
+                              "stageName"_attr = stageName,
+                              "featureFlagName"_attr = flagName);
+        return nullptr;
+    }
+    return flag;
+}
 
 void registerStubParser(std::string stageName, std::string message, FeatureFlag* featureFlag) {
     LOGV2(10918509,
@@ -104,7 +199,12 @@ void registerUnloadedExtensionStubParsers() {
     const auto jsonStr = std::string{(std::istreambuf_iterator<char>(stubParserFile)),
                                      std::istreambuf_iterator<char>()};
     const auto& obj = fromjson(jsonStr);
+    registerStubCommands(obj, extensionStubParserFile);
+
     const auto& stubParserArrayElem = obj[kExtensionStubParserField];
+    if (stubParserArrayElem.eoo()) {
+        return;
+    }
 
     if (stubParserArrayElem.type() != BSONType::array) {
         LOGV2_WARNING_OPTIONS(10918503,
@@ -154,15 +254,7 @@ void registerUnloadedExtensionStubParsers() {
 
         FeatureFlag* featureFlag = nullptr;
         if (featureFlagElem.type() == BSONType::string) {
-            const auto featureFlagName = featureFlagElem.String();
-            featureFlag = IncrementalRolloutFeatureFlag::findByName(featureFlagName);
-            if (!featureFlag) {
-                LOGV2_WARNING_OPTIONS(11395402,
-                                      {logv2::LogTag::kStartupWarnings},
-                                      "Stub parser references unknown feature flag",
-                                      "stageName"_attr = stageName,
-                                      "featureFlagName"_attr = featureFlagName);
-            }
+            featureFlag = findStubParserFeatureFlag(stageName, featureFlagElem.valueStringData());
         }
 
         registerStubParser(std::move(stageName), std::move(message), featureFlag);

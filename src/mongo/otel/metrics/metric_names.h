@@ -131,12 +131,20 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.network.bytesIn");
     static constexpr MetricName kNetworkIngressBytesOut =
         MetricNameMaker::make("mongodb.serverStatus.network.bytesOut");
+    static constexpr MetricName kNetworkIngressPhysicalBytesIn =
+        MetricNameMaker::make("mongodb.network.ingress.physical_bytes_in");
+    static constexpr MetricName kNetworkIngressPhysicalBytesOut =
+        MetricNameMaker::make("mongodb.network.ingress.physical_bytes_out");
     static constexpr MetricName kNetworkIngressNumRequests =
         MetricNameMaker::make("mongodb.serverStatus.network.numRequests");
     static constexpr MetricName kNetworkEgressBytesIn =
         MetricNameMaker::make("mongodb.serverStatus.network.egress.bytesIn");
     static constexpr MetricName kNetworkEgressBytesOut =
         MetricNameMaker::make("mongodb.serverStatus.network.egress.bytesOut");
+    static constexpr MetricName kNetworkEgressPhysicalBytesIn =
+        MetricNameMaker::make("mongodb.network.egress.physical_bytes_in");
+    static constexpr MetricName kNetworkEgressPhysicalBytesOut =
+        MetricNameMaker::make("mongodb.network.egress.physical_bytes_out");
     static constexpr MetricName kNetworkEgressNumRequests =
         MetricNameMaker::make("mongodb.serverStatus.network.egress.numRequests");
     static constexpr MetricName kNetworkEgressConnectionsCreated =
@@ -194,6 +202,10 @@ public:
         MetricNameMaker::make("mongodb.network.ingress_hello_latency");
     static constexpr MetricName kIngressAuthLatency =
         MetricNameMaker::make("mongodb.network.ingress_auth_latency");
+    static constexpr MetricName kHandoffListenerProcessingTime =
+        MetricNameMaker::make("mongodb.network.handoff.listener_processing.time_micros");
+    static constexpr MetricName kHandoffListenerProcessingLatency =
+        MetricNameMaker::make("mongodb.network.handoff.listener_processing.latency_micros");
     static constexpr MetricName kConnectionsCurrent =
         MetricNameMaker::make("mongodb.serverStatus.connections.current");
     static constexpr MetricName kConnectionsAvailable =
