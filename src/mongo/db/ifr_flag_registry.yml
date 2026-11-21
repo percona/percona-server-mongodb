@@ -42,12 +42,12 @@ release:
   featureFlagExtractFieldPathsSbeStage: {}
   featureFlagImprovedDepsAnalysis: {}
   featureFlagMultiPlanLimiter: {}
+  featureFlagSamplingCEKeystringEstimation: {}
   featureFlagSbeAccumulators: {}
   featureFlagSbeNonLeadingMatch: {}
   featureFlagSbeTransformStages: {}
   featureFlagSbeUpgradeBinaryTrees: {}
   featureFlagSearchExtension: {}
   featureFlagSearchOptimizedIdLookup: {}
-  featureFlagStreamingGroupEligibilityCounter: {}
   featureFlagUnifiedWriteExecutor: {}
   featureFlagVectorSearchExtension: {}
