@@ -1,0 +1,161 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d80b43c9fae811d6af7c457dfae8d5a028d29e94",
+    "merge_commit": "645f794581697410fe4b95e83287fbd0b30014a0"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "645f794581697410fe4b95e83287fbd0b30014a0",
+    "merged_commits": [
+      "645f794581697410fe4b95e83287fbd0b30014a0",
+      "b4e8c2e5428632f5ab3e002986c4e7319aa0ab31",
+      "819e8837aa9c235561880fe7831c00918ea37d62",
+      "2d901950471aeedd467cef58d581d584265b681c",
+      "10b03acb138be03a811ff57b7d63a18179b157f3",
+      "5ec432549e1dc46830630894b021fc8afc1faa35",
+      "50a22ef35ccf4bef48c08b0e8ad417ddfeceb441",
+      "7bce74e805d88c372feab62a7e205b58bea01e0f",
+      "dca70a0a30537a749feff820daa3497cfddafc1a",
+      "d5e8e8af1c3d31376ff9215122b61e723f5acfee",
+      "fec4e10e7616b50d54c3d77a0d97431cf944de03",
+      "6198aba4e742acc34457587de70ee4d2b8b7d9f9",
+      "14db2a21e6a3c335c8e6d6e57b4c5da289d3f4cd",
+      "3573196d3181b2714f985de2eb930f7ae206ef69",
+      "2a7b9df15f7db400e49289eaece8ebf3f0fa886a",
+      "3adc88f2948bd7cab7dc1df79f0097c4bcd2a68d",
+      "4c1a603e286d2afc900fb0929a8148b6d6589e33",
+      "69321e18c778749dc38d9dcbda4d998e88c891cd",
+      "51ff9a5fa713472cbdce88790ee486506f8c2c23",
+      "e68056cfcecb06224564d76dad0d664ed5b9a743",
+      "fc30522ba7839273d056ac6a6019867422132df8",
+      "07a8dd53a6f3cb1dd4615a5fc2db8a389cef003e",
+      "41ab92d56bc64d446820bac6f284d89b5cd5039c",
+      "90e194e281ededdf381d865c8433b42db7edc886",
+      "db837ba0591a35da095a83747782984a4a3a2704",
+      "c9a28205c559bb0802ec76293b92637572b49da5",
+      "b52c7c68d999c8ed66ab9c48e5acdb2fe5d18400",
+      "d868a595d840e6e582e7ca795972b689e3a9aea3",
+      "d45a385502a575307f29797b8f11debb4a317d23",
+      "b12146e8b7731408802bcae1016bc5e87cb677f0",
+      "64d561307892f304503e55ca6caa6730c7ba37b1",
+      "c4dac326cfa3023b9e31f896c7b305e978756038",
+      "bd13ceaff0c5fb329625231a5763da57923560e7",
+      "1da1a5adda5893bf40f4162b443b50ae8496d58e",
+      "f4f7b0c6311ae8e31f0b3fc2fbb9e2146649b8fb",
+      "5ec1591878222c1f29fc55226c12b6c8c031f82c",
+      "464425fc6e0b9f21256cba873b8d552ae60e8ece",
+      "dec3d0848ad810f72cfa317ff5b8f4f5cdea6035",
+      "1e477d35f07eb67bf4ac5941138e24d3177b1e58",
+      "bc03031caed524ba59d529912a8cf8827ccf3a64",
+      "c3293786cddaafd664e3bd1276abd85cd45cafb0"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 25154,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.1664235,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 1865,
+        "cacheReadInputTokens": 43937,
+        "cacheCreationInputTokens": 15648,
+        "webSearchRequests": 0,
+        "costUSD": 0.1664235,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 36,
+        "cacheCreationEphemeral5mInputTokens": 15648,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 1865,
+            "cache_read": 43937,
+            "cache_creation": 15648
+          },
+          "cost_usd": 0.1664235
+        }
+      }
+    },
+    "text_result": "I read the incoming diff (`489701c9418 \u2192 645f7945816`) for each of the six auto-merged files and wrote the JSON description to the response path.\n\nSummary of what the merge actually introduces:\n\n- **MODULE.bazel** \u2014 SpiderMonkey WASI prebuilt bumped from `FIREFOX_140_12_0esr` to `FIREFOX_153_3_0esr` (new URL + sha256).\n- **src/mongo/db/BUILD.bazel** \u2014 adds `ce_index_keystring_support` dep.\n- **src/mongo/db/pipeline/BUILD.bazel** \u2014 removes `server_parameter_guard` dep from one unit test.\n- **src/mongo/db/query/BUILD.bazel** \u2014 adds new `plan_executor_sbe_test` unit-test target.\n- **src/mongo/db/repl/BUILD.bazel** \u2014 adds `replicated_fast_count_delta_utils` and `validate_state` deps.\n- **pipelined_applier_advancer_test.cpp** \u2014 adds a trailing `nullptr` arg to every `addBatch(...)` call (new parameter).\n\nAll six merged cleanly with no Percona-specific code touched.",
+    "response": {
+      "summary": "Upstream merge pulling in assorted build-dependency and test updates. It bumps the SpiderMonkey WASI prebuilt from FIREFOX_140_12_0esr to FIREFOX_153_3_0esr (new URL and sha256), adds several Bazel dependency wirings across db/query/repl build files, introduces a new plan_executor_sbe_test unit test target, and extends the PipelinedApplierBatchTracker::addBatch signature with an additional trailing argument updated throughout its test.",
+      "auto_merged": {
+        "MODULE.bazel": "Updates the spidermonkey_wasi_repo invocation: the prebuilt SpiderMonkey WASI archive URL is bumped from FIREFOX_140_12_0esr_RELEASE to FIREFOX_153_3_0esr_RELEASE and its sha256 is changed accordingly.",
+        "src/mongo/db/BUILD.bazel": "Adds the dependency '//src/mongo/db/query/compiler/ce/sampling:ce_index_keystring_support' to a mongo_cc_library deps list (alongside the existing ce_multikey_dotted_path_support and persistent_samples entries).",
+        "src/mongo/db/pipeline/BUILD.bazel": "Removes the '//src/mongo/unittest:server_parameter_guard' dependency from a mongo_cc_unit_test deps list.",
+        "src/mongo/db/query/BUILD.bazel": "Adds a new mongo_cc_unit_test target 'plan_executor_sbe_test' (srcs plan_executor_sbe_test.cpp, tag mongo_unittest_third_group) depending on query_exec, catalog_test_fixture and server_parameter_guard.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds the dependency '//src/mongo/db/replicated_fast_count:replicated_fast_count_delta_utils' to one mongo_cc_library, and adds '//src/mongo/db/validate:validate_state' to two other mongo_cc_library deps lists.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Updates every tracker.addBatch(...) call to pass an additional trailing 'nullptr' argument, reflecting a new parameter added to PipelinedApplierBatchTracker::addBatch. No test logic otherwise changed."
+      },
+      "review_notes": "All six files auto-merged cleanly with no conflicts and contain only upstream changes; no Percona-specific code is touched. The MODULE.bazel change is a routine SpiderMonkey prebuilt version bump. The BUILD.bazel edits are dependency/target wiring that pair with upstream source changes (e.g. the new plan_executor_sbe_test and the extra addBatch parameter). Worth a quick check that the generated MODULE.bazel.lock (resolved separately) is consistent with the new SpiderMonkey sha256."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I read the incoming diff (`489701c9418 \u2192 645f7945816`) for each of the six auto-merged files and wrote the JSON description to the response path.\n\nSummary of what the merge actually introduces:\n\n- **MODULE.bazel** \u2014 SpiderMonkey WASI prebuilt bumped from `FIREFOX_140_12_0esr` to `FIREFOX_153_3_0esr` (new URL + sha256).\n- **src/mongo/db/BUILD.bazel** \u2014 adds `ce_index_keystring_support` dep.\n- **src/mongo/db/pipeline/BUILD.bazel** \u2014 removes `server_parameter_guard` dep from one unit test.\n- **src/mongo/db/query/BUILD.bazel** \u2014 adds new `plan_executor_sbe_test` unit-test target.\n- **src/mongo/db/repl/BUILD.bazel** \u2014 adds `replicated_fast_count_delta_utils` and `validate_state` deps.\n- **pipelined_applier_advancer_test.cpp** \u2014 adds a trailing `nullptr` arg to every `addBatch(...)` call (new parameter).\n\nAll six merged cleanly with no Percona-specific code touched."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261121_003048_906275.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.330 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "645f794581697410fe4b95e83287fbd0b30014a0",
+    "short_sha": "645f7945816",
+    "strategy": "huge_commit",
+    "summary": "This is the WiredTiger vendored import (Import wiredtiger: b73d7c9a... #66799), an ideal merge boundary: a large, self-contained third-party import touching a well-isolated set of files that rarely depends on the commits after it and is easy to validate post-merge. It sits at candidate #41, comfortably within the ~30-65 band. Crucially, the batch fully contains the revert pair SERVER-138035: the original 'Fix isSimpleIdQuery eligibility check' (dec3d0848, #4) and its auto-revert (b12146e8, #12) both land inside this batch, so they cancel out instead of importing a feature that upstream has already undone. Stacked series are also kept intact (e.g. Cedric Sirianni's three consecutive validation refactors at #37-39 are all included). Cutting here leaves the freshest, less-settled commits for the next batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44843927658"
+  }
+}
