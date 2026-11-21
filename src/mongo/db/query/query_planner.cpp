@@ -1954,8 +1954,13 @@ StatusWith<PlanRankingResult> QueryPlanner::planWithCostBasedRanking(
     EstimateMap estimates;
     const auto& collInfo = params.mainCollectionInfo;
     tassert(9969001, "CBR received incomplete catalog statistics", collInfo.collStats != nullptr);
-    CardinalityEstimator cardEstimator(
-        collInfo, samplingEstimator, estimates, cbrMode, considerZeroCESampledIXScanNonEstimable);
+    auto ifrContext = IncrementalFeatureRolloutContext::get(query.getOpCtx());
+    CardinalityEstimator cardEstimator(collInfo,
+                                       samplingEstimator,
+                                       estimates,
+                                       cbrMode,
+                                       *ifrContext,
+                                       considerZeroCESampledIXScanNonEstimable);
     CostEstimator costEstimator(estimates);
 
     // TODO SERVER-136418. Consider using bitsets instead of vectors here.
@@ -2084,10 +2089,7 @@ namespace {
 bool eligibleForStreamingGroup(const CanonicalQuery& query,
                                QuerySolutionNode& input,
                                const DocumentSourceGroup& group) {
-    auto ifr = query.getExpCtx()->getIfrContext();
-    if (!(ifr->getSavedFlagValue(feature_flags::gFeatureFlagStreamingGroupEligibilityCounter) ||
-          ifr->getSavedFlagValue(feature_flags::gFeatureFlagSbeStreamingGroup)) ||
-        group.doingMerge() || group.willBeMerged() || query.getCollator()) {
+    if (group.doingMerge() || group.willBeMerged() || query.getCollator()) {
         return false;
     }
     StringSet paths;
