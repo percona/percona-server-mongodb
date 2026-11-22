@@ -1,0 +1,204 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "eac4555061304b3380c0c7f233f4d747320dd8fa",
+    "merge_commit": "a97acf7d5a8d2c49145fd143c1c71792a7826a14"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "conflict_context": {
+    "ours_commit": "eac4555061304b3380c0c7f233f4d747320dd8fa",
+    "theirs_commit": "a97acf7d5a8d2c49145fd143c1c71792a7826a14",
+    "base_commit": "645f794581697410fe4b95e83287fbd0b30014a0",
+    "files": [
+      "sbom.json"
+    ],
+    "conflict_types": {
+      "sbom.json": "both modified"
+    },
+    "diffs": {
+      "sbom.json": "diff --cc sbom.json\nindex 04b1511a3e6,634953686de..00000000000\n--- a/sbom.json\n+++ b/sbom.json\n@@@ -5,2 -5,2 +5,10 @@@\n++<<<<<<< HEAD\n +  \"serialNumber\": \"urn:uuid:95a559f1-b091-4a92-b80d-e6d37c5e477c\",\n +  \"version\": 6,\n++||||||| 645f7945816\n++  \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n++  \"version\": 20,\n++=======\n+   \"serialNumber\": \"urn:uuid:2d7fbf85-c8b6-4f90-9966-70da88224a36\",\n+   \"version\": 21,\n++>>>>>>> a97acf7d5a8d2c49145fd143c1c71792a7826a14\n@@@ -14,0 -14,6 +22,16 @@@\n++<<<<<<< HEAD\n++||||||| 645f7945816\n++    \"tools\": [\n++      {\n++        \"name\": \"Endor Labs Inc\",\n++        \"version\": \"v1.7.1202\"\n++      }\n++    ],\n++=======\n+     \"tools\": [\n+       {\n+         \"name\": \"Endor Labs Inc\",\n+         \"version\": \"v1.7.1262\"\n+       }\n+     ],\n++>>>>>>> a97acf7d5a8d2c49145fd143c1c71792a7826a14"
+    },
+    "their_commits": {
+      "sbom.json": [
+        "a97acf7d5a8d2c49145fd143c1c71792a7826a14"
+      ]
+    }
+  },
+  "merge_context": {
+    "merge_commit": "a97acf7d5a8d2c49145fd143c1c71792a7826a14",
+    "merged_commits": [
+      "a97acf7d5a8d2c49145fd143c1c71792a7826a14",
+      "fe55362b187b1839da022a4939779940d1671e6f",
+      "aa65fc0558a8e5dcfc13b57f34517dfa712930e3",
+      "8bf65acdcbdd1c6ffeb7f899a0fea666537bbedb",
+      "c98aaaea9d495c3cedc93c1751033e851613038f",
+      "c5772864948a20ad586543e89abcd6f18a64816f",
+      "e8f5e599a7b975fa8edf518ba5ed7c901ac781c5",
+      "37f3bf3bf44d90a167352ef03703d745c10c44a3",
+      "f95fa05965db0ec582866eb8c95f58927131f29f",
+      "08f51aa639d8f382d87df63a7551e47a26db690c",
+      "21c52766c54cec7b9d1a29c29f4563ad2dbd559b",
+      "d0234b0b238625493280bdd2a9bd0dd3ae466cd5",
+      "f80cfec9d44cb6c777c0f0ec2eeb462207a7e475",
+      "3ba6e276c13d4ec663e9e6c3c6cba0b704d5065e",
+      "c7b5416d3bf551866542660c3de64c20d5e6426a",
+      "4de68c08a5ec5186561a6a712543bd2114937493",
+      "acf5559b659c91de747e9fb645a12fd8e10f2c7e",
+      "a6661927e9e60fda3ff1797d972899b47cd86e16",
+      "5895771443dc2c6dadbf1555cccb57a77989497d",
+      "42f3f2cf84d352b03f3678c41f8720bf33ed39ce",
+      "a3c8d4ea07ac312864fc909ccd4a416103ea9d94",
+      "0b3d184adaf9511f4a310a52c91d1ee333df460b",
+      "45747f403dbbe5f8f0046bb13c1845016f670db5",
+      "a2fe2a4401b1ea5e86575dc3be2d79545c707e43",
+      "d2a05a272bf7b3e4b86782b6405425dde7f0c349",
+      "f816f54a2bc458d45e5c8a2565aeafb787ae667e",
+      "85c29e0fbe8ef3f4ece2f893b9e6dfb7b75d5cf1",
+      "a4eae95d5a8d2b8f4d135187f69ef9eab8c911df",
+      "4ebece3824f2948e4954a23d7c7443a4839f67a1",
+      "c77a8419b4cf825c1144db49dd9f13d3539a716e",
+      "e67219c08335d66c06295544ec18ed238f805727",
+      "4c05cd59e537e13b9ba0808d8919ddcda234550d",
+      "11700bc41b182e09083c6f054c849aa05d36ca26",
+      "f6acdb3b36599dd1fa5aaf9827fe1c3411687e38",
+      "87a27f12db5653650c41aa5e8393dd580a351042",
+      "780befa2b6a0ac8303f02140de1b3ad82e718f51",
+      "f9987e0a4012817eafddd70707c08f9c33b40dc0",
+      "8d31ec804a1cb46fa263d8df8dcd13b7d3b754a4",
+      "d56c31c58ce1c6f5095df4390b6b1bb5adeca215",
+      "24319d5352557bbfc09ef6f5821f1e7da67393bc",
+      "1a96f33759625e0edfff3540278a72102dea75fa",
+      "38bba87ca750f48f7bd1bbc6d27e60d1b8713ea6",
+      "db1884488f4842c2477d37a5187062fc18130b49",
+      "548c5bbc6266322b45bf05ebafeae6d995a9045f",
+      "c2f39822fb7809d5e1b63dd58fee2d2df5b4d18b",
+      "4cc030ef0257384e6a94fccae59b98b74dd16a94",
+      "bbd1b16167825df2ddf617a0b7b859e9766b52a8"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "README.third_party.md",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py",
+        "sbom.json",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/auth/BUILD.bazel",
+        "src/mongo/db/namespace_string_reserved.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 35727,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.20711525,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2501,
+        "cacheReadInputTokens": 48108,
+        "cacheCreationInputTokens": 19281,
+        "webSearchRequests": 0,
+        "costUSD": 0.20711525,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 41,
+        "cacheCreationEphemeral5mInputTokens": 19281,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2501,
+            "cache_read": 48108,
+            "cache_creation": 19281
+          },
+          "cost_usd": 0.20711525
+        }
+      }
+    },
+    "text_result": "I've read the actual `diff base \u2192 merge commit` diffs for all seven auto-merged files and written the JSON response describing only the changes this merge introduces.\n\nKey findings, all verified against the diffs:\n\n- **README.third_party.md** \u2014 siphash, Snowball/libstemmer, and zlib (1.3.2\u21921.4) version bumps.\n- **_builder.py** \u2014 refactor to lazy `get_multiversion_service()` / `get_version_constants()` instead of module-level FCV constants.\n- **sbom.json** \u2014 the only real conflict (both modified); upstream dependency metadata bumps, with the resolution keeping Percona's serialNumber/version and dropping the `metadata.tools` (Endor Labs) section per the conflict hints.\n- **db/BUILD.bazel** and **auth/BUILD.bazel** \u2014 new dep and new unit-test source/dep entries.\n- **namespace_string_reserved.h** \u2014 new reserved `kAuthForInternalNamespace`.\n- **wiredtiger_util_test.cpp** \u2014 statistics key swapped to a more stable one.\n\nThe response was written to `response_20261122_051111_010014.json`.",
+    "response": {
+      "summary": "This merge pulls in a batch of upstream MongoDB commits. The visible changes bump several bundled third-party dependency versions (zlib 1.3.2 -> 1.4, siphash and Snowball/libstemmer to new revisions) and update the generated SBOM accordingly; refactor the resmoke multiversion fixture builder to obtain FCV/version info lazily via get_multiversion_service() instead of module-level constants; add new Bazel dependency/test entries; register a new reserved internal namespace; and adjust a WiredTiger statistics unit test to use a more stable connection statistics key.",
+      "auto_merged": {
+        "README.third_party.md": "Updates three third-party version entries in the dependency table: siphash from 32d067603b93b47828700880649198e0bfbbcffa to eee7d0d84dc7731df2359b243aa5e75d85f6eaef, Snowball Stemming Algorithms (libstemmer) from 1.0.0 to the git revision 1a76afa5b90c94034630951a84f79d5ccbf3c881, and zlib from 1.3.2 to 1.4.",
+        "buildscripts/resmokelib/testing/fixtures/_builder.py": "Refactors ReplSetBuilder and ShardedClusterBuilder to use the lazy accessor get_multiversion_service() instead of importing the module-level multiversion_service object. In the FCV helper it now obtains versions via service.get_version_constants() and reads get_latest_fcv()/get_last_lts_fcv/get_last_continuous_fcv/get_last_patch_fcv (the multiversion map is built from these callables and invoked), replacing the previous LATEST_FCV/LAST_LTS_FCV/LAST_CONTINUOUS_FCV constants and multiversion_service.get_last_patch_fcv.",
+        "sbom.json": "Upstream updates to the generated SBOM: bumps the yaml-cpp bom-ref/purl/dependsOn refs from yaml-cpp-0.6.3 to 0.6.3, zlib from 1.3.2 to 1.4 (including version, cpe, copyright year to 2026, purl, and the import_script_path to src/third_party/zlib/scripts/import.sh), Snowball from 1.0.0 to revision 1a76afa5b90c94034630951a84f79d5ccbf3c881, and siphash to revision eee7d0d84dc7731df2359b243aa5e75d85f6eaef; also reorders the linenoise.h/linenoise.cpp occurrence locations and refreshes the metadata timestamp. This file was a 'both modified' conflict: per the conflict hints, Percona keeps its own serialNumber/version and must not carry over the metadata.tools (Endor Labs) section.",
+        "src/mongo/db/BUILD.bazel": "Adds //src/mongo/db/query/compiler/optimizer/parallelism_planner to a mongo_cc_library deps list.",
+        "src/mongo/db/auth/BUILD.bazel": "Adds authorization_checks_test.cpp to the srcs and the :auth_checks target to the deps of the auth mongo_cc_unit_test.",
+        "src/mongo/db/namespace_string_reserved.h": "Adds a reserved namespace entry kAuthForInternalNamespace (DatabaseName::kAdmin, \"system.authForInternalNamespace\"), a pseudo namespace used as a namespace resource for internal collections.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "In the GetStatisticsValueInvalidKey test, replaces the connection statistics key WT_STAT_CONN_SESSION_OPEN with WT_STAT_CONN_AUTOCOMMIT_READONLY_RETRY (a key near the start of the connection range) and adds an explanatory comment, to avoid the key overlapping the table statistics key range as stats are added."
+      },
+      "review_notes": "Only sbom.json had an actual merge conflict ('both modified'). Confirm the resolution follows the conflict hints: Percona's serialNumber/version are kept and the metadata.tools section (Endor Labs entry) is removed, with Percona's supplier url preserved. All other listed files merged cleanly and contain only upstream changes (dependency version bumps, the lazy multiversion_service refactor in the resmoke builder, Bazel deps/test additions, the new reserved namespace, and the WiredTiger test key change). Verify the resmoke _builder.py change is consistent with the rest of the multiversion refactor (get_multiversion_service / get_version_constants API) present elsewhere in the branch."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll read the actual diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have all the diffs. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the actual `diff base \u2192 merge commit` diffs for all seven auto-merged files and written the JSON response describing only the changes this merge introduces.\n\nKey findings, all verified against the diffs:\n\n- **README.third_party.md** \u2014 siphash, Snowball/libstemmer, and zlib (1.3.2\u21921.4) version bumps.\n- **_builder.py** \u2014 refactor to lazy `get_multiversion_service()` / `get_version_constants()` instead of module-level FCV constants.\n- **sbom.json** \u2014 the only real conflict (both modified); upstream dependency metadata bumps, with the resolution keeping Percona's serialNumber/version and dropping the `metadata.tools` (Endor Labs) section per the conflict hints.\n- **db/BUILD.bazel** and **auth/BUILD.bazel** \u2014 new dep and new unit-test source/dep entries.\n- **namespace_string_reserved.h** \u2014 new reserved `kAuthForInternalNamespace`.\n- **wiredtiger_util_test.cpp** \u2014 statistics key swapped to a more stable one.\n\nThe response was written to `response_20261122_051111_010014.json`."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261122_051111_009821.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.330 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "a97acf7d5a8d2c49145fd143c1c71792a7826a14",
+    "short_sha": "a97acf7d5a8",
+    "strategy": "conflict",
+    "summary": "Cuts on the auto-generated SBOM artifact commit (SERVER-129061), which is a textbook clean merge boundary: it touches a well-isolated, auto-generated set of files, has no dependency on the commits after it, and is trivial to validate post-merge. This yields a batch of ~47 commits, comfortably within the ~30-65 target band. It leaves only the single freshest candidate (d5ba544, SERVER-135371) for the next batch, honoring the 'stop short of unsettled commits' rule. It also keeps related units intact: both SERVER-138209 commits (45747f4, f95fa05) and both SERVER-139221 commits (4de68c0, 08f51aa its comment-clarifying follow-up) fall fully inside the batch, so no coherent work is split. The commit carries a conflict flag, but it is self-contained and the existing resolve flow handles the SBOM conflict cleanly - making it a better stopping point than an arbitrary mid-stream commit.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/44988037649"
+  }
+}
