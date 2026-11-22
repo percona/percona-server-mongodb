@@ -24,7 +24,6 @@ export const sampleDocFieldNames = {
     samplingMethodField: "samplingMethod",
     requestedSamplingMethodField: "requestedSamplingMethod",
     requestedSampleSizeField: "requestedSampleSize",
-    numChunksField: "numChunks",
     createdAtField: "createdAt",
     docsField: "docs",
     schemaVersionField: "schemaVersion",
@@ -113,13 +112,7 @@ export function expectedPersistedSampleSize(db) {
 export function runAnalyzeSampleWithKnobs(
     db,
     collName,
-    {
-        sampleSize,
-        joinSampleSize = sampleSize,
-        enableJoinOptimization,
-        samplingMethod,
-        numChunks,
-    } = {},
+    {sampleSize, joinSampleSize = sampleSize, enableJoinOptimization} = {},
 ) {
     const knobs = {};
     if (sampleSize !== undefined) {
@@ -130,12 +123,6 @@ export function runAnalyzeSampleWithKnobs(
     }
     if (enableJoinOptimization !== undefined) {
         knobs.internalEnableJoinOptimization = enableJoinOptimization;
-    }
-    if (samplingMethod !== undefined) {
-        knobs.internalQuerySamplingCEMethodForPersistentSamples = samplingMethod;
-    }
-    if (numChunks !== undefined) {
-        knobs.internalQueryNumChunksForChunkBasedSampling = numChunks;
     }
     const res = runWithKnobs(db, () => db.runCommand({analyze: collName, mode: "sample"}), knobs);
     if (res.ok) {
@@ -158,6 +145,12 @@ export function defaultNumChunks(db) {
 // Returns the UUID string for a given collection
 export function getCollUUID(db, collName) {
     return extractUUIDFromObject(db.getCollectionInfos({name: collName})[0].info.uuid);
+}
+
+// Returns the 'persistentStatsConfig' collection option of a collection, or undefined when the
+// collection has no such option set.
+export function readPersistentStatsConfig(db, collName) {
+    return db.getCollectionInfos({name: collName}).at(0)?.options?.persistentStatsConfig;
 }
 
 export function getSamplesColl(db) {
@@ -297,7 +290,6 @@ export function validatePersistentSample(
         requestedSampleSize,
         actualSampleSize,
         expectedSchemaVersion = kPersistentSampleSchemaVersion,
-        numChunks = null,
         expectedFields = [],
         expectedNumPages = 1,
         expectedNumDocsDiscarded = 0,
@@ -328,7 +320,6 @@ export function validatePersistentSample(
             requestedSampleSize,
             actualSampleSize,
             expectedSchemaVersion,
-            numChunks,
             expectedFields,
             pageNo: i,
             genId: expectedGenId,
@@ -340,7 +331,7 @@ export function validatePersistentSample(
 
     assertPagesShareMetadata(pages);
 
-    validateSampledDocCount(samplingMethod, totalDocs, actualSampleSize, numChunks, {filter});
+    validateSampledDocCount(samplingMethod, totalDocs, actualSampleSize, {filter});
 
     return pages;
 }
@@ -370,7 +361,6 @@ function validateSamplePage(
         requestedSampleSize,
         actualSampleSize,
         expectedSchemaVersion,
-        numChunks = null,
         expectedFields = [],
         pageNo,
         genId,
@@ -403,11 +393,6 @@ function validateSamplePage(
         "Unexpected schemaVersion",
         {sampleId},
     );
-    if (numChunks !== null) {
-        assert.eq(numChunks, page[sampleDocFieldNames.numChunksField], "Unexpected numChunks", {
-            sampleId,
-        });
-    }
     assert.eq(
         expectedNumDocsDiscarded,
         page[sampleDocFieldNames.numDocsDiscardedField],
@@ -448,7 +433,7 @@ function validateSamplePage(
 }
 
 // Checks that the total number of docs in a sample is reasonable given the sampling method.
-function validateSampledDocCount(samplingMethod, docsCount, actualSampleSize, numChunks, attr) {
+function validateSampledDocCount(samplingMethod, docsCount, actualSampleSize, attr) {
     if (samplingMethod == "random" || samplingMethod == "seqScan") {
         // These techniques persist an exact, deterministic count of documents.
         assert.eq(
@@ -456,24 +441,6 @@ function validateSampledDocCount(samplingMethod, docsCount, actualSampleSize, nu
             docsCount,
             "actualSampleSize and sampled docs count don't match",
             attr,
-        );
-    } else if (samplingMethod == "chunk") {
-        // When using chunk sampling, actual num docs sampled might be lower than the parameter passed to `analyze`
-        // depending on whether requestedSampleSize divides evenly into the specified number of chunks,
-        // and whether the random cursors fall close to the end of the collection. In the worst case, every random
-        // cursor falls on the last document in the collection which means every chunk only has 1 document, so the
-        // entire sample only has numChunks documents
-        assert.neq(
-            null,
-            numChunks,
-            "numChunks must be provided to validate a chunk-sampled count",
-            attr,
-        );
-        assert.between(
-            numChunks,
-            docsCount,
-            actualSampleSize,
-            `Expected sampled docs count in [${numChunks}, ${actualSampleSize}]`,
         );
     } else {
         assert.eq(
@@ -502,14 +469,11 @@ function assertPagesShareMetadata(pages) {
         sampleDocFieldNames.uuidField,
         sampleDocFieldNames.samplingMethodField,
         sampleDocFieldNames.requestedSampleSizeField,
-        sampleDocFieldNames.numChunksField,
         sampleDocFieldNames.schemaVersionField,
         sampleDocFieldNames.createdAtField,
         sampleDocFieldNames.numDocsDiscardedField,
         sampleDocFieldNames.numPagesField,
-        // Only compare fields present on the first page (e.g. numChunks is absent for non-chunk
-        // samples).
-    ].filter((field) => pages[0][field] !== undefined);
+    ];
 
     const firstId = pages[0][sampleDocFieldNames.idField];
     const firstIdSansPageNo = idWithoutPageNo(firstId);

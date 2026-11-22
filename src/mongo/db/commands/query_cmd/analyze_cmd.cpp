@@ -86,7 +86,6 @@ auto& analyzeDocsPersisted = *MetricBuilder<Counter64>{"query.analyze.sample.doc
 
 // Sampling technique breakdown for how the sample was generated.
 auto& analyzeByMethodRandom = *MetricBuilder<Counter64>{"query.analyze.sample.byMethod.random"};
-auto& analyzeByMethodChunk = *MetricBuilder<Counter64>{"query.analyze.sample.byMethod.chunk"};
 auto& analyzeByMethodFullCollScan =
     *MetricBuilder<Counter64>{"query.analyze.sample.byMethod.fullCollScan"};
 
@@ -117,8 +116,7 @@ void recordPersistedSampleMetrics(const ce::PersistedSampleSummary& summary) {
     analyzeDocsPersisted.incrementRelaxed(summary.docsPersisted);
     switch (summary.samplingMethod) {
         case ce::SamplingTechniqueEnum::kChunk:
-            analyzeByMethodChunk.incrementRelaxed();
-            break;
+            tasserted(13820900, "Chunk samples are never persisted");
         case ce::SamplingTechniqueEnum::kFullCollScan:
             analyzeByMethodFullCollScan.incrementRelaxed();
             break;
@@ -166,7 +164,7 @@ CollectionAcquisition acquireAndValidateCollection(OperationContext* opCtx,
 /**
  * Releases the source acquisition and executor before the caller persists statistics.
  */
-boost::optional<ce::FieldStatsDoc> collectFieldStatsDocument(
+std::pair<UUID, ce::FieldStatsDoc> collectFieldStatsDocument(
     OperationContext* opCtx, const NamespaceString& nss, const std::vector<std::string>& paths) {
     auto coll = acquireAndValidateCollection(opCtx, nss, 13175802);
     const auto& collectionPtr = coll.getCollectionPtr();
@@ -194,11 +192,7 @@ boost::optional<ce::FieldStatsDoc> collectFieldStatsDocument(
          opCtx->checkForInterrupt()) {
         statsBuilder.accumulate(doc);
     }
-    if (statsBuilder.getNumDocumentsObserved() == 0) {
-        // Keep previous statistics after an empty scan.
-        return boost::none;
-    }
-    return statsBuilder.getStats();
+    return std::pair{collUuid, statsBuilder.getStats()};
 }
 
 void runFieldStatsMode(OperationContext* opCtx, const AnalyzeCommandRequest& cmd) {
@@ -227,18 +221,14 @@ void runFieldStatsMode(OperationContext* opCtx, const AnalyzeCommandRequest& cmd
                                                     }},
                                   *key);
 
-    auto document = collectFieldStatsDocument(opCtx, nss, paths);
-    if (!document) {
-        return;
-    }
+    const auto [collUuid, document] = collectFieldStatsDocument(opCtx, nss, paths);
 
     hangBeforePersistingFieldStats.pauseWhileSet(opCtx);
 
     // Reacquire with the scanned UUID to reject a dropped or recreated source collection.
-    acquireCollectionMaybeLockFree(
-        opCtx,
-        CollectionAcquisitionRequest::fromOpCtx(
-            opCtx, nss, AcquisitionPrerequisites::kRead, document->getCollectionUuid()));
+    acquireCollectionMaybeLockFree(opCtx,
+                                   CollectionAcquisitionRequest::fromOpCtx(
+                                       opCtx, nss, AcquisitionPrerequisites::kRead, collUuid));
 
     const auto statsNss = NamespaceStringUtil::deserialize(
         nss.dbName(), NamespaceString::kStatsFieldStatsCollectionName);
@@ -255,7 +245,7 @@ void runFieldStatsMode(OperationContext* opCtx, const AnalyzeCommandRequest& cmd
 
     DBDirectClient client(opCtx);
     uassertStatusOK(getStatusFromWriteCommandReply(client.updateAcknowledged(
-        statsNss, BSON("_id" << document->get_id()), document->toBSON(), /*upsert=*/true)));
+        statsNss, BSON("_id" << document.get_id()), document.toBSON(), /*upsert=*/true)));
 }
 
 void runSampleMode(OperationContext* opCtx, const NamespaceString& nss) {
@@ -280,8 +270,7 @@ void runSampleMode(OperationContext* opCtx, const NamespaceString& nss) {
     const ce::SampleSpec spec{
         .nss = nss,
         .requestedSampleSize = requestedSampleSize,
-        .sampleGenerationMethod = qkc.getInternalQuerySamplingCEMethodForPersistentSamples(),
-        .numChunks = qkc.getNumChunksForChunkBasedSampling(),
+        .sampleGenerationMethod = SamplingCEMethodEnum::kRandom,
         .samplingSource = SamplingSourceEnum::kOnTheFlySample,
         .topLevelSampleFieldNames = {},
     };
