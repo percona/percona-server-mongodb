@@ -630,12 +630,11 @@ BSONObj buildPersistentSampleDoc(const UUID& collUuid,
                                  SamplingTechniqueEnum method,
                                  size_t requestedSampleSize,
                                  const std::vector<BSONObj>& docs,
-                                 boost::optional<int> numChunks,
                                  int schemaVersion,
                                  BSONObj overrides,
                                  int pageNo,
                                  size_t numDocsDiscarded,
-                                 boost::optional<uint64_t> genId,
+                                 uint64_t genId,
                                  int numPages) {
     BSONObjBuilder builder;
     builder.append("_id", makePersistentSampleId(collUuid, pageNo, genId));
@@ -650,9 +649,6 @@ BSONObj buildPersistentSampleDoc(const UUID& collUuid,
     builder.append(PersistentSampleDoc::kRequestedSamplingMethodFieldName, idlSerialize(method));
     builder.append(PersistentSampleDoc::kNumDocsDiscardedFieldName,
                    static_cast<long long>(numDocsDiscarded));
-    if (numChunks) {
-        builder.append(PersistentSampleDoc::kNumChunksFieldName, numChunks.value());
-    }
     BSONArrayBuilder arr(builder.subarrayStart(PersistentSampleDoc::kDocsFieldName));
     for (const auto& d : docs) {
         arr.append(d);
@@ -679,7 +675,6 @@ BSONObj buildPage(const UUID& uuid, const PageParams& params) {
                                     params.method,
                                     params.requestedSampleSize,
                                     params.docs,
-                                    params.numChunks,
                                     /*schemaVersion=*/kPersistentSampleSchemaVersion,
                                     /*overrides=*/BSONObj{},
                                     params.pageNo,
@@ -690,7 +685,7 @@ BSONObj buildPage(const UUID& uuid, const PageParams& params) {
 
 PersistentSampleGeneration generationOf(std::vector<BSONObj> pages) {
     ASSERT_FALSE(pages.empty());
-    PersistentSampleGeneration generation(kDefaultPersistentSampleGenId,
+    PersistentSampleGeneration generation(kFirstPersistentSampleGenId,
                                           static_cast<int>(pages.size()));
     for (auto& page : pages) {
         ASSERT_OK(generation.addPage(std::move(page)));
@@ -733,7 +728,6 @@ void persistSampleForTest(OperationContext* opCtx,
                           SamplingTechniqueEnum method,
                           size_t requestedSampleSize,
                           int numDocs,
-                          boost::optional<int> numChunks,
                           BSONObj overrides) {
     const UUID uuid = [&] {
         auto srcColl = acquireCollectionForSampling(opCtx, nss);
@@ -750,12 +744,11 @@ void persistSampleForTest(OperationContext* opCtx,
                                   method,
                                   requestedSampleSize,
                                   docs,
-                                  numChunks,
                                   kPersistentSampleSchemaVersion,
                                   std::move(overrides),
                                   /*pageNo=*/0,
                                   /*numDocsDiscarded=*/0,
-                                  /*genId=*/boost::none,
+                                  /*genId=*/kFirstPersistentSampleGenId,
                                   /*numPages=*/1)},
         /*clustered=*/true);
 }

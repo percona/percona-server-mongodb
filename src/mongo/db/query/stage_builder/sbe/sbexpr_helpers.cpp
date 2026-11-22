@@ -763,7 +763,8 @@ std::tuple<SbStage, SbSlotVector, SbSlotVector> SbBuilder::makeHashAgg(
     SbStage stage,
     const SbSlotVector& gbs,
     const SbHashAggAccumulatorVector& accumulatorList,
-    boost::optional<sbe::value::SlotId> collatorSlot) {
+    boost::optional<sbe::value::SlotId> collatorSlot,
+    bool compact) {
     // In debug builds or when we explicitly set the query knob, we artificially force frequent
     // spilling. This makes sure that our tests exercise the spilling algorithm and the associated
     // logic for merging partial aggregates which otherwise would require large data sizes to
@@ -799,7 +800,8 @@ std::tuple<SbStage, SbSlotVector, SbSlotVector> SbBuilder::makeHashAgg(
                                             .groupByOutSlots = std::move(groupByOutSlotIds),
                                             .accumulators = std::move(accumulators),
                                             .collatorSlot = collatorSlot,
-                                            .forceIncreasedSpilling = forceIncreasedSpilling},
+                                            .forceIncreasedSpilling = forceIncreasedSpilling,
+                                            .compact = compact},
                          &varTypes);
 
     return {std::move(stage), std::move(groupByOutSlots), std::move(aggOutSlots)};
@@ -1251,24 +1253,36 @@ SbStage SbBuilder::makeHashJoin(SbStage outerStage,
                                         .intermediateTracking = intermediateTracking})});
 }
 
-SbStage SbBuilder::makeMergeJoin(SbStage outerStage,
-                                 SbStage innerStage,
-                                 const SbSlotVector& outerKeySlots,
-                                 const SbSlotVector& outerProjectSlots,
-                                 const SbSlotVector& innerKeySlots,
-                                 const SbSlotVector& innerProjectSlots,
-                                 std::vector<sbe::value::SortDirection> dirs) {
-    return addBlueprint(_state,
-                        SbBlueprintMergeJoin{.nodeId = _nodeId,
-                                             .info = std::make_unique<SbBlueprintMergeJoinInfo>(
-                                                 SbBlueprintMergeJoinInfo{
-                                                     .outer = outerStage.release(),
-                                                     .inner = innerStage.release(),
-                                                     .outerKeySlots = lower(outerKeySlots),
-                                                     .outerProjectSlots = lower(outerProjectSlots),
-                                                     .innerKeySlots = lower(innerKeySlots),
-                                                     .innerProjectSlots = lower(innerProjectSlots),
-                                                     .dirs = {dirs.begin(), dirs.end()}})});
+std::tuple<SbStage, SbSlotVector, SbSlotVector, SbSlotVector> SbBuilder::makeMergeJoin(
+    SbStage outerStage,
+    SbStage innerStage,
+    const SbSlotVector& outerKeySlots,
+    const SbSlotVector& outerProjectSlots,
+    const SbSlotVector& innerKeySlots,
+    const SbSlotVector& innerProjectSlots,
+    std::vector<sbe::value::SortDirection> dirs) {
+    auto keyOutputs = allocateOutSlotsForMergeStage({outerKeySlots});
+    auto outerProjectOutputs = allocateOutSlotsForMergeStage({outerProjectSlots});
+    auto innerProjectOutputs = allocateOutSlotsForMergeStage({innerProjectSlots});
+    auto stage = addBlueprint(
+        _state,
+        SbBlueprintMergeJoin{
+            .nodeId = _nodeId,
+            .info = std::make_unique<SbBlueprintMergeJoinInfo>(
+                SbBlueprintMergeJoinInfo{.outer = outerStage.release(),
+                                         .inner = innerStage.release(),
+                                         .outerKeySlots = lower(outerKeySlots),
+                                         .outerProjectSlots = lower(outerProjectSlots),
+                                         .innerKeySlots = lower(innerKeySlots),
+                                         .innerProjectSlots = lower(innerProjectSlots),
+                                         .keyOutputs = lower(keyOutputs),
+                                         .outerProjectOutputs = lower(outerProjectOutputs),
+                                         .innerProjectOutputs = lower(innerProjectOutputs),
+                                         .dirs = {dirs.begin(), dirs.end()}})});
+    return {std::move(stage),
+            std::move(keyOutputs),
+            std::move(outerProjectOutputs),
+            std::move(innerProjectOutputs)};
 }
 
 SbBuilder::FetchBuildResult SbBuilder::makeFetch(SbStage child,

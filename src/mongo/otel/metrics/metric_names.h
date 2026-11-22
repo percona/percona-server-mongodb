@@ -153,6 +153,8 @@ public:
         MetricNameMaker::make("mongodb.network.egress.operations_per_connection");
     static constexpr MetricName kNetworkEgressConnectionsClosed =
         MetricNameMaker::make("mongodb.network.egress.connections_closed");
+    static constexpr MetricName kNetworkEgressConnectionAttemptsAfterCancellation =
+        MetricNameMaker::make("mongodb.network.egress.connection_attempts_after_cancellation");
     static constexpr MetricName kNetworkEgressKillOperationsLatency =
         MetricNameMaker::make("mongodb.network.egress.kill_operations_latency");
     static constexpr MetricName kNetworkEgressResolutionOperations =
@@ -202,6 +204,10 @@ public:
         MetricNameMaker::make("mongodb.network.ingress_hello_latency");
     static constexpr MetricName kIngressAuthLatency =
         MetricNameMaker::make("mongodb.network.ingress_auth_latency");
+    static constexpr MetricName kNetworkConnectionHandoffsSucceeded =
+        MetricNameMaker::make("mongodb.network.handoff.succeeded");
+    static constexpr MetricName kNetworkConnectionHandoffsFailed =
+        MetricNameMaker::make("mongodb.network.handoff.failed");
     static constexpr MetricName kHandoffListenerProcessingTime =
         MetricNameMaker::make("mongodb.network.handoff.listener_processing.time_micros");
     static constexpr MetricName kHandoffListenerProcessingLatency =
@@ -496,8 +502,8 @@ public:
         MetricNameMaker::make("mongodb.serverStatus.metrics.changeStreams.scope.collection");
     static constexpr MetricName kChangeStreamOptionCursorBatchSize =
         MetricNameMaker::make("mongodb.serverStatus.metrics.changeStreams.option.cursor.batchSize");
-    static constexpr MetricName kChangeStreamOptionCursorMaxTimeMS =
-        MetricNameMaker::make("mongodb.serverStatus.metrics.changeStreams.option.cursor.maxTimeMS");
+    static constexpr MetricName kChangeStreamOptionCursorMaxAwaitTimeMS = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.changeStreams.option.cursor.maxAwaitTimeMS");
     static constexpr MetricName kChangeStreamCursorDocsReturned =
         MetricNameMaker::make("mongodb.serverStatus.metrics.changeStreams.cursor.docsReturned");
     static constexpr MetricName kChangeStreamCursorBytesReturned =

@@ -86,9 +86,9 @@ describe("persistedNdv in join explain", function () {
 
             // Both sides of the edge have persisted statistics, so the join optimizer consults
             // both for the two-sided NDV estimate and both namespaces surface their served
-            // statistics.
+            // statistics, in sorted order.
             assert.eq(
-                Object.keys(fieldStatsMetadata).sort(),
+                Object.keys(fieldStatsMetadata),
                 [this.orders.getFullName(), this.products.getFullName()].sort(),
                 "expected served statistics from both sides of the join edge",
                 {fieldStatsMetadata},
@@ -101,7 +101,7 @@ describe("persistedNdv in join explain", function () {
             assert(productsNdv, "expected ndv metadata for products", {fieldStatsMetadata});
             assert.eq(productsNdv.length, 1, "expected one served entry", {productsNdv});
             assert.eq(productsNdv[0].fieldPaths, ["sku"], "unexpected fieldPaths", {productsNdv});
-            assert(productsNdv[0].createdAt instanceof Date, "createdAt must be a date", {
+            assert(productsNdv[0].collectedAt instanceof Date, "collectedAt must be a date", {
                 productsNdv,
             });
         });

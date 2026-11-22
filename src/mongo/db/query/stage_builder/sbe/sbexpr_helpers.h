@@ -514,7 +514,8 @@ public:
         SbStage stage,
         const SbSlotVector& gbs,
         const SbHashAggAccumulatorVector& accumulatorList,
-        boost::optional<sbe::value::SlotId> collatorSlot);
+        boost::optional<sbe::value::SlotId> collatorSlot,
+        bool compact);
 
     std::tuple<SbStage, SbSlotVector, SbSlotVector> makeStreamingAgg(
         const VariableTypes& varTypes,
@@ -707,13 +708,14 @@ public:
                          sbe::IntermediateTrackingBehavior intermediateTracking =
                              sbe::IntermediateTrackingBehavior::kNone);
 
-    SbStage makeMergeJoin(SbStage outerStage,
-                          SbStage innerStage,
-                          const SbSlotVector& outerKeySlots,
-                          const SbSlotVector& outerProjectSlots,
-                          const SbSlotVector& innerKeySlots,
-                          const SbSlotVector& innerProjectSlots,
-                          std::vector<sbe::value::SortDirection> dirs);
+    std::tuple<SbStage, SbSlotVector, SbSlotVector, SbSlotVector> makeMergeJoin(
+        SbStage outerStage,
+        SbStage innerStage,
+        const SbSlotVector& outerKeySlots,
+        const SbSlotVector& outerProjectSlots,
+        const SbSlotVector& innerKeySlots,
+        const SbSlotVector& innerProjectSlots,
+        std::vector<sbe::value::SortDirection> dirs);
 
 
     struct FetchBuildResult {

@@ -851,9 +851,16 @@ struct SbBlueprintMergeJoinInfo {
     sbe::value::SlotVector outerProjectSlots;
     sbe::value::SlotVector innerKeySlots;
     sbe::value::SlotVector innerProjectSlots;
+    sbe::value::SlotVector keyOutputs;
+    sbe::value::SlotVector outerProjectOutputs;
+    sbe::value::SlotVector innerProjectOutputs;
     SbSortDirectionVector dirs;
 
-    void def(SbSlotCollector&) const {}
+    void def(SbSlotCollector& out) const {
+        out.add(keyOutputs);
+        out.add(outerProjectOutputs);
+        out.add(innerProjectOutputs);
+    }
 
     void use(SbSlotCollector& out) const {
         out.add(outerKeySlots);
@@ -911,8 +918,9 @@ struct SbBlueprintHashAggAccumulator {
 };
 
 /**
- * HashAggStage (group-by aggregation). 'groupBySlots' must already be de-duplicated. The stage
- * exposes the group-by keys above it through 'groupByOutSlots', parallel to 'groupBySlots'.
+ * HashAggStage (group-by aggregation), or CompactHashAggStage if 'compact' is set.
+ * 'groupBySlots' must already be de-duplicated. The stage exposes the group-by keys above it
+ * through 'groupByOutSlots', parallel to 'groupBySlots'.
  */
 struct SbBlueprintHashAgg {
     SbBlueprintNodeIdx child;
@@ -922,13 +930,17 @@ struct SbBlueprintHashAgg {
     std::vector<SbBlueprintHashAggAccumulator> accumulators;
     boost::optional<sbe::value::SlotId> collatorSlot;
     bool forceIncreasedSpilling{false};
+    bool compact{false};
 
     void def(SbSlotCollector& out) const {
         out.add(groupByOutSlots);
         for (const auto& acc : accumulators) {
             out.add(acc.outSlot);
             // The stage fills the spill slot with a partial aggregate recovered from a spill.
-            out.add(acc.spillSlot);
+            // CompactHashAggStage does not spill.
+            if (!compact) {
+                out.add(acc.spillSlot);
+            }
         }
     }
 

@@ -28,9 +28,12 @@
 #include "mongo/unittest/death_test.h"
 #include "mongo/unittest/server_parameter_guard.h"
 #include "mongo/unittest/unittest.h"
+#include "mongo/util/pcre.h"
 
 #include <cstdint>
 #include <memory>
+#include <sstream>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -50,13 +53,11 @@ protected:
     }
 
     /**
-     * Builds a STREAMING_GROUP node with 'groupSpec' (an $group spec) over a virtual collection
-     * scan that produces 'docs' in order, runs it, and checks that it produces 'expected'. The
-     * caller must provide 'docs' clustered by the group key.
+     * Builds a query solution with a STREAMING_GROUP node for 'groupSpec' (an $group spec) over a
+     * virtual collection scan that produces 'docs' in order.
      */
-    void assertStreamingGroupResults(const std::vector<BSONObj>& docs,
-                                     const BSONObj& groupSpec,
-                                     const std::vector<BSONObj>& expected) {
+    std::unique_ptr<QuerySolution> makeStreamingGroupSolution(const std::vector<BSONObj>& docs,
+                                                              const BSONObj& groupSpec) {
         auto expCtx = make_intrusive<ExpressionContextForTest>(operationContext(), _nss);
         VariablesParseState vps = expCtx->variablesParseState;
 
@@ -81,11 +82,28 @@ protected:
                                                  std::move(accStmts),
                                                  /*shouldProduceBson=*/true,
                                                  /*nonArrayIdFields=*/OrderedPathSet{});
-        auto querySolution = makeQuerySolution(std::move(groupNode));
+        return makeQuerySolution(std::move(groupNode));
+    }
+
+    /**
+     * Builds a STREAMING_GROUP node with 'groupSpec' (an $group spec) over a virtual collection
+     * scan that produces 'docs' in order, runs it, and checks that it produces 'expected'. The
+     * caller must provide 'docs' clustered by the group key.
+     */
+    void assertStreamingGroupResults(const std::vector<BSONObj>& docs,
+                                     const BSONObj& groupSpec,
+                                     const std::vector<BSONObj>& expected,
+                                     bool expectStreamingStage = true) {
+        auto querySolution = makeStreamingGroupSolution(docs, groupSpec);
 
         auto shardFiltererInterface = makeAlwaysPassShardFiltererInterface();
         auto [resultSlots, stage, data, _] =
             buildPlanStage(std::move(querySolution), false, std::move(shardFiltererInterface));
+
+        sbe::DebugPrintInfo debugPrintInfo{};
+        const std::string plan = sbe::DebugPrinter().print(*stage, debugPrintInfo);
+        ASSERT_EQ(plan.find("streaming_group ") != std::string::npos, expectStreamingStage) << plan;
+
         auto resultAccessors = prepareTree(&data.env.ctx, stage.get(), resultSlots);
         ASSERT_EQ(resultAccessors.size(), 1u);
 
@@ -116,6 +134,25 @@ TEST_F(SbeStageBuilderTest, StreamingGroupSingleKey) {
                                  fromjson("{_id: 3, total: 3, n: 3}")});
 }
 
+// A single-reference group key has fillEmptyNull applied, so the cluster key doesn't need an
+// additional fillEmptyNull and reuses the group-by slot, with no extra project.
+TEST_F(SbeStageBuilderTest, StreamingGroupSingleKeyClusterSlotIsGroupBySlot) {
+    auto querySolution =
+        makeStreamingGroupSolution({fromjson("{a: 1}")}, fromjson("{_id: '$a', n: {$sum: 1}}"));
+    auto [resultSlots, stage, data, _] =
+        buildPlanStage(std::move(querySolution), false, makeAlwaysPassShardFiltererInterface());
+
+    sbe::DebugPrintInfo debugPrintInfo{};
+    const std::string plan = sbe::DebugPrinter().print(*stage, debugPrintInfo);
+
+    // The stage prints as: streaming_group [keySlots] [keyOut = key] clustered [clusterKeySlots].
+    static const pcre::Regex streamingGroupRegex{
+        R"(streaming_group \[s(\d+)\]\s*\[s\d+ = s\d+\]\s*clustered \[s(\d+)\])"};
+    const auto match = streamingGroupRegex.match(plan);
+    ASSERT_TRUE(static_cast<bool>(match)) << plan;
+    ASSERT_EQ(match[1], match[2]) << plan;
+}
+
 // The input of this test is deliberately not clustered by the group key. Streaming group emits a
 // group whenever the key changes, so it produces three groups, where a hash group would produce
 // two. This checks that a STREAMING_GROUP node really builds a streaming stage.
@@ -124,6 +161,31 @@ TEST_F(SbeStageBuilderTest, StreamingGroupEmitsGroupOnKeyChange) {
         {fromjson("{a: 1}"), fromjson("{a: 2}"), fromjson("{a: 1}")},
         fromjson("{_id: '$a', n: {$sum: 1}}"),
         {fromjson("{_id: 1, n: 1}"), fromjson("{_id: 2, n: 1}"), fromjson("{_id: 1, n: 1}")});
+}
+
+TEST_F(SbeStageBuilderTest, StreamingGroupUsesRegularAccumulatorsWithCompactFlag) {
+    unittest::ServerParameterGuard compactFlag("featureFlagSbeCompactHashAgg", true);
+    for (bool singlePurpose : {false, true}) {
+        unittest::ServerParameterGuard accumulatorsFlag("featureFlagSbeAccumulators",
+                                                        singlePurpose);
+        // Non-clustered input distinguishes streaming from hash aggregation even when all
+        // accumulators are eligible for compact aggregation.
+        assertStreamingGroupResults(
+            {fromjson("{a: 1, b: 2}"), fromjson("{a: 2, b: 3}"), fromjson("{a: 1, b: 4}")},
+            fromjson("{_id: '$a', s: {$sum: '$b'}, p: {$push: '$b'}}"),
+            {fromjson("{_id: 1, s: 2, p: [2]}"),
+             fromjson("{_id: 2, s: 3, p: [3]}"),
+             fromjson("{_id: 1, s: 4, p: [4]}")});
+    }
+}
+
+// A constant _id doesn't use streaming group, so it falls back to the compact hash group.
+TEST_F(SbeStageBuilderTest, StreamingGroupConstantKeyWithCompactFlag) {
+    unittest::ServerParameterGuard compactFlag("featureFlagSbeCompactHashAgg", true);
+    assertStreamingGroupResults({fromjson("{b: 2}"), fromjson("{b: 3}")},
+                                fromjson("{_id: null, s: {$sum: '$b'}, p: {$push: '$b'}}"),
+                                {fromjson("{_id: null, s: 5, p: [2, 3]}")},
+                                /*expectStreamingStage=*/false);
 }
 
 // Accumulators that lower to more than one aggregate ($avg) and ones that don't, none of which have
@@ -146,6 +208,22 @@ TEST_F(SbeStageBuilderTest, StreamingGroupCompoundKey) {
                                  fromjson("{_id: {x: 2, y: 1}, n: 1}")});
 }
 
+// Index order doesn't distinguish null from missing, so rows with null and missing 'b' can be
+// interleaved. They must be clustered together, and groups within the cluster kept separate.
+TEST_F(SbeStageBuilderTest, StreamingGroupInterleavedNullAndMissing) {
+    assertStreamingGroupResults({fromjson("{a: 1, b: null}"),
+                                 fromjson("{a: 1}"),
+                                 fromjson("{a: 1, b: null}"),
+                                 fromjson("{a: 1}"),
+                                 fromjson("{a: 1, b: 2}"),
+                                 fromjson("{a: 2}")},
+                                fromjson("{_id: {x: '$a', y: '$b'}, n: {$sum: 1}}"),
+                                {BSON("_id" << BSON("x" << 1 << "y" << BSONNULL) << "n" << 2),
+                                 BSON("_id" << BSON("x" << 1) << "n" << 2),
+                                 BSON("_id" << BSON("x" << 1 << "y" << 2) << "n" << 1),
+                                 BSON("_id" << BSON("x" << 2) << "n" << 1)});
+}
+
 // Both key components read the same field, so they share a slot, which must only be passed to the
 // stage once.
 TEST_F(SbeStageBuilderTest, StreamingGroupDuplicateKeyPaths) {
@@ -153,6 +231,18 @@ TEST_F(SbeStageBuilderTest, StreamingGroupDuplicateKeyPaths) {
         {fromjson("{a: 1}"), fromjson("{a: 1}"), fromjson("{a: 2}")},
         fromjson("{_id: {x: '$a', y: '$a'}, n: {$sum: 1}}"),
         {fromjson("{_id: {x: 1, y: 1}, n: 2}"), fromjson("{_id: {x: 2, y: 2}, n: 1}")});
+}
+
+// Both key components read the same nullable field, so they share a slot, which is projected with
+// fillEmptyNull only once and shared by both cluster keys.
+TEST_F(SbeStageBuilderTest, StreamingGroupDuplicateKeyPathsNullable) {
+    assertStreamingGroupResults(
+        {fromjson("{b: null}"), fromjson("{}"), fromjson("{b: 2}"), fromjson("{}")},
+        fromjson("{_id: {x: '$b', y: '$b'}, n: {$sum: 1}}"),
+        {BSON("_id" << BSON("x" << BSONNULL << "y" << BSONNULL) << "n" << 1),
+         BSON("_id" << BSONObj() << "n" << 1),
+         fromjson("{_id: {x: 2, y: 2}, n: 1}"),
+         BSON("_id" << BSONObj() << "n" << 1)});
 }
 
 // The initializer of $maxN's 'n' is evaluated against the _id, which is an object here, so it
@@ -174,7 +264,8 @@ TEST_F(SbeStageBuilderTest, StreamingGroupFallsBackWithTooManyGroupByKeys) {
     assertStreamingGroupResults(
         {fromjson("{a: 1, b: 1, c: 1, d: 1, e: 1}"), fromjson("{a: 1, b: 1, c: 1, d: 1, e: 1}")},
         fromjson("{_id: {a: '$a', b: '$b', c: '$c', d: '$d', e: '$e'}, n: {$sum: 1}}"),
-        {fromjson("{_id: {a: 1, b: 1, c: 1, d: 1, e: 1}, n: 2}")});
+        {fromjson("{_id: {a: 1, b: 1, c: 1, d: 1, e: 1}, n: 2}")},
+        /*expectStreamingStage=*/false);
 }
 
 TEST_F(SbeStageBuilderTest, StreamingGroupEmptyInput) {
@@ -488,6 +579,97 @@ TEST_F(GoldenSbeStageBuilderTest, TestCountScanEfficientBoundaryMaterialization)
     unittest::ServerParameterGuard efficientMaterialization(
         "featureFlagSbeEfficientBoundaryMaterialization", true);
     runCountScanTest();
+}
+
+class CompactGroupStageBuilderTest : public GoldenSbeStageBuilderTest {
+public:
+    void setUp() override {
+        GoldenSbeStageBuilderTest::setUp();
+        createCollection({fromjson("{_id: 0, a: 1, b: 1}"),
+                          fromjson("{_id: 1, a: 1, b: NumberLong(2)}"),
+                          fromjson("{_id: 2, a: 1, b: 2147483647}"),
+                          fromjson("{_id: 3, a: 2, b: 2.5}"),
+                          fromjson("{_id: 4, a: 2, b: NumberDecimal('1.5')}"),
+                          fromjson("{_id: 5, a: 3, b: 'x'}"),
+                          fromjson("{_id: 6, a: 3}")},
+                         boost::none);
+    }
+
+protected:
+    PlanRun runGroup(std::string_view accumulators,
+                     bool compactFlag,
+                     bool allowDiskUse,
+                     bool merge = false) {
+        unittest::ServerParameterGuard flag("featureFlagSbeCompactHashAgg", compactFlag);
+        VariablesParseState vps = _expCtx->variablesParseState;
+        std::vector<AccumulationStatement> statements;
+        for (auto&& elem : fromjson(accumulators)) {
+            statements.push_back(
+                AccumulationStatement::parseAccumulationStatement(_expCtx.get(), elem, vps));
+        }
+        auto groupNode =
+            std::make_unique<GroupNode>(getScanNode(),
+                                        ExpressionFieldPath::parse(_expCtx.get(), "$a", vps),
+                                        std::move(statements),
+                                        /*doingMerge=*/false,
+                                        /*willBeMerged=*/merge,
+                                        /*shouldProduceBson=*/true);
+        boost::intrusive_ptr<ExpressionContext> expCtx =
+            new ExpressionContextForTest(operationContext(), _nss);
+        expCtx->setAllowDiskUse(allowDiskUse);
+        expCtx->setNeedsMerge(merge);
+        auto run = runPlan(makeQuerySolution(std::move(groupNode)), {.expCtx = expCtx});
+        run.results = sortArray(run.results.view());
+        return run;
+    }
+
+    static bool isCompact(const PlanRun& run) {
+        return run.explain.find("compact_group") != std::string::npos;
+    }
+
+    static std::string print(const PlanRun& run) {
+        std::ostringstream os;
+        os << run.results.view();
+        return os.str();
+    }
+
+    void assertSameResults(const PlanRun& compact, const PlanRun& reference) {
+        ASSERT_TRUE(isCompact(compact)) << compact.explain;
+        ASSERT_FALSE(isCompact(reference)) << reference.explain;
+        ASSERT_EQ(print(compact), print(reference));
+    }
+
+    void printGolden(const PlanRun& run) {
+        _gctx->outStream() << run.explain << std::endl << print(run) << std::endl << std::endl;
+    }
+};
+
+TEST_F(CompactGroupStageBuilderTest, SumAndPushUseCompactStage) {
+    constexpr auto kAccs = "{p: {$push: '$b'}, s: {$sum: '$b'}, t: {$sum: '$a'}}";
+    auto compact = runGroup(kAccs, true, false);
+    assertSameResults(compact, runGroup(kAccs, false, false));
+
+    _gctx->printTestHeader(unittest::GoldenTestContext::HeaderFormat::Text);
+    printGolden(compact);
+    _gctx->verifyOutput();
+}
+
+TEST_F(CompactGroupStageBuilderTest, PartialAccumulatorsUseCompactStage) {
+    constexpr auto kAccs = "{p: {$push: '$b'}, s: {$sum: '$b'}}";
+    assertSameResults(runGroup(kAccs, true, false, /*merge=*/true),
+                      runGroup(kAccs, false, false, /*merge=*/true));
+}
+
+TEST_F(CompactGroupStageBuilderTest, NoAccumulatorsUsesCompactStage) {
+    assertSameResults(runGroup("{}", true, false), runGroup("{}", false, false));
+}
+
+TEST_F(CompactGroupStageBuilderTest, IneligibleGroupsUseHashAgg) {
+    ASSERT_FALSE(isCompact(runGroup("{s: {$sum: '$b'}}", false, false)));
+    ASSERT_FALSE(isCompact(runGroup("{s: {$sum: '$b'}}", true, true)));
+    ASSERT_FALSE(isCompact(runGroup("{s: {$sum: '$b'}, m: {$avg: '$b'}}", true, false)));
+    ASSERT_FALSE(isCompact(runGroup("{c: {$sum: 1}}", true, false)));
+    ASSERT_FALSE(isCompact(runGroup("{c: {$count: {}}}", true, false)));
 }
 
 TEST_F(GoldenSbeStageBuilderTest, TestLimitSkip) {
