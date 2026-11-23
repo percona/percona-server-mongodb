@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 48,
-    "days_behind": 8,
-    "unmerged_oldest_age_days": 8.663177398136574,
-    "files_affected": 268,
-    "total_additions": 11874,
-    "total_deletions": 3044,
+    "commits_behind": 56,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.10862744755787,
+    "files_affected": 298,
+    "total_additions": 12786,
+    "total_deletions": 4661,
     "date_range": {
       "first": "2026-11-13T03:33:57+00:00",
-      "last": "2026-11-13T23:18:49+00:00"
+      "last": "2026-11-15T22:39:52+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,86 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "f739fdca29e05b243c9e1ae5f01035d949fd6150",
+      "short_sha": "f739fdca29e",
+      "date": "2026-11-15T22:39:52+00:00",
+      "author": {
+        "name": "shoufudu",
+        "email": "51816204+ShoufuDu@users.noreply.github.com"
+      },
+      "summary": "SERVER-139304 Pin eviction_updates_trigger=0 in txns_cache_errors tests (#66810)"
+    },
+    {
+      "sha": "49f243fca63b9af9197170e0d479fdbf9a7d21d6",
+      "short_sha": "49f243fca63",
+      "date": "2026-11-15T22:13:03+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: b71494dd9fa11e707adb68476d25e46257f38995 from branch mongodb-master (#66932)"
+    },
+    {
+      "sha": "9850b2159600394976b7ffe8a227b92bdd19a6df",
+      "short_sha": "9850b215960",
+      "date": "2026-11-14T15:44:32+00:00",
+      "author": {
+        "name": "Alberto Massari",
+        "email": "alberto.massari@mongodb.com"
+      },
+      "summary": "SERVER-131961 Use non-recursive processing of logical expressions in vectorization (#64471)"
+    },
+    {
+      "sha": "34e4f578353654b13d3b1581dbaf933911fccf74",
+      "short_sha": "34e4f578353",
+      "date": "2026-11-14T10:33:07+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-135194 Add keyHash match pushdown benchmark and jstest (#62269)\" (#66927)"
+    },
+    {
+      "sha": "ddd06d476f70a0f0d707a770440c036f2a355baa",
+      "short_sha": "ddd06d476f7",
+      "date": "2026-11-14T05:01:20+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-133600 Tighten rules on who can access the multi update coordinator namespace (#61275)\" (#66924)"
+    },
+    {
+      "sha": "8499ab9d3d9000d7f2c1748868edb714956f3da5",
+      "short_sha": "8499ab9d3d9",
+      "date": "2026-11-14T02:13:38+00:00",
+      "author": {
+        "name": "Stanislav Lukyanov",
+        "email": "stanlukyanov@gmail.com"
+      },
+      "summary": "SERVER-113064 Remove stale TODOs referencing SERVER-74926 (#66898)"
+    },
+    {
+      "sha": "8b46c8f04851e5f09be940b25fea6610a336027b",
+      "short_sha": "8b46c8f0485",
+      "date": "2026-11-14T02:05:01+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-138790 Tolerate unavailable majority snapshots during post-readiness index drains (#66560)\" (#66920)"
+    },
+    {
+      "sha": "6fa59c83ec55a829c21296afd27c1f366df852c0",
+      "short_sha": "6fa59c83ec5",
+      "date": "2026-11-14T01:09:08+00:00",
+      "author": {
+        "name": "Alex Sarkesian",
+        "email": "alex.sarkesian@mongodb.com"
+      },
+      "summary": "SERVER-131816: Support applying ci/cd operations with int-array keys (#66820)"
+    },
     {
       "sha": "d5ba544e61d708a3153df22f6659d7bd58897240",
       "short_sha": "d5ba544e61d",
@@ -563,10 +643,56 @@
           "sbom.json"
         ]
       }
+    },
+    {
+      "commit": {
+        "sha": "ddd06d476f70a0f0d707a770440c036f2a355baa",
+        "short_sha": "ddd06d476f7",
+        "date": "2026-11-14T05:01:20+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-133600 Tighten rules on who can access the multi update coordinator namespace (#61275)\" (#66924)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 25,
+          "num_of_lines": 1245,
+          "lines_added": 46,
+          "lines_deleted": 1199,
+          "num_of_dirs": 12
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "49f243fca63b9af9197170e0d479fdbf9a7d21d6",
+        "short_sha": "49f243fca63",
+        "date": "2026-11-15T22:13:03+00:00",
+        "author": {
+          "name": "wt-vendoring-bot[bot]",
+          "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+        },
+        "summary": "Import wiredtiger: b71494dd9fa11e707adb68476d25e46257f38995 from branch mongodb-master (#66932)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 33,
+          "num_of_lines": 3282,
+          "lines_added": 2049,
+          "lines_deleted": 1233,
+          "num_of_dirs": 12
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-21 19:28:33",
+  "generated_at": "2026-11-23 06:09:55",
   "branch_name": "master",
   "display_name": "master"
 }
