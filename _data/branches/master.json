@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 63,
-    "days_behind": 9,
-    "unmerged_oldest_age_days": 9.957814658125,
-    "files_affected": 368,
-    "total_additions": 13970,
-    "total_deletions": 5277,
+    "commits_behind": 65,
+    "days_behind": 10,
+    "unmerged_oldest_age_days": 10.01175205653935,
+    "files_affected": 374,
+    "total_additions": 14208,
+    "total_deletions": 5290,
     "date_range": {
       "first": "2026-11-13T23:18:49+00:00",
-      "last": "2026-11-16T21:46:06+00:00"
+      "last": "2026-11-16T22:50:34+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "338c736b72b86c5701aa13ada765e70e230b7bc3",
+      "short_sha": "338c736b72b",
+      "date": "2026-11-16T22:50:34+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-138893 Implement array-returning SBE set difference (#66890)"
+    },
+    {
+      "sha": "1c623afa6d24a7da452cb521ad087b7e15c71d32",
+      "short_sha": "1c623afa6d2",
+      "date": "2026-11-16T22:36:35+00:00",
+      "author": {
+        "name": "Ian Boros",
+        "email": "87138302+borosaurus@users.noreply.github.com"
+      },
+      "summary": "SERVER-123894: Default TypeSignature to kAnyType and ignore empty bindings (#66838)"
+    },
     {
       "sha": "196dfc2ac460eb999f2cd6474c5c42d38c4374d4",
       "short_sha": "196dfc2ac46",
@@ -762,7 +782,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-23 22:17:55",
+  "generated_at": "2026-11-23 23:35:34",
   "branch_name": "master",
   "display_name": "master"
 }
