@@ -1,6 +1,7 @@
 """The unittest.TestCase for C++ unit tests."""
 
 import os
+import shutil
 from typing import Optional
 
 from buildscripts.resmokelib import core, logging, utils
@@ -58,12 +59,16 @@ class CPPUnitTestCase(interface.ProcessTestCase):
         binary_name = os.path.basename(executable_path)
 
         runfiles_dir = os.path.join(base_dir, binary_name + ".runfiles")
-        if not os.path.isdir(runfiles_dir):
-            # Runfiles directory doesn't exist (e.g. built with --nobuild_runfile_links).
-            # Try to create it from the manifest file that Bazel still produces.
-            manifest_file = runfiles_dir + "_manifest"
-            if os.path.isfile(manifest_file):
-                self._create_runfiles_from_manifest(runfiles_dir, manifest_file)
+        manifest_file = runfiles_dir + "_manifest"
+        # With --nobuild_runfile_links Bazel only writes the manifest, so build the tree from it.
+        # Rebuild it when the manifest is newer, otherwise a tree left by an earlier run misses
+        # data deps added since then.
+        if os.path.isfile(manifest_file) and (
+            not os.path.isdir(runfiles_dir)
+            or os.path.getmtime(manifest_file) > os.path.getmtime(runfiles_dir)
+        ):
+            shutil.rmtree(runfiles_dir, ignore_errors=True)
+            self._create_runfiles_from_manifest(runfiles_dir, manifest_file)
 
         if os.path.isdir(runfiles_dir):
             # Set RUNFILES_DIR in env_vars
