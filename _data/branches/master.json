@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 56,
+    "commits_behind": 66,
     "days_behind": 10,
-    "unmerged_oldest_age_days": 10.10862744755787,
-    "files_affected": 298,
-    "total_additions": 12786,
-    "total_deletions": 4661,
+    "unmerged_oldest_age_days": 10.468343043518518,
+    "files_affected": 402,
+    "total_additions": 15901,
+    "total_deletions": 4930,
     "date_range": {
       "first": "2026-11-13T03:33:57+00:00",
-      "last": "2026-11-15T22:39:52+00:00"
+      "last": "2026-11-16T13:05:30+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,106 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "f7cfd51185872a98ba590a405d4d018cf0ef9e88",
+      "short_sha": "f7cfd511858",
+      "date": "2026-11-16T13:05:30+00:00",
+      "author": {
+        "name": "Enrico Golfieri",
+        "email": "enrico.golfieri@mongodb.com"
+      },
+      "summary": "SERVER-133099: Add server parameter and allow to drop system.session for a sharded cluster (#60260)"
+    },
+    {
+      "sha": "df5bb5da35f235bf16eea560c6df75d9d43fa6e0",
+      "short_sha": "df5bb5da35f",
+      "date": "2026-11-16T13:02:04+00:00",
+      "author": {
+        "name": "fotiniAlvanaki",
+        "email": "78495594+fotiniAlvanaki@users.noreply.github.com"
+      },
+      "summary": "SERVER-139370: bucketAuto mergeObjects charges only retained data (#66877)"
+    },
+    {
+      "sha": "cf65804e19ca9452112d15d86751a340c30c2902",
+      "short_sha": "cf65804e19c",
+      "date": "2026-11-16T12:57:17+00:00",
+      "author": {
+        "name": "Lyublena Antova",
+        "email": "lyublena.antova@mongodb.com"
+      },
+      "summary": "SERVER-138836 Microbenchmarks for the EOT write path on sharded clusters (#66128)"
+    },
+    {
+      "sha": "dc25dc12a75d86c8b1c01abb4a5ff2f945a12db0",
+      "short_sha": "dc25dc12a75",
+      "date": "2026-11-16T11:54:20+00:00",
+      "author": {
+        "name": "Catalin Sumanaru",
+        "email": "catalin.sumanaru@mongodb.com"
+      },
+      "summary": "SERVER-136150 Require querySettings action privilege for $_internalListQuerySettings (#63703)"
+    },
+    {
+      "sha": "2010f9714ceea315a37161ae8072acec16c73730",
+      "short_sha": "2010f9714ce",
+      "date": "2026-11-16T11:47:39+00:00",
+      "author": {
+        "name": "Denis Grebennicov",
+        "email": "denis.grebennicov@mongodb.com"
+      },
+      "summary": "SERVER-139426 Fix mirrored-read race in change_stream_read_preference.js test (#66946)"
+    },
+    {
+      "sha": "09c7c7bbb9203484a7ae3a93bbd5f4ff1b619ddc",
+      "short_sha": "09c7c7bbb92",
+      "date": "2026-11-16T10:22:32+00:00",
+      "author": {
+        "name": "Jack Keenan",
+        "email": "jack.keenan@mongodb.com"
+      },
+      "summary": "SERVER-107842 Improve mongos error when a blocking merge stage exceeds its memory limit (#66366)"
+    },
+    {
+      "sha": "7c985ef025350d08aa4ce35c3619edfbe48d15c3",
+      "short_sha": "7c985ef0253",
+      "date": "2026-11-16T09:50:00+00:00",
+      "author": {
+        "name": "James H",
+        "email": "james.harrison@mongodb.com"
+      },
+      "summary": "SERVER-130246 Enforce strict: false on reply structs in IDL compatibility checker [reapply] (#65511)"
+    },
+    {
+      "sha": "68843ce22e8445ef48a7523bcb1189798b6b12f5",
+      "short_sha": "68843ce22e8",
+      "date": "2026-11-16T09:45:48+00:00",
+      "author": {
+        "name": "mongo-pr-bot[bot]",
+        "email": "230616009+mongo-pr-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "SERVER-110427 Update profiling data (#66921)"
+    },
+    {
+      "sha": "073c21c44b1bddf44d806a55b537e088c61216b4",
+      "short_sha": "073c21c44b1",
+      "date": "2026-11-16T09:29:22+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-136285 Clone PatternValueCmp with new ExpCtx (#63844)"
+    },
+    {
+      "sha": "b5fcd1f2c0923b194122d0840475204f83b9647e",
+      "short_sha": "b5fcd1f2c09",
+      "date": "2026-11-16T07:25:33+00:00",
+      "author": {
+        "name": "Lyublena Antova",
+        "email": "lyublena.antova@mongodb.com"
+      },
+      "summary": "SERVER-139156 Fail change streams on transaction ops with txnOpIndex >= INT32_MAX (#66732)"
+    },
     {
       "sha": "f739fdca29e05b243c9e1ae5f01035d949fd6150",
       "short_sha": "f739fdca29e",
@@ -689,10 +789,56 @@
           "num_of_dirs": 12
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "7c985ef025350d08aa4ce35c3619edfbe48d15c3",
+        "short_sha": "7c985ef0253",
+        "date": "2026-11-16T09:50:00+00:00",
+        "author": {
+          "name": "James H",
+          "email": "james.harrison@mongodb.com"
+        },
+        "summary": "SERVER-130246 Enforce strict: false on reply structs in IDL compatibility checker [reapply] (#65511)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 49,
+          "num_of_lines": 519,
+          "lines_added": 492,
+          "lines_deleted": 27,
+          "num_of_dirs": 21
+        }
+      }
+    },
+    {
+      "commit": {
+        "sha": "f7cfd51185872a98ba590a405d4d018cf0ef9e88",
+        "short_sha": "f7cfd511858",
+        "date": "2026-11-16T13:05:30+00:00",
+        "author": {
+          "name": "Enrico Golfieri",
+          "email": "enrico.golfieri@mongodb.com"
+        },
+        "summary": "SERVER-133099: Add server parameter and allow to drop system.session for a sharded cluster (#60260)"
+      },
+      "strategy_name": "huge_commit",
+      "result": {
+        "expression": "(num_of_files >= 100 or num_of_lines >= 5000 or num_of_dirs > 10)",
+        "evaluated_vars": {
+          "num_of_files": 20,
+          "num_of_lines": 1209,
+          "lines_added": 1065,
+          "lines_deleted": 144,
+          "num_of_dirs": 11
+        }
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-23 06:09:55",
+  "generated_at": "2026-11-23 14:47:55",
   "branch_name": "master",
   "display_name": "master"
 }
