@@ -35,6 +35,7 @@ import uuid
 from collections.abc import Mapping, Sequence
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))
+from bazel.toolchains.cc.container_action import exclusive_file_lock
 from bazel.toolchains.cc.container_action import safe_name as _safe_name
 
 
@@ -57,6 +58,7 @@ def _check(args: Sequence[str]) -> None:
 _WORKSPACE_LABEL = "com.mongodb.linux-container-actions.workspace"
 _CONFIG_FILENAME = "mongo_linux_container_actions.json"
 _ACTION_TEMP_DIRNAME = "mongo-action-tmp"
+_START_LOCK_FILENAME = "mongo-linux-container-start.lock"
 _CONTAINER_ACTION_TEMP_ROOT = pathlib.PurePosixPath("/mongo-tmp")
 _ACTION_CONTAINER_ENV = "MONGO_LINUX_ACTION_CONTAINER"
 _SHARED_INSTALL_ENV = "MONGO_BAZEL_SHARED_INSTALL_DIR"
@@ -640,6 +642,13 @@ def _configured_path(config: dict, key: str) -> pathlib.Path:
     return path
 
 
+def _start_lock(output_base: pathlib.Path):
+    # The output base is bind-mounted read-only into the action container, so contained
+    # actions cannot remove or replace the lock file to defeat it or redirect it through
+    # a symlink. Do not move it into a writable mount such as the action-temp tree.
+    return exclusive_file_lock(output_base / _START_LOCK_FILENAME, required=True)
+
+
 def _start_container(
     docker: Sequence[str],
     config: dict,
@@ -647,13 +656,13 @@ def _start_container(
     output_base: pathlib.Path,
     config_path: pathlib.Path | None = None,
 ) -> None:
+    """Start or create the container; callers hold `_start_lock`."""
     if _container_running(docker, name):
         return
 
     if _container_exists(docker, name):
         # The deterministic name identifies this exact workspace/output-base/image
-        # configuration, so a stopped container is reusable. Starting it is also safe
-        # when another action races us: runtimes serialize the transition by name.
+        # configuration, so a stopped container is reusable.
         _run(
             [*docker, "start", name],
             stdout=subprocess.DEVNULL,
@@ -662,9 +671,9 @@ def _start_container(
         if _container_running(docker, name):
             return
 
-        # Remove an unrecoverable stopped container without -f. If another action
-        # started it after our check, the removal fails and we adopt the running
-        # container instead of disrupting that action.
+        # Remove an unrecoverable stopped container without -f. Actions cannot start it
+        # concurrently because they hold the start lock, but something outside the
+        # wrapper might; then the removal fails and we adopt the running container.
         result = _run(
             [*docker, "rm", name],
             stdout=subprocess.DEVNULL,
@@ -785,11 +794,12 @@ def _ensure_container(config: dict, config_path: pathlib.Path) -> str:
     docker = shlex.split(config.get("docker_command") or "docker")
     output_base = config_path.parent
     name = _container_name(config, output_base)
-    # The action may run below Bazel's linux-sandbox, where the source repository
-    # (including the wrapper hook's state directory) is intentionally read-only.
-    # The deterministic container name is the cross-process lock: concurrent runtime
-    # creates are resolved by _start_container's inspect/adopt path.
-    _start_container(docker, config, name, output_base, config_path)
+    if _container_running(docker, name):
+        return name
+    # Serialize inspect/start/rm/run across actions: `docker run -d` creates before it
+    # starts, so unlocked actions hit name conflicts or `rm` a still-`created` container.
+    with _start_lock(output_base):
+        _start_container(docker, config, name, output_base, config_path)
     return name
 
 
@@ -949,40 +959,44 @@ def _ensure_preflight_container(config: dict, config_path: pathlib.Path) -> str:
     docker = shlex.split(config.get("docker_command") or "docker")
     output_base = config_path.parent
     name = _container_name(config, output_base)
-    if _container_running(docker, name):
-        if _container_mounts_current(docker, name, output_base, config):
-            return name
-        print(
-            f"WARNING: action container {name} failed its writable-mount probe; recreating it",
-            file=sys.stderr,
-        )
-        _remove_container(docker, name)
-
-    # A stopped container may retain stale bind mounts, and a runtime may report a
-    # mount in inspect output without actually installing it. Validate real reads and
-    # writes after starting, then recreate once automatically before failing closed.
-    for attempt in range(2):
-        name = _ensure_container(config, config_path)
-        try:
-            _preflight_container(docker, name)
-        except SystemExit:
-            mounts_current = False
-        else:
-            mounts_current = _container_mounts_current(docker, name, output_base, config)
-        if mounts_current:
-            return name
-        if attempt == 0:
+    # Removing and recreating the container must not interleave with an action that is
+    # starting or adopting it, so hold the start lock throughout. The preflight runs
+    # once per Bazel command, before its actions, so this does not slow builds down.
+    with _start_lock(output_base):
+        if _container_running(docker, name):
+            if _container_mounts_current(docker, name, output_base, config):
+                return name
             print(
-                f"WARNING: action container {name} failed preflight; recreating it once",
+                f"WARNING: action container {name} failed its writable-mount probe; recreating it",
                 file=sys.stderr,
             )
             _remove_container(docker, name)
 
-    print(
-        f"ERROR: action container {name} does not have usable Bazel bind mounts",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+        # A stopped container may retain stale bind mounts, and a runtime may report a
+        # mount in inspect output without actually installing it. Validate real reads and
+        # writes after starting, then recreate once automatically before failing closed.
+        for attempt in range(2):
+            _start_container(docker, config, name, output_base, config_path)
+            try:
+                _preflight_container(docker, name)
+            except SystemExit:
+                mounts_current = False
+            else:
+                mounts_current = _container_mounts_current(docker, name, output_base, config)
+            if mounts_current:
+                return name
+            if attempt == 0:
+                print(
+                    f"WARNING: action container {name} failed preflight; recreating it once",
+                    file=sys.stderr,
+                )
+                _remove_container(docker, name)
+
+        print(
+            f"ERROR: action container {name} does not have usable Bazel bind mounts",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
 
 def _find_libvoidstar_directory(
