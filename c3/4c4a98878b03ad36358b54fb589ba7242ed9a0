@@ -1,0 +1,111 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "51342da3c50e9a4ddc79c10644ea1cdc214bbf86",
+    "merge_commit": "f7c4a0ec8823f8e2b73cd7948cacbaba4b4f8641"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "solutions": [
+    {
+      "status": "success",
+      "is_error": false,
+      "duration_ms": 16435,
+      "num_turns": 4,
+      "stop_reason": "end_turn",
+      "total_cost_usd": 0.1277675,
+      "modelUsage": {
+        "claude-opus-4-8": {
+          "inputTokens": 8,
+          "outputTokens": 1232,
+          "cacheReadInputTokens": 57355,
+          "cacheCreationInputTokens": 10920,
+          "webSearchRequests": 0,
+          "costUSD": 0.1277675,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 89,
+          "cacheCreationEphemeral5mInputTokens": 10920,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-opus-4-8",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stats": {
+        "models": {
+          "claude-opus-4-8": {
+            "tokens": {
+              "input": 8,
+              "output": 1232,
+              "cache_read": 57355,
+              "cache_creation": 10920
+            },
+            "cost_usd": 0.1277675
+          }
+        }
+      },
+      "text_result": "Resolved the conflict in `buildscripts/idl/idl/errors.py`. Both sides appended an independent new error-ID constant (upstream's `ID113` and Percona's `ID9000`), so I kept both \u2014 no collision. The JSON response has been written to the specified path.",
+      "response": {
+        "summary": "Resolved a both-modified conflict in buildscripts/idl/idl/errors.py where each side appended a new, independent error-ID constant. Kept both constants since they do not collide (ID113 from upstream, ID9000 from Percona).",
+        "resolved": {
+          "buildscripts/idl/idl/errors.py": "Both HEAD (Percona) and upstream added a new error-ID constant at the end of the list. HEAD added ERROR_ID_IS_NODE_TYPE_SCALAR_OR_MAPPING_OR_SEQUENCE = \"ID9000\" and upstream added ERROR_ID_STRICT_REPLY_NOT_ALLOWED = \"ID113\". These are independent, non-conflicting additions, so both were kept (upstream's ID113 first, following numeric ordering, then Percona's ID9000)."
+        },
+        "unresolved": {},
+        "modified": {},
+        "review_notes": "The two additions use distinct ID values (ID113 vs ID9000), so keeping both is safe and introduces no duplicate error codes. The Percona-specific ID9000 constant is preserved."
+      },
+      "session": {
+        "messages": [
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Read"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Both sides added a new error ID constant. These are independent additions, so I'll keep both."
+            ],
+            "tools_used": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Edit"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [],
+            "tools_used": [
+              "Write"
+            ]
+          },
+          {
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "thoughts": [
+              "Resolved the conflict in `buildscripts/idl/idl/errors.py`. Both sides appended an independent new error-ID constant (upstream's `ID113` and Percona's `ID9000`), so I kept both \u2014 no collision. The JSON response has been written to the specified path."
+            ],
+            "tools_used": []
+          }
+        ],
+        "metadata": {
+          "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261124_051212_805696.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+        }
+      },
+      "agent_info": {
+        "agent_type": "claude_cli",
+        "version": "2.1.331 (Claude Code)"
+      },
+      "type": "conflict_resolution"
+    }
+  ]
+}
