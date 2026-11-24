@@ -418,6 +418,11 @@ roles:
       - hostManager
       - clusterManager
     privileges:
+      - matchType: exact_namespace
+        db: "config"
+        collection: "system.sessions"
+        actions:
+          - dropCollection
       - matchType: any_normal
         actions:
           - dropDatabase
@@ -476,10 +481,6 @@ roles:
       - matchType: exact_namespace
         db: "admin"
         collection: "system.version"
-        actions: *queryableBackupReadActions
-      - matchType: exact_namespace
-        db: "admin"
-        collection: "system.authForInternalNamespace"
         actions: *queryableBackupReadActions
       - matchType: exact_namespace
         db: "config"
@@ -573,10 +574,6 @@ roles:
         actions:
           - *restoreRoleWriteActions
           - find
-      - matchType: exact_namespace
-        db: "admin"
-        collection: "system.authForInternalNamespace"
-        actions: *restoreRoleWriteActions
       - matchType: collection
         collection: "system.users"
         actions:

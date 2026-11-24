@@ -269,7 +269,6 @@ const skippedAuthTestingAggStages = [
     "$_internalHybridSearch", // Already covered in
     // jstests/aggregation/sources/internal_hybrid_search_rejected_in_user_request.js.
     "$_internalDocumentResultsAndMetadata", // Internal-only and rejected in all user requests.
-    "$_internalListQuerySettings", // Internal generator seeding the $querySettings desugar.
     "$_internalQuerySettingsDebugShape", // Internal stage appended by the $querySettings desugar for
     // showDebugQueryShape; covered via the '$querySettings' auth tests.
     "$_internalStreamTerminator", // Internal-only and rejected in all user requests.
@@ -5379,6 +5378,83 @@ export const authCommandsLib = {
             ],
         },
         {
+            testname: "drop_config_system_sessions",
+            command: {drop: "system.sessions"},
+            skipUnlessSharded: true,
+            setup: function (db) {
+                const adminDb = db.getSiblingDB(adminDbName);
+                assert.commandWorked(
+                    adminDb.runCommand({setParameter: 1, allowDropSystemSessionCollection: true}),
+                );
+                // refreshLogicalSessionCacheNow only refreshes an existing sharded session
+                // collection. This test is also run independently from the other auth cases, so
+                // establish the required catalog entry here when it is not already present.
+                if (
+                    db.getSiblingDB(configDbName).collections.findOne({
+                        _id: "config.system.sessions",
+                    }) === null
+                ) {
+                    assert.commandWorked(
+                        adminDb.runCommand({
+                            shardCollection: "config.system.sessions",
+                            key: {_id: 1},
+                        }),
+                    );
+                }
+                assert.commandWorked(adminDb.runCommand({refreshLogicalSessionCacheNow: 1}));
+                assert.soon(() => {
+                    return (
+                        db.getSiblingDB(configDbName).collections.findOne({
+                            _id: "config.system.sessions",
+                        }) !== null
+                    );
+                }, "config.system.sessions was not tracked");
+            },
+            teardown: function (db) {
+                const adminDb = db.getSiblingDB(adminDbName);
+                assert.commandWorked(
+                    adminDb.runCommand({
+                        setParameter: 1,
+                        allowDropSystemSessionCollection: false,
+                    }),
+                );
+                // Subsequent auth cases (e.g. refreshLogicalSessionCacheNow) require a sharded
+                // sessions collection. Restore it after the authorized drops above.
+                if (
+                    db.getSiblingDB(configDbName).collections.findOne({
+                        _id: "config.system.sessions",
+                    }) === null
+                ) {
+                    assert.commandWorked(
+                        adminDb.runCommand({
+                            shardCollection: "config.system.sessions",
+                            key: {_id: 1},
+                        }),
+                    );
+                }
+                assert.commandWorked(adminDb.runCommand({refreshLogicalSessionCacheNow: 1}));
+                assert.soon(() => {
+                    return (
+                        db.getSiblingDB(configDbName).collections.findOne({
+                            _id: "config.system.sessions",
+                        }) !== null
+                    );
+                }, "config.system.sessions was not tracked");
+            },
+            testcases: [
+                {
+                    runOnDb: configDbName,
+                    roles: {clusterAdmin: 1, root: 1, __system: 1},
+                    privileges: [
+                        {
+                            resource: {db: configDbName, collection: "system.sessions"},
+                            actions: ["dropCollection"],
+                        },
+                    ],
+                },
+            ],
+        },
+        {
             testname: "drop_views",
             setup: function (db) {
                 db.view.drop();
@@ -10430,6 +10506,24 @@ export const authCommandsLib = {
             testcases: [
                 // Tests that a cluster admin can successfully run the `$querySettings` stage as part of
                 // the aggregation pipeline.
+                {
+                    runOnDb: adminDbName,
+                    roles: roles_clusterManager,
+                    privileges: [{resource: {cluster: true}, actions: ["querySettings"]}],
+                },
+            ],
+        },
+        {
+            testname: "internal_list_query_settings_agg_command",
+            command: {
+                aggregate: 1,
+                pipeline: [{$_internalListQuerySettings: {}}],
+                cursor: {},
+            },
+            skipTest: (conn) => {
+                return isStandalone(conn);
+            },
+            testcases: [
                 {
                     runOnDb: adminDbName,
                     roles: roles_clusterManager,
