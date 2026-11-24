@@ -117,7 +117,12 @@ ERROR_ID_BAD_VISIBILITY = "ID109"
 ERROR_ID_FEATURE_FLAG_ENABLED_ON_TRANSITIONAL_FCV_MISSING_SAFETY_EXPLANATION = "ID110"
 ERROR_ID_SERIALIZE_ON_OUTGOING_REQUESTS_ON_NON_IFR_FLAG = "ID111"
 ERROR_ID_SERIALIZE_ON_OUTGOING_REQUESTS_MISSING_VERSION = "ID112"
+<<<<<<< HEAD
 ERROR_ID_IS_NODE_TYPE_SCALAR_OR_MAPPING_OR_SEQUENCE = "ID9000"
+||||||| a97acf7d5a8
+=======
+ERROR_ID_STRICT_REPLY_NOT_ALLOWED = "ID113"
+>>>>>>> f7c4a0ec8823f8e2b73cd7948cacbaba4b4f8641
 
 
 class IDLError(Exception):
@@ -1350,6 +1355,18 @@ class ParserContext(object):
             node,
             ERROR_ID_BAD_VISIBILITY,
             f"Bad visibility value '{mod_visibility}', only public, public_for_technical_reasons, private, file_private, unfortunately_open, needs_replacement, and use_replacement(...) are accepted",
+        )
+
+    def add_strict_reply_not_allowed(self, location, struct_name, reply_root_name):
+        # type: (common.SourceLocation, str, str) -> None
+        """Add an error about a reply struct that is strict."""
+        self._add_error(
+            location,
+            ERROR_ID_STRICT_REPLY_NOT_ALLOWED,
+            "Struct '%s' is reachable from reply '%s' and must set 'strict: false'. Older "
+            "binaries must ignore unknown fields in replies from newer binaries instead of "
+            "failing with IDLUnknownField; this cannot be gated behind FCV since FCV only "
+            "tracks major.minor versions, not patch versions." % (struct_name, reply_root_name),
         )
 
 

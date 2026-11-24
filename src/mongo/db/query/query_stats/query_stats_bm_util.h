@@ -98,6 +98,19 @@ struct Environment {
         query_stats::QueryStatsStoreManager::get(scopedGlobalServiceContext.getServiceContext()) =
             std::make_unique<query_stats::QueryStatsStoreManager>(cacheSize, numPartitions);
     }
+
+    // Moves the store out of this Environment so it can be cached, leaving the Environment without
+    // a store until one is adopted.
+    std::unique_ptr<query_stats::QueryStatsStoreManager> takeStore() {
+        return std::move(query_stats::QueryStatsStoreManager::get(
+            scopedGlobalServiceContext.getServiceContext()));
+    }
+
+    // Installs 'store' as this Environment's store.
+    void adoptStore(std::unique_ptr<query_stats::QueryStatsStoreManager> store) {
+        query_stats::QueryStatsStoreManager::get(scopedGlobalServiceContext.getServiceContext()) =
+            std::move(store);
+    }
 };
 
 /**
