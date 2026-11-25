@@ -252,7 +252,7 @@ ClientCursorPin registerCursor(const AggExState& aggExState,
     // in a $lookup/$unionWith sub-pipeline is not detected here. Make detection recurse into
     // sub-pipelines and add tests for the nested batchSize: 0 case.
     cursorParams.mayHoldMongotTaskExecutor =
-        aggExState.getOriginalLiteParsedPipeline().hasMongotStage() ||
+        aggExState.getExecutionLiteParsedPipeline().hasMongotStage() ||
         CurOp::get(opCtx)->debug().mongotCursorId.has_value();
 
     // The global cursor manager does not deliver invalidations or kill notifications; the
@@ -274,7 +274,6 @@ ClientCursorPin registerCursor(const AggExState& aggExState,
  * or the given executor (otherwise) and collects them in the query stats store.
  */
 void collectQueryStats(const AggExState& aggExState,
-                       const boost::intrusive_ptr<ExpressionContext>& expCtx,
                        mongo::PlanExecutor* maybeExec,
                        ClientCursorPin* maybePinnedCursor) {
     invariant(maybeExec || maybePinnedCursor);
@@ -298,7 +297,7 @@ void collectQueryStats(const AggExState& aggExState,
     if (maybePinnedCursor) {
         collectQueryStatsMongod(opCtx, *maybePinnedCursor);
     } else {
-        collectQueryStatsMongod(opCtx, expCtx, std::move(curOp->debug().getQueryStatsInfo().key));
+        collectQueryStatsMongod(opCtx, std::move(curOp->debug().getQueryStatsInfo().key));
     }
 }
 
@@ -306,11 +305,10 @@ void collectQueryStats(const AggExState& aggExState,
  * Builds the reply for a pipeline over a sharded collection that contains an exchange stage.
  */
 void handleMultipleCursorsForExchange(const AggExState& aggExState,
-                                      const boost::intrusive_ptr<ExpressionContext>& expCtx,
                                       std::vector<ClientCursorPin>& pinnedCursors,
                                       rpc::ReplyBuilderInterface* result) {
     invariant(pinnedCursors.size() > 1);
-    collectQueryStats(aggExState, expCtx, nullptr, &pinnedCursors[0]);
+    collectQueryStats(aggExState, nullptr, &pinnedCursors[0]);
 
     long long batchSize = aggExState.getRequest().getCursor().getBatchSize().value_or(
         aggregation_request_helper::kDefaultBatchSize);
@@ -513,7 +511,7 @@ boost::optional<ClientCursorPin> executeSingleExecUntilFirstBatch(
         cursor->setLeftoverMaxTimeMicros(opCtx->getRemainingMaxTimeMicros());
     }
 
-    collectQueryStats(aggExState, expCtx, execs[0].get(), maybePinnedCursor.get_ptr());
+    collectQueryStats(aggExState, execs[0].get(), maybePinnedCursor.get_ptr());
 
     if (aggExState.hasChangeStream()) {
         auto curOp = CurOp::get(opCtx);
@@ -582,7 +580,7 @@ void executeUntilFirstBatch(const AggExState& aggExState,
             }
             pinnedCursors.emplace_back(std::move(pinnedCursor));
         }
-        handleMultipleCursorsForExchange(aggExState, expCtx, pinnedCursors, result);
+        handleMultipleCursorsForExchange(aggExState, pinnedCursors, result);
 
         if (pinnedCursors.size() > 0) {
             maybePinnedCursor = std::move(pinnedCursors[0]);
@@ -919,7 +917,6 @@ void executeExplain(const AggExState& aggExState,
     }
     collectQueryStatsMongod(
         aggExState.getOpCtx(),
-        expCtx,
         std::move(CurOp::get(aggExState.getOpCtx())->debug().getQueryStatsInfo().key));
 }
 
@@ -1494,13 +1491,8 @@ Status runAggregateOnShardedView(std::unique_ptr<ResolvedViewAggExState> resolve
  *
  * On success, fills out 'result' with the command response.
  */
-namespace {
-/**
- * Resolves foreign views by contacting the database primary shard via _shardsvrResolveView. Checks
- * whether or not it is valid (originating from non-primary shard, sharding is enabled, etc.) to
- * make the foreign views RPC before issuing the request, so it is safe to call from any
- * role/topology.
- */
+}  // namespace
+
 ResolvedNamespaceMap resolveForeignViewsOnPrimary(AggExState& aggExState) {
     ResolvedNamespaceMap closure;
     const auto& ifrContext = aggExState.getIfrContext();
@@ -1527,6 +1519,10 @@ ResolvedNamespaceMap resolveForeignViewsOnPrimary(AggExState& aggExState) {
 
     for (const auto& involvedNss : aggExState.getInvolvedNamespaces()) {
         if (involvedNss == mainNss) {
+            continue;
+        }
+        // Avoid sending resolve namespaces to the config server.
+        if (involvedNss.isConfigDB() || involvedNss.isLocalDB()) {
             continue;
         }
         // Short circuit if we can resolve this namespace locally.
@@ -1596,7 +1592,8 @@ ResolvedNamespaceMap resolveForeignViewsOnPrimary(AggExState& aggExState) {
     }
     return closure;
 }
-}  // namespace
+
+namespace {
 
 Status _runAggregate(std::unique_ptr<AggExState> aggExState, rpc::ReplyBuilderInterface* result) {
     // Perform the validation checks on the request and its derivatives before proceeding.

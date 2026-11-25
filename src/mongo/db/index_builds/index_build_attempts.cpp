@@ -5,22 +5,31 @@
 
 #include "mongo/base/error_codes.h"
 #include "mongo/bson/bsonobjbuilder.h"
+#include "mongo/db/client.h"
 #include "mongo/db/collection_crud/collection_write_path.h"
+#include "mongo/db/collection_crud/container_write.h"
 #include "mongo/db/dbhelpers.h"
 #include "mongo/db/index_builds/index_build_knobs_gen.h"
+#include "mongo/db/index_builds/primary_driven/util.h"
 #include "mongo/db/namespace_string.h"
-#include "mongo/db/repl/oplog.h"
 #include "mongo/db/repl/read_concern_args.h"
+#include "mongo/db/repl/repl_client_info.h"
+#include "mongo/db/repl/replication_coordinator.h"
 #include "mongo/db/repl/storage_interface.h"
+#include "mongo/db/server_recovery.h"
 #include "mongo/db/session/logical_session_id.h"
+#include "mongo/db/shard_role/lock_manager/d_concurrency.h"
 #include "mongo/db/shard_role/lock_manager/exception_util.h"
 #include "mongo/db/shard_role/shard_catalog/clustered_collection_util.h"
+#include "mongo/db/shard_role/shard_catalog/collection_catalog.h"
 #include "mongo/db/shard_role/shard_catalog/collection_options.h"
 #include "mongo/db/shard_role/shard_role.h"
 #include "mongo/db/shard_role/transaction_resources.h"
 #include "mongo/db/storage/control/journal_flusher.h"
+#include "mongo/db/storage/lazy_record_store.h"
 #include "mongo/db/storage/snapshot.h"
 #include "mongo/db/storage/write_unit_of_work.h"
+#include "mongo/db/write_concern_options.h"
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 
@@ -133,6 +142,15 @@ void incrementAttempts(OperationContext* opCtx) {
         opCtx, kNss, BSONObj(), {BSON("$inc" << BSON(kAttemptsField << 1)), Timestamp()}));
 }
 
+void trackSizeThroughRecovery(OperationContext* opCtx) {
+    const auto collection = CollectionCatalog::get(opCtx)->lookupCollectionByNamespace(opCtx, kNss);
+    if (!collection) {
+        return;
+    }
+    sizeRecoveryState(opCtx->getServiceContext())
+        .markCollectionAsAlwaysNeedsSizeAdjustment(collection->getRecordStore()->getIdent());
+}
+
 void removeEntry(OperationContext* opCtx, const UUID& buildUUID) {
     removeEntries(opCtx, {buildUUID});
 }
@@ -157,5 +175,169 @@ void removeEntries(OperationContext* opCtx, const std::vector<UUID>& buildUUIDs)
 }
 
 }  // namespace two_phase
+
+namespace primary_driven {
+namespace {
+
+// Persists initial resume state and/or an updated attempt count, then waits for majority
+// acknowledgement. Returns true if a storage write was persisted.
+bool persistResumeState(OperationContext* opCtx,
+                        const DatabaseName& dbName,
+                        const std::string& ident,
+                        const ResumeIndexInfo& resumeInfo,
+                        int resumesWithoutProgress,
+                        bool plannedHandoff) {
+    const bool stateWritten = writeConflictRetry(
+        opCtx,
+        "persistResumeState",
+        NamespaceStringOrUUID{dbName, resumeInfo.getCollectionUUID()},
+        [&] {
+            const auto collection =
+                acquireCollection(opCtx,
+                                  CollectionAcquisitionRequest(
+                                      NamespaceStringOrUUID{dbName, resumeInfo.getCollectionUUID()},
+                                      PlacementConcern::kPretendUnsharded,
+                                      repl::ReadConcernArgs::get(opCtx),
+                                      AcquisitionPrerequisites::kWrite),
+                                  MODE_IX);
+            if (!collection.exists() ||
+                !index_builds::primary_driven::registry(opCtx->getServiceContext())
+                     .contains(resumeInfo.getBuildUUID())) {
+                // The build may have been dropped or aborted since the registry snapshot.
+                LOGV2(13800505,
+                      "Index build: skipping resume count write because the build no longer exists",
+                      "buildUUID"_attr = resumeInfo.getBuildUUID(),
+                      "collectionUUID"_attr = resumeInfo.getCollectionUUID());
+                return false;
+            }
+
+            LazyRecordStore table(opCtx, ident, LazyRecordStore::CreateMode::openExisting);
+            auto& container = std::get<std::reference_wrapper<IntegerKeyedContainer>>(
+                                  table.getTableOrThrow().getContainer())
+                                  .get();
+            auto& ru = *shard_role_details::getRecoveryUnit(opCtx);
+            const bool hasRecords = container.getCursor(ru)->next().has_value();
+            if (hasRecords && plannedHandoff) {
+                // Planned handoffs leave existing resume state untouched.
+                return false;
+            }
+
+            auto metadata = resumeInfo.getMetadata();
+            if (!plannedHandoff) {
+                metadata.setResumesWithoutProgress(resumesWithoutProgress);
+            }
+            const auto obj = metadata.toBSON();
+
+            WriteUnitOfWork wuow{opCtx};
+            if (hasRecords) {
+                // Update only the count, preserving per-index progress.
+                uassertStatusOK(
+                    container_write::update(opCtx,
+                                            ru,
+                                            container,
+                                            index_builds::primary_driven::metadataKey,
+                                            {obj.objdata(), static_cast<size_t>(obj.objsize())}));
+                wuow.commit();
+                return true;
+            }
+
+            // Seed complete state before the builder can persist per-index progress.
+            tassert(13846500,
+                    "An empty index build resume table requires scan-phase resume state",
+                    resumeInfo.getPhase() == IndexBuildPhaseEnum::kCollectionScan);
+            uassertStatusOK(
+                container_write::insert(opCtx,
+                                        ru,
+                                        container,
+                                        index_builds::primary_driven::metadataKey,
+                                        {obj.objdata(), static_cast<size_t>(obj.objsize())}));
+            for (size_t i = 0; i < resumeInfo.getIndexes().size(); ++i) {
+                const auto index = resumeInfo.getIndexes()[i].toBSON();
+                uassertStatusOK(container_write::insert(
+                    opCtx,
+                    ru,
+                    container,
+                    index_builds::primary_driven::metadataKey + static_cast<int64_t>(i) + 1,
+                    {index.objdata(), static_cast<size_t>(index.objsize())}));
+            }
+            wuow.commit();
+
+            LOGV2(13846501,
+                  "Index build: persisted initial resume state",
+                  "buildUUID"_attr = resumeInfo.getBuildUUID(),
+                  "collectionUUID"_attr = resumeInfo.getCollectionUUID(),
+                  "ident"_attr = ident,
+                  "numIndexes"_attr = resumeInfo.getIndexes().size(),
+                  "plannedHandoff"_attr = plannedHandoff);
+            return true;
+        });
+
+    if (!stateWritten) {
+        // No storage write needs acknowledgement.
+        return false;
+    }
+
+    // Majority acknowledge every write before allowing the resumed builder to run, so a crash
+    // during the build cannot roll back the count and allow repeated resumes past the limit.
+    const auto opTime = repl::ReplClientInfo::forClient(opCtx->getClient()).getLastOp();
+    uassertStatusOK(repl::ReplicationCoordinator::get(opCtx)
+                        ->awaitReplication(opCtx,
+                                           opTime,
+                                           WriteConcernOptions{WriteConcernOptions::kMajority,
+                                                               WriteConcernOptions::SyncMode::UNSET,
+                                                               WriteConcernOptions::kNoTimeout})
+                        .status);
+
+    return true;
+}
+
+}  // namespace
+
+bool checkWithinAttemptLimit(OperationContext* opCtx,
+                             const DatabaseName& dbName,
+                             const std::string& ident,
+                             ResumeIndexInfo& resumeInfo,
+                             bool plannedHandoff) {
+    const int limit = gMaxIndexBuildAttemptsAfterUncleanShutdown.load();
+    const auto prevResumesWithoutProgress = resumeInfo.getResumesWithoutProgress();
+    // The first unplanned resume establishes a baseline at 0. Later unplanned resumes without
+    // persisted progress increment it.
+    const int64_t resumesWithoutProgress = prevResumesWithoutProgress
+        ? static_cast<int64_t>(*prevResumesWithoutProgress) + (plannedHandoff ? 0 : 1)
+        : 0;
+    if (resumesWithoutProgress > limit) {
+        LOGV2(13800500,
+              "Index build: resumed too many times without progress, aborting",
+              "buildUUID"_attr = resumeInfo.getBuildUUID(),
+              "collectionUUID"_attr = resumeInfo.getCollectionUUID(),
+              "resumesWithoutProgress"_attr = resumesWithoutProgress,
+              "limit"_attr = limit,
+              "phase"_attr = idl::serialize(resumeInfo.getPhase()));
+        return false;
+    }
+
+    const bool stateWritten = persistResumeState(
+        opCtx, dbName, ident, resumeInfo, static_cast<int>(resumesWithoutProgress), plannedHandoff);
+
+    if (plannedHandoff) {
+        LOGV2(13800506,
+              "Index build: skipping resume count increment because we are in a planned handoff",
+              "buildUUID"_attr = resumeInfo.getBuildUUID(),
+              "collectionUUID"_attr = resumeInfo.getCollectionUUID(),
+              "resumesWithoutProgress"_attr = resumesWithoutProgress,
+              "phase"_attr = idl::serialize(resumeInfo.getPhase()));
+    } else if (stateWritten) {
+        // The persisted count has been majority acknowledged.
+        resumeInfo.setResumesWithoutProgress(static_cast<int>(resumesWithoutProgress));
+        LOGV2(13800501,
+              "Index build: recorded a resume attempt without progress",
+              "buildUUID"_attr = resumeInfo.getBuildUUID(),
+              "collectionUUID"_attr = resumeInfo.getCollectionUUID(),
+              "resumesWithoutProgress"_attr = resumesWithoutProgress);
+    }
+    return true;
+}
+
+}  // namespace primary_driven
 
 }  // namespace mongo::index_builds::build_attempts
