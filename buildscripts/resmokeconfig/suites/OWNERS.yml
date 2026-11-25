@@ -45,6 +45,9 @@ filters:
   - "benchmarks_abt_lowering.yml":
     approvers:
       - 10gen/query-execution-sbe
+  - "benchmarks_eot.yml":
+    approvers:
+      - 10gen/query-execution-change-streams
   - "benchmarks_expression.yml":
     approvers:
       - 10gen/query-execution-classic
@@ -120,6 +123,9 @@ filters:
   - "query_golden*":
     approvers:
       - 10gen/query-optimization
+  - "query_golden_join_optimization*":
+    approvers:
+      - 10gen/query-optimization-join-ordering
   - "queryable_wt*":
     approvers:
       - 10gen/server-backup-restore
@@ -130,6 +136,36 @@ filters:
     approvers:
       - 10gen/server-networking-and-observability
   - "integration_tests_replset_tls.yml":
+    approvers:
+      - 10gen/server-networking-and-observability
+  - "integration_tests_client_*":
+    approvers:
+      - 10gen/server-networking-and-observability
+  - "integration_tests_transport_*":
+    approvers:
+      - 10gen/server-networking-and-observability
+  - "integration_tests_bson_*":
+    approvers:
+      - 10gen/server-programmability
+  - "integration_tests_write_ops_*":
+    approvers:
+      - 10gen/query-execution-write-exec
+  - "integration_tests_search_*":
+    approvers:
+      - 10gen/query-integration-search
+  - "integration_tests_exhaust_cursor_*":
+    approvers:
+      - 10gen/query-integration-observability
+  - "integration_tests_queryable_backup_*":
+    approvers:
+      - 10gen/server-backup-restore
+  - "integration_tests_replset_ssl_auth.yml":
+    approvers:
+      - 10gen/server-security
+  - "integration_tests_standalone_audit.yml":
+    approvers:
+      - 10gen/server-programmability
+  - "integration_tests_standalone_grpc.yml":
     approvers:
       - 10gen/server-networking-and-observability
   - "cwrwc*":

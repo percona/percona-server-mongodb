@@ -193,9 +193,6 @@ public:
         // These checks must consider every expanded stage, as if inlined into the pipeline:
         // ranked/scored if ANY expanded stage is (matching isRankedPipeline()/isScoredPipeline()),
         // selection only if ALL are. isInitialSource() above intentionally stays front-only.
-        // TODO SERVER-129047: replace this host-side reduction with the extension-declared
-        // ParseNode properties once get_properties is exposed on the ParseNode vtable, and delete
-        // these overrides.
         bool isRankedStage() const override {
             return std::any_of(_expanded.begin(), _expanded.end(), [](const auto& stage) {
                 return stage->isRankedStage();
@@ -309,7 +306,14 @@ public:
               _astNode(std::move(astNode)),
               _properties(_astNode->getProperties()),
               _nss(nss),
-              _ifrContext(std::move(ifrContext)) {}
+              _ifrContext(std::move(ifrContext)) {
+            uassert(13844100,
+                    fmt::format("Extension stage '{}' is a source stage and cannot by definition "
+                                "prepend a view pipeline. It must declare the kDoNothing "
+                                "first-stage view application policy",
+                                stageName),
+                    _isViewPolicyValid());
+        }
 
         std::unique_ptr<StageParams> getStageParams() const override {
             return std::make_unique<ExpandedStageParams>(_astNode->clone());
@@ -325,19 +329,26 @@ public:
 
             if (const auto& requiredPrivileges = _properties.getRequiredPrivileges()) {
                 for (const auto& rp : *requiredPrivileges) {
-                    tassert(
-                        ErrorCodes::ExtensionError,
-                        "Only 'namespace' resourcePattern is supported for extension privileges",
-                        rp.getResourcePattern() ==
-                            MongoExtensionPrivilegeResourcePatternEnum::kNamespace);
-
                     ActionSet actions;
                     for (const auto& entry : rp.getActions()) {
                         actions.addAction(static_properties_util::toActionType(entry.getAction()));
                     }
 
-                    Privilege::addPrivilegeToPrivilegeVector(
-                        &privileges, Privilege{ResourcePattern::forExactNamespace(_nss), actions});
+                    switch (rp.getResourcePattern()) {
+                        case MongoExtensionPrivilegeResourcePatternEnum::kNamespace:
+                            Privilege::addPrivilegeToPrivilegeVector(
+                                &privileges,
+                                Privilege{ResourcePattern::forExactNamespace(_nss), actions});
+                            break;
+                        case MongoExtensionPrivilegeResourcePatternEnum::kDatabase:
+                            Privilege::addPrivilegeToPrivilegeVector(
+                                &privileges,
+                                Privilege{ResourcePattern::forDatabaseName(_nss.dbName()),
+                                          actions});
+                            break;
+                        default:
+                            MONGO_UNREACHABLE_TASSERT(13843900);
+                    }
                 }
             }
 
@@ -392,6 +403,13 @@ public:
         bool isSelectionStage() const override;
 
     private:
+        bool _isViewPolicyValid() const {
+            return _properties.getRequiresInputDocSource() ||
+                view_util::toFirstStageApplicationPolicy(
+                    _astNode->getFirstStageViewApplicationPolicy()) ==
+                FirstStageViewApplicationPolicy::kDoNothing;
+        }
+
         std::unique_ptr<LiteParsedDocumentSource> _doClone() const override {
             return std::make_unique<LiteParsedExpanded>(
                 getParseTimeName(), _astNode->clone(), _nss, _ifrContext);

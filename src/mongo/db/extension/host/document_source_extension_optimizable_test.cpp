@@ -871,6 +871,32 @@ public:
     }
 };
 
+class DatabaseRequiredPrivilegesAggStageAstNode : public sdk::AggStageAstNode {
+public:
+    static constexpr std::string_view kName = "$databasePrivilege";
+
+    DatabaseRequiredPrivilegesAggStageAstNode() : sdk::AggStageAstNode(kName) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiredPrivileges" << BSON_ARRAY(BSON(
+                        "resourcePattern" << "database"
+                                          << "actions" << BSON_ARRAY(BSON("action" << "find")))));
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> promote(
+        const ::MongoExtensionCatalogContext& catalogContext) const override {
+        return std::make_unique<sdk::shared_test_stages::TransformLogicalAggStage>();
+    }
+
+    std::unique_ptr<AggStageAstNode> clone() const override {
+        return std::make_unique<DatabaseRequiredPrivilegesAggStageAstNode>();
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make() {
+        return std::make_unique<DatabaseRequiredPrivilegesAggStageAstNode>();
+    }
+};
+
 class MultipleChildrenRequiredPrivilegesAggStageParseNode : public sdk::AggStageParseNode {
 public:
     static constexpr std::string_view kName = "$multipleChildrenRequiredPrivileges";
@@ -1398,6 +1424,29 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
     ASSERT_EQ(actions.getActionsAsStringDatas().size(), 2);
     ASSERT_TRUE(actions.contains(ActionType::find));
     ASSERT_TRUE(actions.contains(ActionType::indexStats));
+
+    ASSERT_TRUE(lp.requiresAuthzChecks());
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       DatabaseRequiredPrivilegesAstNodeProducesDatabasePrivilege) {
+    auto astNode =
+        new sdk::ExtensionAggStageAstNodeAdapter(DatabaseRequiredPrivilegesAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+
+    host::DocumentSourceExtensionOptimizable::LiteParsedExpanded lp(
+        std::string(DatabaseRequiredPrivilegesAggStageAstNode::kName), std::move(handle), _nss);
+
+    auto privileges = lp.requiredPrivileges(/*isMongos=*/false, /*bypassDocumentValidation=*/false);
+    ASSERT_EQ(privileges.size(), 1);
+
+    const auto& privilege = privileges.front();
+    ASSERT_TRUE(privilege.getResourcePattern().isDatabasePattern());
+    ASSERT_EQ(privilege.getResourcePattern().dbNameToMatch(), _nss.dbName());
+
+    const auto& actions = privilege.getActions();
+    ASSERT_EQ(actions.getActionsAsStringDatas().size(), 1);
+    ASSERT_TRUE(actions.contains(ActionType::find));
 
     ASSERT_TRUE(lp.requiresAuthzChecks());
 }
@@ -2651,8 +2700,15 @@ class ConfigurableViewPolicyTestAstNode : public sdk::AggStageAstNode {
 public:
     static inline const std::string kStageName = "$testStage";
 
-    ConfigurableViewPolicyTestAstNode(MongoExtensionFirstStageViewApplicationPolicy viewPolicy)
-        : sdk::AggStageAstNode("$configurableViewPolicyAndBindingTest"), _viewPolicy(viewPolicy) {}
+    ConfigurableViewPolicyTestAstNode(MongoExtensionFirstStageViewApplicationPolicy viewPolicy,
+                                      bool requiresInputDocSource = true)
+        : sdk::AggStageAstNode("$configurableViewPolicyAndBindingTest"),
+          _viewPolicy(viewPolicy),
+          _requiresInputDocSource(requiresInputDocSource) {}
+
+    BSONObj getProperties() const override {
+        return BSON("requiresInputDocSource" << _requiresInputDocSource);
+    }
 
     std::unique_ptr<sdk::LogicalAggStage> promote(
         const ::MongoExtensionCatalogContext& catalogContext) const override {
@@ -2677,12 +2733,15 @@ public:
     }
 
     static inline std::unique_ptr<sdk::AggStageAstNode> make(
-        MongoExtensionFirstStageViewApplicationPolicy viewPolicy) {
-        return std::make_unique<ConfigurableViewPolicyTestAstNode>(viewPolicy);
+        MongoExtensionFirstStageViewApplicationPolicy viewPolicy,
+        bool requiresInputDocSource = true) {
+        return std::make_unique<ConfigurableViewPolicyTestAstNode>(viewPolicy,
+                                                                   requiresInputDocSource);
     }
 
 private:
     MongoExtensionFirstStageViewApplicationPolicy _viewPolicy;
+    bool _requiresInputDocSource;
     std::string _boundViewName;
 };
 
@@ -2780,6 +2839,61 @@ TEST_F(DocumentSourceExtensionOptimizableTest,
                          MongoExtensionFirstStageViewApplicationPolicy::kDoNothing,
                          FirstStageViewApplicationPolicy::kDoNothing,
                          viewNss.coll().data());
+}
+
+std::unique_ptr<host::DocumentSourceExtensionOptimizable::LiteParsedExpanded>
+makeSourceStageLiteParsedExpanded(MongoExtensionFirstStageViewApplicationPolicy viewPolicy,
+                                  const NamespaceString& nss) {
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        ConfigurableViewPolicyTestAstNode::make(viewPolicy, /*requiresInputDocSource=*/false));
+    auto handle = AggStageAstNodeHandle{astNode};
+    auto ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
+    return std::make_unique<host::DocumentSourceExtensionOptimizable::LiteParsedExpanded>(
+        ConfigurableViewPolicyTestAstNode::kStageName, std::move(handle), nss, ifrContext);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandedRejectsSourceStageWithDefaultPrependViewPolicy) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
+
+    ASSERT_THROWS_CODE(makeSourceStageLiteParsedExpanded(
+                           MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend, _nss),
+                       AssertionException,
+                       13844100);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandedAcceptsSourceStageWithDoNothingViewPolicy) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
+
+    auto liteParsed = makeSourceStageLiteParsedExpanded(
+        MongoExtensionFirstStageViewApplicationPolicy::kDoNothing, _nss);
+    ASSERT_EQ(liteParsed->getFirstStageViewApplicationPolicy(),
+              FirstStageViewApplicationPolicy::kDoNothing);
+}
+
+TEST_F(DocumentSourceExtensionOptimizableTest,
+       LiteParsedExpandedRejectsViewForSourceStageRelyingOnSdkDefault) {
+    unittest::ServerParameterGuard featureFlag{"featureFlagExtensionsInsideHybridSearch", true};
+
+    // This stage declares itself a source and does not override bindResolvedNamespace, so it relies
+    // on the SDK default, which rejects views.
+    auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        sdk::shared_test_stages::SearchLikeSourceAggStageAstNode::make());
+    auto handle = AggStageAstNodeHandle{astNode};
+    auto ifrContext = std::make_shared<IncrementalFeatureRolloutContext>();
+    host::DocumentSourceExtensionOptimizable::LiteParsedExpanded liteParsed(
+        std::string(sdk::shared_test_stages::kSearchLikeSourceStageName),
+        std::move(handle),
+        _nss,
+        ifrContext);
+
+    const auto viewNss = NamespaceString::createNamespaceString_forTest("test.view"sv);
+    const auto resolvedNss = NamespaceString::createNamespaceString_forTest("test.collection"sv);
+    std::vector<BSONObj> viewPipeline = {BSON("$match" << BSON("x" << 1))};
+    auto view = ResolvedNamespace::makeForView(viewNss, resolvedNss, std::move(viewPipeline));
+
+    ASSERT_THROWS_CODE(liteParsed.bindResolvedNamespace(view, {}), DBException, 13844101);
 }
 
 TEST_F(DocumentSourceExtensionOptimizableTest,

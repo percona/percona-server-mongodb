@@ -366,7 +366,7 @@ TEST_F(AggStageTest, BadRequiresInputDocSourceTypeAggStageAstNodeFails) {
 TEST_F(AggStageTest, InvalidResourcePatternRequiredPrivilegesAggStageAstNodeFails) {
     auto invalidResourcePatternRequiredPrivileges =
         BSON("requiredPrivileges" << BSON_ARRAY(
-                 BSON("resourcePattern" << "database"
+                 BSON("resourcePattern" << "invalid"
                                         << "actions" << BSON_ARRAY(BSON("action" << "find")))));
     auto astNode = new sdk::ExtensionAggStageAstNodeAdapter(
         std::make_unique<sdk::shared_test_stages::CustomPropertiesAstNode>(
@@ -1733,6 +1733,94 @@ TEST_F(AggStageTest, ExtensionAstNodeCanReturnDoNothingViewPolicy) {
     auto handle = AggStageAstNodeHandle{extensionAstNode};
     auto policy = handle->getFirstStageViewApplicationPolicy();
     ASSERT_EQ(policy, MongoExtensionFirstStageViewApplicationPolicy::kDoNothing);
+}
+
+// AstNode that only supplies static properties and relies on the SDK's default view policy.
+class PropertiesOnlyExtensionAstNode : public sdk::AggStageAstNode {
+public:
+    PropertiesOnlyExtensionAstNode(BSONObj properties)
+        : sdk::AggStageAstNode("$propertiesOnly"), _properties(std::move(properties)) {}
+
+    BSONObj getProperties() const override {
+        return _properties;
+    }
+
+    std::unique_ptr<sdk::LogicalAggStage> promote(
+        const ::MongoExtensionCatalogContext& catalogContext) const override {
+        MONGO_UNIMPLEMENTED;
+    }
+
+    std::unique_ptr<sdk::AggStageAstNode> clone() const override {
+        MONGO_UNIMPLEMENTED;
+    }
+
+    static inline std::unique_ptr<sdk::AggStageAstNode> make(BSONObj properties) {
+        return std::make_unique<PropertiesOnlyExtensionAstNode>(std::move(properties));
+    }
+
+private:
+    BSONObj _properties;
+};
+
+TEST_F(AggStageTest, SourceStageDefaultsToDefaultPrependViewPolicy) {
+    auto extensionAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        PropertiesOnlyExtensionAstNode::make(BSON("requiresInputDocSource" << false)));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+    ASSERT_EQ(handle->getFirstStageViewApplicationPolicy(),
+              MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend);
+}
+
+TEST_F(AggStageTest, TransformStageDefaultsToDefaultPrependViewPolicy) {
+    auto extensionAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        PropertiesOnlyExtensionAstNode::make(BSON("requiresInputDocSource" << true)));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+    ASSERT_EQ(handle->getFirstStageViewApplicationPolicy(),
+              MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend);
+}
+
+TEST_F(AggStageTest, StageWithEmptyPropertiesDefaultsToDefaultPrependViewPolicy) {
+    auto extensionAstNode =
+        new sdk::ExtensionAggStageAstNodeAdapter(PropertiesOnlyExtensionAstNode::make(BSONObj()));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+    ASSERT_EQ(handle->getFirstStageViewApplicationPolicy(),
+              MongoExtensionFirstStageViewApplicationPolicy::kDefaultPrepend);
+}
+
+::MongoExtensionResolvedNamespace makeResolvedNamespace(std::string_view dbName,
+                                                        std::string_view viewName) {
+    return ::MongoExtensionResolvedNamespace{
+        ::MongoExtensionNamespaceString{stringViewAsByteView(dbName),
+                                        stringViewAsByteView(viewName)},
+        0,
+        nullptr};
+}
+
+TEST_F(AggStageTest, SourceStageRejectsViewsByDefault) {
+    auto extensionAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        PropertiesOnlyExtensionAstNode::make(BSON("requiresInputDocSource" << false)));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+
+    ASSERT_THROWS_CODE(handle->bindResolvedNamespace(makeResolvedNamespace("testDb", "testView")),
+                       DBException,
+                       13844101);
+}
+
+TEST_F(AggStageTest, TransformStageAcceptsViewsByDefault) {
+    auto extensionAstNode = new sdk::ExtensionAggStageAstNodeAdapter(
+        PropertiesOnlyExtensionAstNode::make(BSON("requiresInputDocSource" << true)));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+
+    ASSERT_DOES_NOT_THROW(
+        handle->bindResolvedNamespace(makeResolvedNamespace("testDb", "testView")));
+}
+
+TEST_F(AggStageTest, StageWithEmptyPropertiesAcceptsViewsByDefault) {
+    auto extensionAstNode =
+        new sdk::ExtensionAggStageAstNodeAdapter(PropertiesOnlyExtensionAstNode::make(BSONObj()));
+    auto handle = AggStageAstNodeHandle{extensionAstNode};
+
+    ASSERT_DOES_NOT_THROW(
+        handle->bindResolvedNamespace(makeResolvedNamespace("testDb", "testView")));
 }
 
 TEST_F(AggStageTest, ExtensionAstNodeCanBindResolvedNamespace) {

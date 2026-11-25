@@ -108,6 +108,9 @@ MONGO_FAIL_POINT_DEFINE(removeDonorDocFailpoint);
 MONGO_FAIL_POINT_DEFINE(reshardingDonorFailsBeforeObtainingTimestamp);
 MONGO_FAIL_POINT_DEFINE(reshardingDonorFailsUpdatingChangeStreamsMonitorProgress);
 MONGO_FAIL_POINT_DEFINE(reshardingPauseDonorInAbortBeforePromiseSet);
+// The default mode corrupts the proposed context to fail the pre-check. With
+// {"post": true, "state": N} it corrupts the read-back context instead, failing only the
+// post-check for destination N (N is DonorStateEnum's integer value, not its IDL string).
 MONGO_FAIL_POINT_DEFINE(reshardingDonorCorruptContextBeforeValidation);
 
 namespace {
@@ -116,6 +119,19 @@ const WriteConcernOptions kNoWaitWriteConcern{1, WriteConcernOptions::SyncMode::
 
 namespace span_names = otel::traces::span_names;
 using resharding::ensureFulfilledPromise;
+
+template <typename Future>
+bool isReadyAndSuccessful(const Future& future) {
+    return future.isReady() && future.getNoThrow().isOK();
+}
+
+bool isPostValidationCorruption(const BSONObj& data) {
+    return data["post"].trueValue();
+}
+
+bool isPreValidationCorruption(const BSONObj& data) {
+    return !isPostValidationCorruption(data);
+}
 
 primary_only_service_helpers::CancelState makeCancelState(const DonorShardContext& donorCtx) {
     primary_only_service_helpers::CancelState cancelState;
@@ -159,14 +175,14 @@ Timestamp generateMinFetchTimestamp(OperationContext* opCtx, const NamespaceStri
 }
 
 /**
- * Returns whether it is possible for the donor to be in 'state' when resharding will indefinitely
- * abort.
+ * Returns whether the donor is able to enter the error flow. False in kError, where the abort is
+ * already ongoing, and in kDone, where the donor has already finished.
  */
-bool inPotentialAbortScenario(const DonorStateEnum& state) {
+bool ableToEnterErrorFlow(const DonorStateEnum& state) {
     // Regardless of whether resharding will abort or commit, the donor will eventually reach state
     // kDone. Additionally, if the donor is in state kError, it is guaranteed that the coordinator
     // will eventually begin the abort process.
-    return state == DonorStateEnum::kError || state == DonorStateEnum::kDone;
+    return state != DonorStateEnum::kError && state != DonorStateEnum::kDone;
 }
 
 class ExternalStateImpl : public ReshardingDonorService::DonorStateMachineExternalState {
@@ -776,7 +792,7 @@ void ReshardingDonorService::DonorStateMachine::
         std::shared_ptr<HierarchicalCancelableOperationContextFactory> factory) {
     const auto donorCtx = _donorCtx.get();
     if (donorCtx.getState() > DonorStateEnum::kPreparingToDonate) {
-        if (!inPotentialAbortScenario(donorCtx.getState())) {
+        if (ableToEnterErrorFlow(donorCtx.getState())) {
             // The invariants won't hold if an unrecoverable error is encountered before the donor
             // makes enough progress to transition to kDonatingInitialData and then a failover
             // occurs.
@@ -1313,8 +1329,43 @@ ReshardingDonorService::DonorStateMachine::_readDurableDonorContext(OperationCon
     return durable;
 }
 
+DonorTransitionFacts ReshardingDonorService::DonorStateMachine::_gatherTransitionFacts() const {
+    DonorTransitionFacts facts;
+    facts.performVerification = _metadata.getPerformVerification();
+
+    {
+        std::lock_guard<std::mutex> lk(_mutex);
+        facts.allRecipientsDoneCloning =
+            isReadyAndSuccessful(_promises.getAllRecipientsDoneCloningFuture());
+        facts.allRecipientsDoneApplying =
+            isReadyAndSuccessful(_promises.getAllRecipientsDoneApplyingFuture());
+        facts.changeStreamsMonitorStarted =
+            isReadyAndSuccessful(_changeStreamsMonitorStarted.getFuture());
+        facts.inDonatingOplogEntries =
+            isReadyAndSuccessful(_promises.getInDonatingOplogEntriesFuture());
+        facts.inBlockingWritesOrError =
+            isReadyAndSuccessful(_promises.getInBlockingWritesOrErrorFuture());
+    }
+
+    return facts;
+}
+
+void ReshardingDonorService::DonorStateMachine::_validatePreTransition(
+    const DonorShardContext& before, const DonorShardContext& proposed) {
+    const auto result = validateDonorPreTransition(
+        {.before = before, .proposed = proposed, .facts = _gatherTransitionFacts()});
+    // Throwing while entering kError or kDone would prevent the donor from releasing the critical
+    // section or recording its abort reason, so only fail the tripwire there.
+    const bool canEnterErrorFlow = ableToEnterErrorFlow(proposed.getState());
+    if (canEnterErrorFlow) {
+        tassert(result.status);
+    } else {
+        tassertNoThrow(result.status);
+    }
+}
+
 void ReshardingDonorService::DonorStateMachine::_validatePostTransition(
-    OperationContext* opCtx, const DonorShardContext& proposed) {
+    OperationContext* opCtx, const DonorShardContext& before, const DonorShardContext& proposed) {
     boost::optional<DonorShardContext> durable;
     try {
         durable = _readDurableDonorContext(opCtx);
@@ -1332,9 +1383,27 @@ void ReshardingDonorService::DonorStateMachine::_validatePostTransition(
         return;
     }
 
-    const auto result = validateDonorPostTransition(
-        {.proposed = proposed, .inMemory = _donorCtx.get(), .durable = *durable});
-    tassertNoThrow(result.status);
+    if (MONGO_unlikely(reshardingDonorCorruptContextBeforeValidation.shouldFail(
+            [&proposed](const BSONObj& data) {
+                return isPostValidationCorruption(data) &&
+                    data.getIntField("state") == static_cast<int>(proposed.getState());
+            }))) {
+        durable->setBytesToClone(durable->getBytesToClone().value_or(0) + 1);
+    }
+
+    const auto result = validateDonorPostTransition({.before = before,
+                                                     .proposed = proposed,
+                                                     .durable = *durable,
+                                                     .facts = _gatherTransitionFacts()});
+    // Before blocking-writes an error is routed through kError and cleanup still runs. From
+    // blocking-writes on, throwing would prevent cleanup or releasing the critical section.
+    const auto to = proposed.getState();
+    if (to == DonorStateEnum::kDonatingInitialData || to == DonorStateEnum::kDonatingOplogEntries ||
+        to == DonorStateEnum::kPreparingToBlockWrites) {
+        tassert(result.status);
+    } else {
+        tassertNoThrow(result.status);
+    }
 }
 
 void ReshardingDonorService::DonorStateMachine::_transitionState(
@@ -1349,21 +1418,10 @@ void ReshardingDonorService::DonorStateMachine::_transitionState(
               expectedAfter.getState() == DonorStateEnum::kDone);
 
     const bool validateTransitions =
-        _forwardableOpMetadata && _forwardableOpMetadata->getVersionContext() &&
-        resharding::isEnabledWithPinnedVersion(
-            _forwardableOpMetadata, resharding::gFeatureFlagReshardingPrePostConditionsValidations);
+        resharding::isTransitionValidationEnabled(_forwardableOpMetadata);
 
     if (validateTransitions) {
-        const auto preResult =
-            validateDonorPreTransition({.before = before, .proposed = expectedAfter});
-        // Throwing while entering a terminal state would prevent the donor from releasing the
-        // critical section or recording its abort reason, so only fail the tripwire there.
-        if (expectedAfter.getState() == DonorStateEnum::kError ||
-            expectedAfter.getState() == DonorStateEnum::kDone) {
-            tassertNoThrow(preResult.status);
-        } else {
-            tassert(preResult.status);
-        }
+        _validatePreTransition(before, expectedAfter);
     }
 
     _updateDonorDocument(std::move(newDonorCtx), factory);
@@ -1391,7 +1449,7 @@ void ReshardingDonorService::DonorStateMachine::_transitionState(
                "reshardingUUID"_attr = _metadata.getReshardingUUID());
 
     if (validateTransitions) {
-        _validatePostTransition(opCtx.get(), expectedAfter);
+        _validatePostTransition(opCtx.get(), before, expectedAfter);
     }
 }
 
@@ -1415,7 +1473,8 @@ void ReshardingDonorService::DonorStateMachine::_transitionToError(
     auto newDonorCtx = _donorCtx.get();
     newDonorCtx.setState(DonorStateEnum::kError);
     resharding::emplaceTruncatedAbortReasonIfExists(newDonorCtx, abortReason);
-    if (MONGO_unlikely(reshardingDonorCorruptContextBeforeValidation.shouldFail())) {
+    if (MONGO_unlikely(
+            reshardingDonorCorruptContextBeforeValidation.shouldFail(isPreValidationCorruption))) {
         newDonorCtx.setBytesToClone(newDonorCtx.getBytesToClone().value_or(0) + 1);
     }
     _transitionState(std::move(newDonorCtx), factory);
@@ -1429,7 +1488,8 @@ void ReshardingDonorService::DonorStateMachine::_transitionToDone(
         resharding::emplaceTruncatedAbortReasonIfExists(newDonorCtx,
                                                         resharding::kCoordinatorAbortedError);
     }
-    if (MONGO_unlikely(reshardingDonorCorruptContextBeforeValidation.shouldFail())) {
+    if (MONGO_unlikely(
+            reshardingDonorCorruptContextBeforeValidation.shouldFail(isPreValidationCorruption))) {
         newDonorCtx.setBytesToClone(newDonorCtx.getBytesToClone().value_or(0) + 1);
     }
     _transitionState(std::move(newDonorCtx), factory);

@@ -48,6 +48,8 @@
 namespace mongo {
 using namespace std::literals::string_view_literals;
 
+struct DonorTransitionFacts;
+
 class [[MONGO_MOD_PUBLIC]] ReshardingDonorService : public repl::PrimaryOnlyService {
 public:
     static constexpr std::string_view kServiceName = "ReshardingDonorService"sv;
@@ -319,9 +321,26 @@ private:
     // is missing.
     boost::optional<DonorShardContext> _readDurableDonorContext(OperationContext* opCtx) const;
 
-    // Checks that the proposed context got installed in memory and durably. Reports violations as
-    // tripwire assertions without throwing.
-    void _validatePostTransition(OperationContext* opCtx, const DonorShardContext& proposed);
+    /**
+     * Gathers the runtime facts used to validate the proposed transition. Must not be called with
+     * _mutex held.
+     */
+    DonorTransitionFacts _gatherTransitionFacts() const;
+
+    /**
+     * Checks that the proposed transition is allowed. Reports violations as tripwire assertions,
+     * throwing only on edges where the failure is routed to an abort.
+     */
+    void _validatePreTransition(const DonorShardContext& before, const DonorShardContext& proposed);
+
+    /**
+     * Checks that the proposed context got installed in memory and durably and that the runtime
+     * facts hold. Throws only on edges before kBlockingWrites, where the failure is routed to an
+     * abort.
+     */
+    void _validatePostTransition(OperationContext* opCtx,
+                                 const DonorShardContext& before,
+                                 const DonorShardContext& proposed);
 
     BSONObj _makeQueryForCoordinatorUpdate(const ShardId& shardId, DonorStateEnum newState);
 

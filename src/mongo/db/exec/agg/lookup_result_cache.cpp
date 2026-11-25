@@ -57,19 +57,54 @@ void LookupResultCache::put(const Value& key, const Value& results, size_t appro
     if (entrySize > _maxEntrySizeBytes || _maxEntries == 0 || !isEnabled()) {
         return;
     }
+    dassert(_memoryTracker);
+    admit(key, results, SimpleMemoryUsageToken(entrySize, _memoryTracker));
+}
 
-    // put() is only ever called after get() has already reported a miss for 'key', so it
+void LookupResultCache::PendingEntry::append(const Document& result) {
+    if (_exceededMaxEntrySize) {
+        return;
+    }
+    _sizeBytes += result.getApproximateSize();
+    if (_sizeBytes > _maxEntrySizeBytes) {
+        _exceededMaxEntrySize = true;
+        _key = Value();
+        _results = std::vector<Value>();
+        _memoryToken.set(0);
+        return;
+    }
+    _results.emplace_back(result);
+    _memoryToken.set(static_cast<int64_t>(_sizeBytes));
+}
+
+boost::optional<LookupResultCache::PendingEntry> LookupResultCache::beginPut(const Value& key) {
+    const size_t keySize = key.getApproximateSize();
+    if (keySize > _maxEntrySizeBytes || _maxEntries == 0 || !isEnabled()) {
+        return boost::none;
+    }
+    dassert(_memoryTracker);
+    return PendingEntry(key, keySize, _maxEntrySizeBytes, _memoryTracker);
+}
+
+void LookupResultCache::finishPut(PendingEntry entry) {
+    if (entry._exceededMaxEntrySize || !isEnabled()) {
+        return;
+    }
+    admit(std::move(entry._key), Value(std::move(entry._results)), std::move(entry._memoryToken));
+}
+
+void LookupResultCache::admit(Value key, Value results, SimpleMemoryUsageToken memoryToken) {
+    // Entries are only ever admitted after get() has already reported a miss for 'key', so it
     // should never already be present in the map.
     dassert(_map.find(key) == _map.end());
-    dassert(_memoryTracker);
 
     while (_entries.size() >= _maxEntries && !_entries.empty()) {
         evictLru();
     }
 
-    _entries.push_front(Entry{key, results, SimpleMemoryUsageToken(entrySize, _memoryTracker)});
-    _map[key] = _entries.begin();
-    _totalSizeBytes += entrySize;
+    _totalSizeBytes += static_cast<size_t>(memoryToken.getCurrentMemoryUsageBytes());
+    _entries.push_front(Entry{std::move(key), std::move(results), std::move(memoryToken)});
+    _map[_entries.front().key] = _entries.begin();
 }
 
 void LookupResultCache::evictLru() {

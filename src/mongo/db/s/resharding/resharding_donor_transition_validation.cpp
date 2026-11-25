@@ -83,14 +83,33 @@ const DonorPreConstraint kExistingAbortReasonUnchanged{
         return checkAbortReasonUnchanged(in.before.getAbortReason(), in.proposed.getAbortReason());
     }};
 
+const DonorPreConstraint kAllRecipientsDoneCloning{
+    "allRecipientsDoneCloning", [](const DonorPreTransitionInput& in) -> Status {
+        if (in.facts.allRecipientsDoneCloning) {
+            return Status::OK();
+        }
+        return transitionViolation("recipients have not all reported done cloning");
+    }};
+
+const DonorPreConstraint kChangeStreamsMonitorStartedIfVerifying{
+    "changeStreamsMonitorStartedIfVerifying", [](const DonorPreTransitionInput& in) -> Status {
+        if (!in.facts.performVerification || in.facts.changeStreamsMonitorStarted) {
+            return Status::OK();
+        }
+        return transitionViolation("change streams monitor has not started");
+    }};
+
+const DonorPreConstraint kAllRecipientsDoneApplying{
+    "allRecipientsDoneApplying", [](const DonorPreTransitionInput& in) -> Status {
+        if (in.facts.allRecipientsDoneApplying) {
+            return Status::OK();
+        }
+        return transitionViolation("recipients have not all reported done applying");
+    }};
+
 const DonorPostConstraint kDurableMatchesProposed{
     "durableMatchesProposed", [](const DonorPostTransitionInput& in) -> Status {
         return checkBsonMatches("durable", in.durable.toBSON(), in.proposed.toBSON());
-    }};
-
-const DonorPostConstraint kInMemoryMatchesProposed{
-    "inMemoryMatchesProposed", [](const DonorPostTransitionInput& in) -> Status {
-        return checkBsonMatches("in-memory", in.inMemory.toBSON(), in.proposed.toBSON());
     }};
 
 TransitionCheck<DonorPreTransitionInput> preCheck(const DonorPreTransitionInput& in) {
@@ -105,7 +124,24 @@ ConstraintResult validateEnteringDonatingInitialData(const DonorPreTransitionInp
         .result();
 }
 
-ConstraintResult validateForward(const DonorPreTransitionInput& in) {
+ConstraintResult validateEnteringDonatingOplogEntries(const DonorPreTransitionInput& in) {
+    return preCheck(in)
+        .require(kCloneDetailsUnchanged)
+        .require(kNoAbortReason)
+        .require(kAllRecipientsDoneCloning)
+        .require(kChangeStreamsMonitorStartedIfVerifying)
+        .result();
+}
+
+ConstraintResult validateEnteringPreparingToBlockWrites(const DonorPreTransitionInput& in) {
+    return preCheck(in)
+        .require(kCloneDetailsUnchanged)
+        .require(kNoAbortReason)
+        .require(kAllRecipientsDoneApplying)
+        .result();
+}
+
+ConstraintResult validateEnteringBlockingWrites(const DonorPreTransitionInput& in) {
     return preCheck(in).require(kCloneDetailsUnchanged).require(kNoAbortReason).result();
 }
 
@@ -124,28 +160,94 @@ ConstraintResult validateEnteringDone(const DonorPreTransitionInput& in) {
         .result();
 }
 
+const DonorPostConstraint kInDonatingOplogEntriesFulfilled{
+    "inDonatingOplogEntriesFulfilled", [](const DonorPostTransitionInput& in) -> Status {
+        if (in.facts.inDonatingOplogEntries) {
+            return Status::OK();
+        }
+        return transitionViolation("inDonatingOplogEntries promise is not fulfilled");
+    }};
+
+const DonorPostConstraint kAllRecipientsDoneApplyingFulfilled{
+    "allRecipientsDoneApplyingFulfilled", [](const DonorPostTransitionInput& in) -> Status {
+        if (in.facts.allRecipientsDoneApplying) {
+            return Status::OK();
+        }
+        return transitionViolation("allRecipientsDoneApplying promise is not fulfilled");
+    }};
+
+const DonorPostConstraint kInBlockingWritesOrErrorFulfilled{
+    "inBlockingWritesOrErrorFulfilled", [](const DonorPostTransitionInput& in) -> Status {
+        if (in.facts.inBlockingWritesOrError) {
+            return Status::OK();
+        }
+        return transitionViolation("inBlockingWritesOrError promise is not fulfilled");
+    }};
+
+TransitionCheck<DonorPostTransitionInput> postCheck(const DonorPostTransitionInput& in) {
+    return makePostTransitionCheck(in, in.before.getState(), in.proposed.getState());
+}
+
+ConstraintResult validatePostInstalled(const DonorPostTransitionInput& in) {
+    return postCheck(in).require(kDurableMatchesProposed).result();
+}
+
+ConstraintResult validatePostDonatingOplogEntries(const DonorPostTransitionInput& in) {
+    return postCheck(in)
+        .require(kDurableMatchesProposed)
+        .require(kInDonatingOplogEntriesFulfilled)
+        .result();
+}
+
+ConstraintResult validatePostPreparingToBlockWrites(const DonorPostTransitionInput& in) {
+    return postCheck(in)
+        .require(kDurableMatchesProposed)
+        .require(kAllRecipientsDoneApplyingFulfilled)
+        .result();
+}
+
+ConstraintResult validatePostBlockingWritesOrError(const DonorPostTransitionInput& in) {
+    return postCheck(in)
+        .require(kDurableMatchesProposed)
+        .require(kInBlockingWritesOrErrorFulfilled)
+        .result();
+}
+
 using DonorTransitionEdge = std::pair<DonorStateEnum, DonorStateEnum>;
 using DonorPreTransitionValidator = ConstraintResult (*)(const DonorPreTransitionInput&);
+using DonorPostTransitionValidator = ConstraintResult (*)(const DonorPostTransitionInput&);
 
-const std::map<DonorTransitionEdge, DonorPreTransitionValidator>& donorTransitionValidators() {
-    static StaticImmortal validators = std::map<DonorTransitionEdge, DonorPreTransitionValidator>{
+struct DonorTransitionValidators {
+    DonorPreTransitionValidator pre;
+    DonorPostTransitionValidator post = &validatePostInstalled;
+};
+
+const std::map<DonorTransitionEdge, DonorTransitionValidators>& donorTransitionValidators() {
+    static StaticImmortal validators = std::map<DonorTransitionEdge, DonorTransitionValidators>{
         // Forward edges.
-        {{kPreparingToDonate, kDonatingInitialData}, &validateEnteringDonatingInitialData},
-        {{kDonatingInitialData, kDonatingOplogEntries}, &validateForward},
-        {{kDonatingOplogEntries, kPreparingToBlockWrites}, &validateForward},
-        {{kPreparingToBlockWrites, kBlockingWrites}, &validateForward},
+        {{kPreparingToDonate, kDonatingInitialData}, {&validateEnteringDonatingInitialData}},
+        {{kDonatingInitialData, kDonatingOplogEntries},
+         {&validateEnteringDonatingOplogEntries, &validatePostDonatingOplogEntries}},
+        {{kDonatingOplogEntries, kPreparingToBlockWrites},
+         {&validateEnteringPreparingToBlockWrites, &validatePostPreparingToBlockWrites}},
+        {{kPreparingToBlockWrites, kBlockingWrites},
+         {&validateEnteringBlockingWrites, &validatePostBlockingWritesOrError}},
         // kError edges.
-        {{kPreparingToDonate, kError}, &validateEnteringError},
-        {{kDonatingInitialData, kError}, &validateEnteringError},
-        {{kDonatingOplogEntries, kError}, &validateEnteringError},
-        {{kPreparingToBlockWrites, kError}, &validateEnteringError},
+        {{kPreparingToDonate, kError},
+         {&validateEnteringError, &validatePostBlockingWritesOrError}},
+        {{kDonatingInitialData, kError},
+         {&validateEnteringError, &validatePostBlockingWritesOrError}},
+        {{kDonatingOplogEntries, kError},
+         {&validateEnteringError, &validatePostBlockingWritesOrError}},
+        {{kPreparingToBlockWrites, kError},
+         {&validateEnteringError, &validatePostBlockingWritesOrError}},
         // kDone edges.
-        {{kPreparingToDonate, kDone}, &validateEnteringDone},
-        {{kDonatingInitialData, kDone}, &validateEnteringDone},
-        {{kDonatingOplogEntries, kDone}, &validateEnteringDone},
-        {{kPreparingToBlockWrites, kDone}, &validateEnteringDone},
-        {{kError, kDone}, &validateEnteringDone},
-        {{kBlockingWrites, kDone}, &validateEnteringDone},
+        {{kPreparingToDonate, kDone}, {&validateEnteringDone}},
+        {{kDonatingInitialData, kDone}, {&validateEnteringDone}},
+        {{kDonatingOplogEntries, kDone}, {&validateEnteringDone}},
+        {{kPreparingToBlockWrites, kDone}, {&validateEnteringDone}},
+        {{kError, kDone}, {&validateEnteringDone}},
+        {{kBlockingWrites, kDone}, {&validateEnteringDone}},
     };
     return *validators;
 }
@@ -158,18 +260,18 @@ ConstraintResult validateDonorPreTransition(const DonorPreTransitionInput& input
     if (it == validators.end()) {
         return notAllowedTransition(input.before.getState(), input.proposed.getState());
     }
-    return it->second(input);
+    return it->second.pre(input);
 }
 
 ConstraintResult validateDonorPostTransition(const DonorPostTransitionInput& input) {
-    return TransitionCheck<DonorPostTransitionInput>(
-               std::string{str::stream()
-                           << "transition to " << idl::serialize(input.proposed.getState())},
-               input,
-               ErrorCodes::ReshardingPostconditionFailure)
-        .require(kDurableMatchesProposed)
-        .require(kInMemoryMatchesProposed)
-        .result();
+    const auto& validators = donorTransitionValidators();
+    const auto it = validators.find({input.before.getState(), input.proposed.getState()});
+    if (it == validators.end()) {
+        return notAllowedTransition(input.before.getState(),
+                                    input.proposed.getState(),
+                                    ErrorCodes::ReshardingPostconditionFailure);
+    }
+    return it->second.post(input);
 }
 
 }  // namespace mongo

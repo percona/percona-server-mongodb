@@ -58,15 +58,58 @@ DonorShardContext withState(DonorShardContext ctx, DonorStateEnum state) {
     return ctx;
 }
 
-ConstraintResult validate(const DonorShardContext& before, const DonorShardContext& after) {
-    return validateDonorPreTransition({.before = before, .proposed = after});
+// The fewest runtime facts that satisfy the pre and post checks for entering 'destination'.
+DonorTransitionFacts factsFor(DonorStateEnum destination) {
+    DonorTransitionFacts facts{.performVerification = true};
+    switch (destination) {
+        case kBlockingWrites:
+            facts.inBlockingWritesOrError = true;
+            [[fallthrough]];
+        case kPreparingToBlockWrites:
+            facts.allRecipientsDoneApplying = true;
+            [[fallthrough]];
+        case kDonatingOplogEntries:
+            facts.allRecipientsDoneCloning = true;
+            facts.changeStreamsMonitorStarted = true;
+            facts.inDonatingOplogEntries = true;
+            break;
+        case kError:
+            facts.inBlockingWritesOrError = true;
+            break;
+        default:
+            break;
+    }
+    return facts;
 }
 
-ConstraintResult validateInstalled(const DonorShardContext& proposed,
-                                   const DonorShardContext& inMemory,
-                                   const DonorShardContext& durable) {
+ConstraintResult validate(const DonorShardContext& before,
+                          const DonorShardContext& after,
+                          const DonorTransitionFacts& facts) {
+    return validateDonorPreTransition({.before = before, .proposed = after, .facts = facts});
+}
+
+ConstraintResult validate(const DonorShardContext& before, const DonorShardContext& after) {
+    return validate(before, after, factsFor(after.getState()));
+}
+
+ConstraintResult validateInstalled(const DonorShardContext& before,
+                                   const DonorShardContext& proposed,
+                                   const DonorShardContext& durable,
+                                   const DonorTransitionFacts& facts) {
     return validateDonorPostTransition(
-        {.proposed = proposed, .inMemory = inMemory, .durable = durable});
+        {.before = before, .proposed = proposed, .durable = durable, .facts = facts});
+}
+
+ConstraintResult validateInstalled(const DonorShardContext& before,
+                                   const DonorShardContext& proposed,
+                                   const DonorShardContext& durable) {
+    return validateInstalled(before, proposed, durable, factsFor(proposed.getState()));
+}
+
+ConstraintResult validateInstalled(const DonorShardContext& before,
+                                   const DonorShardContext& proposed,
+                                   const DonorTransitionFacts& facts) {
+    return validateInstalled(before, proposed, proposed, facts);
 }
 
 void assertViolated(const std::vector<std::string>& expected,
@@ -201,6 +244,97 @@ TEST(ReshardingDonorTransitionValidationTest, RequiresCloneDetailsUnchanged) {
     assertViolated({"cloneDetailsUnchanged"}, validate(before, changedOnError));
 }
 
+TEST(ReshardingDonorTransitionValidationTest, EnteringDonatingOplogEntriesRequiresRecipientsDone) {
+    auto facts = factsFor(kDonatingOplogEntries);
+    facts.allRecipientsDoneCloning = false;
+    assertViolated(
+        {"allRecipientsDoneCloning"},
+        validate(progressing(kDonatingInitialData), progressing(kDonatingOplogEntries), facts));
+}
+
+TEST(ReshardingDonorTransitionValidationTest, EnteringDonatingOplogEntriesRequiresStartedMonitor) {
+    auto facts = factsFor(kDonatingOplogEntries);
+    facts.changeStreamsMonitorStarted = false;
+    assertViolated(
+        {"changeStreamsMonitorStartedIfVerifying"},
+        validate(progressing(kDonatingInitialData), progressing(kDonatingOplogEntries), facts));
+
+    facts.performVerification = false;
+    ASSERT_OK(validate(progressing(kDonatingInitialData), progressing(kDonatingOplogEntries), facts)
+                  .status);
+}
+
+TEST(ReshardingDonorTransitionValidationTest,
+     EnteringDonatingOplogEntriesReportsAllMissingRuntimeFacts) {
+    auto facts = factsFor(kDonatingOplogEntries);
+    facts.allRecipientsDoneCloning = false;
+    facts.changeStreamsMonitorStarted = false;
+    assertViolated(
+        {"allRecipientsDoneCloning", "changeStreamsMonitorStartedIfVerifying"},
+        validate(progressing(kDonatingInitialData), progressing(kDonatingOplogEntries), facts));
+}
+
+TEST(ReshardingDonorTransitionValidationTest,
+     EnteringPreparingToBlockWritesRequiresRecipientsDone) {
+    auto facts = factsFor(kPreparingToBlockWrites);
+    facts.allRecipientsDoneApplying = false;
+    assertViolated(
+        {"allRecipientsDoneApplying"},
+        validate(progressing(kDonatingOplogEntries), progressing(kPreparingToBlockWrites), facts));
+}
+
+TEST(ReshardingDonorTransitionValidationTest, PostDonatingOplogEntriesRequiresPromise) {
+    auto facts = factsFor(kDonatingOplogEntries);
+    facts.inDonatingOplogEntries = false;
+    assertViolated({"inDonatingOplogEntriesFulfilled"},
+                   validateInstalled(progressing(kDonatingInitialData),
+                                     progressing(kDonatingOplogEntries),
+                                     facts),
+                   ErrorCodes::ReshardingPostconditionFailure);
+}
+
+TEST(ReshardingDonorTransitionValidationTest,
+     PostPreparingToBlockWritesRequiresRecipientsDoneApplying) {
+    auto facts = factsFor(kPreparingToBlockWrites);
+    facts.allRecipientsDoneApplying = false;
+    assertViolated({"allRecipientsDoneApplyingFulfilled"},
+                   validateInstalled(progressing(kDonatingOplogEntries),
+                                     progressing(kPreparingToBlockWrites),
+                                     facts),
+                   ErrorCodes::ReshardingPostconditionFailure);
+}
+
+TEST(ReshardingDonorTransitionValidationTest, PostBlockingWritesRequiresPromise) {
+    auto facts = factsFor(kBlockingWrites);
+    facts.inBlockingWritesOrError = false;
+    assertViolated({"inBlockingWritesOrErrorFulfilled"},
+                   validateInstalled(
+                       progressing(kPreparingToBlockWrites), progressing(kBlockingWrites), facts),
+                   ErrorCodes::ReshardingPostconditionFailure);
+}
+
+TEST(ReshardingDonorTransitionValidationTest, PostErrorRequiresBlockingWritesOrErrorPromise) {
+    auto facts = factsFor(kError);
+    facts.inBlockingWritesOrError = false;
+    const std::vector<std::pair<DonorShardContext, DonorShardContext>> edges{
+        {makeContext(kPreparingToDonate), makeContext(kError, false, true)},
+        {progressing(kDonatingInitialData), aborted(kError)},
+        {progressing(kDonatingOplogEntries), aborted(kError)},
+        {progressing(kPreparingToBlockWrites), aborted(kError)},
+    };
+    for (const auto& [before, after] : edges) {
+        assertViolated({"inBlockingWritesOrErrorFulfilled"},
+                       validateInstalled(before, after, facts),
+                       ErrorCodes::ReshardingPostconditionFailure);
+    }
+}
+
+TEST(ReshardingDonorTransitionValidationTest, PostDoneHasNoRuntimeRequirement) {
+    ASSERT_OK(
+        validateInstalled(progressing(kBlockingWrites), progressing(kDone), DonorTransitionFacts{})
+            .status);
+}
+
 TEST(ReshardingDonorTransitionValidationTest, DoneKeepsExistingAbortReason) {
     const auto before = aborted(kError);
 
@@ -222,25 +356,26 @@ TEST(ReshardingDonorTransitionValidationTest, ReportsAllViolationsTogether) {
 }
 
 TEST(ReshardingDonorTransitionValidationTest, AcceptsInstalledAndDurableContexts) {
+    const auto before = progressing(kDonatingInitialData);
     const auto proposed = progressing(kDonatingOplogEntries);
-    ASSERT_OK(validateInstalled(proposed, proposed, proposed).status);
+    ASSERT_OK(validateInstalled(before, proposed, proposed).status);
+}
+
+TEST(ReshardingDonorTransitionValidationTest, RejectsInstalledContextsForDisallowedEdge) {
+    const auto before = progressing(kDonatingInitialData);
+    const auto proposed = progressing(kPreparingToBlockWrites);
+    assertViolated({"isAllowedEdge"},
+                   validateInstalled(before, proposed, proposed),
+                   ErrorCodes::ReshardingPostconditionFailure);
 }
 
 TEST(ReshardingDonorTransitionValidationTest, RejectsMismatchingDurableContext) {
+    const auto before = progressing(kDonatingInitialData);
     const auto proposed = progressing(kDonatingOplogEntries);
     auto durable = proposed;
     durable.setBytesToClone(999);
     assertViolated({"durableMatchesProposed"},
-                   validateInstalled(proposed, proposed, durable),
-                   ErrorCodes::ReshardingPostconditionFailure);
-}
-
-TEST(ReshardingDonorTransitionValidationTest, RejectsMismatchingInMemoryContext) {
-    const auto proposed = progressing(kDonatingOplogEntries);
-    auto inMemory = proposed;
-    inMemory.setDocumentsToClone(999);
-    assertViolated({"inMemoryMatchesProposed"},
-                   validateInstalled(proposed, inMemory, proposed),
+                   validateInstalled(before, proposed, durable),
                    ErrorCodes::ReshardingPostconditionFailure);
 }
 
@@ -248,9 +383,9 @@ TEST(ReshardingDonorTransitionValidationTest, RejectsContextsThatStillShowThePre
     const auto before = progressing(kDonatingInitialData);
     const auto proposed = withState(before, kDonatingOplogEntries);
 
-    // Both contexts agree with each other, but neither agrees with the proposed state.
-    assertViolated({"durableMatchesProposed", "inMemoryMatchesProposed"},
-                   validateInstalled(proposed, before, before),
+    // The durable context still shows the previous state.
+    assertViolated({"durableMatchesProposed"},
+                   validateInstalled(before, proposed, before),
                    ErrorCodes::ReshardingPostconditionFailure);
 }
 

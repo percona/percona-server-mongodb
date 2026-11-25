@@ -3047,7 +3047,7 @@ void WiredTigerKVEngine::setStableTimestamp(Timestamp stableTimestamp, bool forc
     } else {
         stableTSConfigString = fmt::format("stable_timestamp={:x}", ts);
     }
-    if (_usesSchemaEpochs && gFeatureFlagEnableSchemaEpochs.isEnabled()) {
+    if (_usesSchemaEpochs) {
         fmt::format_to(std::back_inserter(stableTSConfigString),
                        ",stable_disaggregated_schema_epoch={:x}",
                        _provider.getSchemaEpochForTimestamp(stableTimestamp));
@@ -3160,7 +3160,7 @@ void WiredTigerKVEngine::setOldestTimestamp(Timestamp newOldestTimestamp, bool f
 }
 
 boost::optional<uint64_t> WiredTigerKVEngine::getStableSchemaEpoch() {
-    if (!gFeatureFlagEnableSchemaEpochs.isEnabled() || !_usesSchemaEpochs) {
+    if (!_usesSchemaEpochs) {
         return boost::none;
     }
     const auto schemaEpoch =
@@ -3170,7 +3170,7 @@ boost::optional<uint64_t> WiredTigerKVEngine::getStableSchemaEpoch() {
 }
 
 void WiredTigerKVEngine::setStableSchemaEpoch(uint64_t schemaEpoch) {
-    if (!gFeatureFlagEnableSchemaEpochs.isEnabled() || !_usesSchemaEpochs) {
+    if (!_usesSchemaEpochs) {
         return;
     }
 
@@ -3362,10 +3362,6 @@ int WiredTigerKVEngine::_publishIdent(WiredTigerRecoveryUnit& ru,
                                       const std::string& uri,
                                       uint64_t schemaEpoch) {
     LOGV2_DEBUG(11928700, 1, "publishIdent", "uri"_attr = uri, "schemaEpoch"_attr = schemaEpoch);
-    if (!gFeatureFlagEnableSchemaEpochs.isEnabled()) {
-        return 0;
-    }
-
     auto* session = ru.getSessionNoTxn();
     invariant(session);
     return session->publish(uri.c_str(),
