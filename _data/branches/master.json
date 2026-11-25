@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 74,
+    "commits_behind": 79,
     "days_behind": 8,
-    "unmerged_oldest_age_days": 8.134892330509258,
-    "files_affected": 437,
-    "total_additions": 20973,
-    "total_deletions": 6283,
+    "unmerged_oldest_age_days": 8.400219146655092,
+    "files_affected": 468,
+    "total_additions": 21608,
+    "total_deletions": 6351,
     "date_range": {
       "first": "2026-11-16T20:32:47+00:00",
-      "last": "2026-11-17T23:05:28+00:00"
+      "last": "2026-11-18T03:38:17+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,56 @@
     "reason": "force:conflict"
   },
   "unmerged_commits": [
+    {
+      "sha": "6459f5134bb96b7c50e820a66af74bda054bc8f1",
+      "short_sha": "6459f5134bb",
+      "date": "2026-11-18T03:38:17+00:00",
+      "author": {
+        "name": "Adithi Raghavan",
+        "email": "adithi.raghavan@mongodb.com"
+      },
+      "summary": "SERVER-138441 Enforce a doNothing view policy for source extension stages (#66282)"
+    },
+    {
+      "sha": "eeaf15d6b9e1c9745bd67234fa3e4fdbc0587ca5",
+      "short_sha": "eeaf15d6b9e",
+      "date": "2026-11-18T02:06:50+00:00",
+      "author": {
+        "name": "auto-revert-app[bot]",
+        "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+      },
+      "summary": "Revert \"SERVER-120042 Test validate at a snapshot of a dropped collection (#66985)\" (#67190)"
+    },
+    {
+      "sha": "c2c75013935c267b004396075ea41de1dbd2050f",
+      "short_sha": "c2c75013935",
+      "date": "2026-11-18T01:27:12+00:00",
+      "author": {
+        "name": "Joseph Prince",
+        "email": "57415450+josephdprince@users.noreply.github.com"
+      },
+      "summary": "SERVER-134134: Allow emitting entire ExecutorStats histogram output in serverStatus (#66876)"
+    },
+    {
+      "sha": "13991aa5c81e948b903d5c03b1833470231a2a0a",
+      "short_sha": "13991aa5c81",
+      "date": "2026-11-18T00:06:46+00:00",
+      "author": {
+        "name": "Indy Prentice",
+        "email": "iprentic@users.noreply.github.com"
+      },
+      "summary": "SERVER-137912: Handle unparseable config.image_collection ID in _isSkippableDelete (#66783)"
+    },
+    {
+      "sha": "59facc0dfbc672aca7f8956f87171ab63896be88",
+      "short_sha": "59facc0dfbc",
+      "date": "2026-11-17T23:59:39+00:00",
+      "author": {
+        "name": "wt-vendoring-bot[bot]",
+        "email": "169275211+wt-vendoring-bot[bot]@users.noreply.github.com"
+      },
+      "summary": "Import wiredtiger: 27dd98a1e7516dff85df4a33699509a7799bbb8a from branch mongodb-master (#67075)"
+    },
     {
       "sha": "b0f992ab2463d3e7b0c6127bf6c63a9d31510735",
       "short_sha": "b0f992ab246",
@@ -869,10 +919,31 @@
           "num_of_dirs": 6
         }
       }
+    },
+    {
+      "commit": {
+        "sha": "438d894acbdfb0a88cd20b096bdc697448ff74b2",
+        "short_sha": "438d894acbd",
+        "date": "2026-11-17T19:00:09+00:00",
+        "author": {
+          "name": "auto-revert-app[bot]",
+          "email": "166078896+auto-revert-app[bot]@users.noreply.github.com"
+        },
+        "summary": "Revert \"SERVER-133622 Allow skip and limit pushdown for geoNear (#66362)\" (#67116)"
+      },
+      "strategy_name": "branching_point",
+      "result": {
+        "branches": [
+          "master",
+          "mergai/master-438d894acbd/conflict",
+          "mergai/master-438d894acbd/solution",
+          "mongodb"
+        ]
+      }
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-24 23:46:51",
+  "generated_at": "2026-11-25 06:08:49",
   "branch_name": "master",
   "display_name": "master"
 }
