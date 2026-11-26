@@ -36,17 +36,17 @@ namespace mongo {
 
 namespace {
 
-Date_t nextDeadline(Date_t until) {
+Date_t nextDeadline(Date_t until, Milliseconds basePollInterval) {
     // Timed waits can be problematic if we have a large number of waiters, since each time we
     // check for interrupt we risk waking up all waiting threads at the same time. We introduce
     // some jitter here to try to reduce the impact of a thundering herd of waiters woken at
     // the same time.
-    constexpr auto kBaseInterval = 500;
     constexpr double kJitterFactor = 0.2;
     static thread_local XorShift128 urbg(SecureRandom().nextInt64());
-    int32_t offset = std::uniform_int_distribution<int32_t>(-kJitterFactor * kBaseInterval,
-                                                            kBaseInterval * kJitterFactor)(urbg);
-    return std::min(until, Date_t::now() + Milliseconds{kBaseInterval + offset});
+    const auto base = basePollInterval.count();
+    int32_t offset =
+        std::uniform_int_distribution<int32_t>(-kJitterFactor * base, kJitterFactor * base)(urbg);
+    return std::min(until, Date_t::now() + basePollInterval + Milliseconds{offset});
 }
 }  // namespace
 
@@ -79,7 +79,7 @@ bool UnorderedTicketSemaphore::acquire(OperationContext* opCtx,
             return true;
         }
 
-        Date_t deadline = nextDeadline(until);
+        Date_t deadline = nextDeadline(until, _basePollInterval);
 
         if (!hasStartedWaiting) {
             const auto previousWaiters = _waiters.fetchAndAdd(1);
