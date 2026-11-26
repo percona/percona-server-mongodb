@@ -92,13 +92,22 @@ bool UnorderedTicketSemaphore::acquire(OperationContext* opCtx,
             }
         }
 
-        _permits.waitUntil(0, deadline);
+        // Take the current permit count. If it is positive, loop to retry acquisition immediately.
+        // Otherwise, wait for the observed non-positive value to change. If it remains unchanged
+        // through the final deadline, the ticket acquisition fails.
+        const auto observedPermits = _permits.load();
+        if (observedPermits > 0) {
+            continue;
+        }
+
+        const auto waitResult = _permits.waitUntil(observedPermits, deadline);
 
         if (interruptible) {
             opCtx->checkForInterrupt();
         }
 
-        if (deadline == until) {
+        // We enter here only if no newly available permit woke this waiter early.
+        if (!waitResult && deadline == until) {
             if (!interruptible) {
                 // Uninterruptible wait - just return timeout
                 return false;
