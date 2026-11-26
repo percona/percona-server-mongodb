@@ -30,16 +30,13 @@ const oplogSizeMB = 1; // Small oplog size in MB
 const longString = "a".repeat(450 * 1024); // Large document size (~500KB)
 let nextId = 0; // Tracks the next `_id` for inserts
 
-// setParameter args to reuse across startups.
-// SERVER-127268: ReplSetTest.start() replaces setParameter on restart, so the restarted node
-// otherwise keeps the default 300s oplogTruncationCheckPeriodSeconds. The cap maintainer then
-// stays asleep after the post-sampling fsync, and assert.soon times out before truncation.
+// Reuse setParameter arguments across startups because ReplSetTest.start() replaces them on restart.
+// Keep the default 300-second oplog truncation period: v8.3 rejects explicit values <= 300.
+// The final truncation assertion below allows 600 seconds for the cap maintainer to wake up.
 const setParameter = {
     logComponentVerbosity: tojson({storage: 1}),
     minOplogTruncationPoints: 2,
     internalQueryExecYieldPeriodMS: 86400000, // Disable yielding
-    // Speed up the wakeup time of the cap maintainer thread.
-    oplogTruncationCheckPeriodSeconds: 1,
 };
 
 // Initialize a single-node replica set with a small oplog size
@@ -140,30 +137,34 @@ restartedPrimary.getDB("admin").runCommand({fsync: 1});
 
 // Wait for truncation to occur
 // Verify large documents inserted during intial sampling are eventually truncated from the oplog
-assert.soon(() => {
-    try {
-        const cursor = restartedPrimaryOplog.find({ns: "test.markers"});
-        while (cursor.hasNext()) {
-            const entry = cursor.next();
-            jsTest.log.info("Checking " + tojson(entry));
+assert.soon(
+    () => {
+        try {
+            const cursor = restartedPrimaryOplog.find({ns: "test.markers"});
+            while (cursor.hasNext()) {
+                const entry = cursor.next();
+                jsTest.log.info("Checking " + tojson(entry));
 
-            const foundId = largeDocIDs.some((id) => {
-                return id == entry.o["_id"];
-            });
+                const foundId = largeDocIDs.some((id) => {
+                    return id == entry.o["_id"];
+                });
 
-            if (foundId) {
-                return false;
+                if (foundId) {
+                    return false;
+                }
             }
+            return true;
+        } catch (e) {
+            if (e.code !== ErrorCodes.CappedPositionLost) {
+                throw e;
+            }
+            print(`Failed to fully iterate over collection due to conflict with oplog cap maintainer, retrying`);
+            return false;
         }
-        return true;
-    } catch (e) {
-        if (e.code !== ErrorCodes.CappedPositionLost) {
-            throw e;
-        }
-        print(`Failed to fully iterate over collection due to conflict with oplog cap maintainer, retrying`);
-        return false;
-    }
-});
+    },
+    "Timed out waiting for sampled oplog entries to be truncated",
+    600000,
+);
 
 jsTest.log.info("Test complete. Stopping replica set.");
 rst.stopSet();

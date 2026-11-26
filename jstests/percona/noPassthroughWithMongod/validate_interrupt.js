@@ -108,19 +108,13 @@
         maxTimeMS = beforeScanMs + Math.max(1, Math.floor(scanMs / 3));
 
         res = t.runCommand({validate: t.getName(), full: true, maxTimeMS: maxTimeMS});
-        if (
-            res.ok === 0 &&
-            res.code === ErrorCodes.MaxTimeMSExpired &&
-            latestScanWasInterrupted(validationEvents())
-        ) {
+        if (res.ok === 0 && res.code === ErrorCodes.MaxTimeMSExpired && latestScanWasInterrupted(validationEvents())) {
             break;
         }
 
         if (res.ok === 0 && res.code !== ErrorCodes.MaxTimeMSExpired) {
             const expiredBeforeScan =
-                res.code === ErrorCodes.CommandFailed &&
-                res.errmsg &&
-                res.errmsg.indexOf("MaxTimeMSExpired") !== -1;
+                res.code === ErrorCodes.CommandFailed && res.errmsg && res.errmsg.indexOf("MaxTimeMSExpired") !== -1;
             assert(expiredBeforeScan, "validate failed for an unexpected reason:\n" + tojson(res));
         }
 
