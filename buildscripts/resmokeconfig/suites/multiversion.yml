@@ -16,6 +16,12 @@ selector:
     # TODO SERVER-42919: recent work on the ReplicaSetMonitor means that mongoS no longer crashes when
     # it attempts to connect to an upgraded mongoD. Un-denylist when SERVER-42919 fixes this issue.
     - jstests/multiVersion/genericSetFCVUsage/fcv_core/crash_mongos_against_upgraded_cluster.js
+
+    # SERVER-80249 covers the 7.0-to-8.0 mixed cluster-role upgrade. On this branch last-lts
+    # resolves to 8.0 and an omitted binVersion to latest (8.3). The test restarts its only
+    # electable primary as shardsvr with the helper's 24-hour election timeout, then times out
+    # waiting for a primary. Exclude until the scenario and election setup are adapted to 8.3.
+    - jstests/multiVersion/genericBinVersion/mixed_cluster_roles.js
   exclude_with_any_tags:
     - featureFlagToaster
     - featureFlagSpoon
