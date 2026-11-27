@@ -47,7 +47,7 @@ jobs:
 
   analyze:
     name: Check code formatting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: check-skip
     if: ${{ needs.check-skip.outputs.should_skip != 'true' }}
     steps:
