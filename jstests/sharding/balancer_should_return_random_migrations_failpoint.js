@@ -16,18 +16,22 @@ TestData.skipCheckShardFilteringMetadata = true;
 
 // The mongod secondaries are set to priority 0 to prevent the primaries from stepping down during
 // migrations on slow evergreen builders.
+// SERVER-133052: rsOptions replaces configOptions setParameter on a config shard.
+// Preserve the fast-migration settings for both config-server and config-shard setups.
+const randomMigrationSetParameters = {
+    "failpoint.balancerShouldReturnRandomMigrations": "{mode: 'alwaysOn'}",
+    "reshardingMinimumOperationDurationMillis": 0,
+    "balancerMigrationsThrottlingMs": 0,
+};
+
 let st = new ShardingTest({
     shards: 2,
     other: {
         enableBalancer: true,
         configOptions: {
-            setParameter: {
-                "failpoint.balancerShouldReturnRandomMigrations": "{mode: 'alwaysOn'}",
-                "reshardingMinimumOperationDurationMillis": 0,
-                "balancerMigrationsThrottlingMs": 0,
-            },
+            setParameter: {...randomMigrationSetParameters},
         },
-        rsOptions: {setParameter: {"failpoint.balancerShouldReturnRandomMigrations": "{mode: 'alwaysOn'}"}},
+        rsOptions: {setParameter: {...randomMigrationSetParameters}},
     },
 });
 
