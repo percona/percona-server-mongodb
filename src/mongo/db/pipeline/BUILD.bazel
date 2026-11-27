@@ -177,12 +177,27 @@ mongo_cc_library(
 )
 
 mongo_cc_library(
+    name = "end_of_transaction_rebuild_state",
+    srcs = [
+        "end_of_transaction_rebuild_state.cpp",
+    ],
+    hdrs = [
+        "end_of_transaction_rebuild_state.h",
+    ],
+    deps = [
+        "//src/mongo:base",
+        "//src/mongo/db:service_context",
+    ],
+)
+
+mongo_cc_library(
     name = "change_stream_helpers",
     srcs = [
         "change_stream_helpers.cpp",
     ],
     deps = [
         "document_sources_idl",
+        ":end_of_transaction_rebuild_state",
         "//src/mongo/db:end_of_transaction_parameter",
         "//src/mongo/db:query_expressions",
         "//src/mongo/db:server_feature_flags",
@@ -1251,6 +1266,20 @@ mongo_cc_library(
         "//src/mongo/db/repl:replica_set_aware_service",
         "//src/mongo/db/shard_role",
         "//src/mongo/util:periodic_runner",
+    ],
+)
+
+# Subscribes the pre-images remover to replica set lifecycle events. Depend on this only from
+# binaries that want the removal job driven by those events; callers that merely start or stop the
+# job depend on 'change_stream_expired_pre_image_remover' instead.
+mongo_cc_library(
+    name = "change_stream_expired_pre_image_remover_registerer",
+    srcs = [
+        "change_stream_expired_pre_image_remover_registerer.cpp",
+    ],
+    deps = [
+        ":change_stream_expired_pre_image_remover",
+        "//src/mongo/db/repl:replica_set_aware_service",
     ],
 )
 

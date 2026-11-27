@@ -7,6 +7,7 @@
 #include "mongo/db/auth/action_type.h"
 #include "mongo/db/auth/authorization_session.h"
 #include "mongo/db/auth/resource_pattern.h"
+#include "mongo/db/change_stream_metrics_util.h"
 #include "mongo/db/commands/server_status/server_status_metric.h"
 #include "mongo/db/curop.h"
 #include "mongo/db/database_name.h"
@@ -132,6 +133,25 @@ auto& csScopeCollection = makeCsCounter(otel::metrics::MetricNames::kChangeStrea
                                         "changeStreams.scope.collection",
                                         "Number of collection-scoped change streams opened.");
 
+// Forces eager registration of the end-of-transaction metrics at static-initialization time, so
+// they are visible in serverStatus (at zero) before any call site runs: the metrics tree is
+// frozen shortly after startup. This TU is linked into both mongod and mongos, so the metrics
+// appear wherever change streams can run.
+auto& kEotRebuildsSucceeded = change_stream::endOfTransactionRebuildsSucceeded();
+auto& kEotRebuildsFailed = change_stream::endOfTransactionRebuildsFailed();
+auto& kEotRebuildTimeMicros = change_stream::endOfTransactionRebuildTimeMicros();
+auto& kEotSynthesisTransactionsEvicted =
+    change_stream::endOfTransactionSynthesisTransactionsEvicted();
+auto& kEotSynthesisPbrtBumps = change_stream::endOfTransactionSynthesisPbrtBumps();
+auto& kEotSynthesisTransactionsTracked =
+    change_stream::endOfTransactionSynthesisTransactionsTracked();
+auto& kEotCompletedWithRemovedShards = change_stream::endOfTransactionCompletedWithRemovedShards();
+auto& kEotLookbackDistanceExceeded = change_stream::endOfTransactionLookbackDistanceExceeded();
+auto& kEotRequiredMissingMetadata = change_stream::endOfTransactionRequiredMissingMetadata();
+auto& kEotEventEndOfTransactionTransformed = change_stream::eventEndOfTransactionTransformed();
+auto& kEotEventEndOfTransactionEmitted = change_stream::eventEndOfTransactionEmitted();
+auto& kEotAllowEndOfTransactionGauge = change_stream::endOfTransactionAllowEndOfTransactionGauge();
+
 void incrementFullDocumentMetric(FullDocumentModeEnum mode) {
     switch (mode) {
         case FullDocumentModeEnum::kRequired:
@@ -217,6 +237,20 @@ ResumeTokenData initializeResumeState(const boost::intrusive_ptr<ExpressionConte
     // If the stream's default version differs from the client's token version, adopt the higher.
     // This is the token version that will be used once the stream has passed the resume token.
     const auto clientToken = change_stream::resolveResumeTokenFromSpec(expCtx, spec);
+
+    // endOfTransaction events cannot be represented with a v1 resume token, so fail the stream on
+    // opening rather than silently upgrading the token version. Not validated when we are not
+    // expecting to execute queries, such as during $queryStats.
+    if (change_stream::showEndOfTransactionRequested(spec) &&
+        expCtx->getMongoProcessInterface()->isExpectedToExecuteQueries()) {
+        uassert(ErrorCodes::InvalidOptions,
+                str::stream() << "The 'showEndOfTransaction' parameter to $changeStream requires "
+                                 "resume token version 2 or higher, but the provided resume token "
+                                 "has version "
+                              << clientToken.version,
+                clientToken.version >= 2);
+    }
+
     expCtx->setChangeStreamTokenVersion(
         std::max(expCtx->getChangeStreamTokenVersion(), clientToken.version));
 
