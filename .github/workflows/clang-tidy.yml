@@ -73,7 +73,7 @@ jobs:
 
   analyze:
     name: Run clang-tidy analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ needs.check-skip.outputs.should_skip != 'true' && needs.changed_files.outputs.changed_files != '' }}
     needs: [check-skip, changed_files]
     steps:
