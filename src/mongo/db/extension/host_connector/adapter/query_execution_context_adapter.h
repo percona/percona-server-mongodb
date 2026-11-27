@@ -4,6 +4,7 @@
 
 #include "mongo/bson/bsonobj.h"
 #include "mongo/db/exec/agg/dynamic_batch_size.h"
+#include "mongo/db/extension/host_connector/adapter/execution_context_base.h"
 #include "mongo/db/extension/public/api.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/executable_agg_stage.h"
 #include "mongo/db/extension/shared/handle/operation_metrics_handle.h"
@@ -13,10 +14,8 @@ namespace mongo::extension::host_connector {
 
 /**
  * QueryExecutionContextBase defines the abstract interface for query execution context
- * that extensions need to access during pipeline execution.
- *
- * This interface allows extensions to:
- * - Check if the current operation has been interrupted or cancelled
+ * that extensions need to access during pipeline execution. It extends ExecutionContextBase
+ * (interrupt checks and deadline) with query-specific functionality:
  * - Retrieve operation metrics and debugging information for specific aggregation stages
  *
  * Concrete implementations of this interface provide the bridge between the extension
@@ -26,14 +25,12 @@ namespace mongo::extension::host_connector {
  * Implementations of this interface should be wrapped by QueryExecutionContextAdapter
  * for exposure to the public extension API.
  */
-class QueryExecutionContextBase {
+class QueryExecutionContextBase : public ExecutionContextBase {
 public:
     QueryExecutionContextBase() = default;
-    virtual ~QueryExecutionContextBase() = default;
-    virtual Status checkForInterrupt() const = 0;
+    ~QueryExecutionContextBase() override = default;
     virtual UnownedOperationMetricsHandle getMetrics(
         const std::string& stageName, const UnownedExecAggStageHandle& execStage) const = 0;
-    virtual int64_t getDeadlineTimestampMs() const = 0;
     virtual BSONObj getHostMetrics(const std::vector<std::string>& metricNames) const = 0;
 };
 
@@ -44,9 +41,11 @@ public:
 class QueryExecutionContextAdapter final : public ::MongoExtensionQueryExecutionContext {
 public:
     QueryExecutionContextAdapter(std::unique_ptr<QueryExecutionContextBase> ctx,
+                                 const CapabilityVersion& capability,
                                  exec::agg::DynamicBatchSize* dynamicBatchSize = nullptr)
         : ::MongoExtensionQueryExecutionContext{&VTABLE},
           _ctx(std::move(ctx)),
+          _capability(capability),
           _dynamicBatchSize(dynamicBatchSize) {
         tassert(11417100, "Provided QueryExecutionContextBase is null", _ctx != nullptr);
     }
@@ -64,7 +63,16 @@ public:
         return VTABLE;
     }
 
+    constexpr const CapabilityVersion& getCapabilityVersion() const {
+        return _capability;
+    }
+
 private:
+    static const CapabilityVersion& _capabilityOf(
+        const ::MongoExtensionQueryExecutionContext* ctx) noexcept {
+        return static_cast<const QueryExecutionContextAdapter*>(ctx)->_capability;
+    }
+
     static MongoExtensionStatus* _extCheckForInterrupt(
         const MongoExtensionQueryExecutionContext* ctx, MongoExtensionStatus* queryStatus) noexcept;
 
@@ -91,6 +99,7 @@ private:
         .set_batch_size = &_extSetBatchSize};
 
     std::unique_ptr<QueryExecutionContextBase> _ctx;
+    const CapabilityVersion _capability;
     exec::agg::DynamicBatchSize* _dynamicBatchSize{nullptr};
 };
 

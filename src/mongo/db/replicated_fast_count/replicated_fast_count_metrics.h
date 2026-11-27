@@ -42,6 +42,8 @@ void incrementUpdateCount();
 void incrementWatermarksWrittenCount();
 void incrementTailerWatermarksSeenCount();
 void incrementCheckpointsValidatedCount();
+void incrementEntriesValidatedCount(int64_t count);
+void incrementHashesValidatedCount(int64_t count);
 void incrementWatermarksRecordedCount();
 void incrementWatermarksEvictedCount(int64_t count);
 void incrementCheckpointsSkippedCount(int64_t count);
@@ -56,7 +58,13 @@ void recordWatermarkAwaitTime(Milliseconds waitTime);
  * Records metrics for a successful flush. Updates flush timing, success count, flushed-document
  * counters, and the insert/update write counters from `writeCounts`.
  */
-void recordFlush(Date_t startTime, replicated_fast_count::CheckpointWriteCounts writeCounts);
+void recordFlush(Milliseconds duration, replicated_fast_count::CheckpointWriteCounts writeCounts);
+
+/**
+ * Records metrics for a call to `mergeAndValidate()`, regardless if a checkpoint was validated or
+ * not.
+ */
+void recordValidatorCall(Milliseconds duration);
 
 /**
  * Free functions for recording checkpoint oplog scan metrics. These functions are safe to call from

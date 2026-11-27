@@ -852,7 +852,7 @@ public:
         return getKeyStringEntry();
     }
 
-    SortedDataKeyValueView nextKeyValueView(RecoveryUnit& ru) override {
+    SortedDataKeyValueView nextKeyValueView(RecoveryUnit& ru, size_t /*maxBatch*/) override {
         advanceNext(ru);
         return getKeyValueView();
     }
@@ -1135,8 +1135,10 @@ protected:
         _lastMoveSkippedKey = false;
         _id = RecordId();
 
-        if (_eof)
+        if (_eof) {
+            _key.resetToEmpty();
             return;
+        }
 
         WT_CURSOR* c = _cursor->get();
         WiredTigerItem item;
@@ -1166,6 +1168,7 @@ protected:
         _lastMoveSkippedKey = false;
 
         if (_eof) {
+            _key.resetToEmpty();
             if (_forward && _cursor) {
                 _cursor->onScanComplete();
             }

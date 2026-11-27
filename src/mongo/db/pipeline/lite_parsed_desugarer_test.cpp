@@ -7,6 +7,7 @@
 #include "mongo/db/extension/host/document_source_extension_optimizable.h"
 #include "mongo/db/extension/host_connector/adapter/host_services_adapter.h"
 #include "mongo/db/extension/sdk/tests/shared_test_stages.h"
+#include "mongo/db/incremental_feature_rollout.h"
 #include "mongo/db/pipeline/aggregation_context_fixture.h"
 #include "mongo/db/pipeline/aggregation_request_helper.h"
 #include "mongo/db/pipeline/document_source_match.h"
@@ -137,9 +138,9 @@ public:
 
     void setUp() override {
         AggregationContextFixture::setUp();
-        extension::sdk::HostServicesAPI::setHostServices(
-            &extension::host_connector::HostServicesAdapter::get(),
-            extension::CapabilityVersion::legacyCapability());
+        const auto capability = mongo::extension::CapabilityVersion::legacyCapability();
+        extension::sdk::HostServicesAPI::setHostServicesForTest(
+            extension::host_connector::getHostServices(capability), capability);
     }
 
     BSONObj makeLookupWithSubpipeline(const std::vector<BSONObj>& subpipelineStages) {

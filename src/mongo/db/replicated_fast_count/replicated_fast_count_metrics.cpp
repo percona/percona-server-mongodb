@@ -128,6 +128,24 @@ auto& checkpointsValidatedCounter = MetricsService::instance().createInt64Counte
     {.serverStatusOptions = ServerStatusOptions{
          .dottedPath = "replicatedFastCount.checkpointsValidated", .role = ClusterRole::None}});
 
+auto& entriesValidatedCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountValidationEntriesValidated,
+    "Total number of entries in replicated metadata checkpoints emitted by the primary that have "
+    "been validated by the standby",
+    MetricUnit::kEvents,
+    {.serverStatusOptions =
+         ServerStatusOptions{.dottedPath = "replicatedFastCount.validation.entriesValidated",
+                             .role = ClusterRole::None}});
+
+auto& hashesValidatedCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountValidationHashesValidated,
+    "Total number of entries that contain hashes in replicated metadata checkpoints emitted by the "
+    "primary that have been validated by the standby",
+    MetricUnit::kEvents,
+    {.serverStatusOptions =
+         ServerStatusOptions{.dottedPath = "replicatedFastCount.validation.hashesValidated",
+                             .role = ClusterRole::None}});
+
 // The number of watermarks recorded and evicted by the checkpoint validator. On a healthy node
 // these are approximately equal; a growing gap means matching checkpoints are not arriving and
 // deltas are accumulating in memory.
@@ -153,6 +171,22 @@ auto& checkpointsSkippedCounter = MetricsService::instance().createInt64Counter(
     MetricUnit::kEvents,
     {.serverStatusOptions = ServerStatusOptions{
          .dottedPath = "replicatedFastCount.checkpointsSkipped", .role = ClusterRole::None}});
+
+auto& validatorCallCountCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountValidatorCallCount,
+    "Total number of mergeAndValidate() calls in the replicated metadata checkpoint validator",
+    MetricUnit::kEvents,
+    {.serverStatusOptions = ServerStatusOptions{
+         .dottedPath = "replicatedFastCount.validator.callCount", .role = ClusterRole::None}});
+
+auto& validatorTimeMsTotalCounter = MetricsService::instance().createInt64Counter(
+    MetricNames::kReplicatedFastCountValidatorTimeMsTotal,
+    "Total elapsed milliseconds in replicated metadata checkpoint validator mergeAndValidate() "
+    "calls",
+    MetricUnit::kMilliseconds,
+    {.serverStatusOptions =
+         ServerStatusOptions{.dottedPath = "replicatedFastCount.validator.validationTime.total",
+                             .role = ClusterRole::None}});
 
 // Total time the flusher spent blocked waiting for the oplog tailer to cut a batch at a
 // watermark.
@@ -235,6 +269,14 @@ void incrementCheckpointsValidatedCount() {
     checkpointsValidatedCounter.add(1);
 }
 
+void incrementEntriesValidatedCount(int64_t count) {
+    entriesValidatedCounter.add(count);
+}
+
+void incrementHashesValidatedCount(int64_t count) {
+    hashesValidatedCounter.add(count);
+}
+
 void incrementWatermarksRecordedCount() {
     watermarksRecordedCounter.add(1);
 }
@@ -251,14 +293,17 @@ void recordWatermarkAwaitTime(Milliseconds waitTime) {
     watermarkAwaitTimeMsTotalCounter.add(waitTime.count());
 }
 
-void recordFlush(Date_t startTime, replicated_fast_count::CheckpointWriteCounts writeCounts) {
-    const int64_t elapsedMs = (Date_t::now() - startTime).count();
-
+void recordFlush(Milliseconds duration, replicated_fast_count::CheckpointWriteCounts writeCounts) {
     flushSuccessCounter.add(1);
-    flushTimeMsTotalCounter.add(elapsedMs);
+    flushTimeMsTotalCounter.add(duration.count());
     flushedDocsTotalCounter.add(static_cast<int64_t>(writeCounts.entryWriteCount));
     insertCounter.add(static_cast<int64_t>(writeCounts.insertCount));
     updateCounter.add(static_cast<int64_t>(writeCounts.updateCount));
+}
+
+void recordValidatorCall(Milliseconds duration) {
+    validatorCallCountCounter.add(1);
+    validatorTimeMsTotalCounter.add(duration.count());
 }
 
 void recordAppliedOpTime(const Timestamp& ts) {

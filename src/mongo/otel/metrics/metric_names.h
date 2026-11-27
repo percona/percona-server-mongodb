@@ -710,6 +710,12 @@ public:
             "sizeCountEntriesProcessed");
     static constexpr MetricName kReplicatedFastCountCheckpointsValidated = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.replicatedFastCount.checkpointsValidated");
+    static constexpr MetricName kReplicatedFastCountValidationEntriesValidated =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.replicatedFastCount.validation.entriesValidated");
+    static constexpr MetricName kReplicatedFastCountValidationHashesValidated =
+        MetricNameMaker::make(
+            "mongodb.serverStatus.metrics.replicatedFastCount.validation.hashesValidated");
     static constexpr MetricName kReplicatedFastCountOplogLagSecs =
         MetricNameMaker::make("mongodb.serverStatus.metrics.replicatedFastCount.oplogLagSecs");
     static constexpr MetricName kReplicatedFastCountTailerIsRunning =
@@ -735,6 +741,10 @@ public:
     static constexpr MetricName kReplicatedFastCountWatermarkAwaitTimeMsTotal =
         MetricNameMaker::make(
             "mongodb.serverStatus.metrics.replicatedFastCount.flush.watermarkAwaitTime.total");
+    static constexpr MetricName kReplicatedFastCountValidatorCallCount = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.validator.callCount");
+    static constexpr MetricName kReplicatedFastCountValidatorTimeMsTotal = MetricNameMaker::make(
+        "mongodb.serverStatus.metrics.replicatedFastCount.validator.validationTime.total");
 
     static constexpr MetricName kInternodeConsistencyHashMismatchInsert = MetricNameMaker::make(
         "mongodb.serverStatus.metrics.repl.internodeConsistency.hashMismatch.insert");

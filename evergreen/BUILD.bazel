@@ -13,6 +13,7 @@ exports_files([
     "package_test_cleanup.sh",
     "prelude.sh",
     "remote_execution_containers_generate.sh",
+    "toolchain_sysroots_generate.sh",
     "resmoke_tests_execute.sh",
     "upload_task_artifact.sh",
 ])
@@ -87,6 +88,12 @@ sh_binary(
 sh_binary(
     name = "bazel_test",
     srcs = ["bazel_test.sh"],
+)
+
+sh_test(
+    name = "bazel_test_groups_test",
+    srcs = ["bazel_test_groups_test.sh"],
+    data = ["bazel_test.sh"],
 )
 
 sh_binary(

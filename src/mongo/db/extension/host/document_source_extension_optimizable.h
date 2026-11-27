@@ -14,6 +14,7 @@
 #include "mongo/db/extension/shared/handle/aggregation_stage/parse_node.h"
 #include "mongo/db/extension/shared/handle/aggregation_stage/stage_descriptor.h"
 #include "mongo/db/extension/shared/handle/pipeline_rewrite_context_handle.h"
+#include "mongo/db/incremental_feature_rollout.h"
 #include "mongo/db/pipeline/document_source.h"
 #include "mongo/db/pipeline/lite_parsed_desugarer.h"
 #include "mongo/db/pipeline/optimization/rule_based_rewriter.h"
@@ -589,6 +590,15 @@ public:
      */
     void applyPipelineSuffixDependencies(const DepsTracker& deps,
                                          const std::set<std::string>& builtinVarRefs) override;
+
+    /**
+     * The capability version negotiated with the extension that provides this stage. The logical
+     * stage handle carries it; exposed here for code paths that adapt host state back into the
+     * extension without a handle in hand.
+     */
+    const CapabilityVersion& getExtensionCapabilityVersion() const {
+        return _logicalStage->getCapabilityVersion();
+    }
 
     /**
      * Overridden from WrappedExtensionSourceHooks. Notifies the underlying extension logical stage

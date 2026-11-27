@@ -141,6 +141,546 @@ class SysrootArchiveTest(unittest.TestCase):
                 packaged.extractall(directory / "extracted", filter="data")
             self.assertEqual(b"header", (directory / "extracted/usr/include/linked.h").read_bytes())
 
+    def test_library_links_through_system_alternatives_are_resolved(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar")
+            with tarfile.open(root / "rootfs.tar", "a") as archive:
+                for name, target in (
+                    ("usr/lib64/selected.so", "/etc/alternatives/selected.so"),
+                    ("etc/alternatives/selected.so", "/usr/lib64/libc.so"),
+                ):
+                    member = tarfile.TarInfo(name)
+                    member.type, member.linkname = tarfile.SYMTYPE, target
+                    archive.addfile(member)
+            generator.create_sysroot_archive(root / "rootfs.tar", root / "sysroot.tar.gz")
+            with tarfile.open(root / "sysroot.tar.gz") as archive:
+                archive.extractall(root / "extracted", filter="data")
+            self.assertEqual(b"library", (root / "extracted/usr/lib64/selected.so").read_bytes())
+            self.assertFalse((root / "extracted/etc").exists())
+
+    def test_cyclic_system_alternatives_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar")
+            with tarfile.open(root / "rootfs.tar", "a") as archive:
+                for name, target in (
+                    ("usr/lib64/selected.so", "/etc/alternatives/one"),
+                    ("etc/alternatives/one", "two"),
+                    ("etc/alternatives/two", "one"),
+                ):
+                    member = tarfile.TarInfo(name)
+                    member.type, member.linkname = tarfile.SYMTYPE, target
+                    archive.addfile(member)
+            with self.assertRaisesRegex(ValueError, "cyclic external"):
+                generator.create_sysroot_archive(root / "rootfs.tar", root / "sysroot.tar.gz")
+
+
+class ToolchainSysrootArchiveTest(unittest.TestCase):
+    @staticmethod
+    def _rootfs(
+        path: pathlib.Path,
+        architecture: str,
+        *,
+        omitted: str = "",
+        loader_directory: str = "usr/lib64",
+        loader_reference: str | None = None,
+    ) -> None:
+        machine, byteorder, loader = {
+            "amd64": (62, "little", "ld-linux-x86-64.so.2"),
+            "arm64": (183, "little", "ld-linux-aarch64.so.1"),
+            "ppc64le": (21, "little", "ld64.so.2"),
+            "s390x": (22, "big", "ld64.so.1"),
+        }[architecture]
+        elf = bytearray(64)
+        elf[:6] = b"\x7fELF\x02" + bytes([1 if byteorder == "little" else 2])
+        elf[18:20] = machine.to_bytes(2, byteorder)
+        with tarfile.open(path, "w") as archive:
+            files = {
+                **{
+                    f"usr/include/{name}": b"header"
+                    for name in (
+                        "stdio.h",
+                        "linux/version.h",
+                        "asm/unistd.h",
+                        "sys/sdt.h",
+                        "crypt.h",
+                    )
+                },
+                **{
+                    f"usr/lib64/{name}": bytes(elf)
+                    for name in (
+                        "crt1.o",
+                        "crti.o",
+                        "crtn.o",
+                        "libc.so.6",
+                        "libgcc_s.so.1",
+                        "libcrypt.so",
+                    )
+                },
+                f"{loader_directory}/{loader}": bytes(elf),
+                "usr/lib64/libc.so": (
+                    f"GROUP ( libc.so.6 libc_nonshared.a AS_NEEDED ( {loader_reference} ) )".encode()
+                    if loader_reference is not None
+                    else b"GROUP ( libc.so.6 libc_nonshared.a )"
+                ),
+                "usr/lib64/libc_nonshared.a": b"!<arch>\n",
+            }
+            for name, data in files.items():
+                if name == omitted:
+                    continue
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+
+    @staticmethod
+    def _provenance(architecture: str = "s390x") -> dict:
+        return {
+            "schema-version": 1,
+            "distro": "rhel8",
+            "architecture": architecture,
+            "image": "repo@sha256:target",
+            "packages": ["glibc-2.28.s390x", "systemtap-sdt-devel.s390x"],
+        }
+
+    def test_shared_archive_records_provenance_and_validates_each_target(self) -> None:
+        for architecture in ("amd64", "arm64", "ppc64le", "s390x"):
+            with self.subTest(architecture=architecture), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                rootfs, archive = root / "rootfs.tar", root / "sysroot.tar.gz"
+                self._rootfs(rootfs, architecture)
+                generator.create_sysroot_archive(
+                    rootfs, archive, provenance=self._provenance(architecture)
+                )
+                with tarfile.open(archive) as packaged:
+                    manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                    self.assertEqual(architecture, manifest["architecture"])
+                    self.assertEqual("repo@sha256:target", manifest["image"])
+                    self.assertIn("systemtap-sdt-devel.s390x", manifest["packages"])
+                    self.assertIn("usr/include/sys/sdt.h", manifest["validated-files"])
+
+    def test_missing_exception_probe_header_prevents_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x", omitted="usr/include/sys/sdt.h")
+            with self.assertRaisesRegex(ValueError, "sys/sdt.h"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_arm64_loader_in_lib_directory_is_validated(self) -> None:
+        for directory in ("usr/lib", "lib"):
+            with self.subTest(directory=directory), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(root / "rootfs.tar", "arm64", loader_directory=directory)
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+                with tarfile.open(root / "sysroot.tar.gz") as packaged:
+                    manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                    self.assertIn(f"{directory}/ld-linux-aarch64.so.1", manifest["validated-files"])
+                    self.assertIn("usr/lib64/crti.o", manifest["validated-files"])
+
+    def test_missing_arm64_loader_prevents_archiving(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "arm64", omitted="usr/lib64/ld-linux-aarch64.so.1")
+            with self.assertRaisesRegex(ValueError, "ld-linux-aarch64.so.1"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_loader_elsewhere_cannot_replace_missing_linker_script_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(
+                root / "rootfs.tar",
+                "amd64",
+                loader_directory="usr/lib",
+                loader_reference="/lib64/ld-linux-x86-64.so.2",
+            )
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                member = tarfile.TarInfo("lib64")
+                member.type, member.linkname = tarfile.SYMTYPE, "usr/lib64"
+                exported.addfile(member)
+            with self.assertRaisesRegex(ValueError, "libc.so.*lib64/ld-linux-x86-64.so.2"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("amd64"),
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_linker_script_loader_reference_follows_directory_aliases(self) -> None:
+        for architecture, alias, directory, loader in (
+            ("amd64", "lib64", "usr/lib64", "ld-linux-x86-64.so.2"),
+            ("arm64", "lib", "usr/lib", "ld-linux-aarch64.so.1"),
+        ):
+            with self.subTest(architecture=architecture), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(
+                    root / "rootfs.tar",
+                    architecture,
+                    loader_directory=directory,
+                    loader_reference=f'"/{alias}/{loader}"',
+                )
+                with tarfile.open(root / "rootfs.tar", "a") as exported:
+                    member = tarfile.TarInfo(alias)
+                    member.type, member.linkname = tarfile.SYMTYPE, f"/{directory}"
+                    exported.addfile(member)
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance(architecture),
+                )
+                with tarfile.open(root / "sysroot.tar.gz") as packaged:
+                    manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                    self.assertIn(f"{alias}/{loader}", manifest["validated-files"])
+
+    def test_wrong_architecture_at_linker_script_loader_reference_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            loader_path = "usr/lib/alternate/ld-linux-aarch64.so.1"
+            self._rootfs(
+                root / "rootfs.tar",
+                "arm64",
+                loader_directory="usr/lib",
+                loader_reference=f"/{loader_path}",
+            )
+            with tarfile.open(root / "rootfs.tar") as exported:
+                data = bytearray(exported.extractfile("usr/lib/ld-linux-aarch64.so.1").read())
+            data[18:20] = (62).to_bytes(2, "little")
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                member = tarfile.TarInfo(loader_path)
+                member.size = len(data)
+                exported.addfile(member, io.BytesIO(data))
+            with self.assertRaisesRegex(ValueError, f"ELF architecture.*{loader_path}"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_relative_linker_script_loader_reference_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(
+                root / "rootfs.tar",
+                "arm64",
+                loader_directory="usr/lib",
+                loader_reference="../lib/ld-linux-aarch64.so.1",
+            )
+            generator.create_sysroot_archive(
+                root / "rootfs.tar",
+                root / "sysroot.tar.gz",
+                provenance=self._provenance("arm64"),
+            )
+
+    def test_missing_misnamed_linker_script_input_prevents_archiving(self) -> None:
+        for reference in ("/usr/lib/ld-wrong-target.so.1", "ld-wrong-target.so.1"):
+            with self.subTest(reference=reference), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(
+                    root / "rootfs.tar",
+                    "arm64",
+                    loader_directory="usr/lib",
+                    loader_reference=reference,
+                )
+                with self.assertRaisesRegex(ValueError, "missing.*ld-wrong-target.so.1"):
+                    generator.create_sysroot_archive(
+                        root / "rootfs.tar",
+                        root / "sysroot.tar.gz",
+                        provenance=self._provenance("arm64"),
+                    )
+                self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_misnamed_linker_script_elf_input_is_checked_for_target_architecture(self) -> None:
+        for reference in ("/usr/lib/runtime-linker", "runtime-linker"):
+            with self.subTest(reference=reference), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(
+                    root / "rootfs.tar",
+                    "arm64",
+                    loader_directory="usr/lib",
+                    loader_reference=reference,
+                )
+                with tarfile.open(root / "rootfs.tar") as exported:
+                    data = bytearray(exported.extractfile("usr/lib/ld-linux-aarch64.so.1").read())
+                data[18:20] = (62).to_bytes(2, "little")
+                with tarfile.open(root / "rootfs.tar", "a") as exported:
+                    member = tarfile.TarInfo("usr/lib/runtime-linker")
+                    member.size = len(data)
+                    exported.addfile(member, io.BytesIO(data))
+                with self.assertRaisesRegex(ValueError, "ELF architecture.*runtime-linker"):
+                    generator.create_sysroot_archive(
+                        root / "rootfs.tar",
+                        root / "sysroot.tar.gz",
+                        provenance=self._provenance("arm64"),
+                    )
+                self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_renamed_elf_input_is_validated_without_treating_search_dirs_as_files(self) -> None:
+        for directive in ("GROUP", "INPUT"):
+            with self.subTest(directive=directive), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(root / "rootfs.tar", "arm64", loader_directory="usr/lib")
+                with tarfile.open(root / "rootfs.tar") as exported:
+                    data = exported.extractfile("usr/lib/ld-linux-aarch64.so.1").read()
+                script = (
+                    'OUTPUT_FORMAT("elf64-littleaarch64")\n'
+                    'SEARCH_DIR("/not-an-input-file")\n'
+                    f'{directive} ("/usr/lib/runtime-linker")'
+                ).encode()
+                with tarfile.open(root / "rootfs.tar", "a") as exported:
+                    for name, contents in (
+                        ("usr/lib/runtime-linker", data),
+                        ("usr/lib64/libc.so", script),
+                    ):
+                        member = tarfile.TarInfo(name)
+                        member.size = len(contents)
+                        exported.addfile(member, io.BytesIO(contents))
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+                with tarfile.open(root / "sysroot.tar.gz") as packaged:
+                    manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                    self.assertIn("usr/lib/runtime-linker", manifest["validated-files"])
+
+    def test_unbalanced_libc_linker_script_prevents_archiving(self) -> None:
+        for script in (b"GROUP ( libc.so.6", b"GROUP ( libc.so.6 ))"):
+            with self.subTest(script=script), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(root / "rootfs.tar", "arm64")
+                with tarfile.open(root / "rootfs.tar", "a") as exported:
+                    member = tarfile.TarInfo("usr/lib64/libc.so")
+                    member.size = len(script)
+                    exported.addfile(member, io.BytesIO(script))
+                with self.assertRaisesRegex(ValueError, "Unbalanced parentheses"):
+                    generator.create_sysroot_archive(
+                        root / "rootfs.tar",
+                        root / "sysroot.tar.gz",
+                        provenance=self._provenance("arm64"),
+                    )
+                self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_commented_loader_reference_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(
+                root / "rootfs.tar",
+                "arm64",
+                loader_directory="usr/lib",
+                loader_reference=(
+                    "/* /lib64/ld-linux-aarch64.so.1 */ /usr/lib/ld-linux-aarch64.so.1"
+                ),
+            )
+            generator.create_sysroot_archive(
+                root / "rootfs.tar",
+                root / "sysroot.tar.gz",
+                provenance=self._provenance("arm64"),
+            )
+
+    def test_linker_script_loader_reference_cannot_escape_sysroot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(
+                root / "rootfs.tar",
+                "arm64",
+                loader_reference="../../../outside/ld-linux-aarch64.so.1",
+            )
+            with self.assertRaisesRegex(ValueError, "reference escapes the sysroot"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_wrong_architecture_loader_in_lib_directory_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "arm64", loader_directory="usr/lib")
+            with tarfile.open(root / "rootfs.tar") as exported:
+                data = bytearray(exported.extractfile("usr/lib/ld-linux-aarch64.so.1").read())
+            data[18:20] = (62).to_bytes(2, "little")
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                member = tarfile.TarInfo("usr/lib/ld-linux-aarch64.so.1")
+                member.size = len(data)
+                exported.addfile(member, io.BytesIO(data))
+            with self.assertRaisesRegex(
+                ValueError, "ELF architecture.*usr/lib/ld-linux-aarch64.so.1"
+            ):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar",
+                    root / "sysroot.tar.gz",
+                    provenance=self._provenance("arm64"),
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_wrong_architecture_is_rejected_before_archiving(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "arm64")
+            with self.assertRaisesRegex(ValueError, "ELF architecture"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                )
+
+    def test_incomplete_crt_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x", omitted="usr/lib64/crti.o")
+            with self.assertRaisesRegex(ValueError, "crti.o"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                )
+
+    def test_misplaced_runtime_file_cannot_replace_required_library_path(self) -> None:
+        for name in ("crti.o", "libc.so", "libc_nonshared.a", "ld64.so.1"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(root / "rootfs.tar", "s390x")
+                with tarfile.open(root / "rootfs.tar") as exported:
+                    exported.extractall(root / "sysroot", filter="data")
+                required = root / "sysroot/usr/lib64" / name
+                misplaced = root / "sysroot/usr/lib/unrelated" / name
+                misplaced.parent.mkdir(parents=True, exist_ok=True)
+                required.rename(misplaced)
+                with self.assertRaisesRegex(ValueError, name):
+                    generator.validate_toolchain_sysroot(root / "sysroot", "s390x")
+
+    def test_valid_duplicate_cannot_mask_wrong_architecture_at_required_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            with tarfile.open(root / "rootfs.tar") as exported:
+                data = exported.extractfile("usr/lib64/libc.so.6").read()
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                decoy = tarfile.TarInfo("usr/lib/libc.so.6")
+                decoy.size = len(data)
+                exported.addfile(decoy, io.BytesIO(data))
+                wrong = bytearray(data)
+                wrong[18:20] = (62).to_bytes(2, "big")
+                required = tarfile.TarInfo("usr/lib64/libc.so.6")
+                required.size = len(wrong)
+                exported.addfile(required, io.BytesIO(wrong))
+            with self.assertRaisesRegex(ValueError, "ELF architecture.*usr/lib64/libc.so.6"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                )
+            self.assertFalse((root / "sysroot.tar.gz").exists())
+
+    def test_unrelated_32_bit_library_copy_does_not_replace_64_bit_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                data = b"\x7fELF\x01" + bytes(59)
+                member = tarfile.TarInfo("usr/lib/libc.so.6")
+                member.size = len(data)
+                exported.addfile(member, io.BytesIO(data))
+            generator.create_sysroot_archive(
+                root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+            )
+            with tarfile.open(root / "sysroot.tar.gz") as packaged:
+                manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                self.assertIn("usr/lib64/libc.so.6", manifest["validated-files"])
+                self.assertNotIn("usr/lib/libc.so.6", manifest["validated-files"])
+
+    def test_runtime_directory_aliases_and_loader_links_are_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            with tarfile.open(root / "rootfs.tar", "a") as exported:
+                for name, target in (
+                    ("lib", "usr/lib"),
+                    ("lib64", "usr/lib64"),
+                    ("usr/lib/ld64.so.1", "../lib64/ld64.so.1"),
+                ):
+                    member = tarfile.TarInfo(name)
+                    member.type, member.linkname = tarfile.SYMTYPE, target
+                    exported.addfile(member)
+            generator.create_sysroot_archive(
+                root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+            )
+            with tarfile.open(root / "sysroot.tar.gz") as packaged:
+                manifest = json.load(packaged.extractfile("sysroot-manifest.json"))
+                self.assertIn("usr/lib64/libc.so.6", manifest["validated-files"])
+                self.assertIn("usr/lib/ld64.so.1", manifest["validated-files"])
+
+    def test_wrong_architecture_runtime_alias_is_rejected(self) -> None:
+        for name in ("lib64/libc.so.6", "usr/lib/ld64.so.1"):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = pathlib.Path(tmp)
+                self._rootfs(root / "rootfs.tar", "s390x")
+                with tarfile.open(root / "rootfs.tar") as exported:
+                    data = bytearray(exported.extractfile("usr/lib64/libc.so.6").read())
+                data[18:20] = (62).to_bytes(2, "big")
+                with tarfile.open(root / "rootfs.tar", "a") as exported:
+                    member = tarfile.TarInfo(name)
+                    member.size = len(data)
+                    exported.addfile(member, io.BytesIO(data))
+                with self.assertRaisesRegex(ValueError, f"ELF architecture.*{name}"):
+                    generator.create_sysroot_archive(
+                        root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                    )
+
+    def test_dangling_library_link_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            with tarfile.open(root / "rootfs.tar", "a") as archive:
+                member = tarfile.TarInfo("usr/lib64/broken.so")
+                member.type, member.linkname = tarfile.SYMTYPE, "missing.so"
+                archive.addfile(member)
+            with self.assertRaisesRegex(ValueError, "dangling"):
+                generator.create_sysroot_archive(
+                    root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+                )
+
+    def test_build_id_indexes_for_excluded_executables_are_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            with tarfile.open(root / "rootfs.tar", "a") as archive:
+                for library_dir in ("usr/lib", "usr/lib64"):
+                    member = tarfile.TarInfo(f"{library_dir}/.build-id/ab/cdef")
+                    member.type, member.linkname = tarfile.SYMTYPE, "../../excluded-executable"
+                    archive.addfile(member)
+            generator.create_sysroot_archive(
+                root / "rootfs.tar", root / "sysroot.tar.gz", provenance=self._provenance()
+            )
+            with tarfile.open(root / "sysroot.tar.gz") as archive:
+                self.assertFalse(any(".build-id" in name for name in archive.getnames()))
+
+    def test_provenance_archive_hash_is_independent_of_umask(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            self._rootfs(root / "rootfs.tar", "s390x")
+            hashes = []
+            for umask in (0o022, 0o077):
+                previous = os.umask(umask)
+                try:
+                    hashes.append(
+                        generator.create_sysroot_archive(
+                            root / "rootfs.tar",
+                            root / "sysroot.tar.gz",
+                            provenance=self._provenance(),
+                        )
+                    )
+                finally:
+                    os.umask(previous)
+            self.assertEqual(hashes[0], hashes[1])
+
 
 class SysrootPublicationTest(unittest.TestCase):
     def _publish(

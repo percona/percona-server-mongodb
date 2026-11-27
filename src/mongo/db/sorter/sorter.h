@@ -615,9 +615,6 @@ class SorterBatchGuard;
  */
 template <typename Key, typename Value>
 class Sorter : public SorterBase {
-    Sorter(const Sorter&) = delete;
-    Sorter& operator=(const Sorter&) = delete;
-
 public:
     typedef std::pair<Key, Value> Data;
     typedef std::function<Value()> ValueProducer;
@@ -688,6 +685,9 @@ public:
 
     virtual ~Sorter() {}
 
+    Sorter(const Sorter&) = delete;
+    Sorter& operator=(const Sorter&) = delete;
+
     /**
      * Returns the current persisted sorter state which can then be used to later reconstruct a
      * sorter.
@@ -707,7 +707,7 @@ public:
         MONGO_UNREACHABLE;
     };
 
-    SharedBufferFragmentBuilder& memPool() {
+    virtual SharedBufferFragmentBuilder& memPool() {
         invariant(_memPool);
         return _memPool.get();
     }

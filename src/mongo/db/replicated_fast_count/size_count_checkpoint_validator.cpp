@@ -23,6 +23,7 @@
 #include "mongo/logv2/log.h"
 #include "mongo/util/assert_util.h"
 #include "mongo/util/fail_point.h"
+#include "mongo/util/timer.h"
 
 #include <algorithm>
 #include <string>
@@ -170,7 +171,14 @@ void addDelta(ReplicatedMetadataDelta& entry, const ReplicatedMetadataDelta& del
 void validateCheckpoint(const CheckpointContents& standby,
                         const CheckpointContents& primary,
                         ReportingStrategy reportingStrategy) {
+    int64_t entriesValidated = 0;
+    int64_t hashesValidated = 0;
     for (const auto& [uuid, metadata] : primary) {
+        entriesValidated++;
+        if (metadata.has_value() && metadata->hash.has_value()) {
+            hashesValidated++;
+        }
+
         // Check each entry in `primary` exists in `standby`, i.e., `primary` ⊆ `standby`.
         const auto standbyIt = standby.find(uuid);
         if (standbyIt == standby.end()) {
@@ -220,6 +228,9 @@ void validateCheckpoint(const CheckpointContents& standby,
             }
         }
     }
+
+    incrementEntriesValidatedCount(entriesValidated);
+    incrementHashesValidatedCount(hashesValidated);
 
     // `primary` ⊆ `standby` ∧ |`standby`| == |`primary`| ⇒ `standby` == `primary`. This early
     // return is an optimization. If the sizes are not equal, we will discover the missing
@@ -357,6 +368,7 @@ void SizeCountCheckpointValidator::preprocessOplogEntry(const repl::OplogEntry& 
 }
 
 void SizeCountCheckpointValidator::recordWatermark(Timestamp watermarkTs) {
+    std::lock_guard lk(_mutex);
     // Watermark timestamps are monotonically increasing, so `watermarkTs` should be the largest
     // timestamp seen so far. This also guarantees the queue is sorted.
     invariant(_intervals.empty() || watermarkTs > _intervals.back().cutoff,
@@ -370,6 +382,7 @@ void SizeCountCheckpointValidator::recordWatermark(Timestamp watermarkTs) {
 }
 
 void SizeCountCheckpointValidator::recordCheckpoint(const repl::OplogEntry& entry) {
+    std::lock_guard lk(_mutex);
     // This copy is cheap because the copy constructor of the BSONObj inside the OplogEntry just
     // increments the reference count of a SharedBuffer.
     _checkpoints.push_back(entry);
@@ -410,6 +423,7 @@ void SizeCountCheckpointValidator::recordRepairDelta(const BSONObj& o2, Timestam
         .hashUpdateMode = hashUpdateMode};
 
     const UUID uuid = parsed.getUuid();
+    std::lock_guard lk(_mutex);
     auto intervalIt =
         std::find_if(_intervals.begin(), _intervals.end(), [&](const ValidatorInterval& interval) {
             return interval.cutoff >= ts;
@@ -453,17 +467,25 @@ SizeCountCheckpointValidator::ScopedThreadBuffer::~ScopedThreadBuffer() {
 
 void SizeCountCheckpointValidator::mergeAndValidate(OperationContext* opCtx,
                                                     const ValidatorBuffers& threadRecords,
-                                                    UUID oplogUuid) {
+                                                    UUID oplogUuid,
+                                                    Timestamp lastAppliedTs) {
+    Timer timer;
+    std::lock_guard lk(_mutex);
     merge(threadRecords);
 
     if (!_baseline.has_value()) {
-        adoptCheckpoint(opCtx);
+        adoptCheckpoint(opCtx, lastAppliedTs);
+        recordValidatorCall(Milliseconds(timer.millis()));
         return;
     }
 
+    size_t validated = 0;
     for (const auto& entry : _checkpoints) {
         const Timestamp validAsOf =
             getTimestampStoreValidAsOfFromOplogEntry(entry.getEntry().toBSON());
+        if (lastAppliedTs < validAsOf) {
+            break;
+        }
 
         // Find the interval with the checkpoint's validAsOf timestamp.
         auto intervalIt = std::find_if(
@@ -504,15 +526,21 @@ void SizeCountCheckpointValidator::mergeAndValidate(OperationContext* opCtx,
               "Checkpoint validator validated checkpoint",
               "validAsOf"_attr = validAsOf,
               "validatedCollections"_attr = standby.size());
+        ++validated;
     }
 
-    _checkpoints.clear();
+    _checkpoints.erase(_checkpoints.begin(), _checkpoints.begin() + validated);
+    recordValidatorCall(Milliseconds(timer.millis()));
 }
 
 void SizeCountCheckpointValidator::reset() {
+    std::lock_guard lk(_mutex);
     LOGV2(13840300, "Checkpoint validator state reset");
     incrementWatermarksEvictedCount(_intervals.size());
-    *this = SizeCountCheckpointValidator();
+    _baseline.reset();
+    _intervals.clear();
+    _ongoing = {};
+    _checkpoints.clear();
 }
 
 void SizeCountCheckpointValidator::merge(const ValidatorBuffers& threadRecords) {
@@ -545,14 +573,21 @@ void SizeCountCheckpointValidator::merge(const ValidatorBuffers& threadRecords) 
     }
 }
 
-void SizeCountCheckpointValidator::adoptCheckpoint(OperationContext* opCtx) {
+void SizeCountCheckpointValidator::adoptCheckpoint(OperationContext* opCtx,
+                                                   Timestamp lastAppliedTs) {
     if (_checkpoints.empty()) {
         return;
     }
 
-    // Since `_checkpoints` is sorted in increasing timestamp order, the last checkpoint is also the
-    // latest checkpoint.
-    const auto& latestCheckpoint = _checkpoints.back();
+    // Adopt the latest checkpoint whose metadata writes have finished applying.
+    const auto readyEnd =
+        std::find_if(_checkpoints.begin(), _checkpoints.end(), [&](const auto& entry) {
+            return entry.getTimestamp() > lastAppliedTs;
+        });
+    if (readyEnd == _checkpoints.begin()) {
+        return;
+    }
+    const auto& latestCheckpoint = *std::prev(readyEnd);
     const Timestamp validAsOf =
         getTimestampStoreValidAsOfFromOplogEntry(latestCheckpoint.getEntry().toBSON());
 
@@ -589,12 +624,13 @@ void SizeCountCheckpointValidator::adoptCheckpoint(OperationContext* opCtx) {
         LOGV2(13629501, "Checkpoint validator adopted checkpoint", "validAsOf"_attr = validAsOf);
     }
 
-    incrementCheckpointsSkippedCount(_checkpoints.size());
+    const auto skipped = std::distance(_checkpoints.begin(), readyEnd);
+    incrementCheckpointsSkippedCount(skipped);
     LOGV2(13629500,
           "Checkpoint validator processed checkpoints without performing validation",
-          "checkpointsSkipped"_attr = _checkpoints.size());
+          "checkpointsSkipped"_attr = skipped);
 
-    _checkpoints.clear();
+    _checkpoints.erase(_checkpoints.begin(), readyEnd);
 }
 
 CheckpointContents SizeCountCheckpointValidator::computeExpectedCheckpoint(Timestamp validAsOf,

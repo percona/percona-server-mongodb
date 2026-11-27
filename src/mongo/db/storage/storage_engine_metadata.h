@@ -28,9 +28,6 @@ class KeyId;
  * Fields other than 'storage.engine' are ignored.
  */
 class StorageEngineMetadata {
-    StorageEngineMetadata(const StorageEngineMetadata&) = delete;
-    StorageEngineMetadata& operator=(const StorageEngineMetadata&) = delete;
-
 public:
     /**
      * Returns a metadata object describing the storage engine that backs the data files
@@ -51,6 +48,8 @@ public:
     StorageEngineMetadata(const std::string& dbpath);
 
     virtual ~StorageEngineMetadata();
+    StorageEngineMetadata(const StorageEngineMetadata&) = delete;
+    StorageEngineMetadata& operator=(const StorageEngineMetadata&) = delete;
 
     /**
      * Returns name of storage engine in metadata.
