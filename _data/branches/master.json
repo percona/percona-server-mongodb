@@ -5,15 +5,15 @@
   "upstream_ref": "mongodb/master",
   "is_up_to_date": false,
   "divergence": {
-    "commits_behind": 10,
+    "commits_behind": 12,
     "days_behind": 7,
-    "unmerged_oldest_age_days": 7.3906846264583335,
-    "files_affected": 139,
-    "total_additions": 5972,
-    "total_deletions": 2123,
+    "unmerged_oldest_age_days": 7.498074172592592,
+    "files_affected": 153,
+    "total_additions": 6592,
+    "total_deletions": 2183,
     "date_range": {
       "first": "2026-11-20T02:29:38+00:00",
-      "last": "2026-11-20T11:08:42+00:00"
+      "last": "2026-11-20T13:34:51+00:00"
     }
   },
   "last_merged_commit": {
@@ -41,6 +41,26 @@
     "reason": "force:important_files"
   },
   "unmerged_commits": [
+    {
+      "sha": "b5e2917e0eb0838b64ce4d90d85d63bec4b37365",
+      "short_sha": "b5e2917e0eb",
+      "date": "2026-11-20T13:34:51+00:00",
+      "author": {
+        "name": "Alya Carina Berciu",
+        "email": "alya.berciu@mongodb.com"
+      },
+      "summary": "SERVER-138279 Make plan tree shape a query setting (#66949) (#67449)"
+    },
+    {
+      "sha": "3d6087b418640186803f0ffca467617502f83bd1",
+      "short_sha": "3d6087b4186",
+      "date": "2026-11-20T12:29:07+00:00",
+      "author": {
+        "name": "Vesko Karaganev",
+        "email": "vesko.karaganev@mongodb.com"
+      },
+      "summary": "SERVER-137963 Follow collectionAlias to resolve type (#67380)"
+    },
     {
       "sha": "8c0fb48512ac5d7abb31f0fa10aee919664d6452",
       "short_sha": "8c0fb48512a",
@@ -210,7 +230,7 @@
     }
   ],
   "repo_url": "https://github.com/percona/percona-server-mongodb",
-  "generated_at": "2026-11-27 11:52:06",
+  "generated_at": "2026-11-27 14:26:44",
   "branch_name": "master",
   "display_name": "master"
 }
