@@ -11,7 +11,7 @@ permissions:
 jobs:
   analyze:
     name: Check code formatting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-format') }}
     steps:
       - name: Checkout

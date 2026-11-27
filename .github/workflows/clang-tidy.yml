@@ -33,7 +33,7 @@ jobs:
 
   analyze:
     name: Run clang-tidy analysis
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'ci-skip-clang-tidy') && needs.changed_files.outputs.changed_files != '' }}
     needs: changed_files
     steps:
