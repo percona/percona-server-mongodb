@@ -1,0 +1,248 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "32125487638ac910d6589cb26578ebd4b9cd7e83",
+    "merge_commit": "53b1f45d7608ec6e59b97f9031206081d47e06ba"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "53b1f45d7608ec6e59b97f9031206081d47e06ba",
+    "merged_commits": [
+      "53b1f45d7608ec6e59b97f9031206081d47e06ba",
+      "1b2d81b5867a47a65822ce6cb4039af250827906",
+      "d621f8ec7ec4c3e6c3d9c986c9f22814b6824eaa",
+      "9a2e9f4200af024a3d3b8a2ef8ab1243c26ab8e4",
+      "30d320a9b4cb6aa020cf5eb989749be5dfe16cf4",
+      "8e6cf38a9ecec8f4f5e7facd29d2bc64265e0862",
+      "1f65301472d70c3c8f483357d5b13a4dd4be6aa3",
+      "8b1388a61d077a94a70b01c4ea77ec164e355cdd",
+      "b00985ed8776fa77355bd48b8fd688ee3958a67a",
+      "31191316339a5687b9da07f40b377acca8ef76fa",
+      "07820341fdd9893189c165d9a47bf74b890748db",
+      "03add52d254167a1d16852ac80cb756cd20a5252",
+      "a41af0b1c37c9802181794a0c1607784c37be84a",
+      "8ece937ca384c45f81f372cd06ccb1006507f0b4",
+      "6772849bec834d2d150dc168b6e56c3a265a7818",
+      "9a3fb9db79e2058a9b8ee61a34440bfba85eca9a",
+      "57d2b3d9b49d6c9c268683d3ac4b78d80489ae9c",
+      "dd9a590b956b41d17b6bb1ff4ca5c92efc4b9fae",
+      "2d50e23137bf1c56d7fb47e8e5feb67d50ee6631",
+      "4145ffe6e2cbb98adb804e990fda11d60c4c965c",
+      "105b4ac7745d1a7b9497c3c42a4efcf42dcf11f2",
+      "41222895073d8ff85042c1c9b22f2fdaab231feb",
+      "8f73f76c656e0e0fbfd0178fac8e05521f7e570a",
+      "d6fc2fcfc61b78baf7a3de32ee69be0e18cd1997",
+      "ff4fc10fd90912238a760bd0b486b542805e012a",
+      "c939970f9c2956d19fd3caec8ed032fb3b4be35b",
+      "33fac9a85d1f0bb1963d5683c99581ce62c8dce0",
+      "af466a09d18b160c99d055f6f410d00468584ede",
+      "3258351435aeaad122a1534f0a9f9724b93c7eb4",
+      "45dfdea3856c8d222e59ebb8c8de946f1728bf99",
+      "fd3068d70d3635028c1b3c756283cef0d87770b5",
+      "0c77d8919e98f89ef7c3bc0eb6950436adacb0f4",
+      "0f31fcfaaa1f51a3280a9b3d28457ef76128679e",
+      "4dfc8485b595093595331592fb9a664bb444a8c1",
+      "ff06cc5299fbc2629b00ca49b19bbdd2445f8a28",
+      "5556a38f77ef30c4b6bbdea8f350a94d6f21c32a",
+      "730c516358c8c418ff26b0dcda7f373c78ac3846",
+      "aadef7331524ef56c4294aca0266358b4a4f5bd7",
+      "9dba5a8c463bfb60d1d9e638d73f3574bbd62493",
+      "9a2ec94576d5ecef7b186c7b5af884b485ab6cf9",
+      "d28962cd03f63ab70dfbfbd469b156aaaa1cf0d1",
+      "4fc75ecc4d33c09b58c332e734d1cb81517973f8",
+      "24e70f6fc35f3e30f176c173adae3b678cd3acfe",
+      "627fa6c7a6ff988edbe866d84dbd3e4a6ae16aad",
+      "a0b8799e1aef04e736a50d796876d53b621ac398",
+      "b1cc12c2bd52e08f2b67aae5bcd1a747794398b9",
+      "98f8dcb317aadbc1a9f33af5deaec1ee5beb3c21",
+      "174473db937fc2576a5db2ba2d371cee6ff43cb4",
+      "b16c262b13f8c7ecbac6380b00ac658ea7b2309b",
+      "a5dd4dc57b87a8bd7304c78ae5b2e55e975667a3",
+      "c0293c2c8dcc2373d97fc06b48342d408639d9c5",
+      "c76d9b04c573b0ef487bff5a2f12b2e5cc4c2923",
+      "145043dd12142b6db651e9f826e78a90658e7d99",
+      "4d9ac814afdc77ca95852e9427d2e2f66961ef16",
+      "65c54ceada5850e615c785ccb739b6c4057def3d",
+      "6cacce3ab7bfc4d6145f89de8d55c20b16aed12e",
+      "3f7aa8d6bb9a0a1926ae49ebbee5ec513a288553",
+      "cdc5d312ad0ae63522e15830399092fe2b98b7cd",
+      "d57977155f9c7ffa2925ccc8bd6ae9f2a886de85",
+      "6d047edd061d0a30ce3c2f9e2b819a2c90c0878a"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".bazelrc",
+        ".gitignore",
+        "bazel/wrapper_hook/BUILD.bazel",
+        "buildscripts/idl/idl/generator.py",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/curop.cpp",
+        "src/mongo/db/extension/host/BUILD.bazel",
+        "src/mongo/db/fts/fts_query_parser.h",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp",
+        "src/mongo/db/storage/storage_engine_metadata.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h",
+        "src/mongo/transport/BUILD.bazel",
+        "src/third_party/wiredtiger/src/conn/conn_api.c",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 59753,
+    "num_turns": 5,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.33225775,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 10,
+        "outputTokens": 4549,
+        "cacheReadInputTokens": 100753,
+        "cacheCreationInputTokens": 26897,
+        "webSearchRequests": 0,
+        "costUSD": 0.33225775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 152,
+        "cacheCreationEphemeral5mInputTokens": 26897,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 10,
+            "output": 4549,
+            "cache_read": 100753,
+            "cache_creation": 26897
+          },
+          "cost_usd": 0.33225775
+        }
+      }
+    },
+    "text_result": "I've analyzed the `diff base \u2192 merge commit` diff for all 16 auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Build config** (`.bazelrc`, `.gitignore`, `bazel/wrapper_hook/BUILD.bazel`): a Windows cross/native toolchain rework adding a new `windows-native` config group, plus ignore entries for local toolchain sysroot output.\n- **IDL generator**: new `_need_incremental_feature_rollout_headers` helper that emits an `incremental_feature_rollout.h` include for server parameters with a feature-flag rollout phase.\n- **Build graph additions** (`db/BUILD.bazel`, `extension/host/BUILD.bazel`, `pipeline/BUILD.bazel`, `repl/BUILD.bazel`, `transport/BUILD.bazel`): new source files and dependencies (incremental_feature_rollout.cpp, search index process interface, replicated fast-count validators, a change-stream invalidate-stage test, a new `secl_feature_flag` IDL target).\n- **Cosmetic reorderings** of deleted copy constructors/assignment operators in `curop.cpp`, `fts_query_parser.h`, `storage_engine_metadata.h`, `wiredtiger_util.h` (no behavior change).\n- **Test adaptation**: `pipelined_applier_advancer_test.cpp` updated to the new `addBatch` options-struct signature.\n- **WiredTiger upstream**: new batched cursor read API `next_raw_key_value_batch`, broadened read-only lock-file error handling (EPERM/EROFS), and OTel metric-type annotations on statistics.\n\nEvery claim is backed by the diff I read; nothing was inverted and no Percona-specific code appears in any hunk.",
+    "response": {
+      "summary": "Auto-merged upstream MongoDB changes (diff base 83306e5c \u2192 merge commit 53b1f45d). The merge introduces: a Windows cross/native build toolchain reworking in Bazel config; IDL generator support for incremental feature-rollout server parameters; several new build-graph source/dependency additions (incremental_feature_rollout.cpp, search index process interface, replicated fast-count checkpoint validators, a change-stream invalidate-stage test, a secl feature-flag IDL target); a non-functional reordering of deleted copy constructors/assignment operators in a handful of class declarations; an update to a pipelined applier advancer test to use an aggregate-initialized batch options struct; and upstream WiredTiger changes adding a batched cursor read API, relaxing read-only lock-file error handling, and annotating statistics with OTel metric types. All changes are auto-merged; no Percona-specific code was touched.",
+      "auto_merged": {
+        ".bazelrc": "Windows build configuration rework. The `windows` compiler comment is reworded to note native builds use MSVC while the default cross route uses clang-cl with pinned MSVC ABI/SDK inputs. A new `windows-native` config group is added (uses `no-remote-exec`, the internal host platform, `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=0`, and platform-specific config) as explicit opt-in to fully native MSVC. The `windows_unittest` config comment changes 'native launcher' to 'host launcher' and the `--config=remote_link` line is removed.",
+        ".gitignore": "Adds two ignore entries for local toolchain sysroot output: `/toolchain-sysroot-output/` and `/toolchain-sysroot-validation.tgz`.",
+        "bazel/wrapper_hook/BUILD.bazel": "Adds `//:.bazelrc` to the `data` list of a `py_test` target (the windows cross hermetic container test).",
+        "buildscripts/idl/idl/generator.py": "Adds `_need_incremental_feature_rollout_headers`, which returns True when a server parameter has a `feature_flag_phase` set to anything other than `FeatureFlagRolloutPhase.NOT_FOR_INCREMENTAL_ROLLOUT`. When true, the generated C++ header now includes `mongo/db/incremental_feature_rollout.h`.",
+        "src/mongo/db/BUILD.bazel": "Adds `incremental_feature_rollout.cpp` to a `mongo_cc_library` srcs list (alphabetically between ifr_unrecognized_flag_info.cpp and index_names.cpp).",
+        "src/mongo/db/curop.cpp": "Non-functional change: moves the deleted copy constructor and copy-assignment operator of `CurOp::CurOpStack` from the private section (before `public:`) to after the public default constructor. No behavior change.",
+        "src/mongo/db/extension/host/BUILD.bazel": "Adds `//src/mongo/db/query/search:search_index_process_interface` as a dependency to a `mongo_cc_library` and to a `mongo_cc_unit_test` target.",
+        "src/mongo/db/fts/fts_query_parser.h": "Non-functional change: moves the deleted copy constructor and copy-assignment operator of `FTSQueryParser` from the private section into the public section, after the public `FTSQueryParser(std::string_view)` constructor.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds `change_stream_check_invalidate_stage_test.cpp` to the srcs of the `db_change_stream_test` `mongo_cc_unit_test` target.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds build dependencies for replicated fast-count validation: `//src/mongo/db/replicated_fast_count:size_count_checkpoint_validator` to two libraries, `:internode_validation_hash_utils` to one library's deps, and in the `pipelined_oplog_applier_test` unit test adds `pipelined_oplog_applier_validation_test.cpp` to srcs plus `:repl_server_parameters`, `//src/mongo/db/replicated_fast_count:replicated_fast_count_test_helpers`, and `//src/mongo/db/replicated_fast_count:size_count_checkpoint_validator` to deps.",
+        "src/mongo/db/repl/pipelined_applier_advancer_test.cpp": "Updates all `tracker.addBatch(...)` call sites to the new signature: the previous positional arguments `(optime, remaining, {}, {}, nullptr, 0, nullptr)` are replaced by a designated-initializer options struct `{.lastOpTime = ...}` plus the worker count, e.g. `tracker.addBatch({.lastOpTime = batchTime(1)}, 2)`.",
+        "src/mongo/db/storage/storage_engine_metadata.h": "Non-functional change: moves the deleted copy constructor and copy-assignment operator of `StorageEngineMetadata` from the private section (before `public:`) to the public section after the destructor.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util.h": "Non-functional change: relocates the deleted copy constructor/assignment operator in two classes. For `WiredTigerUtil` they move next to the private default constructor; for `WiredTigerConfigParser` they move into the public section after the destructor.",
+        "src/mongo/transport/BUILD.bazel": "Adds a new `idl_generator` target `secl_feature_flag_gen` (from `secl_feature_flag.idl`, depending on `//src/mongo/db:basic_types_gen`). The transport `mongo_cc_library` gains `:secl_feature_flag_gen` in srcs and `//src/mongo/db:server_base` in deps.",
+        "src/third_party/wiredtiger/src/conn/conn_api.c": "In `__conn_single`, the read-only connection lock-file handling is broadened: the byte lock is now skipped for `EPERM` and `EROFS` in addition to the existing `EACCES` and `ENOENT`, and the comment is rewritten to explain that skipping the byte lock allows multiple read-only connections and a concurrent writer on a writable directory.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "Upstream WiredTiger header update. Adds a new cursor API `next_raw_key_value_batch(WT_CURSOR*, WT_ITEM *keys, WT_ITEM *values, size_t count, size_t *returned_countp)` that returns up to `count` raw key/value records in a batch, with documentation. Fixes pointer-declaration spacing in the `get_raw_key_value` signature. Numerous `WT_STAT_CONN_*` statistic doc comments gain 'OTel type: otel_gauge'/'otel_counter' annotations (the surrounding statistic value numbering is unchanged in the shown hunks)."
+      },
+      "review_notes": "All listed files were auto-merged by the ort strategy with no conflicts; none contain Percona-specific markers in the diff. Several header edits (curop.cpp, fts_query_parser.h, storage_engine_metadata.h, wiredtiger_util.h) are purely cosmetic reorderings of deleted special member functions with no semantic effect. The pipelined_applier_advancer_test.cpp change is a mechanical adaptation to a changed `addBatch` signature and should be reviewed together with the corresponding (non-listed) production header that defines the new batch-options struct and `internode_validation_hash_utils`/`size_count_checkpoint_validator` targets added in repl/BUILD.bazel. The WiredTiger header changes are vendored upstream code; verify they match the imported WiredTiger revision rather than being hand-edited."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll analyze the incoming changes for each file in the changeset."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Let me continue with the remaining files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "Now the last two WiredTiger third-party files."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I have enough to describe all files. Let me write the response."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've analyzed the `diff base \u2192 merge commit` diff for all 16 auto-merged files and written the JSON response.\n\nSummary of what this merge pulls in from upstream:\n\n- **Build config** (`.bazelrc`, `.gitignore`, `bazel/wrapper_hook/BUILD.bazel`): a Windows cross/native toolchain rework adding a new `windows-native` config group, plus ignore entries for local toolchain sysroot output.\n- **IDL generator**: new `_need_incremental_feature_rollout_headers` helper that emits an `incremental_feature_rollout.h` include for server parameters with a feature-flag rollout phase.\n- **Build graph additions** (`db/BUILD.bazel`, `extension/host/BUILD.bazel`, `pipeline/BUILD.bazel`, `repl/BUILD.bazel`, `transport/BUILD.bazel`): new source files and dependencies (incremental_feature_rollout.cpp, search index process interface, replicated fast-count validators, a change-stream invalidate-stage test, a new `secl_feature_flag` IDL target).\n- **Cosmetic reorderings** of deleted copy constructors/assignment operators in `curop.cpp`, `fts_query_parser.h`, `storage_engine_metadata.h`, `wiredtiger_util.h` (no behavior change).\n- **Test adaptation**: `pipelined_applier_advancer_test.cpp` updated to the new `addBatch` options-struct signature.\n- **WiredTiger upstream**: new batched cursor read API `next_raw_key_value_batch`, broadened read-only lock-file error handling (EPERM/EROFS), and OTel metric-type annotations on statistics.\n\nEvery claim is backed by the diff I read; nothing was inverted and no Percona-specific code appears in any hunk."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261127_090859_595795.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.332 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "53b1f45d7608ec6e59b97f9031206081d47e06ba",
+    "short_sha": "53b1f45d760",
+    "strategy": "huge_commit",
+    "summary": "The WiredTiger vendored import (#60 of 66) is the ideal merge boundary: a large, well-isolated third-party sync that rarely depends on the commits after it and is easy to validate post-merge. At 60 commits it is a coherent batch within the acceptable band, and it cleanly resolves both in-range revert pairs so features are not imported then undone: cdc5d312 'Follow collectionAlias' is cancelled by its revert 4fc75ecc, and c76d9b04 'plan tree shape query setting' is cancelled by its revert 4145ffe6 - all four sit at or before this cut. It also leaves the freshest 6 commits (dd689de3 wiredtiger_metrics deprecation through e028cfa8) for the next batch so that churn can settle upstream first, rather than ending on an unsettled newest commit.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/45970676731"
+  }
+}
