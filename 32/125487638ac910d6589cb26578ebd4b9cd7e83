@@ -1,0 +1,162 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "d802b56f00532aaac3820f318c93674a2d7a8005",
+    "merge_commit": "83306e5c0363f1d2ce47e1ea652a02b2ff4863c4"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "83306e5c0363f1d2ce47e1ea652a02b2ff4863c4",
+    "merged_commits": [
+      "83306e5c0363f1d2ce47e1ea652a02b2ff4863c4",
+      "064cb5e3826fbc4b9e62007c10377138df0c0c94",
+      "b6f35950267dd5b01abdc125a51a47897adf1e91",
+      "8560ce1b0245e570901c87eb5ea94fb8c28bd9b2",
+      "22e41530f50ec28545d50831d7a1e3df8b59556d",
+      "343d131a4e4cef01aebd6058b991c76e653a8dba",
+      "72fea84ebbb6228e3c8c590c3da7e5b6a95676a3",
+      "ec78d21189ece7485bf9d05b224595a1a327cafe",
+      "d644b208f4718642ac2a7488a2b60182d721e9cb",
+      "e13053c61bf034de83829c33d2bde72f419c84a7",
+      "2a03c8a15d051e0291ebf3f81f1497faf425cdf6",
+      "c88ba24c2ddca492ffd9627e549f719538759b09",
+      "d2939021490c95a83247f0e502a5eea72a1cb2e5",
+      "81e5c5bcc30685bc8c8362eea4d8887fec97872f",
+      "cb7fecf15e7a086c2d50a4f880c9538f2d3232d2",
+      "5a67f4683d788ff5ed87db370c54fa389d885adc",
+      "1dae39ebc987edf61c335322d4d9c31d34508921",
+      "98a82f33e8c14205200f1b9cc2983100581924d6",
+      "601e53a26d8473608f2d719f492d216d49befc92",
+      "539173e9433b4b0df1684dcb16be3382078a3b31",
+      "a253baafa2cf2afbb3c31dfca7641f7b92ffbf41",
+      "e533595e9dfd792849d34f53cf06c2d03dca6f0c",
+      "ad921b9f571556ddd8c185bfa0f47d25eb2d9960",
+      "6fd3e166e23473124d615cc1190b32f04b41b182",
+      "c205ce78d4a29112b13e5f70e9487eceb67d02b5",
+      "2c83b056842a1a29bfa3ee10689b738a6d477160",
+      "0f9007ac9cfacc76015a5616c47359fae15a339e",
+      "5d82df7aab0bd834bf992d44ca48dc42cbd21d18",
+      "6b73301e23f6cf84487fa4c3afdee6dd05ad4324",
+      "11db954b0dc9da6c284a9428308aae82a81b4ebe",
+      "e76245bf6ff2794696c06d565cf26e2ce3a172be",
+      "e32e0395cd6f74c53fcce540a3991fedfc171aff",
+      "8af378be0605917c4d8a956fc28995889dac8106",
+      "a73a8a81d90b9490dffbda32c8b119549918dbfe",
+      "93c75e236df192889e2c219a0970389b99818516",
+      "6eec4e4396f904c28add1eb88a8664f9605320c4"
+    ],
+    "important_files_modified": [],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        ".gitignore",
+        "src/mongo/db/BUILD.bazel",
+        "src/mongo/db/extension/host/BUILD.bazel",
+        "src/mongo/db/extension/test_examples/BUILD.bazel",
+        "src/mongo/db/op_debug.cpp",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/query/BUILD.bazel",
+        "src/mongo/db/repl/BUILD.bazel",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 32223,
+    "num_turns": 3,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.18282625,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 6,
+        "outputTokens": 2578,
+        "cacheReadInputTokens": 43080,
+        "cacheCreationInputTokens": 15489,
+        "webSearchRequests": 0,
+        "costUSD": 0.18282625,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 43,
+        "cacheCreationEphemeral5mInputTokens": 15489,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 6,
+            "output": 2578,
+            "cache_read": 43080,
+            "cache_creation": 15489
+          },
+          "cost_usd": 0.18282625
+        }
+      }
+    },
+    "text_result": "I've read the incoming diff for all nine auto-merged files (using the authoritative `e1909efbbc4 \u2192 83306e5c036` base) and written the JSON description to the response file.\n\nSummary of what the merge pulls in:\n\n- **.gitignore** \u2014 ignores `coverage/` (C++ coverage artifacts).\n- **op_debug.cpp** \u2014 new `SPOOL` spilling-stage case emitting `spool*` spill stats.\n- **extension/host & test_examples BUILD** \u2014 new extension-command library source (`extension_command.cpp`), a new `extension_command_test`, and a `mock_commands` test extension plus related deps.\n- **pipeline BUILD** \u2014 new `end_of_transaction_rebuild_state` library and a split-out `change_stream_expired_pre_image_remover_registerer` library (wired to replica-set lifecycle events); **db/BUILD** renames the dep to the registerer.\n- **query & repl BUILD** \u2014 dependency/test-source additions (`spilling_stats`, `plan_summary_stats_test.cpp`, `rss` persistence providers).\n- **replication_coordinator_impl.cpp** \u2014 preloads the Replicated RecordIds group-membership cache (`reloadEffectiveRecordIdsGroupId`) at startup before oplog application.\n\nEvery statement is backed by lines in the actual diff. All files merged cleanly with no conflict markers and no Percona-specific files touched.",
+    "response": {
+      "summary": "Upstream merge integrating several independent changes: a new SPOOL spilling-stats case in op_debug, extension-command support (new extension_command library sources, unit test target, and a mock_commands test extension), a refactor splitting the change-stream expired pre-image remover into a separate '_registerer' library wired through replica-set lifecycle events, a new end_of_transaction_rebuild_state library, Replicated RecordIds group-membership cache preloading at replication startup, plus assorted BUILD.bazel dependency additions and a .gitignore entry for coverage artifacts.",
+      "auto_merged": {
+        ".gitignore": "Adds a '# C++ Code Coverage Artifacts' section ignoring the 'coverage/' directory.",
+        "src/mongo/db/BUILD.bazel": "Adds ':service_context' and '//src/mongo/otel/metrics:otel_metrics_service' deps to a library, adds '//src/mongo/db/commands/server_status:server_status_metric' to a unit test's deps, and renames the dependency '//src/mongo/db/pipeline:change_stream_expired_pre_image_remover' to '...:change_stream_expired_pre_image_remover_registerer'.",
+        "src/mongo/db/extension/host/BUILD.bazel": "Adds '//src/mongo/db/auth:authprivilege' dep to one library; adds 'extension_command.cpp' source plus '//src/mongo/db/auth' and '//src/mongo/db/extension/shared/handle/command:command_handles' deps to the extension_host library; and adds a new 'extension_command_test' mongo_cc_unit_test target (tagged mongo_unittest_seventh_group) building extension_command_test.cpp.",
+        "src/mongo/db/extension/test_examples/BUILD.bazel": "Adds ':mock_commands_extension_signed_lib' to the extensions_with_config list and defines a new signed_mongo_cc_extension_shared_library 'mock_commands_extension' (srcs mock_commands.cpp) that registers extension commands for no-passthrough tests, with a TODO SERVER-138308 note.",
+        "src/mongo/db/op_debug.cpp": "Adds a new 'case PlanSummaryStats::SpillingStage::SPOOL' branch in addSingleSpillingStats that appends spoolSpills, spoolSpilledBytes, spoolSpilledRecords, and spoolSpilledDataStorageSize fields.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds a new 'end_of_transaction_rebuild_state' library (end_of_transaction_rebuild_state.{cpp,h}; deps //src/mongo:base, //src/mongo/db:service_context) and adds it as a dep of change_stream_helpers; adds a new 'change_stream_expired_pre_image_remover_registerer' library that subscribes the pre-images remover to replica-set lifecycle events (deps on :change_stream_expired_pre_image_remover and //src/mongo/db/repl:replica_set_aware_service).",
+        "src/mongo/db/query/BUILD.bazel": "Adds '//src/mongo/db/pipeline/spilling:spilling_stats' dep to a library and adds 'plan_summary_stats_test.cpp' to a mongo_cc_unit_test's srcs.",
+        "src/mongo/db/repl/BUILD.bazel": "Adds '//src/mongo/db/rss:persistence_provider' and '//src/mongo/db/rss:replicated_storage_service' deps to one library, and '//src/mongo/db/rss/attached_storage:attached_persistence_provider' to a mongo_cc_unit_test.",
+        "src/mongo/db/repl/replication_coordinator_impl.cpp": "In ReplicationCoordinatorImpl::startup, adds a call to _replicationProcess->getConsistencyMarkers()->reloadEffectiveRecordIdsGroupId(opCtx) to preload the Replicated RecordIds group-membership cache before any oplog application."
+      },
+      "review_notes": "All listed files merged cleanly (ort auto-merge); no conflict markers and no Percona-specific files were touched. Changes are purely additive upstream content. Note the BUILD.bazel dependency rename from 'change_stream_expired_pre_image_remover' to 'change_stream_expired_pre_image_remover_registerer' in src/mongo/db/BUILD.bazel, which pairs with the new registerer library defined in src/mongo/db/pipeline/BUILD.bazel."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I've read the incoming diff for all nine auto-merged files (using the authoritative `e1909efbbc4 \u2192 83306e5c036` base) and written the JSON description to the response file.\n\nSummary of what the merge pulls in:\n\n- **.gitignore** \u2014 ignores `coverage/` (C++ coverage artifacts).\n- **op_debug.cpp** \u2014 new `SPOOL` spilling-stage case emitting `spool*` spill stats.\n- **extension/host & test_examples BUILD** \u2014 new extension-command library source (`extension_command.cpp`), a new `extension_command_test`, and a `mock_commands` test extension plus related deps.\n- **pipeline BUILD** \u2014 new `end_of_transaction_rebuild_state` library and a split-out `change_stream_expired_pre_image_remover_registerer` library (wired to replica-set lifecycle events); **db/BUILD** renames the dep to the registerer.\n- **query & repl BUILD** \u2014 dependency/test-source additions (`spilling_stats`, `plan_summary_stats_test.cpp`, `rss` persistence providers).\n- **replication_coordinator_impl.cpp** \u2014 preloads the Replicated RecordIds group-membership cache (`reloadEffectiveRecordIdsGroupId`) at startup before oplog application.\n\nEvery statement is backed by lines in the actual diff. All files merged cleanly with no conflict markers and no Percona-specific files touched."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261127_051232_796942.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.332 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "83306e5c0363f1d2ce47e1ea652a02b2ff4863c4",
+    "short_sha": "83306e5c036",
+    "strategy": null,
+    "summary": "This cuts at a clean 36-commit boundary that avoids both revert-pair hazards in the window. Two upstream reverts sit inside the window: #67358 reverts SERVER-137963 'Follow collectionAlias to resolve type' (cdc5d312) and #67398 reverts SERVER-138279 'Make plan tree shape a query setting' (c76d9b04). The plan-tree-shape revert lands only at index 77 (12 files/7 dirs), well beyond the ~50 comfortable band, so I cannot include its original (index 45) together with its revert without an oversized batch. Nor can I reach the collectionAlias revert (index 55) without passing the still-dangling plan-tree-shape original at 45. The cleanest option is therefore to stop before any of these revert originals, leaving both original+revert pairs to cancel out in the next batch. 83306e5c (SERVER-138390 Always validate user supplied query settings) is a self-contained validation change and a natural stopping point: it ends before the SERVER-137963 collectionAlias/field-metadata work (indices 37 & 39) so that stacked ticket is not split, and it keeps the batch free of any import-then-revert churn. 36 commits is slightly under the 50 target, but avoiding wasted conflict-resolution on reverted work and not splitting a coherent ticket are good reasons to cut a bit early.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/45943934373"
+  }
+}
