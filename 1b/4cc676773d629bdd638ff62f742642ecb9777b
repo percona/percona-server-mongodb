@@ -1,0 +1,171 @@
+{
+  "merge_info": {
+    "target_branch": "master",
+    "target_branch_sha": "2b47a719f058cf5551efb07dd154622807c2ceba",
+    "merge_commit": "ab2f248c55dd5f10870b67805f4228fee39d0f4b"
+  },
+  "mergai_version": "0.1.dev1+g9f8ddcccc",
+  "merge_context": {
+    "merge_commit": "ab2f248c55dd5f10870b67805f4228fee39d0f4b",
+    "merged_commits": [
+      "ab2f248c55dd5f10870b67805f4228fee39d0f4b",
+      "be1441c52c5ac7352931d155027db9f6dcb1e6a0",
+      "ea8e8f76223b6848c53bc0e64af6f5aab40d6631",
+      "4d99cb26f89d123acfe31d551c3d5de3f0dde1fa",
+      "4ff4ef5062476c6638c19a4c1f1bb70c29bc0c31",
+      "71da76301b586c3bc2dcfc193b818f6f32e92728",
+      "496a95f8258bdec6fda87b1f1670697bffc34ff1",
+      "bdf1e273c37f4083e39110f5c3a78a88a5948d30",
+      "2ebe75d4fe0f359bef2839a3cd4bfae5fbbc9896",
+      "17c3164c4157aea049915fc71c5734868023e2ec",
+      "7c47746fbb1efc5f0fa4c1080bbf71f2c41b889f",
+      "bb6fdbb19d03ebb955277d963daa35d561176411",
+      "d63ccff460931d53a295db92c71352435328a80d",
+      "b60eea50453e0b19db72fef2f29b59c8d6b46462",
+      "b5e2917e0eb0838b64ce4d90d85d63bec4b37365",
+      "3d6087b418640186803f0ffca467617502f83bd1",
+      "8c0fb48512ac5d7abb31f0fa10aee919664d6452",
+      "15f0072d8c35fe65d849e3072edaf9e2667240cc",
+      "41a772163dd2792870e27ca9bd817dfd3f29d8d3",
+      "8d03c98e5176f7190743405bc3b38d480911fb80",
+      "e028cfa8777f9f68ce451749d011da1e0e83df6e",
+      "5cfbaebfb0cf320395b149f2c3be4c2ae3dfe759",
+      "a17db18c2ec402733dcacd8a11d3f3e8a9ef2407",
+      "a7f4e433f5607911030667556cbaf44f1a744f37",
+      "62080b96537090135ab3bad94bd7e484ada21acb",
+      "dd689de304b578b47bf8765045a48774e263d539"
+    ],
+    "important_files_modified": [
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+      "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine_test.cpp"
+    ],
+    "auto_merged": {
+      "strategy": "ort",
+      "files": [
+        "MODULE.bazel.lock",
+        "src/mongo/db/pipeline/BUILD.bazel",
+        "src/mongo/db/storage/kv/kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp",
+        "src/mongo/shell/servers.js",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in"
+      ]
+    }
+  },
+  "merge_description": {
+    "status": "success",
+    "is_error": false,
+    "duration_ms": 51017,
+    "num_turns": 4,
+    "stop_reason": "end_turn",
+    "total_cost_usd": 0.27942575000000003,
+    "modelUsage": {
+      "claude-opus-4-8": {
+        "inputTokens": 8,
+        "outputTokens": 3810,
+        "cacheReadInputTokens": 76434,
+        "cacheCreationInputTokens": 23347,
+        "webSearchRequests": 0,
+        "costUSD": 0.27942575000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "thinkingTokens": 531,
+        "cacheCreationEphemeral5mInputTokens": 23347,
+        "cacheCreationEphemeral1hInputTokens": 0,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty",
+        "costBasis": "list"
+      }
+    },
+    "stats": {
+      "models": {
+        "claude-opus-4-8": {
+          "tokens": {
+            "input": 8,
+            "output": 3810,
+            "cache_read": 76434,
+            "cache_creation": 23347
+          },
+          "cost_usd": 0.27942575000000003
+        }
+      }
+    },
+    "text_result": "I inspected the actual `diff base \u2192 merge commit` diffs for each auto-merged file and wrote the JSON response.\n\nKey findings from the diffs:\n\n- **kv_engine.h / wiredtiger_kv_engine.{h,cpp}**: upstream removed the virtual `collectStorageStats()` hook and replaced WiredTigerKVEngine's version with a narrower `reportLayeredDataHandleCount(const BSONObj&)` that consumes caller-supplied connection stats.\n- **wiredtiger_global_options.idl**: reworded `wiredTigerBlindWriteRatio` (now \"inserts and updates\") and added a new `wiredTigerBlindRemoveEnabled` kill-switch server parameter.\n- **wiredtiger.h.in**: WiredTiger import adding two new checkpoint stat constants (1464/1465) and mechanically renumbering the rest.\n- **wiredtiger_util_test.cpp**: stat-visitor tests switched from asserting `KeyNotFound` to a `-1` sentinel gauge value.\n- **servers.js**: added ANPL front-end support to `MongoRunner`.\n- **pipeline/BUILD.bazel**: added a change-stream resumability test source.\n- **MODULE.bazel.lock**: regenerated lock file.\n\nThe response was written to the specified path with a summary, per-file explanations backed by the diffs I read, and review notes.",
+    "response": {
+      "summary": "Upstream MongoDB changes merged into the fork. The main themes are: (1) a WiredTiger storage-stats refactor that removes the virtual KVEngine::collectStorageStats() hook and replaces WiredTigerKVEngine's implementation with a narrower reportLayeredDataHandleCount() helper; (2) WiredTiger blind-write/blind-remove work, adding a new wiredTigerBlindRemoveEnabled server parameter and clarifying that the blind-write ratio applies to inserts and updates; (3) a WiredTiger source import that adds two new checkpoint statistics constants and renumbers the WT_STAT_CONN_* defines; (4) test additions/adjustments for the WiredTiger stat visitor and a change-stream resumability test; and (5) MongoRunner ANPL front-end support in the shell. A number of these files were auto-merged by the ORT strategy.",
+      "auto_merged": {
+        "MODULE.bazel.lock": "Bazel lock file regenerated/updated as part of the merge; machine-generated content not manually reconcilable.",
+        "src/mongo/db/pipeline/BUILD.bazel": "Adds change_stream_check_resumability_error_as_event_test.cpp to the srcs of the db_document_source_test mongo_cc_unit_test target.",
+        "src/mongo/db/storage/kv/kv_engine.h": "Removes the virtual collectStorageStats() method (which returned boost::optional<BSONObj>, default boost::none) from the KVEngine base interface. Also refines the BlindWritePolicy::blind enum comment to say the existence check is skipped on inserts and updates.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_global_options.idl": "Reworks the wiredTigerBlindWriteRatio server-parameter description to state it applies to the fraction of inserts and updates using WiredTiger overwrite=true. Adds a new wiredTigerBlindRemoveEnabled server parameter (Atomic<bool> gWiredTigerBlindRemoveEnabled, default false, set_at startup/runtime) acting as a kill switch so removes during standby oplog application may open their cursor with the WiredTiger blind_remove option, skipping the key-existence check.",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.cpp": "Removes WiredTigerKVEngine::collectStorageStats() (which built a curated fieldsToInclude list, called WiredTigerUtil::collectConnectionStatistics, and returned the stats BSON). Replaces it with reportLayeredDataHandleCount(const BSONObj& connStats), which reads the 'Layered connection data handles currently active' value from the passed-in connStats and forwards it via _provider.reportLayeredDataHandleCount().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_kv_engine.h": "Replaces the collectStorageStats() override declaration with a new reportLayeredDataHandleCount(const BSONObj& connStats) const method, documented to report the active layered data handle count from the output of WiredTigerUtil::collectConnectionStatistics().",
+        "src/mongo/db/storage/wiredtiger/wiredtiger_util_test.cpp": "Updates StatVisitorTest cases (ExportExcludeCategoriesSkipsOTelUpdatesForExcludedStats and ExportIncludeStatsOnlyUpdatesOTelForIncludedStats) to seed the gauge with a sentinel kUnexportedGaugeValue (-1) before export and then assert the gauge equals that sentinel, instead of asserting readGauge throws ErrorCodes::KeyNotFound. Adds the kUnexportedGaugeValue constant to the fixture.",
+        "src/mongo/shell/servers.js": "Adds ANPL front-end support to MongoRunner. Introduces an anplByPort map and an anpl logical option; MongoRunner.runMongod, when opts.anpl is set, validates via MongoRunner.anplFrontend, starts the ANPL front end and returns the ANPL connection while recording the server port and a stop callback. runMongos asserts anpl is unsupported. stopMongoProgram redirects to the underlying server port and invokes the ANPL stop callback. Declares MongoRunner.anplFrontend (default undefined), set by the private monguard module.",
+        "src/third_party/wiredtiger/src/include/wiredtiger.h.in": "WiredTiger source import: adds two new checkpoint statistics defines, WT_STAT_CONN_CHECKPOINT_PARALLEL_WAIT_TIME (1464) and WT_STAT_CONN_CHECKPOINT_WALK_TIME (1465), and renumbers the subsequent WT_STAT_CONN_* constants accordingly (a large mechanical shift of the stat ID values)."
+      },
+      "review_notes": "The collectStorageStats() interface removal (kv_engine.h / wiredtiger_kv_engine.{h,cpp}) changes the storage-stats collection API from an engine-owned BSON producer to a caller-supplied-connStats consumer (reportLayeredDataHandleCount); verify any Percona callers of collectStorageStats() are updated accordingly. The wiredtiger.h.in change is a mechanical stat-constant renumbering plus two new checkpoint stats from the WiredTiger import and should not require manual intervention. All listed files were reported as auto-merged (ORT) with no conflict markers; MODULE.bazel.lock should be regenerated via bazel per project guidance."
+    },
+    "session": {
+      "messages": [
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I'll inspect the actual diffs for each auto-merged file."
+          ],
+          "tools_used": []
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Bash"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [],
+          "tools_used": [
+            "Write"
+          ]
+        },
+        {
+          "role": "assistant",
+          "model": "claude-opus-4-8",
+          "thoughts": [
+            "I inspected the actual `diff base \u2192 merge commit` diffs for each auto-merged file and wrote the JSON response.\n\nKey findings from the diffs:\n\n- **kv_engine.h / wiredtiger_kv_engine.{h,cpp}**: upstream removed the virtual `collectStorageStats()` hook and replaced WiredTigerKVEngine's version with a narrower `reportLayeredDataHandleCount(const BSONObj&)` that consumes caller-supplied connection stats.\n- **wiredtiger_global_options.idl**: reworded `wiredTigerBlindWriteRatio` (now \"inserts and updates\") and added a new `wiredTigerBlindRemoveEnabled` kill-switch server parameter.\n- **wiredtiger.h.in**: WiredTiger import adding two new checkpoint stat constants (1464/1465) and mechanically renumbering the rest.\n- **wiredtiger_util_test.cpp**: stat-visitor tests switched from asserting `KeyNotFound` to a `-1` sentinel gauge value.\n- **servers.js**: added ANPL front-end support to `MongoRunner`.\n- **pipeline/BUILD.bazel**: added a change-stream resumability test source.\n- **MODULE.bazel.lock**: regenerated lock file.\n\nThe response was written to the specified path with a summary, per-file explanations backed by the diffs I read, and review notes."
+          ],
+          "tools_used": []
+        }
+      ],
+      "metadata": {
+        "lastPrompt": "Read @/home/runner/work/percona-server-mongodb/percona-server-mongodb/.cache/mergai/prompt_20261128_051022_384800.md and write your JSON response to @/home/runner/work/percona-server-mongodb/percona-s\u2026"
+      }
+    },
+    "agent_info": {
+      "agent_type": "claude_cli",
+      "version": "2.1.332 (Claude Code)"
+    }
+  },
+  "merge_pick": {
+    "type": "ai",
+    "sha": "ab2f248c55dd5f10870b67805f4228fee39d0f4b",
+    "short_sha": "ab2f248c55d",
+    "strategy": null,
+    "summary": "The window holds only 29 commits, so the full target band isn't reachable; a 26-commit batch ending here is a reasonable, coherent cut. ab2f248c is a self-contained, test-only, single-file commit (SERVER-138570 streaming group path arrayness invalidation test) that depends on nothing after it, making it a clean and easy-to-validate boundary. Stopping here deliberately leaves the freshest three candidates for the next batch: a Revert of SERVER-139595 (#67423) plus the recipient-transition-validator and SBE MinKey/MaxKey materialization changes. Those newest commits are the ones most likely to see follow-up churn/fixups, and letting upstream settle them avoids importing back-and-forth now. The large WiredTiger vendored import (41a7721) earlier in the window would also be a clean boundary but at only ~8 commits it is too small given the gate has decided it is time to merge a fuller batch.",
+    "run_url": "https://github.com/percona/percona-server-mongodb/actions/runs/46110615345"
+  }
+}
