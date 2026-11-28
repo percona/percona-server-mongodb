@@ -41,7 +41,7 @@ class KVEngineDirectCrudCursor;
 enum class [[MONGO_MOD_PUBLIC]] BlindWritePolicy {
     // Storage engine performs its usual existence check before writing.
     nonBlind,
-    // Skip the existence check; overwrite if a value is already present.
+    // Skip the existence check on inserts and updates; overwrite if a value is already present.
     blind,
 };
 
@@ -656,14 +656,6 @@ public:
      */
     virtual boost::optional<StorageTierLevelEnum> getStorageTierFromStorageOptions(
         const BSONObj& storageEngineOptions) const = 0;
-
-    /**
-     * Returns a collection of statistics about the storage engine, or boost::none
-     * if the engine is unable to collect or by default.
-     */
-    virtual boost::optional<BSONObj> collectStorageStats() {
-        return boost::none;
-    }
 
     /**
      * Returns the input storage engine options, sanitized to remove options that may not apply to

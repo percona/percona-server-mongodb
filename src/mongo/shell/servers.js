@@ -7,6 +7,8 @@ let shellVersion = version;
 // called.
 let serverExitCodeMap = {};
 let grpcToMongoRpcPortMap = {};
+// ANPL listener port -> {serverPort, stop}, for stopping a mongod through its ANPL port.
+let anplByPort = {};
 
 // A path.join-like thing for paths that must work
 // on Windows (\-separated) and *nix (/-separated).
@@ -379,6 +381,7 @@ MongoRunner.logicalOptions = {
     waitForConnect: true,
     waitForConnectTimeoutMS: true,
     bridgeOptions: true,
+    anpl: true,
     skipValidation: true,
     backupOnRestartDir: true,
     allowedExitCode: true,
@@ -1001,6 +1004,10 @@ MongoRunner.runMongod = function (opts) {
     if (isObject(opts)) {
         opts = MongoRunner.mongodOptions(opts);
         fullOptions = opts;
+        if (opts.anpl) {
+            assert(MongoRunner.anplFrontend, "anpl requires the private shell module");
+            MongoRunner.anplFrontend.check(opts);
+        }
 
         if (opts.useHostName != undefined) {
             useHostName = opts.useHostName;
@@ -1068,6 +1075,14 @@ MongoRunner.runMongod = function (opts) {
     mongod.savedOptions = MongoRunner.savedOptions[mongod.runId];
     mongod.fullOptions = fullOptions;
 
+    if (isObject(fullOptions) && fullOptions.anpl) {
+        const conn = MongoRunner.anplFrontend.start(mongod, fullOptions);
+        anplByPort[conn.port] = {
+            serverPort: parseInt(mongod.commandLine.port),
+            stop: (waitpid) => MongoRunner.anplFrontend.stop(conn, waitpid),
+        };
+        return conn;
+    }
     return mongod;
 };
 
@@ -1086,6 +1101,7 @@ MongoRunner.runMongos = function (opts) {
     let fullOptions = opts;
 
     if (isObject(opts)) {
+        assert(!opts.anpl, "anpl is only supported by MongoRunner.runMongod");
         opts = MongoRunner.mongosOptions(opts);
         fullOptions = opts;
 
@@ -1119,6 +1135,11 @@ MongoRunner.runMongos = function (opts) {
 
     return mongos;
 };
+
+// Set by buildscripts/modules/monguard/jstests/libs/mongorunner_monguard.js:
+// {check(opts), start(mongod, opts), stop(conn, waitpid)}. 'start' returns the connection through
+// ANPL; the node's own address stays on mongod.
+MongoRunner.anplFrontend = undefined;
 
 MongoRunner.StopError = function (returnCode) {
     this.name = "StopError";
@@ -1224,6 +1245,11 @@ let stopMongoProgram = function (conn, signal, opts, waitpid) {
     if (grpcToMongoRpcPortMap[port]) {
         port = grpcToMongoRpcPortMap[port];
     }
+    const anpl = anplByPort[port];
+    if (anpl) {
+        delete anplByPort[port];
+        port = anpl.serverPort;
+    }
 
     // If the return code is in the serverExitCodeMap, it means the server crashed on startup.
     // We just use the recorded return code instead of stopping the program.
@@ -1246,6 +1272,10 @@ let stopMongoProgram = function (conn, signal, opts, waitpid) {
         }
 
         returnCode = _stopMongoProgram(port, signal, opts, waitpid);
+    }
+
+    if (anpl) {
+        anpl.stop(waitpid);
     }
 
     // If we are not waiting for shutdown, then there is no exit code to check.
