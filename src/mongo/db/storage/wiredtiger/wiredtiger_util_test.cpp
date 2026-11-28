@@ -1477,6 +1477,9 @@ protected:
             std::string_view{name}, otel::metrics::DynamicMetricNameTestPasskeyMaker::make()));
     }
 
+    // A page count WiredTiger never reports, used to show that an export left a gauge untouched.
+    static constexpr int64_t kUnexportedGaugeValue = -1;
+
     otel::metrics::OtelMetricsCapturer _capturer;
     WiredTigerMetricRegistry _registry;
 };
@@ -1509,6 +1512,10 @@ TEST_F(StatVisitorTest, ExportExcludeCategoriesSkipsOTelUpdatesForExcludedStats)
     WiredTigerUtilHarnessHelper harnessHelper("statistics=(all)");
     WiredTigerSession session(harnessHelper.getConnection());
 
+    // Metrics are process-wide, so other tests may already have registered the gauge. Seed it with
+    // a value WiredTiger can never report to detect whether the export touched it.
+    _registry.updateGauge(gauge, kUnexportedGaugeValue);
+
     BSONObjBuilder bob;
     ASSERT_OK(
         WiredTigerUtil::exportStatsBSONAndOTel(session,
@@ -1520,7 +1527,7 @@ TEST_F(StatVisitorTest, ExportExcludeCategoriesSkipsOTelUpdatesForExcludedStats)
                                                WiredTigerUtil::FilterBehavior::kExcludeCategories));
 
     ASSERT_GTE(readCounter(counter), 0);
-    ASSERT_THROWS_CODE(readGauge(gauge), DBException, ErrorCodes::KeyNotFound);
+    ASSERT_EQ(readGauge(gauge), kUnexportedGaugeValue);
 }
 
 TEST_F(StatVisitorTest, ExportIncludeStatsOnlyUpdatesOTelForIncludedStats) {
@@ -1529,6 +1536,8 @@ TEST_F(StatVisitorTest, ExportIncludeStatsOnlyUpdatesOTelForIncludedStats) {
 
     WiredTigerUtilHarnessHelper harnessHelper("statistics=(all)");
     WiredTigerSession session(harnessHelper.getConnection());
+
+    _registry.updateGauge(gauge, kUnexportedGaugeValue);
 
     BSONObjBuilder bob;
     ASSERT_OK(
@@ -1541,7 +1550,7 @@ TEST_F(StatVisitorTest, ExportIncludeStatsOnlyUpdatesOTelForIncludedStats) {
                                                WiredTigerUtil::FilterBehavior::kIncludeStats));
 
     ASSERT_GTE(readCounter(counter), 0);
-    ASSERT_THROWS_CODE(readGauge(gauge), DBException, ErrorCodes::KeyNotFound);
+    ASSERT_EQ(readGauge(gauge), kUnexportedGaugeValue);
 }
 
 TEST_F(StatVisitorTest, ExportReportsCounterIncrementsNotTotals) {
